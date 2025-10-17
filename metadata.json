@@ -1,0 +1,5 @@
+{
+  "name": "French Text-to-Speech Converter",
+  "description": "A web application that converts text into French speech using the Gemini API, with an interface in Arabic.",
+  "requestFramePermissions": []
+}
