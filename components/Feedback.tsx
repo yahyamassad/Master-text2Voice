@@ -120,7 +120,7 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                 <h3 className="text-lg font-bold text-center">{t('feedbackConfigNeededTitle', language)}</h3>
                 <p className="mt-2 text-center text-yellow-400">{t('feedbackConfigNeededBody_part1', language)}</p>
                 <div dir="ltr" className="my-4 p-3 bg-slate-900 rounded-md text-sm font-mono text-cyan-300 text-left">
-                    {firebaseEnvVars.map(v => <div key={v}>{v}</div>)}
+                    <pre><code>{firebaseEnvVars.join('\n')}</code></pre>
                 </div>
                 <p className="text-center text-yellow-400">
                     {t('feedbackConfigNeededBody_part2', language)}
