@@ -176,10 +176,20 @@ export const translations = {
       en: 'Firebase Configuration Needed',
       fr: 'Configuration Firebase Requise',
   },
-  feedbackConfigNeededBody: {
-      ar: 'ميزة التعليقات معطلة. لتفعيلها، يجب إضافة بيانات اعتماد Firebase كمتغيرات بيئة (Environment Variables) في منصة النشر الخاصة بك. يتم قراءة هذه المتغيرات من ملف `firebaseConfig.ts`.',
-      en: 'The feedback feature is disabled. To enable it, Firebase credentials must be added as Environment Variables on your deployment platform. These variables are read by the `firebaseConfig.ts` file.',
-      fr: 'La fonctionnalité de commentaires est désactivée. Pour l\'activer, les informations d\'identification Firebase doivent être ajoutées en tant que variables d\'environnement sur votre plateforme de déploiement. Ces variables sont lues par le fichier `firebaseConfig.ts`.',
+  feedbackConfigNeededBody_part1: {
+      ar: 'ميزة التعليقات معطلة. لتفعيلها، قم بإنشاء تطبيق ويب في مشروع Firebase الخاص بك وأضف قيم الإعداد التالية كمتغيرات بيئة (Environment Variables) في منصة النشر الخاصة بك:',
+      en: 'The feedback feature is disabled. To enable it, create a web app in your Firebase project and add the following configuration values as Environment Variables on your deployment platform:',
+      fr: 'La fonctionnalité de commentaires est désactivée. Pour l\'activer, créez une application Web dans votre projet Firebase et ajoutez les valeurs de configuration suivantes en tant que variables d\'environnement sur votre plateforme de déploiement :',
+  },
+  feedbackConfigNeededBody_part2: {
+      ar: 'يمكنك العثور على هذه القيم في إعدادات مشروع Firebase الخاص بك.',
+      en: 'You can find these values in your Firebase project settings.',
+      fr: 'Vous pouvez trouver ces valeurs dans les paramètres de votre projet Firebase.',
+  },
+  feedbackConfigNeededLink: {
+      ar: 'تعرف على المزيد حول إعداد Firebase',
+      en: 'Learn more about Firebase setup',
+      fr: 'En savoir plus sur la configuration de Firebase',
   }
 };
 
