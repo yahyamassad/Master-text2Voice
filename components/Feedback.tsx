@@ -104,11 +104,36 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
         }
     };
 
+    const firebaseEnvVars = [
+      'VITE_FIREBASE_API_KEY',
+      'VITE_FIREBASE_AUTH_DOMAIN',
+      'VITE_FIREBASE_PROJECT_ID',
+      'VITE_FIREBASE_STORAGE_BUCKET',
+      'VITE_FIREBASE_MESSAGING_SENDER_ID',
+      'VITE_FIREBASE_APP_ID',
+      'VITE_FIREBASE_MEASUREMENT_ID',
+    ];
+
     if (!isFirebaseConfigured) {
         return (
-            <div className="text-center p-4 bg-yellow-900/50 border border-yellow-700 rounded-lg">
-                <h3 className="text-lg font-bold text-yellow-300">{t('feedbackConfigNeededTitle', language)}</h3>
-                <p className="text-yellow-400 mt-2">{t('feedbackConfigNeededBody', language)}</p>
+            <div className="p-4 bg-yellow-900/50 border border-yellow-700 rounded-lg text-yellow-300">
+                <h3 className="text-lg font-bold text-center">{t('feedbackConfigNeededTitle', language)}</h3>
+                <p className="mt-2 text-center text-yellow-400">{t('feedbackConfigNeededBody_part1', language)}</p>
+                <div className="my-4 p-3 bg-slate-900 rounded-md text-sm font-mono text-cyan-300 ltr:text-left rtl:text-right">
+                    {firebaseEnvVars.map(v => <div key={v}>{v}</div>)}
+                </div>
+                <p className="text-center text-yellow-400">
+                    {t('feedbackConfigNeededBody_part2', language)}
+                    {' '}
+                    <a 
+                        href="https://firebase.google.com/docs/web/setup#add-sdk-and-initialize" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="underline hover:text-cyan-400"
+                    >
+                        {t('feedbackConfigNeededLink', language)}
+                    </a>
+                </p>
             </div>
         );
     }
