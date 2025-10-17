@@ -177,9 +177,9 @@ export const translations = {
       fr: 'Configuration Firebase Requise',
   },
   feedbackConfigNeededBody: {
-      ar: 'ميزة التعليقات معطلة. يرجى التأكد من أن المطور قد قام بإعداد بيانات اعتماد Firebase بشكل صحيح في ملف firebaseConfig.ts.',
-      en: 'The feedback feature is disabled. Please ensure the developer has correctly set up Firebase credentials in the firebaseConfig.ts file.',
-      fr: 'La fonctionnalité de commentaires est désactivée. Veuillez vous assurer que le développeur a correctement configuré les informations d\'identification Firebase dans le fichier firebaseConfig.ts.',
+      ar: 'ميزة التعليقات معطلة. لتفعيلها، يجب إضافة بيانات اعتماد Firebase كمتغيرات بيئة (Environment Variables) في منصة النشر مثل Vercel. يتم قراءة هذه المتغيرات في ملف `firebaseConfig.ts`.',
+      en: 'The feedback feature is disabled. To enable it, Firebase credentials must be added as Environment Variables in your deployment platform (e.g., Vercel). These variables are read by the `firebaseConfig.ts` file.',
+      fr: 'La fonctionnalité de commentaires est désactivée. Pour l\'activer, les informations d\'identification Firebase doivent être ajoutées en tant que variables d\'environnement sur votre plateforme de déploiement (par ex. Vercel). Ces variables sont lues par le fichier `firebaseConfig.ts`.',
   }
 };
 
