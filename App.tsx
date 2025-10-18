@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { generateSpeech, translateText, SpeechSpeed } from './services/geminiService';
+import { generateSpeech } from './services/geminiService';
+import { translateText } from './services/geminiService';
 import { decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, StopIcon, GlobeIcon, ChevronDownIcon, ReplayIcon } from './components/icons';
 import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem } from './i18n/translations';
@@ -21,7 +22,7 @@ const App: React.FC = () => {
   const [targetLang, setTargetLang] = useState<string>('fr');
   
   const [voice, setVoice] = useState<VoiceType>('Puck'); // Puck: Male, Kore: Female
-  const [speed, setSpeed] = useState<SpeechSpeed>('normal');
+  const [speed, setSpeed] = useState<number>(1); // 0: slow, 1: normal, 2: fast
   const [pauseDuration, setPauseDuration] = useState<number>(1.0);
   
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
@@ -289,7 +290,7 @@ const App: React.FC = () => {
 
   return (
     <div className="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-4xl bg-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6 transform transition-all hover:scale-[1.01] duration-300 relative">
+      <div className="w-full max-w-4xl bg-slate-800 rounded-2xl shadow-2xl p-4 sm:p-6 space-y-4 transform transition-all hover:scale-[1.01] duration-300 relative">
         <div ref={langDropdownRef} className="absolute top-4 ltr:left-4 rtl:right-4 z-10">
           <button
             onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
@@ -317,25 +318,25 @@ const App: React.FC = () => {
           )}
         </div>
         
-        <div className="text-center pt-10 sm:pt-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-cyan-400">
+        <div className="text-center pt-10 sm:pt-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-cyan-400">
             {t('title', language)}
           </h1>
-          <p className="text-slate-400 mt-2">
+          <p className="text-slate-400 text-sm mt-1">
             {t('subtitle', language)}
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-center animate-fade-in">
+          <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-center text-sm animate-fade-in">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Source Text Area */}
             <div className="flex flex-col space-y-2">
-                <label htmlFor="source-lang" className="text-slate-300">{t('sourceLanguage', language)}</label>
+                <label htmlFor="source-lang" className="text-sm text-slate-300">{t('sourceLanguage', language)}</label>
                 <select id="source-lang" value={sourceLang} onChange={(e) => setSourceLang(e.target.value)} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5">
                     {translationLanguages.map((lang: LanguageListItem) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
                 </select>
@@ -343,14 +344,14 @@ const App: React.FC = () => {
                     value={sourceText}
                     onChange={(e) => setSourceText(e.target.value)}
                     placeholder={t('placeholder', language)}
-                    className="w-full h-48 p-4 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500"
+                    className="w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 text-base"
                     disabled={isTranslating}
                 />
                 <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleSpeechAction(sourceText, sourceLang, 'source')}
                       disabled={isTranslating || !sourceText.trim()}
-                      className="flex-grow flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
+                      className="flex-grow flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm"
                     >
                       {isSourceLoading ? <LoaderIcon /> : isSourceActive ? <StopIcon /> : <SpeakerIcon />}
                       <span>
@@ -376,7 +377,7 @@ const App: React.FC = () => {
             </div>
             {/* Target Text Area */}
             <div className="flex flex-col space-y-2">
-                <label htmlFor="target-lang" className="text-slate-300">{t('targetLanguage', language)}</label>
+                <label htmlFor="target-lang" className="text-sm text-slate-300">{t('targetLanguage', language)}</label>
                 <select id="target-lang" value={targetLang} onChange={(e) => setTargetLang(e.target.value)} className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5">
                     {translationLanguages.map((lang: LanguageListItem) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
                 </select>
@@ -384,13 +385,13 @@ const App: React.FC = () => {
                     value={translatedText}
                     readOnly
                     placeholder={t('translationPlaceholder', language)}
-                    className="w-full h-48 p-4 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 cursor-not-allowed"
+                    className="w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 cursor-not-allowed text-base"
                 />
                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleSpeechAction(translatedText, targetLang, 'target')}
                       disabled={isTranslating || !translatedText.trim()}
-                      className="flex-grow flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
+                      className="flex-grow flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm"
                     >
                       {isTargetLoading ? <LoaderIcon /> : isTargetActive ? <StopIcon /> : <SpeakerIcon />}
                       <span>
@@ -416,11 +417,11 @@ const App: React.FC = () => {
             </div>
         </div>
         
-        <div className="pt-4">
+        <div className="pt-2">
              <button
               onClick={handleTranslate}
               disabled={isTranslating || isGeneratingSpeech || !sourceText.trim()}
-              className="w-full flex items-center justify-center gap-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-cyan-600/20"
+              className="w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-cyan-600/20 text-base"
             >
               {isTranslating ? (
                 <>
@@ -437,11 +438,11 @@ const App: React.FC = () => {
         </div>
 
         {/* Controls and Download */}
-        <div className="border-t border-slate-700 pt-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Voice & Speed Controls */}
-                <div className="space-y-4">
-                    <div className="flex justify-center gap-8 text-slate-300">
+        <div className="border-t border-slate-700 pt-5 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4 p-4 bg-slate-700/30 rounded-lg">
+                    <p className="text-center text-sm font-semibold text-slate-300">{t('maleVoice', language)} / {t('femaleVoice', language)}</p>
+                    <div className="flex justify-center gap-8 text-slate-300 text-sm">
                         <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors">
                             <input type="radio" name="voice" value="Puck" checked={voice === 'Puck'} onChange={() => setVoice('Puck')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech}/>
                             <span>{t('maleVoice', language)}</span>
@@ -451,54 +452,65 @@ const App: React.FC = () => {
                             <span>{t('femaleVoice', language)}</span>
                         </label>
                     </div>
-                     <div className="text-center space-y-2">
-                        <p className="text-slate-300">{t('speechSpeed', language)}</p>
-                        <div className="flex justify-center gap-4 text-slate-300">
-                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="slow" checked={speed === 'slow'} onChange={() => setSpeed('slow')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech} /><span>{t('speedSlow', language)}</span></label>
-                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="normal" checked={speed === 'normal'} onChange={() => setSpeed('normal')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech} /><span>{t('speedNormal', language)}</span></label>
-                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="fast" checked={speed === 'fast'} onChange={() => setSpeed('fast')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech} /><span>{t('speedFast', language)}</span></label>
-                        </div>
-                    </div>
-                    <div className="text-center space-y-3 pt-2">
-                        <label htmlFor="pause-duration" className="text-slate-300 flex justify-center items-center gap-2">
-                            {t('paragraphPause', language)}
-                            <span className="font-mono text-cyan-400 bg-slate-900/50 px-2 py-0.5 rounded-md text-sm">{pauseDuration.toFixed(1)}{t('seconds', language)}</span>
-                        </label>
-                        <input
-                            id="pause-duration"
-                            type="range"
-                            min="0"
-                            max="5"
-                            step="0.1"
-                            value={pauseDuration}
-                            onChange={(e) => setPauseDuration(parseFloat(e.target.value))}
-                            disabled={isTranslating || isGeneratingSpeech}
-                            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:rounded-full [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-cyan-500 [&::-moz-range-thumb]:rounded-full"
-                        />
-                    </div>
                 </div>
-                {/* Download Section */}
                 <div className={`transition-opacity duration-500 ${pcmData && !isGeneratingSpeech && !activeSpeaker ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
-                     <div className="bg-slate-700/50 p-4 rounded-lg space-y-4 h-full flex flex-col justify-center">
-                        <div className="flex justify-center items-center gap-4 sm:gap-8 text-slate-300">
-                            <span className="font-bold text-sm sm:text-base">{t('downloadFormat', language)}</span>
+                     <div className="p-4 bg-slate-700/30 rounded-lg space-y-4 h-full flex flex-col justify-center">
+                        <div className="flex justify-center items-center gap-4 sm:gap-6 text-slate-300 text-sm">
+                            <span className="font-semibold">{t('downloadFormat', language)}</span>
                             <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" value="mp3" checked={downloadFormat === 'mp3'} onChange={() => setDownloadFormat('mp3')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2"/><span>MP3</span></label>
                             <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" value="wav" checked={downloadFormat === 'wav'} onChange={() => setDownloadFormat('wav')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2"/><span>WAV</span></label>
                         </div>
-                        <button onClick={handleDownload} className="w-full flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-slate-600/20">
+                        <button onClick={handleDownload} className="w-full flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-slate-600/20 text-sm">
                             <DownloadIcon />
                             <span>{`${t('downloadButton', language)} (${downloadFormat.toUpperCase()})`}</span>
                         </button>
                     </div>
                 </div>
             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <label htmlFor="speech-speed" className="text-sm text-center block text-slate-300">{t('speechSpeed', language)}</label>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-slate-400">S</span>
+                      <input
+                          id="speech-speed"
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="1"
+                          value={speed}
+                          onChange={(e) => setSpeed(parseInt(e.target.value, 10))}
+                          disabled={isTranslating || isGeneratingSpeech}
+                          className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:rounded-full [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-cyan-500 [&::-moz-range-thumb]:rounded-full"
+                      />
+                      <span className="text-sm font-bold text-slate-400">F</span>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <label htmlFor="pause-duration" className="text-sm text-center block text-slate-300">
+                        {t('paragraphPause', language)}
+                        <span className="font-mono text-cyan-400 bg-slate-900/50 px-2 py-0.5 rounded-md text-xs ltr:ml-2 rtl:mr-2">{pauseDuration.toFixed(1)}{t('seconds', language)}</span>
+                    </label>
+                     <input
+                        id="pause-duration"
+                        type="range"
+                        min="0"
+                        max="5"
+                        step="0.1"
+                        value={pauseDuration}
+                        onChange={(e) => setPauseDuration(parseFloat(e.target.value))}
+                        disabled={isTranslating || isGeneratingSpeech}
+                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:rounded-full [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-cyan-500 [&::-moz-range-thumb]:rounded-full"
+                    />
+                </div>
+            </div>
         </div>
         {/* Feedback Section */}
-        <div className="border-t border-slate-700 mt-2 pt-6">
+        <div className="border-t border-slate-700 mt-2 pt-4">
             <Feedback language={language} />
         </div>
       </div>
-      <footer className="text-slate-500 mt-6 text-sm">
+      <footer className="text-slate-500 mt-4 text-xs">
         Copy Right @Yahya Massad - 2025
       </footer>
     </div>
