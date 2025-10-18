@@ -25,42 +25,55 @@ export async function translateText(text: string, sourceLang: string, targetLang
 }
 
 async function _fetchAndDecodeParagraph(text: string, voice: 'Puck' | 'Kore', speed: SpeechSpeed, languageName: string): Promise<Uint8Array | null> {
-    let speedInstruction = '';
+    let speedPrefix = '';
     switch (speed) {
         case 'slow':
-            speedInstruction = 'Read it at a pace that is slightly slower than normal conversation.';
+            speedPrefix = 'Read slowly:';
             break;
         case 'fast':
-            speedInstruction = 'Read it at a pace that is slightly faster than normal conversation.';
+            speedPrefix = 'Read quickly:';
             break;
         case 'normal':
         default:
-            speedInstruction = 'Read it at a normal conversational pace.';
+            // For normal speed, we don't add any prefix to keep the prompt as clean as possible.
+            // The model's default pace is normal.
             break;
     }
 
-    const prompt = `Read the following text in ${languageName}. ${speedInstruction} Ensure you use an interrogative intonation for questions and mark brief pauses between sentences to make the speech sound natural. The text is: "${text}"`;
+    // The Gemini TTS model is powerful but can be sensitive to complex prompts.
+    // The previous prompt was too long and included multiple instructions (language, speed, intonation, pauses).
+    // This can lead to internal server errors (500), as was observed.
+    // A much simpler, direct prompt is more reliable. We instruct the speed (if not normal) and then provide the text.
+    // The model is multilingual and should handle the language automatically from the text.
+    const prompt = speedPrefix ? `${speedPrefix} ${text}` : text;
 
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: prompt }] }],
-        config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-                voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: voice },
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-preview-tts",
+            contents: [{ parts: [{ text: prompt }] }],
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName: voice },
+                    },
                 },
             },
-        },
-    });
+        });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
-    if (base64Audio) {
-        return decode(base64Audio);
-    } else {
-        console.error("No audio data in API response for paragraph:", text);
-        return null;
+        if (base64Audio) {
+            return decode(base64Audio);
+        } else {
+            console.error("No audio data in API response for paragraph:", text);
+            return null;
+        }
+    } catch(error) {
+        console.error(`Gemini API call failed for paragraph "${text.substring(0, 50)}..."`, error);
+        // Re-throw the original error to be handled by the `generateSpeech` function,
+        // which will set the appropriate error message for the user.
+        throw error;
     }
 }
 
