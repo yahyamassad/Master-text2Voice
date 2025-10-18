@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { generateSpeech, translateText, SpeechSpeed } from './services/geminiService';
 import { decode, decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
-import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, SoundWaveIcon } from './components/icons';
+import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, SoundWaveIcon, GlobeIcon, ChevronDownIcon } from './components/icons';
 import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem } from './i18n/translations';
 import { Feedback } from './components/Feedback';
 
@@ -26,22 +26,55 @@ const App: React.FC = () => {
   const [pcmData, setPcmData] = useState<Uint8Array | null>(null);
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>('mp3');
   
-  const [language, setLanguage] = useState<Language>('ar');
-  const [direction, setDirection] = useState<Direction>('rtl');
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const [language, setLanguage] = useState<Language>('en');
+  const [direction, setDirection] = useState<Direction>('ltr');
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Set default language from URL on initial load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const langFromUrl = params.get('lang') as Language;
+    const selectedOption = languageOptions.find(opt => opt.value === langFromUrl);
+    if (selectedOption) {
+        setLanguage(selectedOption.value);
+        setDirection(selectedOption.dir);
+    }
+  }, []);
+
+  // Update document attributes and title when language changes
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = direction;
+    document.title = t('title', language);
   }, [language, direction]);
 
-  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newLang = e.target.value as Language;
+  // Handle clicks outside language dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+            setIsLangDropdownOpen(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleLanguageChange = (newLang: Language) => {
     const selectedOption = languageOptions.find(opt => opt.value === newLang);
     if (selectedOption) {
       setLanguage(selectedOption.value);
       setDirection(selectedOption.dir);
+      
+      const params = new URLSearchParams(window.location.search);
+      params.set('lang', newLang);
+      window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
     }
+    setIsLangDropdownOpen(false);
   };
   
   const findLanguageName = (code: string): string => {
@@ -142,21 +175,36 @@ const App: React.FC = () => {
   };
 
   const isLoading = isTranslating || isGeneratingSpeech;
+  const currentLanguageLabel = languageOptions.find(opt => opt.value === language)?.label;
 
   return (
     <div className="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-4xl bg-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6 transform transition-all hover:scale-[1.01] duration-300 relative">
-        <div className="absolute top-4 ltr:left-4 rtl:right-4">
-          <select
-            onChange={handleLanguageChange}
-            value={language}
-            className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2"
+        <div ref={langDropdownRef} className="absolute top-4 ltr:left-4 rtl:right-4 z-10">
+          <button
+            onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+            className="flex items-center gap-2 bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 p-2 w-36 justify-between transition-colors hover:bg-slate-600"
             aria-label={t('selectInterfaceLanguage', language)}
+            aria-haspopup="true"
+            aria-expanded={isLangDropdownOpen}
           >
-            {languageOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+            <GlobeIcon />
+            <span className="flex-grow text-center">{currentLanguageLabel}</span>
+            <ChevronDownIcon className={`w-4 h-4 transition-transform duration-300 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isLangDropdownOpen && (
+             <div className="absolute top-full mt-1 w-36 bg-slate-700 border border-slate-600 rounded-lg shadow-lg overflow-hidden animate-fade-in-down">
+                {languageOptions.map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleLanguageChange(option.value)}
+                    className="w-full text-sm text-left px-4 py-2 hover:bg-cyan-600 transition-colors"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+            </div>
+          )}
         </div>
         
         <div className="text-center pt-10 sm:pt-8">
