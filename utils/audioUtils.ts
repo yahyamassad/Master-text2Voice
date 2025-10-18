@@ -112,6 +112,36 @@ export function createMp3Blob(pcmData: Uint8Array, numChannels: number, sampleRa
     return new Blob(mp3DataChunks, { type: 'audio/mpeg' });
 }
 
+/**
+ * Generates a Uint8Array representing silent audio for a given duration.
+ * @param duration Duration of silence in seconds.
+ * @param sampleRate The sample rate of the audio.
+ * @param numChannels Number of audio channels.
+ * @returns A Uint8Array filled with zeros representing silence.
+ */
+export function generateSilence(duration: number, sampleRate: number, numChannels: number): Uint8Array {
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8; // Should be 2
+  const numFrames = Math.floor(duration * sampleRate);
+  const bufferSize = numFrames * numChannels * bytesPerSample;
+  return new Uint8Array(bufferSize); // An array of zeros is silence in PCM
+}
+
+/**
+ * Concatenates multiple Uint8Array into a single Uint8Array.
+ * @param arrays An array of Uint8Arrays to concatenate.
+ * @returns A single Uint8Array containing all the data from the input arrays.
+ */
+export function concatenateUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+  const totalLength = arrays.reduce((acc, value) => acc + value.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.length;
+  }
+  return result;
+}
 
 function writeString(view: DataView, offset: number, str: string) {
   for (let i = 0; i < str.length; i++) {
