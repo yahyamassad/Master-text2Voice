@@ -1,5 +1,5 @@
 {
-  "name": "French Text-to-Speech Converter",
-  "description": "A web application that converts text into French speech using the Gemini API, with an interface in Arabic.",
+  "name": "Text-to-Speech & Translator",
+  "description": "A web application to translate text and convert it to natural-sounding speech using the Gemini API.",
   "requestFramePermissions": []
 }
