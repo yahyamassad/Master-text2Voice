@@ -34,6 +34,12 @@ const App: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
+  const activeSpeakerRef = useRef<ActiveSpeaker>(null);
+
+  // Keep ref in sync with state to avoid stale closures in async callbacks
+  useEffect(() => {
+    activeSpeakerRef.current = activeSpeaker;
+  }, [activeSpeaker]);
 
   // Set default language from URL on initial load
   useEffect(() => {
@@ -138,8 +144,8 @@ const App: React.FC = () => {
       const textLangName = findLanguageName(textLangCode);
       const rawPcmData = await generateSpeech(textToSpeak, voice, speed, textLangName, pauseDuration);
       
-      // After await, check if a 'stop' action occurred during generation
-      if (activeSpeaker !== speakerType) {
+      // After await, check if a 'stop' action occurred during generation using the ref for the latest state.
+      if (activeSpeakerRef.current !== speakerType) {
         setIsGeneratingSpeech(false);
         return; 
       }
