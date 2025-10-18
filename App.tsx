@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { generateSpeech, translateText, SpeechSpeed } from './services/geminiService';
 import { decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
-import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, StopIcon, GlobeIcon, ChevronDownIcon } from './components/icons';
+import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, StopIcon, GlobeIcon, ChevronDownIcon, ReplayIcon } from './components/icons';
 import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem } from './i18n/translations';
 import { Feedback } from './components/Feedback';
 
@@ -104,7 +104,7 @@ const App: React.FC = () => {
     if (!sourceText.trim()) return;
 
     setIsTranslating(true);
-setError(null);
+    setError(null);
     setTranslatedText('');
 
     try {
@@ -155,7 +155,6 @@ setError(null);
         }
         const audioContext = audioContextRef.current;
         
-        // Browsers may suspend audio context if the tab is inactive. Resume it to prevent issues.
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
         }
@@ -165,22 +164,19 @@ setError(null);
         source.connect(audioContext.destination);
         audioSourceRef.current = source;
 
-        // RESUME LOGIC: Check for a stored position and ensure it's valid.
         const offset = playbackStateRef.current[speaker].position;
         const startOffset = (offset < audioBuffer.duration) ? offset : 0;
         
-        // Record the start time relative to the audio context's clock,
-        // adjusted for the offset, to correctly calculate elapsed time on pause.
         playbackStateRef.current[speaker].startTime = audioContext.currentTime - startOffset;
         source.start(0, startOffset);
 
         source.onended = () => {
-            // This onended should only handle the natural end of playback.
-            // Manual stops/pauses clear this callback before calling .stop().
             if (audioSourceRef.current === source) {
-                playbackStateRef.current[speaker].position = 0; // Reset position on natural completion
-                setActiveSpeaker(null);
+                playbackStateRef.current[speaker].position = 0;
                 audioSourceRef.current = null;
+                // Use a functional update to ensure we are not working with stale state,
+                // making the UI update instantly and reliably.
+                setActiveSpeaker(prev => prev === speaker ? null : prev);
             }
         };
     };
@@ -189,27 +185,22 @@ setError(null);
 
     setError(null);
     
-    // 4. Create a unique key for the current audio request to use for caching
     const textLangName = findLanguageName(textLangCode);
     const cacheKey = `${textLangCode}:${voice}:${speed}:${pauseDuration}:${textToSpeak}`;
 
-    // 5. Check if the audio data is already in the cache
     if (audioCacheRef.current.has(cacheKey)) {
-        // --- CACHED PLAY / RESUME ---
         setActiveSpeaker(speakerType);
         const cachedAudio = audioCacheRef.current.get(cacheKey)!;
-        setPcmData(cachedAudio.pcm); // Set PCM data for download button
+        setPcmData(cachedAudio.pcm);
         await playAudio(cachedAudio.buffer, speakerType);
     } else {
-        // --- API PLAY (not in cache) ---
-        playbackStateRef.current[speakerType].position = 0; // Reset position for new audio
+        playbackStateRef.current[speakerType].position = 0;
         
         setIsGeneratingSpeech(true);
         setActiveSpeaker(speakerType);
         try {
             const generatedPcm = await generateSpeech(textToSpeak, voice, speed, textLangName, pauseDuration);
             
-            // After await, check if a 'stop' action occurred during generation
             if (activeSpeakerRef.current !== speakerType) {
                 setIsGeneratingSpeech(false);
                 return; 
@@ -219,15 +210,13 @@ setError(null);
                 if (!audioContextRef.current) {
                      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
                 }
-                // Decode the new audio ONCE
                 const audioBuffer = await decodeAudioData(generatedPcm, audioContextRef.current, 24000, 1);
                 
-                // Save both PCM (for download) and AudioBuffer (for playback) to cache
                 audioCacheRef.current.set(cacheKey, { pcm: generatedPcm, buffer: audioBuffer });
                 
                 setPcmData(generatedPcm);
-                setIsGeneratingSpeech(false); // Turn off loader
-                await playAudio(audioBuffer, speakerType); // Then play
+                setIsGeneratingSpeech(false);
+                await playAudio(audioBuffer, speakerType);
             } else {
                 throw new Error('API_NO_AUDIO');
             }
@@ -246,10 +235,26 @@ setError(null);
             setActiveSpeaker(null);
             setIsGeneratingSpeech(false);
             audioSourceRef.current = null;
-            playbackStateRef.current[speakerType].position = 0; // Reset on error
+            playbackStateRef.current[speakerType].position = 0;
         }
     }
   }, [voice, speed, language, activeSpeaker, pauseDuration]);
+  
+  const handleResetAndPlay = (textToSpeak: string, textLangCode: string, speakerType: 'source' | 'target') => {
+      if (audioSourceRef.current) {
+          audioSourceRef.current.onended = null;
+          audioSourceRef.current.stop();
+          audioSourceRef.current = null;
+      }
+      playbackStateRef.current[speakerType].position = 0;
+      setActiveSpeaker(null);
+      
+      // Use a small timeout to allow the UI to process the 'stop' state change
+      // before immediately initiating the 'play' action, ensuring a smooth transition.
+      setTimeout(() => {
+          handleSpeechAction(textToSpeak, textLangCode, speakerType);
+      }, 50);
+  };
 
   const handleDownload = () => {
     if (!pcmData) return;
@@ -276,8 +281,10 @@ setError(null);
 
   const isSourceActive = activeSpeaker === 'source';
   const isSourceLoading = isSourceActive && isGeneratingSpeech;
+  const isSourcePaused = !isSourceActive && playbackStateRef.current.source.position > 0;
   const isTargetActive = activeSpeaker === 'target';
   const isTargetLoading = isTargetActive && isGeneratingSpeech;
+  const isTargetPaused = !isTargetActive && playbackStateRef.current.target.position > 0;
 
 
   return (
@@ -339,20 +346,33 @@ setError(null);
                     className="w-full h-48 p-4 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500"
                     disabled={isTranslating}
                 />
-                <button
-                  onClick={() => handleSpeechAction(sourceText, sourceLang, 'source')}
-                  disabled={isTranslating || !sourceText.trim()}
-                  className="w-full flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
-                >
-                  {isSourceLoading ? <LoaderIcon /> : isSourceActive ? <StopIcon /> : <SpeakerIcon />}
-                  <span>
-                    {isSourceLoading
-                      ? t('generatingSpeech', language)
-                      : isSourceActive
-                      ? t('stopSpeaking', language)
-                      : t('speakSource', language)}
-                  </span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSpeechAction(sourceText, sourceLang, 'source')}
+                      disabled={isTranslating || !sourceText.trim()}
+                      className="flex-grow flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
+                    >
+                      {isSourceLoading ? <LoaderIcon /> : isSourceActive ? <StopIcon /> : <SpeakerIcon />}
+                      <span>
+                        {isSourceLoading
+                          ? t('generatingSpeech', language)
+                          : isSourceActive
+                          ? t('stopSpeaking', language)
+                          : isSourcePaused
+                          ? t('resumeSpeaking', language)
+                          : t('speakSource', language)}
+                      </span>
+                    </button>
+                    {isSourcePaused && (
+                        <button
+                          onClick={() => handleResetAndPlay(sourceText, sourceLang, 'source')}
+                          className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors transform active:scale-90"
+                          aria-label={t('replay', language)}
+                        >
+                            <ReplayIcon />
+                        </button>
+                    )}
+                </div>
             </div>
             {/* Target Text Area */}
             <div className="flex flex-col space-y-2">
@@ -366,20 +386,33 @@ setError(null);
                     placeholder={t('translationPlaceholder', language)}
                     className="w-full h-48 p-4 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 cursor-not-allowed"
                 />
-                 <button
-                  onClick={() => handleSpeechAction(translatedText, targetLang, 'target')}
-                  disabled={isTranslating || !translatedText.trim()}
-                  className="w-full flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
-                >
-                  {isTargetLoading ? <LoaderIcon /> : isTargetActive ? <StopIcon /> : <SpeakerIcon />}
-                  <span>
-                    {isTargetLoading
-                      ? t('generatingSpeech', language)
-                      : isTargetActive
-                      ? t('stopSpeaking', language)
-                      : t('speakTarget', language)}
-                  </span>
-                </button>
+                 <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSpeechAction(translatedText, targetLang, 'target')}
+                      disabled={isTranslating || !translatedText.trim()}
+                      className="flex-grow flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
+                    >
+                      {isTargetLoading ? <LoaderIcon /> : isTargetActive ? <StopIcon /> : <SpeakerIcon />}
+                      <span>
+                        {isTargetLoading
+                          ? t('generatingSpeech', language)
+                          : isTargetActive
+                          ? t('stopSpeaking', language)
+                          : isTargetPaused
+                          ? t('resumeSpeaking', language)
+                          : t('speakTarget', language)}
+                      </span>
+                    </button>
+                    {isTargetPaused && (
+                         <button
+                          onClick={() => handleResetAndPlay(translatedText, targetLang, 'target')}
+                          className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors transform active:scale-90"
+                          aria-label={t('replay', language)}
+                        >
+                            <ReplayIcon />
+                        </button>
+                    )}
+                 </div>
             </div>
         </div>
         
