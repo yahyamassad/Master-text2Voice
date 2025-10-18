@@ -173,24 +173,84 @@ export const translations = {
   },
   feedbackConfigNeededTitle: {
       ar: 'مطلوب إعداد Firebase',
-      en: 'Firebase Configuration Needed',
+      en: 'Firebase Configuration Required',
       fr: 'Configuration Firebase Requise',
   },
-  feedbackConfigNeededBody_part1: {
-      ar: 'ميزة التعليقات معطلة. لتفعيلها، قم بإنشاء تطبيق ويب في مشروع Firebase الخاص بك وأضف قيم الإعداد التالية كمتغيرات بيئة (Environment Variables) في منصة النشر الخاصة بك:',
-      en: 'The feedback feature is disabled. To enable it, create a web app in your Firebase project and add the following configuration values as Environment Variables on your deployment platform:',
-      fr: 'La fonctionnalité de commentaires est désactivée. Pour l\'activer, créez une application Web dans votre projet Firebase et ajoutez les valeurs de configuration suivantes en tant que variables d\'environnement sur votre plateforme de déploiement :',
+  feedbackConfigNeededBody: {
+      ar: 'ميزة التعليقات معطلة. لتفعيلها، قم بإنشاء مشروع Firebase خاص بك وأضف قيم الإعداد التالية كمتغيرات بيئة (Environment Variables) في منصة النشر الخاصة بك:',
+      en: 'The feedback feature is disabled. To enable it, create your own Firebase project and add the following configuration values as Environment Variables in your deployment platform:',
+      fr: 'La fonctionnalité de commentaires est désactivée. Pour l\'activer, créez votre propre projet Firebase et ajoutez les valeurs de configuration suivantes en tant que variables d\'environnement sur votre plateforme de déploiement :',
   },
-  feedbackConfigNeededBody_part2: {
-      ar: 'يمكنك العثور على هذه القيم في إعدادات مشروع Firebase الخاص بك.',
-      en: 'You can find these values in your Firebase project settings.',
-      fr: 'Vous pouvez trouver ces valeurs dans les paramètres de votre projet Firebase.',
+  firebaseSetupGuideTitle: {
+      ar: 'عرض دليل الإعداد المفصل',
+      en: 'Show Detailed Setup Guide',
+      fr: 'Afficher le guide d\'installation détaillé',
   },
-  feedbackConfigNeededLink: {
-      ar: 'تعرف على المزيد حول إعداد Firebase',
-      en: 'Learn more about Firebase setup',
-      fr: 'En savoir plus sur la configuration de Firebase',
-  }
+  firebaseSetupStep1Title: {
+      ar: 'الخطوة 1: إنشاء مشروع Firebase',
+      en: 'Step 1: Create a Firebase Project',
+      fr: 'Étape 1 : Créer un projet Firebase',
+  },
+  firebaseSetupStep1Body: {
+      ar: 'اذهب إلى منصة Firebase وأنشئ مشروعًا جديدًا. العملية سريعة ومجانية.',
+      en: 'Go to the Firebase Console and create a new project. It\'s fast and free.',
+      fr: 'Allez sur la console Firebase et créez un nouveau projet. C\'est rapide et gratuit.',
+  },
+  firebaseSetupStep1Button: {
+      ar: 'الذهاب إلى منصة Firebase',
+      en: 'Go to Firebase Console',
+      fr: 'Aller à la console Firebase',
+  },
+  firebaseSetupStep2Title: {
+      ar: 'الخطوة 2: الحصول على مفاتيح الإعداد',
+      en: 'Step 2: Get Your Config Keys',
+      fr: 'Étape 2 : Obtenez vos clés de configuration',
+  },
+  firebaseSetupStep2Body: {
+      ar: 'في إعدادات مشروعك، أضف \'تطبيق ويب\' جديد. ستمنحك Firebase كائن `firebaseConfig` يحتوي على مفاتيحك. احتفظ بها للخطوة التالية.',
+      en: 'In your project settings, add a new \'Web App\'. Firebase will give you a `firebaseConfig` object containing your keys. Keep them for the next step.',
+      fr: 'Dans les paramètres de votre projet, ajoutez une nouvelle \'application Web\'. Firebase vous donnera un objet `firebaseConfig` contenant vos clés. Gardez-les pour la prochaine étape.',
+  },
+  firebaseSetupStep3Title: {
+      ar: 'الخطوة 3: إضافة متغيرات البيئة',
+      en: 'Step 3: Add Environment Variables',
+      fr: 'Étape 3 : Ajouter des variables d\'environnement',
+  },
+  firebaseSetupStep3Body: {
+      ar: 'اذهب إلى منصة النشر الخاصة بك (Vercel, Netlify, etc.) وأضف المفاتيح التي نسختها كـ \'متغيرات بيئة\'. استخدم هذه الأسماء بالضبط:',
+      en: 'Go to your deployment platform (Vercel, Netlify, etc.) and add the keys you copied as \'Environment Variables\'. Use these exact names:',
+      fr: 'Allez sur votre plateforme de déploiement (Vercel, Netlify, etc.) et ajoutez les clés que vous avez copiées en tant que \'Variables d\'environnement\'. Utilisez ces noms exacts :',
+  },
+  firebaseSetupCopyButton: {
+      ar: 'نسخ',
+      en: 'Copy',
+      fr: 'Copier',
+  },
+  firebaseSetupCopiedButton: {
+      ar: 'تم النسخ!',
+      en: 'Copied!',
+      fr: 'Copié !',
+  },
+  firebaseSetupStep4Title: {
+      ar: 'الخطوة 4: تفعيل وتأمين قاعدة البيانات',
+      en: 'Step 4: Enable & Secure Firestore',
+      fr: 'Étape 4 : Activer et sécuriser Firestore',
+  },
+  firebaseSetupStep4Body: {
+      ar: 'من لوحة تحكم Firebase، اذهب إلى Firestore Database وأنشئ قاعدة بيانات في \'وضع الإنتاج\'. بعد ذلك، اذهب إلى تبويب \'القواعد\' (Rules) والصق القاعدة الآمنة أدناه. هذه القاعدة تسمح لأي شخص بقراءة وإضافة التعليقات، ولكنها تمنع أي شخص من تعديل أو حذف تعليقات الآخرين.',
+      en: 'From the Firebase dashboard, go to Firestore Database and create a database in \'production mode\'. Then, go to the \'Rules\' tab and paste the secure rule below. This rule allows anyone to read and create feedback, but prevents anyone from updating or deleting others\' posts.',
+      fr: 'Depuis le tableau de bord Firebase, accédez à la base de données Firestore et créez une base de données en \'mode production\'. Ensuite, allez dans l\'onglet \'Règles\' et collez la règle sécurisée ci-dessous. Cette règle permet à quiconque de lire et de créer des commentaires, mais empêche quiconque de mettre à jour ou de supprimer les messages des autres.',
+  },
+  firebaseSetupStep5Title: {
+      ar: 'الخطوة 5: إعادة النشر',
+      en: 'Step 5: Redeploy',
+      fr: 'Étape 5 : Redéployer',
+  },
+  firebaseSetupStep5Body: {
+      ar: 'بعد إضافة المتغيرات، قم بإعادة نشر تطبيقك. سيتم تفعيل ميزة التعليقات تلقائيًا.',
+      en: 'After adding the variables, redeploy your application. The feedback feature will be enabled automatically.',
+      fr: 'Après avoir ajouté les variables, redéployez votre application. La fonctionnalité de commentaires sera activée automatiquement.',
+  },
 };
 
 export const languageOptions: { value: Language; label: string; dir: Direction }[] = [
