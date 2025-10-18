@@ -96,6 +96,11 @@ export const translations = {
     en: 'Generating...',
     fr: 'Génération...',
   },
+   encoding: {
+    ar: 'جاري التحويل...',
+    en: 'Encoding...',
+    fr: 'Encodage...',
+  },
   listening: {
     ar: 'جاري الاستماع...',
     en: 'Listening...',
@@ -105,6 +110,11 @@ export const translations = {
     ar: 'تحميل الصوت',
     en: 'Download Audio',
     fr: 'Télécharger l\'Audio',
+  },
+  downloadFormat: {
+    ar: 'صيغة التحميل',
+    en: 'Download Format',
+    fr: 'Format de Téléchargement',
   },
   selectInterfaceLanguage: {
       ar: 'اختر لغة الواجهة',
@@ -135,6 +145,11 @@ export const translations = {
     ar: 'فشلت عملية الترجمة.',
     en: 'Translation failed.',
     fr: 'La traduction a échoué.',
+  },
+  errorMp3Encoding: {
+    ar: 'فشل تحويل الملف إلى MP3. يرجى محاولة التحميل بصيغة WAV.',
+    en: 'Failed to encode to MP3. Please try downloading as WAV.',
+    fr: 'Échec de l\'encodage en MP3. Veuillez essayer de télécharger en WAV.',
   },
   feedbackTitle: {
     ar: 'آراء المستخدمين',
