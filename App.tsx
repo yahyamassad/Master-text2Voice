@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { generateSpeech, translateText, SpeechSpeed } from './services/geminiService';
-import { decode, decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
+import { decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, SoundWaveIcon, GlobeIcon, ChevronDownIcon } from './components/icons';
 import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem } from './i18n/translations';
 import { Feedback } from './components/Feedback';
@@ -10,13 +10,14 @@ type DownloadFormat = 'wav' | 'mp3';
 type ActiveSpeaker = 'source' | 'target' | null;
 
 const App: React.FC = () => {
-  const [sourceText, setSourceText] = useState<string>('Hello, world! How are you today?');
+  const [sourceText, setSourceText] = useState<string>('Hello, world! How are you today?\n\nThis is a second paragraph to demonstrate the pause feature.');
   const [translatedText, setTranslatedText] = useState<string>('');
   const [sourceLang, setSourceLang] = useState<string>('en');
   const [targetLang, setTargetLang] = useState<string>('fr');
   
   const [voice, setVoice] = useState<VoiceType>('Puck'); // Puck: Male, Kore: Female
   const [speed, setSpeed] = useState<SpeechSpeed>('normal');
+  const [pauseDuration, setPauseDuration] = useState<number>(1.0);
   
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [isGeneratingSpeech, setIsGeneratingSpeech] = useState<boolean>(false);
@@ -116,15 +117,14 @@ const App: React.FC = () => {
       const audioContext = audioContextRef.current;
       
       const textLangName = findLanguageName(textLangCode);
-      const base64Audio = await generateSpeech(textToSpeak, voice, speed, textLangName);
-      if (!base64Audio) {
+      const rawPcmData = await generateSpeech(textToSpeak, voice, speed, textLangName, pauseDuration);
+      if (!rawPcmData) {
         throw new Error('API_NO_AUDIO');
       }
 
-      const decodedAudio = decode(base64Audio);
-      setPcmData(decodedAudio);
+      setPcmData(rawPcmData);
 
-      const audioBuffer = await decodeAudioData(decodedAudio, audioContext, 24000, 1);
+      const audioBuffer = await decodeAudioData(rawPcmData, audioContext, 24000, 1);
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContext.destination);
@@ -151,7 +151,7 @@ const App: React.FC = () => {
     } finally {
       setIsGeneratingSpeech(false);
     }
-  }, [voice, speed, language, activeSpeaker]);
+  }, [voice, speed, language, activeSpeaker, pauseDuration]);
 
   const handleDownload = () => {
     if (!pcmData) return;
@@ -310,6 +310,23 @@ const App: React.FC = () => {
                             <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="normal" checked={speed === 'normal'} onChange={() => setSpeed('normal')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isLoading} /><span>{t('speedNormal', language)}</span></label>
                             <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="fast" checked={speed === 'fast'} onChange={() => setSpeed('fast')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isLoading} /><span>{t('speedFast', language)}</span></label>
                         </div>
+                    </div>
+                    <div className="text-center space-y-3 pt-2">
+                        <label htmlFor="pause-duration" className="text-slate-300 flex justify-center items-center gap-2">
+                            {t('paragraphPause', language)}
+                            <span className="font-mono text-cyan-400 bg-slate-900/50 px-2 py-0.5 rounded-md text-sm">{pauseDuration.toFixed(1)}{t('seconds', language)}</span>
+                        </label>
+                        <input
+                            id="pause-duration"
+                            type="range"
+                            min="0"
+                            max="5"
+                            step="0.1"
+                            value={pauseDuration}
+                            onChange={(e) => setPauseDuration(parseFloat(e.target.value))}
+                            disabled={isLoading}
+                            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:rounded-full [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-cyan-500 [&::-moz-range-thumb]:rounded-full"
+                        />
                     </div>
                 </div>
                 {/* Download Section */}
