@@ -1,13 +1,14 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { generateSpeech } from './services/geminiService';
 import { translateText } from './services/geminiService';
-import { decodeAudioData, createWavBlob } from './utils/audioUtils';
+import { decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, StopIcon, GlobeIcon, ChevronDownIcon, ReplayIcon } from './components/icons';
 import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem } from './i18n/translations';
 import { Feedback } from './components/Feedback';
 
 type VoiceType = 'Puck' | 'Kore';
 type ActiveSpeaker = 'source' | 'target' | null;
+type DownloadFormat = 'wav' | 'mp3';
 
 interface AudioCacheItem {
     pcm: Uint8Array;
@@ -34,6 +35,8 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('en');
   const [direction, setDirection] = useState<Direction>('ltr');
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>('mp3');
+  const [isEncodingMp3, setIsEncodingMp3] = useState<boolean>(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -255,15 +258,38 @@ const App: React.FC = () => {
       }, 50);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!pcmData) return;
+
+    let blob: Blob;
+    let filename: string;
     
-    const blob = createWavBlob(pcmData, 1, 24000);
+    if (downloadFormat === 'mp3') {
+        setIsEncodingMp3(true);
+        setError(null);
+        try {
+            // Use a timeout to allow the UI to update and show the spinner
+            await new Promise(resolve => setTimeout(resolve, 10));
+            blob = await createMp3Blob(pcmData, 1, 24000);
+            filename = 'gemini-speech.mp3';
+        } catch (e) {
+            console.error("MP3 encoding failed:", e);
+            setError(t('errorMp3Encoding', language));
+            setIsEncodingMp3(false);
+            return;
+        } finally {
+            setIsEncodingMp3(false);
+        }
+    } else {
+        blob = createWavBlob(pcmData, 1, 24000);
+        filename = 'gemini-speech.wav';
+    }
+    
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
-    a.download = 'gemini-speech.wav';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -446,10 +472,24 @@ const App: React.FC = () => {
                     </div>
                 </div>
                 <div className={`transition-opacity duration-500 ${pcmData && !isGeneratingSpeech && !activeSpeaker ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
-                     <div className="p-4 bg-slate-700/30 rounded-lg h-full flex flex-col justify-center items-center">
-                        <button onClick={handleDownload} className="w-full max-w-xs flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-slate-600/20 text-base">
-                            <DownloadIcon />
-                            <span>{`${t('downloadButton', language)} (WAV)`}</span>
+                     <div className="p-4 bg-slate-700/30 rounded-lg h-full flex flex-col justify-center items-center space-y-3">
+                        <div className="flex items-center justify-center gap-4">
+                            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                                <input type="radio" name="format" value="mp3" checked={downloadFormat === 'mp3'} onChange={() => setDownloadFormat('mp3')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500"/>
+                                MP3
+                            </label>
+                             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                                <input type="radio" name="format" value="wav" checked={downloadFormat === 'wav'} onChange={() => setDownloadFormat('wav')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500"/>
+                                WAV
+                            </label>
+                        </div>
+                        <button 
+                            onClick={handleDownload} 
+                            disabled={isEncodingMp3}
+                            className="w-full max-w-xs flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-slate-600/20 text-base"
+                        >
+                            {isEncodingMp3 ? <LoaderIcon /> : <DownloadIcon />}
+                            <span>{isEncodingMp3 ? t('encoding', language) : `${t('downloadButton', language)} (${downloadFormat.toUpperCase()})`}</span>
                         </button>
                     </div>
                 </div>
