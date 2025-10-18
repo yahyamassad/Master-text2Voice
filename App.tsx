@@ -1,13 +1,12 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { generateSpeech } from './services/geminiService';
 import { translateText } from './services/geminiService';
-import { decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
+import { decodeAudioData, createWavBlob } from './utils/audioUtils';
 import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, StopIcon, GlobeIcon, ChevronDownIcon, ReplayIcon } from './components/icons';
 import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem } from './i18n/translations';
 import { Feedback } from './components/Feedback';
 
 type VoiceType = 'Puck' | 'Kore';
-type DownloadFormat = 'wav' | 'mp3';
 type ActiveSpeaker = 'source' | 'target' | null;
 
 interface AudioCacheItem {
@@ -31,7 +30,6 @@ const App: React.FC = () => {
   
   const [error, setError] = useState<string | null>(null);
   const [pcmData, setPcmData] = useState<Uint8Array | null>(null);
-  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>('mp3');
   
   const [language, setLanguage] = useState<Language>('en');
   const [direction, setDirection] = useState<Direction>('ltr');
@@ -259,19 +257,13 @@ const App: React.FC = () => {
 
   const handleDownload = () => {
     if (!pcmData) return;
-
-    let blob: Blob;
-    if (downloadFormat === 'wav') {
-      blob = createWavBlob(pcmData, 1, 24000);
-    } else {
-      blob = createMp3Blob(pcmData, 1, 24000);
-    }
     
+    const blob = createWavBlob(pcmData, 1, 24000);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
-    a.download = `gemini-speech.${downloadFormat}`;
+    a.download = 'gemini-speech.wav';
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -454,15 +446,10 @@ const App: React.FC = () => {
                     </div>
                 </div>
                 <div className={`transition-opacity duration-500 ${pcmData && !isGeneratingSpeech && !activeSpeaker ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
-                     <div className="p-4 bg-slate-700/30 rounded-lg space-y-4 h-full flex flex-col justify-center">
-                        <div className="flex justify-center items-center gap-4 sm:gap-6 text-slate-300 text-sm">
-                            <span className="font-semibold">{t('downloadFormat', language)}</span>
-                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" value="mp3" checked={downloadFormat === 'mp3'} onChange={() => setDownloadFormat('mp3')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2"/><span>MP3</span></label>
-                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" value="wav" checked={downloadFormat === 'wav'} onChange={() => setDownloadFormat('wav')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2"/><span>WAV</span></label>
-                        </div>
-                        <button onClick={handleDownload} className="w-full flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-slate-600/20 text-sm">
+                     <div className="p-4 bg-slate-700/30 rounded-lg h-full flex flex-col justify-center items-center">
+                        <button onClick={handleDownload} className="w-full max-w-xs flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-slate-600/20 text-base">
                             <DownloadIcon />
-                            <span>{`${t('downloadButton', language)} (${downloadFormat.toUpperCase()})`}</span>
+                            <span>{`${t('downloadButton', language)} (WAV)`}</span>
                         </button>
                     </div>
                 </div>
