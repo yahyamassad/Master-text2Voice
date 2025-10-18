@@ -101,11 +101,6 @@ export const translations = {
     en: 'Listening...',
     fr: 'Écoute en cours...',
   },
-  downloadFormat: {
-    ar: 'صيغة التحميل:',
-    en: 'Download Format:',
-    fr: 'Format de Téléchargement:',
-  },
   downloadButton: {
     ar: 'تحميل الصوت',
     en: 'Download Audio',
