@@ -1,6 +1,3 @@
-// This declares the lamejs library loaded from the CDN as a global variable.
-declare const lame: any;
-
 /**
  * Decodes a base64 string into a Uint8Array.
  * This is necessary because the audio data from the API is base64 encoded.
@@ -82,34 +79,6 @@ export function createWavBlob(pcmData: Uint8Array, numChannels: number, sampleRa
   }
 
   return new Blob([view], { type: 'audio/wav' });
-}
-
-/**
- * Creates an MP3 file Blob from raw PCM audio data using lamejs.
- * @param pcmData The raw audio data (16-bit).
- * @param numChannels Number of audio channels.
- * @param sampleRate The sample rate of the audio.
- * @returns A Blob representing the MP3 file.
- */
-export function createMp3Blob(pcmData: Uint8Array, numChannels: number, sampleRate: number): Blob {
-    const pcmDataInt16 = new Int16Array(pcmData.buffer);
-    const mp3encoder = new lame.Mp3Encoder(numChannels, sampleRate, 128); // 128 kbps
-    const mp3DataChunks: Int8Array[] = [];
-    const sampleBlockSize = 1152;
-
-    for (let i = 0; i < pcmDataInt16.length; i += sampleBlockSize) {
-        const sampleChunk = pcmDataInt16.subarray(i, i + sampleBlockSize);
-        const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-        if (mp3buf.length > 0) {
-            mp3DataChunks.push(mp3buf);
-        }
-    }
-    const mp3buf = mp3encoder.flush();
-    if (mp3buf.length > 0) {
-        mp3DataChunks.push(mp3buf);
-    }
-    
-    return new Blob(mp3DataChunks, { type: 'audio/mpeg' });
 }
 
 /**
