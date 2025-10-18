@@ -96,6 +96,16 @@ export const translations = {
     en: 'Speak Translation',
     fr: 'Écouter la Traduction',
   },
+  stopSpeaking: {
+    ar: 'إيقاف الصوت',
+    en: 'Stop Audio',
+    fr: 'Arrêter l\'Audio',
+  },
+  generatingSpeech: {
+    ar: 'جاري التوليد...',
+    en: 'Generating...',
+    fr: 'Génération...',
+  },
   listening: {
     ar: 'جاري الاستماع...',
     en: 'Listening...',
