@@ -79,34 +79,39 @@ async function _fetchAndDecodeParagraph(text: string, voice: 'Puck' | 'Kore', sp
 
 export async function generateSpeech(text: string, voice: 'Puck' | 'Kore', speed: SpeechSpeed, languageName: string, pauseDuration: number): Promise<Uint8Array | null> {
     try {
-        // Split by one or more empty lines
+        // Split by one or more empty lines. This robustly separates paragraphs
+        // regardless of extra spaces or multiple newlines, and filters out empty entries.
         const paragraphs = text.trim().split(/\n\s*\n+/).filter(p => p.trim().length > 0);
 
-        // If no text or only one paragraph, use the simple path.
+        // If there's only one paragraph (or none), no pauses are needed.
         if (paragraphs.length <= 1) {
-            return await _fetchAndDecodeParagraph(text, voice, speed, languageName);
+            const textToSpeak = paragraphs.length === 1 ? paragraphs[0] : text.trim();
+            // If after all trimming, there is no text, return null.
+            if (!textToSpeak) return null;
+            return await _fetchAndDecodeParagraph(textToSpeak, voice, speed, languageName);
         }
 
         const audioChunks: Uint8Array[] = [];
         const silenceChunk = pauseDuration > 0 ? generateSilence(pauseDuration, 24000, 1) : null;
 
-        for (let i = 0; i < paragraphs.length; i++) {
-            const paragraph = paragraphs[i];
+        for (const paragraph of paragraphs) {
             const speechChunk = await _fetchAndDecodeParagraph(paragraph, voice, speed, languageName);
             
             if (speechChunk) {
+                // For the very first successful chunk, just add the audio.
+                // For all subsequent successful chunks, add the pause *before* the audio.
+                // This logic explicitly prevents any silence at the beginning of the audio track.
+                if (audioChunks.length > 0 && silenceChunk) {
+                    audioChunks.push(silenceChunk);
+                }
                 audioChunks.push(speechChunk);
             } else {
                 console.warn(`Skipping failed audio generation for paragraph: "${paragraph.substring(0, 50)}..."`);
             }
-
-            // Add silence after the paragraph, but not after the last one and only if the speech part was successful
-            if (i < paragraphs.length - 1 && silenceChunk && speechChunk) {
-                audioChunks.push(silenceChunk);
-            }
         }
         
         if (audioChunks.length === 0) {
+            // This happens if all paragraph generations fail.
             throw new Error("API_NO_AUDIO");
         }
 
