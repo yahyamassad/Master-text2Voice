@@ -36,6 +36,11 @@ const App: React.FC = () => {
   const langDropdownRef = useRef<HTMLDivElement>(null);
   const activeSpeakerRef = useRef<ActiveSpeaker>(null);
   const audioCacheRef = useRef(new Map<string, Uint8Array>());
+  const playbackStateRef = useRef({
+    source: { position: 0, startTime: 0 },
+    target: { position: 0, startTime: 0 }
+  });
+
 
   // Keep ref in sync with state to avoid stale closures in async callbacks
   useEffect(() => {
@@ -112,28 +117,34 @@ setError(null);
 
 
   const handleSpeechAction = useCallback(async (textToSpeak: string, textLangCode: string, speakerType: 'source' | 'target') => {
-    // 1. Stop any currently playing audio stream.
-    if (audioSourceRef.current) {
-        audioSourceRef.current.onended = null; // Prevent onended from firing after manual stop
-        audioSourceRef.current.stop();
-        audioSourceRef.current = null;
-    }
-
-    // 2. If the user clicked the button of the active speaker, it's a 'stop' action.
+    // 1. If the user clicks the button of the active speaker, it's a 'PAUSE' action.
     if (activeSpeaker === speakerType) {
+        if (audioSourceRef.current && audioContextRef.current) {
+            const elapsed = audioContextRef.current.currentTime - playbackStateRef.current[speakerType].startTime;
+            playbackStateRef.current[speakerType].position += elapsed;
+            audioSourceRef.current.onended = null; // Prevent onended from firing after manual stop
+            audioSourceRef.current.stop();
+            audioSourceRef.current = null;
+        }
         setActiveSpeaker(null);
-        setIsGeneratingSpeech(false); // Ensure loading state is also reset
+        setIsGeneratingSpeech(false);
         return;
     }
 
-    // 3. --- It's a 'play' action from here ---
-    if (!textToSpeak.trim()) return;
-
-    setError(null);
-    setPcmData(null); 
+    // --- It's a 'PLAY' or 'RESUME' action from here ---
+    // 2. Stop any currently playing audio stream (could be the other speaker).
+    if (audioSourceRef.current) {
+        audioSourceRef.current.onended = null;
+        audioSourceRef.current.stop();
+        audioSourceRef.current = null;
+        // Also reset the position of the speaker that was just interrupted.
+        if (activeSpeaker) {
+            playbackStateRef.current[activeSpeaker].position = 0;
+        }
+    }
     
     // Helper function to encapsulate the audio playback logic
-    const playAudio = async (pcmData: Uint8Array) => {
+    const playAudio = async (pcmData: Uint8Array, speaker: 'source' | 'target') => {
         if (!audioContextRef.current) {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         }
@@ -145,27 +156,43 @@ setError(null);
         source.buffer = audioBuffer;
         source.connect(audioContext.destination);
         audioSourceRef.current = source;
+
+        // RESUME LOGIC: Check for a stored position and ensure it's valid.
+        const offset = playbackStateRef.current[speaker].position;
+        const startOffset = (offset < audioBuffer.duration) ? offset : 0;
+        
+        source.start(0, startOffset);
+        playbackStateRef.current[speaker].startTime = audioContext.currentTime;
+
         source.onended = () => {
+            // This onended should only handle the natural end of playback.
+            // Manual stops/pauses clear this callback before calling .stop().
             if (audioSourceRef.current === source) {
+                playbackStateRef.current[speaker].position = 0; // Reset position on natural completion
                 setActiveSpeaker(null);
                 audioSourceRef.current = null;
             }
         };
-        source.start();
     };
+    
+    if (!textToSpeak.trim()) return;
 
+    setError(null);
+    
     // 4. Create a unique key for the current audio request to use for caching
     const textLangName = findLanguageName(textLangCode);
     const cacheKey = `${textLangCode}:${voice}:${speed}:${pauseDuration}:${textToSpeak}`;
 
     // 5. Check if the audio data is already in the cache
     if (audioCacheRef.current.has(cacheKey)) {
-        // --- CACHED PLAY ---
+        // --- CACHED PLAY / RESUME ---
         setActiveSpeaker(speakerType);
         const cachedData = audioCacheRef.current.get(cacheKey)!;
-        await playAudio(cachedData);
+        await playAudio(cachedData, speakerType);
     } else {
         // --- API PLAY (not in cache) ---
+        playbackStateRef.current[speakerType].position = 0; // Reset position for new audio
+        
         setIsGeneratingSpeech(true);
         setActiveSpeaker(speakerType);
         try {
@@ -180,7 +207,7 @@ setError(null);
             if (generatedData) {
                 audioCacheRef.current.set(cacheKey, generatedData); // Save to cache
                 setIsGeneratingSpeech(false); // Turn off loader
-                await playAudio(generatedData); // Then play
+                await playAudio(generatedData, speakerType); // Then play
             } else {
                 throw new Error('API_NO_AUDIO');
             }
@@ -199,6 +226,7 @@ setError(null);
             setActiveSpeaker(null);
             setIsGeneratingSpeech(false);
             audioSourceRef.current = null;
+            playbackStateRef.current[speakerType].position = 0; // Reset on error
         }
     }
   }, [voice, speed, language, activeSpeaker, pauseDuration]);
