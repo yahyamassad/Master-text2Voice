@@ -96,6 +96,11 @@ export const translations = {
     en: 'Speak Translation',
     fr: 'Écouter la Traduction',
   },
+  resumeSpeaking: {
+    ar: 'استئناف',
+    en: 'Resume',
+    fr: 'Reprendre',
+  },
   stopSpeaking: {
     ar: 'إيقاف الصوت',
     en: 'Stop Audio',
@@ -125,6 +130,11 @@ export const translations = {
       ar: 'اختر لغة الواجهة',
       en: 'Select interface language',
       fr: 'Sélectionner la langue de l\'interface',
+  },
+  replay: {
+      ar: 'إعادة من البداية',
+      en: 'Replay from Start',
+      fr: 'Rejouer depuis le début',
   },
   errorApiNoAudio: {
     ar: 'لم يتم استلام أي بيانات صوتية من الواجهة البرمجية.',
