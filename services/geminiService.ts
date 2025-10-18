@@ -3,7 +3,7 @@ import { decode, generateSilence, concatenateUint8Arrays } from '../utils/audioU
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export type SpeechSpeed = 'slow' | 'normal' | 'fast';
+export type SpeechSpeed = number; // 0: slow, 1: normal, 2: fast
 
 
 export async function translateText(text: string, sourceLang: string, targetLang: string): Promise<string> {
@@ -27,16 +27,17 @@ export async function translateText(text: string, sourceLang: string, targetLang
 async function _fetchAndDecodeParagraph(text: string, voice: 'Puck' | 'Kore', speed: SpeechSpeed, languageName: string): Promise<Uint8Array | null> {
     let speedPrefix = '';
     switch (speed) {
-        case 'slow':
+        case 0: // slow
             speedPrefix = 'Read slowly:';
             break;
-        case 'fast':
+        case 2: // fast
             speedPrefix = 'Read quickly:';
             break;
-        case 'normal':
+        case 1: // normal
         default:
             // For normal speed, we don't add any prefix to keep the prompt as clean as possible.
             // The model's default pace is normal.
+            speedPrefix = '';
             break;
     }
 
