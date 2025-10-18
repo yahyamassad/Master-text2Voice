@@ -120,10 +120,12 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
       'VITE_FIREBASE_MEASUREMENT_ID',
     ];
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(firebaseEnvVars.join('\n'));
-        setCopyButtonText(t('firebaseSetupCopiedButton', language));
-        setTimeout(() => setCopyButtonText(t('firebaseSetupCopyButton', language)), 2000);
+    const handleCopy = (textToCopy: string, buttonType: 'vars' | 'rules') => {
+        navigator.clipboard.writeText(textToCopy);
+        if(buttonType === 'vars') {
+            setCopyButtonText(t('firebaseSetupCopiedButton', language));
+            setTimeout(() => setCopyButtonText(t('firebaseSetupCopyButton', language)), 2000);
+        }
     };
 
 
@@ -162,8 +164,8 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                                 <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep3Title', language)}</h4>
                                 <p className="mt-1 text-slate-400">{t('firebaseSetupStep3Body', language)}</p>
                                 <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left">
-                                    <pre><code>{firebaseEnvVars.join('\n')}</code></pre>
-                                    <button onClick={handleCopy} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
+                                    <pre className="whitespace-pre-wrap"><code>{firebaseEnvVars.join('\n')}</code></pre>
+                                    <button onClick={() => handleCopy(firebaseEnvVars.join('\n'), 'vars')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
                                         <CopyIcon /> {copyButtonText}
                                     </button>
                                 </div>
@@ -171,21 +173,23 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                              {/* Step 4 */}
                             <div className="p-3 bg-slate-900/50 rounded-md">
                                 <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep4Title', language)}</h4>
-                                <p className="mt-1 text-slate-400">من لوحة تحكم Firebase، اذهب إلى Firestore Database وقم بإنشاء قاعدة بيانات. ابدأ في 'وضع الإنتاج'، ثم اذهب إلى تبويب 'القواعد' واستبدل القواعد الافتراضية بالقواعد الآمنة أدناه. هذا يسمح لأي شخص بإرسال وعرض الآراء، لكنه يمنعهم من تعديلها أو حذفها.</p>
-                                 <p className="mt-2 text-slate-400">{t('firebaseSetupStep4Rule', language)}</p>
-                                <div dir="ltr" className="my-2 p-3 bg-slate-900 rounded-md font-mono text-xs text-yellow-300 text-left">
-                                    <pre><code>{`rules_version = '2';
+                                <p className="mt-1 text-slate-400">{t('firebaseSetupStep4Body', language)}</p>
+                                <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-xs text-yellow-300 text-left">
+                                    <pre className="whitespace-pre-wrap"><code>{`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Apply this rule ONLY to the 'feedback' collection
     match /feedback/{feedbackId} {
-      // Allow anyone to read feedback and create new feedback
       allow read, create: if true;
-      // Prevent anyone from updating or deleting existing feedback
       allow update, delete: if false;
     }
   }
 }`}</code></pre>
+                                    <button onClick={(e) => {
+                                      const codeEl = (e.currentTarget.previousSibling as HTMLElement).querySelector('code');
+                                      if (codeEl) handleCopy(codeEl.innerText, 'rules');
+                                    }} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
+                                      <CopyIcon /> {t('firebaseSetupCopyButton', language)}
+                                    </button>
                                 </div>
                             </div>
                             {/* Step 5 */}
