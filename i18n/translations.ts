@@ -51,21 +51,6 @@ export const translations = {
     en: 'Speech Speed',
     fr: 'Vitesse de la parole',
   },
-  speedSlow: {
-    ar: 'بطيء',
-    en: 'Slow',
-    fr: 'Lent',
-  },
-  speedNormal: {
-    ar: 'عادي',
-    en: 'Normal',
-    fr: 'Normal',
-  },
-  speedFast: {
-    ar: 'سريع',
-    en: 'Fast',
-    fr: 'Rapide',
-  },
   paragraphPause: {
     ar: 'التوقف بين الفقرات',
     en: 'Pause Between Paragraphs',
