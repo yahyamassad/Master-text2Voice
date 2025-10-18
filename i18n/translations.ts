@@ -66,6 +66,16 @@ export const translations = {
     en: 'Fast',
     fr: 'Rapide',
   },
+  paragraphPause: {
+    ar: 'التوقف بين الفقرات',
+    en: 'Pause Between Paragraphs',
+    fr: 'Pause entre les paragraphes',
+  },
+  seconds: {
+    ar: 'ث',
+    en: 's',
+    fr: 's',
+  },
   translateButton: {
     ar: 'ترجمة',
     en: 'Translate',
