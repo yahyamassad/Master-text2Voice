@@ -1,12 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { generateSpeech, translateText, SpeechSpeed } from './services/geminiService';
 import { decode, decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
-import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon } from './components/icons';
+import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, SoundWaveIcon } from './components/icons';
 import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem } from './i18n/translations';
 import { Feedback } from './components/Feedback';
 
 type VoiceType = 'Puck' | 'Kore';
 type DownloadFormat = 'wav' | 'mp3';
+type ActiveSpeaker = 'source' | 'target' | null;
 
 const App: React.FC = () => {
   const [sourceText, setSourceText] = useState<string>('Hello, world! How are you today?');
@@ -19,6 +20,7 @@ const App: React.FC = () => {
   
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [isGeneratingSpeech, setIsGeneratingSpeech] = useState<boolean>(false);
+  const [activeSpeaker, setActiveSpeaker] = useState<ActiveSpeaker>(null);
   
   const [error, setError] = useState<string | null>(null);
   const [pcmData, setPcmData] = useState<Uint8Array | null>(null);
@@ -67,8 +69,8 @@ const App: React.FC = () => {
   }, [sourceText, sourceLang, targetLang, language]);
 
 
-  const handleGenerateSpeech = useCallback(async (textToSpeak: string, textLangCode: string) => {
-    if (!textToSpeak.trim()) return;
+  const handleGenerateSpeech = useCallback(async (textToSpeak: string, textLangCode: string, speakerType: ActiveSpeaker) => {
+    if (!textToSpeak.trim() || activeSpeaker) return;
 
     setIsGeneratingSpeech(true);
     setError(null);
@@ -93,7 +95,13 @@ const App: React.FC = () => {
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContext.destination);
+      
+      source.onended = () => {
+        setActiveSpeaker(null);
+      };
+
       source.start();
+      setActiveSpeaker(speakerType);
 
     } catch (err) {
       console.error(err);
@@ -110,7 +118,7 @@ const App: React.FC = () => {
     } finally {
       setIsGeneratingSpeech(false);
     }
-  }, [voice, speed, language]);
+  }, [voice, speed, language, activeSpeaker]);
 
   const handleDownload = () => {
     if (!pcmData) return;
@@ -181,12 +189,12 @@ const App: React.FC = () => {
                     disabled={isLoading}
                 />
                 <button
-                  onClick={() => handleGenerateSpeech(sourceText, sourceLang)}
-                  disabled={isLoading || !sourceText.trim()}
+                  onClick={() => handleGenerateSpeech(sourceText, sourceLang, 'source')}
+                  disabled={isLoading || !sourceText.trim() || activeSpeaker !== null}
                   className="w-full flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
                 >
-                  <SpeakerIcon />
-                  <span>{t('speakSource', language)}</span>
+                  {activeSpeaker === 'source' ? <SoundWaveIcon /> : <SpeakerIcon />}
+                  <span>{activeSpeaker === 'source' ? t('listening', language) : t('speakSource', language)}</span>
                 </button>
             </div>
             {/* Target Text Area */}
@@ -202,12 +210,12 @@ const App: React.FC = () => {
                     className="w-full h-48 p-4 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 cursor-not-allowed"
                 />
                  <button
-                  onClick={() => handleGenerateSpeech(translatedText, targetLang)}
-                  disabled={isLoading || !translatedText.trim()}
+                  onClick={() => handleGenerateSpeech(translatedText, targetLang, 'target')}
+                  disabled={isLoading || !translatedText.trim() || activeSpeaker !== null}
                   className="w-full flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
                 >
-                  <SpeakerIcon />
-                  <span>{t('speakTarget', language)}</span>
+                  {activeSpeaker === 'target' ? <SoundWaveIcon /> : <SpeakerIcon />}
+                  <span>{activeSpeaker === 'target' ? t('listening', language) : t('speakTarget', language)}</span>
                 </button>
             </div>
         </div>
