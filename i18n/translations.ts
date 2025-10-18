@@ -86,6 +86,11 @@ export const translations = {
     en: 'Speak Translation',
     fr: 'Écouter la Traduction',
   },
+  listening: {
+    ar: 'جاري الاستماع...',
+    en: 'Listening...',
+    fr: 'Écoute en cours...',
+  },
   downloadFormat: {
     ar: 'صيغة التحميل:',
     en: 'Download Format:',
