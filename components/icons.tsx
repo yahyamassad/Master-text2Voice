@@ -17,6 +17,31 @@ export const SpeakerIcon: React.FC = () => (
   </svg>
 );
 
+export const SoundWaveIcon: React.FC = () => (
+    <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        className="h-6 w-6" 
+        viewBox="0 0 24 24" 
+        fill="currentColor"
+    >
+        <style>{`
+            .wave-bar { animation: wave 1.2s infinite ease-in-out; }
+            .wave-bar:nth-child(2) { animation-delay: -1.0s; }
+            .wave-bar:nth-child(3) { animation-delay: -0.8s; }
+            .wave-bar:nth-child(4) { animation-delay: -0.6s; }
+            @keyframes wave {
+                0%, 40%, 100% { transform: scaleY(0.4); }
+                20% { transform: scaleY(1.0); }
+            }
+        `}</style>
+        <rect className="wave-bar" x="4" y="4" width="2" height="16" rx="1" transform-origin="center" />
+        <rect className="wave-bar" x="9" y="4" width="2" height="16" rx="1" transform-origin="center" />
+        <rect className="wave-bar" x="14" y="4" width="2" height="16" rx="1" transform-origin="center" />
+        <rect className="wave-bar" x="19" y="4" width="2" height="16" rx="1" transform-origin="center" />
+    </svg>
+);
+
+
 export const LoaderIcon: React.FC = () => (
   <svg
     className="animate-spin h-6 w-6 text-white"
