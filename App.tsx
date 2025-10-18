@@ -9,6 +9,11 @@ type VoiceType = 'Puck' | 'Kore';
 type DownloadFormat = 'wav' | 'mp3';
 type ActiveSpeaker = 'source' | 'target' | null;
 
+interface AudioCacheItem {
+    pcm: Uint8Array;
+    buffer: AudioBuffer;
+}
+
 const App: React.FC = () => {
   const [sourceText, setSourceText] = useState<string>('Hello, world! How are you today?\n\nThis is a second paragraph to demonstrate the pause feature.');
   const [translatedText, setTranslatedText] = useState<string>('');
@@ -35,7 +40,7 @@ const App: React.FC = () => {
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
   const activeSpeakerRef = useRef<ActiveSpeaker>(null);
-  const audioCacheRef = useRef(new Map<string, Uint8Array>());
+  const audioCacheRef = useRef(new Map<string, AudioCacheItem>());
   const playbackStateRef = useRef({
     source: { position: 0, startTime: 0 },
     target: { position: 0, startTime: 0 }
@@ -144,14 +149,17 @@ setError(null);
     }
     
     // Helper function to encapsulate the audio playback logic
-    const playAudio = async (pcmData: Uint8Array, speaker: 'source' | 'target') => {
+    const playAudio = async (audioBuffer: AudioBuffer, speaker: 'source' | 'target') => {
         if (!audioContextRef.current) {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         }
         const audioContext = audioContextRef.current;
         
-        setPcmData(pcmData);
-        const audioBuffer = await decodeAudioData(pcmData, audioContext, 24000, 1);
+        // Browsers may suspend audio context if the tab is inactive. Resume it to prevent issues.
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+
         const source = audioContext.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioContext.destination);
@@ -161,8 +169,10 @@ setError(null);
         const offset = playbackStateRef.current[speaker].position;
         const startOffset = (offset < audioBuffer.duration) ? offset : 0;
         
+        // Record the start time relative to the audio context's clock,
+        // adjusted for the offset, to correctly calculate elapsed time on pause.
+        playbackStateRef.current[speaker].startTime = audioContext.currentTime - startOffset;
         source.start(0, startOffset);
-        playbackStateRef.current[speaker].startTime = audioContext.currentTime;
 
         source.onended = () => {
             // This onended should only handle the natural end of playback.
@@ -187,8 +197,9 @@ setError(null);
     if (audioCacheRef.current.has(cacheKey)) {
         // --- CACHED PLAY / RESUME ---
         setActiveSpeaker(speakerType);
-        const cachedData = audioCacheRef.current.get(cacheKey)!;
-        await playAudio(cachedData, speakerType);
+        const cachedAudio = audioCacheRef.current.get(cacheKey)!;
+        setPcmData(cachedAudio.pcm); // Set PCM data for download button
+        await playAudio(cachedAudio.buffer, speakerType);
     } else {
         // --- API PLAY (not in cache) ---
         playbackStateRef.current[speakerType].position = 0; // Reset position for new audio
@@ -196,7 +207,7 @@ setError(null);
         setIsGeneratingSpeech(true);
         setActiveSpeaker(speakerType);
         try {
-            const generatedData = await generateSpeech(textToSpeak, voice, speed, textLangName, pauseDuration);
+            const generatedPcm = await generateSpeech(textToSpeak, voice, speed, textLangName, pauseDuration);
             
             // After await, check if a 'stop' action occurred during generation
             if (activeSpeakerRef.current !== speakerType) {
@@ -204,10 +215,19 @@ setError(null);
                 return; 
             }
             
-            if (generatedData) {
-                audioCacheRef.current.set(cacheKey, generatedData); // Save to cache
+            if (generatedPcm) {
+                if (!audioContextRef.current) {
+                     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+                }
+                // Decode the new audio ONCE
+                const audioBuffer = await decodeAudioData(generatedPcm, audioContextRef.current, 24000, 1);
+                
+                // Save both PCM (for download) and AudioBuffer (for playback) to cache
+                audioCacheRef.current.set(cacheKey, { pcm: generatedPcm, buffer: audioBuffer });
+                
+                setPcmData(generatedPcm);
                 setIsGeneratingSpeech(false); // Turn off loader
-                await playAudio(generatedData, speakerType); // Then play
+                await playAudio(audioBuffer, speakerType); // Then play
             } else {
                 throw new Error('API_NO_AUDIO');
             }
