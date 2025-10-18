@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
   const activeSpeakerRef = useRef<ActiveSpeaker>(null);
+  const audioCacheRef = useRef(new Map<string, Uint8Array>());
 
   // Keep ref in sync with state to avoid stale closures in async callbacks
   useEffect(() => {
@@ -93,7 +94,7 @@ const App: React.FC = () => {
     if (!sourceText.trim()) return;
 
     setIsTranslating(true);
-    setError(null);
+setError(null);
     setTranslatedText('');
 
     try {
@@ -111,83 +112,94 @@ const App: React.FC = () => {
 
 
   const handleSpeechAction = useCallback(async (textToSpeak: string, textLangCode: string, speakerType: 'source' | 'target') => {
-    // Stop any currently playing audio stream.
+    // 1. Stop any currently playing audio stream.
     if (audioSourceRef.current) {
         audioSourceRef.current.onended = null; // Prevent onended from firing after manual stop
         audioSourceRef.current.stop();
         audioSourceRef.current = null;
     }
 
-    // If the user clicked the button of the active speaker, it's a 'stop' action.
+    // 2. If the user clicked the button of the active speaker, it's a 'stop' action.
     if (activeSpeaker === speakerType) {
         setActiveSpeaker(null);
         setIsGeneratingSpeech(false); // Ensure loading state is also reset
         return;
     }
 
-    // --- It's a 'play' action from here ---
-
+    // 3. --- It's a 'play' action from here ---
     if (!textToSpeak.trim()) return;
 
-    // Set states for the new speaker
-    setIsGeneratingSpeech(true);
-    setActiveSpeaker(speakerType);
     setError(null);
     setPcmData(null); 
+    
+    // Helper function to encapsulate the audio playback logic
+    const playAudio = async (pcmData: Uint8Array) => {
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        }
+        const audioContext = audioContextRef.current;
+        
+        setPcmData(pcmData);
+        const audioBuffer = await decodeAudioData(pcmData, audioContext, 24000, 1);
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+        audioSourceRef.current = source;
+        source.onended = () => {
+            if (audioSourceRef.current === source) {
+                setActiveSpeaker(null);
+                audioSourceRef.current = null;
+            }
+        };
+        source.start();
+    };
 
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      }
-      const audioContext = audioContextRef.current;
-      
-      const textLangName = findLanguageName(textLangCode);
-      const rawPcmData = await generateSpeech(textToSpeak, voice, speed, textLangName, pauseDuration);
-      
-      // After await, check if a 'stop' action occurred during generation using the ref for the latest state.
-      if (activeSpeakerRef.current !== speakerType) {
-        setIsGeneratingSpeech(false);
-        return; 
-      }
-      
-      if (!rawPcmData) {
-        throw new Error('API_NO_AUDIO');
-      }
+    // 4. Create a unique key for the current audio request to use for caching
+    const textLangName = findLanguageName(textLangCode);
+    const cacheKey = `${textLangCode}:${voice}:${speed}:${pauseDuration}:${textToSpeak}`;
 
-      setPcmData(rawPcmData);
-
-      const audioBuffer = await decodeAudioData(rawPcmData, audioContext, 24000, 1);
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContext.destination);
-      
-      audioSourceRef.current = source;
-
-      source.onended = () => {
-        if (audioSourceRef.current === source) {
+    // 5. Check if the audio data is already in the cache
+    if (audioCacheRef.current.has(cacheKey)) {
+        // --- CACHED PLAY ---
+        setActiveSpeaker(speakerType);
+        const cachedData = audioCacheRef.current.get(cacheKey)!;
+        await playAudio(cachedData);
+    } else {
+        // --- API PLAY (not in cache) ---
+        setIsGeneratingSpeech(true);
+        setActiveSpeaker(speakerType);
+        try {
+            const generatedData = await generateSpeech(textToSpeak, voice, speed, textLangName, pauseDuration);
+            
+            // After await, check if a 'stop' action occurred during generation
+            if (activeSpeakerRef.current !== speakerType) {
+                setIsGeneratingSpeech(false);
+                return; 
+            }
+            
+            if (generatedData) {
+                audioCacheRef.current.set(cacheKey, generatedData); // Save to cache
+                setIsGeneratingSpeech(false); // Turn off loader
+                await playAudio(generatedData); // Then play
+            } else {
+                throw new Error('API_NO_AUDIO');
+            }
+        } catch (err) {
+            console.error(err);
+            setPcmData(null); 
+            let errorMessage = t('errorUnexpected', language);
+            if (err instanceof Error) {
+                if (err.message === 'API_NO_AUDIO') {
+                    errorMessage = t('errorApiNoAudio', language);
+                } else if (err.message === 'GEMINI_API_ERROR') {
+                    errorMessage = t('errorGemini', language);
+                }
+            }
+            setError(errorMessage);
             setActiveSpeaker(null);
+            setIsGeneratingSpeech(false);
             audioSourceRef.current = null;
         }
-      };
-
-      setIsGeneratingSpeech(false); // Generation is done, now playing
-      source.start();
-
-    } catch (err) {
-        console.error(err);
-        setPcmData(null); 
-        let errorMessage = t('errorUnexpected', language);
-        if (err instanceof Error) {
-            if (err.message === 'API_NO_AUDIO') {
-                errorMessage = t('errorApiNoAudio', language);
-            } else if (err.message === 'GEMINI_API_ERROR') {
-                errorMessage = t('errorGemini', language);
-            }
-        }
-        setError(errorMessage);
-        setActiveSpeaker(null);
-        setIsGeneratingSpeech(false);
-        audioSourceRef.current = null;
     }
   }, [voice, speed, language, activeSpeaker, pauseDuration]);
 
