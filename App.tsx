@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { generateSpeech, translateText, SpeechSpeed } from './services/geminiService';
 import { decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
-import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, SoundWaveIcon, GlobeIcon, ChevronDownIcon } from './components/icons';
+import { SpeakerIcon, LoaderIcon, DownloadIcon, TranslateIcon, StopIcon, GlobeIcon, ChevronDownIcon } from './components/icons';
 import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem } from './i18n/translations';
 import { Feedback } from './components/Feedback';
 
@@ -32,6 +32,7 @@ const App: React.FC = () => {
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
   // Set default language from URL on initial load
@@ -103,10 +104,28 @@ const App: React.FC = () => {
   }, [sourceText, sourceLang, targetLang, language]);
 
 
-  const handleGenerateSpeech = useCallback(async (textToSpeak: string, textLangCode: string, speakerType: ActiveSpeaker) => {
-    if (!textToSpeak.trim() || activeSpeaker) return;
+  const handleSpeechAction = useCallback(async (textToSpeak: string, textLangCode: string, speakerType: 'source' | 'target') => {
+    // Stop any currently playing audio stream.
+    if (audioSourceRef.current) {
+        audioSourceRef.current.onended = null; // Prevent onended from firing after manual stop
+        audioSourceRef.current.stop();
+        audioSourceRef.current = null;
+    }
 
+    // If the user clicked the button of the active speaker, it's a 'stop' action.
+    if (activeSpeaker === speakerType) {
+        setActiveSpeaker(null);
+        setIsGeneratingSpeech(false); // Ensure loading state is also reset
+        return;
+    }
+
+    // --- It's a 'play' action from here ---
+
+    if (!textToSpeak.trim()) return;
+
+    // Set states for the new speaker
     setIsGeneratingSpeech(true);
+    setActiveSpeaker(speakerType);
     setError(null);
     setPcmData(null); 
 
@@ -118,6 +137,13 @@ const App: React.FC = () => {
       
       const textLangName = findLanguageName(textLangCode);
       const rawPcmData = await generateSpeech(textToSpeak, voice, speed, textLangName, pauseDuration);
+      
+      // After await, check if a 'stop' action occurred during generation
+      if (activeSpeaker !== speakerType) {
+        setIsGeneratingSpeech(false);
+        return; 
+      }
+      
       if (!rawPcmData) {
         throw new Error('API_NO_AUDIO');
       }
@@ -129,27 +155,33 @@ const App: React.FC = () => {
       source.buffer = audioBuffer;
       source.connect(audioContext.destination);
       
+      audioSourceRef.current = source;
+
       source.onended = () => {
-        setActiveSpeaker(null);
+        if (audioSourceRef.current === source) {
+            setActiveSpeaker(null);
+            audioSourceRef.current = null;
+        }
       };
 
+      setIsGeneratingSpeech(false); // Generation is done, now playing
       source.start();
-      setActiveSpeaker(speakerType);
 
     } catch (err) {
-      console.error(err);
-      setPcmData(null); 
-      let errorMessage = t('errorUnexpected', language);
-       if (err instanceof Error) {
-        if (err.message === 'API_NO_AUDIO') {
-          errorMessage = t('errorApiNoAudio', language);
-        } else if (err.message === 'GEMINI_API_ERROR') {
-          errorMessage = t('errorGemini', language);
+        console.error(err);
+        setPcmData(null); 
+        let errorMessage = t('errorUnexpected', language);
+        if (err instanceof Error) {
+            if (err.message === 'API_NO_AUDIO') {
+                errorMessage = t('errorApiNoAudio', language);
+            } else if (err.message === 'GEMINI_API_ERROR') {
+                errorMessage = t('errorGemini', language);
+            }
         }
-      }
-      setError(errorMessage);
-    } finally {
-      setIsGeneratingSpeech(false);
+        setError(errorMessage);
+        setActiveSpeaker(null);
+        setIsGeneratingSpeech(false);
+        audioSourceRef.current = null;
     }
   }, [voice, speed, language, activeSpeaker, pauseDuration]);
 
@@ -174,8 +206,13 @@ const App: React.FC = () => {
     document.body.removeChild(a);
   };
 
-  const isLoading = isTranslating || isGeneratingSpeech;
   const currentLanguageLabel = languageOptions.find(opt => opt.value === language)?.label;
+
+  const isSourceActive = activeSpeaker === 'source';
+  const isSourceLoading = isSourceActive && isGeneratingSpeech;
+  const isTargetActive = activeSpeaker === 'target';
+  const isTargetLoading = isTargetActive && isGeneratingSpeech;
+
 
   return (
     <div className="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
@@ -234,15 +271,21 @@ const App: React.FC = () => {
                     onChange={(e) => setSourceText(e.target.value)}
                     placeholder={t('placeholder', language)}
                     className="w-full h-48 p-4 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500"
-                    disabled={isLoading}
+                    disabled={isTranslating}
                 />
                 <button
-                  onClick={() => handleGenerateSpeech(sourceText, sourceLang, 'source')}
-                  disabled={isLoading || !sourceText.trim() || activeSpeaker !== null}
+                  onClick={() => handleSpeechAction(sourceText, sourceLang, 'source')}
+                  disabled={isTranslating || !sourceText.trim()}
                   className="w-full flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
                 >
-                  {activeSpeaker === 'source' ? <SoundWaveIcon /> : <SpeakerIcon />}
-                  <span>{activeSpeaker === 'source' ? t('listening', language) : t('speakSource', language)}</span>
+                  {isSourceLoading ? <LoaderIcon /> : isSourceActive ? <StopIcon /> : <SpeakerIcon />}
+                  <span>
+                    {isSourceLoading
+                      ? t('generatingSpeech', language)
+                      : isSourceActive
+                      ? t('stopSpeaking', language)
+                      : t('speakSource', language)}
+                  </span>
                 </button>
             </div>
             {/* Target Text Area */}
@@ -258,12 +301,18 @@ const App: React.FC = () => {
                     className="w-full h-48 p-4 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 cursor-not-allowed"
                 />
                  <button
-                  onClick={() => handleGenerateSpeech(translatedText, targetLang, 'target')}
-                  disabled={isLoading || !translatedText.trim() || activeSpeaker !== null}
+                  onClick={() => handleSpeechAction(translatedText, targetLang, 'target')}
+                  disabled={isTranslating || !translatedText.trim()}
                   className="w-full flex items-center justify-center gap-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
                 >
-                  {activeSpeaker === 'target' ? <SoundWaveIcon /> : <SpeakerIcon />}
-                  <span>{activeSpeaker === 'target' ? t('listening', language) : t('speakTarget', language)}</span>
+                  {isTargetLoading ? <LoaderIcon /> : isTargetActive ? <StopIcon /> : <SpeakerIcon />}
+                  <span>
+                    {isTargetLoading
+                      ? t('generatingSpeech', language)
+                      : isTargetActive
+                      ? t('stopSpeaking', language)
+                      : t('speakTarget', language)}
+                  </span>
                 </button>
             </div>
         </div>
@@ -271,7 +320,7 @@ const App: React.FC = () => {
         <div className="pt-4">
              <button
               onClick={handleTranslate}
-              disabled={isLoading || !sourceText.trim()}
+              disabled={isTranslating || isGeneratingSpeech || !sourceText.trim()}
               className="w-full flex items-center justify-center gap-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-cyan-600/20"
             >
               {isTranslating ? (
@@ -295,20 +344,20 @@ const App: React.FC = () => {
                 <div className="space-y-4">
                     <div className="flex justify-center gap-8 text-slate-300">
                         <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors">
-                            <input type="radio" name="voice" value="Puck" checked={voice === 'Puck'} onChange={() => setVoice('Puck')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isLoading}/>
+                            <input type="radio" name="voice" value="Puck" checked={voice === 'Puck'} onChange={() => setVoice('Puck')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech}/>
                             <span>{t('maleVoice', language)}</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors">
-                            <input type="radio" name="voice" value="Kore" checked={voice === 'Kore'} onChange={() => setVoice('Kore')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isLoading} />
+                            <input type="radio" name="voice" value="Kore" checked={voice === 'Kore'} onChange={() => setVoice('Kore')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech} />
                             <span>{t('femaleVoice', language)}</span>
                         </label>
                     </div>
                      <div className="text-center space-y-2">
                         <p className="text-slate-300">{t('speechSpeed', language)}</p>
                         <div className="flex justify-center gap-4 text-slate-300">
-                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="slow" checked={speed === 'slow'} onChange={() => setSpeed('slow')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isLoading} /><span>{t('speedSlow', language)}</span></label>
-                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="normal" checked={speed === 'normal'} onChange={() => setSpeed('normal')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isLoading} /><span>{t('speedNormal', language)}</span></label>
-                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="fast" checked={speed === 'fast'} onChange={() => setSpeed('fast')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isLoading} /><span>{t('speedFast', language)}</span></label>
+                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="slow" checked={speed === 'slow'} onChange={() => setSpeed('slow')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech} /><span>{t('speedSlow', language)}</span></label>
+                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="normal" checked={speed === 'normal'} onChange={() => setSpeed('normal')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech} /><span>{t('speedNormal', language)}</span></label>
+                            <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-400 transition-colors"><input type="radio" name="speed" value="fast" checked={speed === 'fast'} onChange={() => setSpeed('fast')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500 focus:ring-2" disabled={isTranslating || isGeneratingSpeech} /><span>{t('speedFast', language)}</span></label>
                         </div>
                     </div>
                     <div className="text-center space-y-3 pt-2">
@@ -324,13 +373,13 @@ const App: React.FC = () => {
                             step="0.1"
                             value={pauseDuration}
                             onChange={(e) => setPauseDuration(parseFloat(e.target.value))}
-                            disabled={isLoading}
+                            disabled={isTranslating || isGeneratingSpeech}
                             className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-cyan-500 [&::-webkit-slider-thumb]:rounded-full [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-cyan-500 [&::-moz-range-thumb]:rounded-full"
                         />
                     </div>
                 </div>
                 {/* Download Section */}
-                <div className={`transition-opacity duration-500 ${pcmData && !isGeneratingSpeech ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                <div className={`transition-opacity duration-500 ${pcmData && !isGeneratingSpeech && !activeSpeaker ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
                      <div className="bg-slate-700/50 p-4 rounded-lg space-y-4 h-full flex flex-col justify-center">
                         <div className="flex justify-center items-center gap-4 sm:gap-8 text-slate-300">
                             <span className="font-bold text-sm sm:text-base">{t('downloadFormat', language)}</span>
