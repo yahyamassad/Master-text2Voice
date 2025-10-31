@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Text-to-Speech & Translator</title>
+    <title>Sawtli</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
     <style>
@@ -26,6 +26,26 @@
       .animate-fade-in-down {
         animation: fade-in-down 0.2s ease-out;
       }
+      /* New glow effect for main container */
+      .glow-container::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 1rem; /* match rounded-2xl */
+        padding: 2px; /* border width */
+        background: conic-gradient(from 180deg at 50% 50%, #22d3ee 0deg, #3b82f6 180deg, #8b5cf6 360deg);
+        -webkit-mask:
+            linear-gradient(#fff 0 0) content-box,
+            linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+        opacity: 0.3;
+        transition: opacity 0.3s ease-in-out;
+      }
+      .glow-container:hover::before {
+        opacity: 0.8;
+      }
     </style>
   <script type="importmap">
 {
@@ -40,7 +60,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root"></div>
