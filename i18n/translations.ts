@@ -6,15 +6,15 @@ export interface LanguageListItem {
 }
 
 export const translations = {
-  title: {
-    ar: 'مترجم ومحول نص إلى كلام',
-    en: 'Text-to-Speech & Translator',
-    fr: 'Traducteur & Synthèse Vocale',
+  pageTitle: {
+    ar: 'Sawtli - مترجم ومحول نص إلى كلام',
+    en: 'Sawtli - Text-to-Speech & Translator',
+    fr: 'Sawtli - Traducteur & Synthèse Vocale',
   },
   subtitle: {
-    ar: 'ترجم أي نص وتحدث به. مدعوم بالذكاء الاصطناعي من Gemini.',
-    en: 'Translate any text and speak it out. Powered by Gemini AI.',
-    fr: 'Traduisez n\'importe quel texte et écoutez-le. Propulsé par Gemini AI.',
+    ar: 'اكتب... تكلم... ترجم... استمع',
+    en: 'Write... Speak... Translate... Listen',
+    fr: 'Écrivez... Parlez... Traduisez... Écoutez',
   },
   placeholder: {
     ar: 'أدخل النص هنا...',
@@ -36,22 +36,117 @@ export const translations = {
     en: 'Target Language',
     fr: 'Langue Cible',
   },
-  maleVoice: {
-    ar: 'صوت ذكر',
-    en: 'Male Voice',
-    fr: 'Voix Masculine',
+  swapLanguages: {
+    ar: 'تبديل اللغات',
+    en: 'Swap languages',
+    fr: 'Intervertir les langues',
   },
-  femaleVoice: {
-    ar: 'صوت أنثى',
-    en: 'Female Voice',
-    fr: 'Voix Féminine',
+  speechSettings: {
+    ar: 'إعدادات النطق',
+    en: 'Speech Settings',
+    fr: 'Paramètres Vocaux',
   },
-  speechSpeed: {
+  openSpeechSettings: {
+    ar: 'فتح إعدادات النطق',
+    en: 'Open Speech Settings',
+    fr: 'Ouvrir les Paramètres Vocaux',
+  },
+  voiceLabel: {
+    ar: 'الصوت',
+    en: 'Voice',
+    fr: 'Voix',
+  },
+  voicePuck: {
+    ar: 'صوت (Puck) - ذكر',
+    en: 'Puck (Male)',
+    fr: 'Puck (Masculin)',
+  },
+  voiceKore: {
+    ar: 'صوت (Kore) - أنثى',
+    en: 'Kore (Female)',
+    fr: 'Kore (Féminine)',
+  },
+  voiceZephyr: {
+    ar: 'صوت (Zephyr) - أنثى',
+    en: 'Zephyr (Female)',
+    fr: 'Zephyr (Féminin)',
+  },
+  voiceCharon: {
+    ar: 'صوت (Charon) - ذكر',
+    en: 'Charon (Male)',
+    fr: 'Charon (Masculin)',
+  },
+  voiceFenrir: {
+    ar: 'صوت (Fenrir) - ذكر',
+    en: 'Fenrir (Male)',
+    fr: 'Fenrir (Masculin)',
+  },
+  previewVoiceTooltip: {
+    ar: 'معاينة هذا الصوت',
+    en: 'Preview this voice',
+    fr: 'Aperçu de cette voix',
+  },
+  voicePreviewText: {
+    ar: 'مرحباً، هذه معاينة لصوتي.',
+    en: 'Hello, this is a preview of my voice.',
+    fr: 'Bonjour, ceci est un aperçu de ma voix.',
+  },
+  speedLabel: {
     ar: 'سرعة النطق',
     en: 'Speech Speed',
     fr: 'Vitesse de la parole',
   },
-  paragraphPause: {
+  speedVerySlow: {
+    ar: 'بطيء جداً',
+    en: 'Very Slow',
+    fr: 'Très Lent',
+  },
+  speedSlow: {
+    ar: 'بطيء',
+    en: 'Slow',
+    fr: 'Lent',
+  },
+  speedNormal: {
+    ar: 'عادي',
+    en: 'Normal',
+    fr: 'Normale',
+  },
+  speedFast: {
+    ar: 'سريع',
+    en: 'Fast',
+    fr: 'Rapide',
+  },
+  speedVeryFast: {
+    ar: 'سريع جداً',
+    en: 'Very Fast',
+    fr: 'Très Rapide',
+  },
+  speechEmotion: {
+    ar: 'نبرة الصوت',
+    en: 'Speech Emotion',
+    fr: 'Émotion de la parole',
+  },
+  emotionDefault: {
+    ar: 'افتراضي',
+    en: 'Default',
+    fr: 'Défaut',
+  },
+  emotionHappy: {
+    ar: 'سعيد',
+    en: 'Happy',
+    fr: 'Heureux',
+  },
+  emotionSad: {
+    ar: 'حزين',
+    en: 'Sad',
+    fr: 'Triste',
+  },
+  emotionFormal: {
+    ar: 'رسمي',
+    en: 'Formal',
+    fr: 'Formel',
+  },
+  pauseLabel: {
     ar: 'التوقف بين الفقرات',
     en: 'Pause Between Paragraphs',
     fr: 'Pause entre les paragraphes',
@@ -60,6 +155,46 @@ export const translations = {
     ar: 'ث',
     en: 's',
     fr: 's',
+  },
+  multiSpeakerSettings: {
+    ar: 'إعدادات تعدد المتحدثين',
+    en: 'Multi-Speaker Settings',
+    fr: 'Paramètres multi-locuteurs',
+  },
+  enableMultiSpeaker: {
+    ar: 'تفعيل وضع تعدد المتحدثين',
+    en: 'Enable Multi-Speaker Mode',
+    fr: 'Activer le mode multi-locuteurs',
+  },
+  enableMultiSpeakerInfo: {
+      ar: 'عند التفعيل، سيحاول التطبيق تعيين أصوات مختلفة للمتحدثين. عند التعطيل، سيتم استخدام الصوت المحدد الفردي.',
+      en: 'When enabled, the app assigns different voices to speakers. When disabled, the single selected voice is used.',
+      fr: 'Activé, l\'app assigne des voix différentes aux locuteurs. Désactivé, la voix unique sélectionnée est utilisée.',
+  },
+  multiSpeakerInfo: {
+    ar: "للصوت متعدد المتحدثين، نسّق النص على شكل 'الاسم: مرحباً!' في كل سطر.",
+    en: "For multi-speaker audio, format your text like 'Name: Hello!' on each line.",
+    fr: "Pour l'audio multi-locuteurs, formatez votre texte comme 'Nom : Bonjour !' sur chaque ligne.",
+  },
+  speakerName: {
+    ar: 'اسم المتحدث',
+    en: 'Speaker Name',
+    fr: 'Nom du locuteur',
+  },
+  speakerVoice: {
+    ar: 'صوت المتحدث',
+    en: 'Speaker Voice',
+    fr: 'Voix du locuteur',
+  },
+  speaker1: {
+    ar: 'مثال: يزن',
+    en: 'e.g., Yazan',
+    fr: 'ex: Yazan',
+  },
+  speaker2: {
+    ar: 'مثال: لانا',
+    en: 'e.g., Lana',
+    fr: 'ex: Lana',
   },
   translateButton: {
     ar: 'ترجمة',
@@ -80,6 +215,21 @@ export const translations = {
     ar: 'استمع للترجمة',
     en: 'Speak Translation',
     fr: 'Écouter la Traduction',
+  },
+  voiceInput: {
+    ar: 'إدخال صوتي',
+    en: 'Voice Input',
+    fr: 'Entrée Vocale',
+  },
+  stopListening: {
+    ar: 'إيقاف الاستماع',
+    en: 'Stop Listening',
+    fr: 'Arrêter l\'écoute',
+  },
+  pauseSpeaking: {
+    ar: 'إيقاف مؤقت',
+    en: 'Pause',
+    fr: 'Pause',
   },
   resumeSpeaking: {
     ar: 'استئناف',
@@ -107,9 +257,59 @@ export const translations = {
     fr: 'Écoute en cours...',
   },
   downloadButton: {
-    ar: 'تحميل الصوت',
-    en: 'Download Audio',
-    fr: 'Télécharger l\'Audio',
+    ar: 'تحميل',
+    en: 'Download',
+    fr: 'Télécharger',
+  },
+  shareSettings: {
+    ar: 'مشاركة الرابط',
+    en: 'Share Link',
+    fr: 'Partager le lien',
+  },
+  shareSettingsTooltip: {
+    ar: 'نسخ رابط مع الإعدادات الحالية',
+    en: 'Copy a link with the current settings',
+    fr: 'Copier un lien avec les paramètres actuels',
+  },
+  linkCopied: {
+    ar: 'تم نسخ الرابط إلى الحافظة!',
+    en: 'Link copied to clipboard!',
+    fr: 'Lien copié dans le presse-papiers !',
+  },
+  shareAudio: {
+    ar: 'مشاركة الصوت',
+    en: 'Share Audio',
+    fr: 'Partager l\'audio',
+  },
+  shareAudioTooltip: {
+    ar: 'مشاركة الصوت بتنسيق MP3',
+    en: 'Share audio as an MP3 file',
+    fr: 'Partager l\'audio en tant que fichier MP3',
+  },
+  sharingAudio: {
+    ar: 'جاري التحضير...',
+    en: 'Preparing...',
+    fr: 'Préparation...',
+  },
+  sharedAudioTitle: {
+      ar: 'ملف صوتي من Sawtli',
+      en: 'Audio from Sawtli',
+      fr: 'Audio de Sawtli',
+  },
+  sharedAudioText: {
+      ar: 'استمع إلى هذا الصوت الذي تم إنشاؤه.',
+      en: 'Listen to this generated audio.',
+      fr: 'Écoutez cet audio généré.',
+  },
+  shareNotSupported: {
+    ar: 'المشاركة غير مدعومة في هذا المتصفح.',
+    en: 'Sharing is not supported on this browser.',
+    fr: 'Le partage n\'est pas pris en charge sur ce navigateur.',
+  },
+  downloadPanelTitle: {
+    ar: 'تحميل الملف الصوتي',
+    en: 'Download Audio File',
+    fr: 'Télécharger le Fichier Audio',
   },
   downloadFormat: {
     ar: 'صيغة التحميل',
@@ -125,6 +325,56 @@ export const translations = {
       ar: 'إعادة من البداية',
       en: 'Replay from Start',
       fr: 'Rejouer depuis le début',
+  },
+  copy: {
+    ar: 'نسخ',
+    en: 'Copy',
+    fr: 'Copier',
+  },
+  copyTooltip: {
+    ar: 'نسخ النص',
+    en: 'Copy Text',
+    fr: 'Copier le texte',
+  },
+  copied: {
+    ar: 'تم النسخ!',
+    en: 'Copied!',
+    fr: 'Copié !',
+  },
+  historyButton: {
+    ar: 'السجلات',
+    en: 'History',
+    fr: 'Historique',
+  },
+  historyTitle: {
+    ar: 'سجل الترجمة',
+    en: 'Translation History',
+    fr: 'Historique des traductions',
+  },
+  historyClear: {
+    ar: 'مسح السجل',
+    en: 'Clear History',
+    fr: 'Effacer l\'historique',
+  },
+  historyEmpty: {
+    ar: 'لا توجد ترجمات محفوظة.',
+    en: 'No saved translations.',
+    fr: 'Aucune traduction enregistrée.',
+  },
+  historySearch: {
+    ar: 'ابحث في السجل...',
+    en: 'Search history...',
+    fr: 'Rechercher dans l\'historique...',
+  },
+  historyItemFrom: {
+    ar: 'من',
+    en: 'From',
+    fr: 'De',
+  },
+  historyItemTo: {
+    ar: 'إلى',
+    en: 'To',
+    fr: 'À',
   },
   errorApiNoAudio: {
     ar: 'لم يتم استلام أي بيانات صوتية من الواجهة البرمجية.',
@@ -150,6 +400,16 @@ export const translations = {
     ar: 'فشل تحويل الملف إلى MP3. يرجى محاولة التحميل بصيغة WAV.',
     en: 'Failed to encode to MP3. Please try downloading as WAV.',
     fr: 'Échec de l\'encodage en MP3. Veuillez essayer de télécharger en WAV.',
+  },
+  errorMicPermission: {
+    ar: 'تم رفض إذن الوصول إلى الميكروفون. يرجى تفعيل الإذن من إعدادات المتصفح.',
+    en: 'Microphone permission was denied. Please enable it in your browser settings.',
+    fr: 'L\'autorisation du microphone a été refusée. Veuillez l\'activer dans les paramètres de votre navigateur.',
+  },
+  errorMicNotSupported: {
+    ar: 'ميزة التعرف على الكلام غير مدعومة في متصفحك.',
+    en: 'Speech recognition is not supported by your browser.',
+    fr: 'La reconnaissance vocale n\'est pas prise en charge par votre navigateur.',
   },
   feedbackTitle: {
     ar: 'آراء المستخدمين',
