@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db, isFirebaseConfigured } from '../firebaseConfig';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { t, Language } from '../i18n/translations';
 import { StarIcon, LoaderIcon, CopyIcon, ExternalLinkIcon, ChevronDownIcon } from './icons';
+// FIX: Import modular v9+ Firestore functions and types.
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 interface FeedbackProps {
     language: Language;
@@ -13,11 +14,12 @@ interface FeedbackItem {
     name: string;
     comment: string;
     rating: number;
-    createdAt: any; 
+    // FIX: Use the correct v9+ Timestamp type.
+    createdAt: Timestamp; 
 }
 
-const formatTimestamp = (timestamp: any, lang: string): string => {
-    if (!timestamp || !timestamp.toDate) return '';
+const formatTimestamp = (timestamp: Timestamp | null, lang: string): string => {
+    if (!timestamp || typeof timestamp.toDate !== 'function') return '';
     const date = timestamp.toDate();
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
@@ -54,15 +56,20 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [isGuideOpen, setIsGuideOpen] = useState(false);
-    const [copyButtonText, setCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
+    const [varsCopyButtonText, setVarsCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
+    const [rulesCopyButtonText, setRulesCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
+
 
     useEffect(() => {
-        if (!isFirebaseConfigured) {
+        if (!isFirebaseConfigured || !db) {
             setIsLoading(false);
             return;
         }
 
-        const q = query(collection(db, 'feedback'), orderBy('createdAt', 'desc'));
+        // FIX: Reverted to v9+ modular syntax for querying Firestore.
+        const feedbackCollection = collection(db, 'feedback');
+        const q = query(feedbackCollection, orderBy('createdAt', 'desc'));
+
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const feedbackData: FeedbackItem[] = [];
             querySnapshot.forEach((doc) => {
@@ -80,18 +87,21 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
     }, [language]);
 
     useEffect(() => {
-      setCopyButtonText(t('firebaseSetupCopyButton', language));
+      setVarsCopyButtonText(t('firebaseSetupCopyButton', language));
+      setRulesCopyButtonText(t('firebaseSetupCopyButton', language));
     }, [language]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!comment.trim() || rating === 0) return;
+        if (!comment.trim() || rating === 0 || !db) return;
         
         setIsSubmitting(true);
         setSubmitStatus(null);
         
         try {
-            await addDoc(collection(db, 'feedback'), {
+            // FIX: Reverted to v9+ modular `addDoc()` method and `serverTimestamp()`.
+            const feedbackCollection = collection(db, 'feedback');
+            await addDoc(feedbackCollection, {
                 name: name.trim() || 'Anonymous',
                 comment: comment.trim(),
                 rating: rating,
@@ -119,12 +129,25 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
       'VITE_FIREBASE_APP_ID',
       'VITE_FIREBASE_MEASUREMENT_ID',
     ];
+    
+    const firestoreRules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /feedback/{feedbackId} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+  }
+}`;
 
     const handleCopy = (textToCopy: string, buttonType: 'vars' | 'rules') => {
         navigator.clipboard.writeText(textToCopy);
         if(buttonType === 'vars') {
-            setCopyButtonText(t('firebaseSetupCopiedButton', language));
-            setTimeout(() => setCopyButtonText(t('firebaseSetupCopyButton', language)), 2000);
+            setVarsCopyButtonText(t('firebaseSetupCopiedButton', language));
+            setTimeout(() => setVarsCopyButtonText(t('firebaseSetupCopyButton', language)), 2000);
+        } else if (buttonType === 'rules') {
+            setRulesCopyButtonText(t('firebaseSetupCopiedButton', language));
+            setTimeout(() => setRulesCopyButtonText(t('firebaseSetupCopyButton', language)), 2000);
         }
     };
 
@@ -166,7 +189,7 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                                 <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left">
                                     <pre className="whitespace-pre-wrap"><code>{firebaseEnvVars.join('\n')}</code></pre>
                                     <button onClick={() => handleCopy(firebaseEnvVars.join('\n'), 'vars')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
-                                        <CopyIcon /> {copyButtonText}
+                                        <CopyIcon /> {varsCopyButtonText}
                                     </button>
                                 </div>
                             </div>
@@ -175,20 +198,9 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                                 <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep4Title', language)}</h4>
                                 <p className="mt-1 text-slate-400">{t('firebaseSetupStep4Body', language)}</p>
                                 <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-xs text-yellow-300 text-left">
-                                    <pre className="whitespace-pre-wrap"><code>{`rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /feedback/{feedbackId} {
-      allow read, create: if true;
-      allow update, delete: if false;
-    }
-  }
-}`}</code></pre>
-                                    <button onClick={(e) => {
-                                      const codeEl = (e.currentTarget.previousSibling as HTMLElement).querySelector('code');
-                                      if (codeEl) handleCopy(codeEl.innerText, 'rules');
-                                    }} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
-                                      <CopyIcon /> {t('firebaseSetupCopyButton', language)}
+                                    <pre className="whitespace-pre-wrap"><code>{firestoreRules}</code></pre>
+                                    <button onClick={() => handleCopy(firestoreRules, 'rules')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
+                                      <CopyIcon /> {rulesCopyButtonText}
                                     </button>
                                 </div>
                             </div>
