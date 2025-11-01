@@ -1,19 +1,32 @@
+// FIX: The `/// <reference types="vite/client" />` directive was removed because it caused a build error
+// in environments where TypeScript cannot locate the type definition file.
+// The manual type definitions below serve as a robust fallback to ensure `import.meta.env` is typed correctly.
+
 // Fix: Manually define types for import.meta.env as a workaround for environments
 // where `vite/client` types might not be automatically recognized. This resolves
 // TypeScript errors about `import.meta.env` properties being undefined.
 // Wrapping in `declare global` makes the augmentation more robust in a modular context.
 declare global {
+  // FIX: To resolve the type conflict with Vite's client types, we augment the existing
+  // `ImportMetaEnv` interface instead of redeclaring the `ImportMeta` interface. This is
+  // the standard way to type environment variables in Vite.
+  interface ImportMetaEnv {
+    readonly VITE_FIREBASE_API_KEY: string;
+    readonly VITE_FIREBASE_AUTH_DOMAIN: string;
+    // FIX: Corrected typo in environment variable name from VITE_FIREB ASE_PROJECT_ID to VITE_FIREBASE_PROJECT_ID.
+    readonly VITE_FIREBASE_PROJECT_ID: string;
+    readonly VITE_FIREBASE_STORAGE_BUCKET: string;
+    readonly VITE_FIREBASE_MESSAGING_SENDER_ID: string;
+    readonly VITE_FIREBASE_APP_ID: string;
+    readonly VITE_FIREBASE_MEASUREMENT_ID: string;
+  }
+
+  // FIX: Since the reference to "vite/client" may not be resolving in all environments,
+  // we are manually defining `ImportMeta` to ensure `import.meta.env` is typed.
+  // This resolves errors about property 'env' not existing and can fix cascading
+  // module resolution issues with other libraries like Firebase.
   interface ImportMeta {
-    readonly env: {
-      readonly VITE_FIREBASE_API_KEY: string;
-      readonly VITE_FIREBASE_AUTH_DOMAIN: string;
-      // FIX: Corrected typo in environment variable name from VITE_FIREB ASE_PROJECT_ID to VITE_FIREBASE_PROJECT_ID.
-      readonly VITE_FIREBASE_PROJECT_ID: string;
-      readonly VITE_FIREBASE_STORAGE_BUCKET: string;
-      readonly VITE_FIREBASE_MESSAGING_SENDER_ID: string;
-      readonly VITE_FIREBASE_APP_ID: string;
-      readonly VITE_FIREBASE_MEASUREMENT_ID: string;
-    };
+    readonly env: ImportMetaEnv;
   }
 }
 

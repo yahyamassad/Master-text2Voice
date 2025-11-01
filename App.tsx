@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { generateSpeech, SpeakerConfig, previewVoice } from './services/geminiService';
 import { translateText } from './services/geminiService';
@@ -480,7 +481,7 @@ const App: React.FC = () => {
         // FIX: Conditionally chunk text. For multi-speaker mode, the entire text must be sent in one go
         // to provide the necessary context for the model to assign different voices correctly.
         // For single-speaker mode, we retain the chunking for a faster, streaming-like response.
-        const chunks = isMultiSpeakerMode
+        const chunks = isMultiSpeakerMode && speakerA.name.trim() && speakerB.name.trim()
             ? [textToSpeak.trim()].filter(Boolean) // Use the whole text as a single chunk
             : textToSpeak.split(/\n+/).filter(p => p.trim().length > 0); // Original chunking for single voice
 
@@ -553,17 +554,21 @@ const App: React.FC = () => {
         return;
     }
 
-    // Stop listening
+    // Stop listening: A robust, manual cleanup process.
     if (isListening) {
         if (recognitionRef.current) {
-            // abort() is more immediate than stop().
-            // The 'onend' or 'onerror' event will fire to handle final cleanup.
-            recognitionRef.current.abort();
+            // Detach all event handlers to prevent lingering events from causing state issues
+            recognitionRef.current.onstart = null;
+            recognitionRef.current.onresult = null;
+            recognitionRef.current.onerror = null;
+            recognitionRef.current.onend = null;
+            
+            // Gracefully stop the recognition
+            recognitionRef.current.stop();
+            recognitionRef.current = null;
         }
-        // BUG FIX: Removed immediate state update. The 'onend' or 'onerror'
-        // event handlers are now responsible for all cleanup and state changes,
-        // preventing race conditions where the recognition continues in the
-        // background after the UI state has changed.
+        // Manually and synchronously update the state to ensure the UI is responsive.
+        setIsListening(false);
         return;
     }
     
@@ -571,17 +576,12 @@ const App: React.FC = () => {
     const recognition = new SpeechRecognitionAPI();
     recognitionRef.current = recognition;
 
-    recognition.lang = sourceLang;
+    const selectedLangDetails = translationLanguages.find(lang => lang.code === sourceLang);
+    const speechLangCode = selectedLangDetails ? selectedLangDetails.speechCode : sourceLang;
+
+    recognition.lang = speechLangCode;
     recognition.continuous = true;
     recognition.interimResults = true;
-
-    const cleanup = () => {
-        // Ensure we don't clear a ref that's been replaced by a new instance
-        if (recognitionRef.current === recognition) {
-            recognitionRef.current = null;
-        }
-        setIsListening(false);
-    };
 
     recognition.onstart = () => {
         setIsListening(true);
@@ -590,18 +590,27 @@ const App: React.FC = () => {
     };
 
     recognition.onend = () => {
-        cleanup();
+        // This handler is now primarily for "natural" stops (e.g., after silence).
+        // It defensively checks if it's still the active recognition instance before cleaning up.
+        if (recognitionRef.current === recognition) {
+             recognitionRef.current = null;
+             setIsListening(false);
+        }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('Speech recognition error:', event);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             setError(t('errorMicPermission', language));
-        } else if (event.error !== 'aborted') { // Don't show an error if we aborted it manually
+        } else if (event.error !== 'aborted' && event.error !== 'no-speech') { // 'no-speech' is a common, non-critical error
             setError(t('errorUnexpected', language));
         }
-        // Always run cleanup, even on error, to reset state.
-        cleanup();
+        
+        // Always run cleanup to reset state, but only if this is the active instance.
+        if (recognitionRef.current === recognition) {
+            recognitionRef.current = null;
+            setIsListening(false);
+        }
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
