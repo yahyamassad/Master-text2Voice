@@ -20,11 +20,23 @@ export default async function handler(request, response) {
     const model = 'gemini-2.5-flash';
     const originalSpeakerNames = [speakerAName, speakerBName].filter(name => name && name.trim() !== '');
 
-    const prompt = `Translate the following dialogue from ${sourceLang} to ${targetLang}, preserving empty newlines. Also, provide a mapping of the original speaker names to their translated versions.
+    const prompt = `You are an expert translator. Your task is to translate dialogue from ${sourceLang} to ${targetLang}.
+
+**CRITICAL INSTRUCTIONS:**
+1.  **Preserve all formatting EXACTLY.** This includes speaker names, colons, and ALL newline characters.
+2.  If the source text has an empty line between two lines of dialogue (a double newline), the translated text MUST also have an empty line in the same position. DO NOT collapse multiple newlines into one.
+
+**TASK TO PERFORM:**
+Translate the following dialogue from ${sourceLang} to ${targetLang}.
+Return a JSON object with two keys: "translatedText" (the translated string) and "speakerMapping" (an array mapping original speaker names to translated ones).
+
 Original Speaker Names: ${JSON.stringify(originalSpeakerNames)}
 
 Source Text:
-"${text}"`;
+\`\`\`
+${text}
+\`\`\`
+`;
 
     const result = await ai.models.generateContent({
         model: model,
@@ -37,12 +49,19 @@ Source Text:
                 properties: {
                     translatedText: {
                         type: Type.STRING,
-                        description: "The full translated dialogue, preserving the original formatting including speaker names and newlines."
+                        description: "The full translated dialogue, preserving the original formatting including speaker names and all newlines (including empty lines)."
                     },
                     speakerMapping: {
-                        type: Type.OBJECT,
-                        description: "An object mapping original speaker names to their translated versions.",
-                        properties: {} // Allows for arbitrary key-value pairs
+                        type: Type.ARRAY,
+                        description: "An array of objects mapping original speaker names to their translated versions.",
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                original: { type: Type.STRING, description: "The original speaker name." },
+                                translated: { type: Type.STRING, description: "The translated speaker name." }
+                            },
+                            required: ["original", "translated"]
+                        }
                     }
                 },
                 required: ["translatedText", "speakerMapping"]
