@@ -140,7 +140,7 @@ const App: React.FC = () => {
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'لآنا', voice: 'Kore' });
   
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
-  const [isGeneratingSpeech, setIsGeneratingSpeech] = useState<boolean>(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState<boolean>(false);
   const [activeSpeaker, setActiveSpeaker] = useState<ActiveSpeaker>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   
@@ -170,17 +170,13 @@ const App: React.FC = () => {
   const previewCacheRef = useRef(new Map<VoiceType, Uint8Array>());
   // Fix: Correctly type the recognitionRef to use the defined SpeechRecognition interface.
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const apiAbortControllerRef = useRef<AbortController | null>(null);
+  const previewAbortControllerRef = useRef<AbortController | null>(null);
   
-  // Refs for streaming audio
-  const activeAudioSourcesRef = useRef(new Set<AudioBufferSourceNode>());
-  const stopGenerationRef = useRef<boolean>(false);
-  const nextStartTimeRef = useRef(0);
-
-  // Refs for pause/resume functionality
-  const sourcePauseOffsetRef = useRef(0);
-  const targetPauseOffsetRef = useRef(0);
-  const playbackStartRef = useRef(0); // Tracks AudioContext time when playback started
-  const activeSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  // Refs for chunked audio playback
+  const audioQueueRef = useRef<Uint8Array[]>([]);
+  const isPlayingQueueRef = useRef(false);
+  const currentChunkSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
 
   const isWebShareSupported = !!(navigator.share && navigator.canShare);
@@ -284,6 +280,9 @@ const App: React.FC = () => {
                 previewAudioSourceRef.current = null;
                 setIsPreviewingVoice(null);
             }
+            if (previewAbortControllerRef.current) {
+                previewAbortControllerRef.current.abort();
+            }
             setIsSettingsModalOpen(false);
         }
     };
@@ -298,6 +297,12 @@ const App: React.FC = () => {
     return () => {
         if (recognitionRef.current) {
             recognitionRef.current.abort();
+        }
+        if (apiAbortControllerRef.current) {
+            apiAbortControllerRef.current.abort();
+        }
+        if (previewAbortControllerRef.current) {
+            previewAbortControllerRef.current.abort();
         }
         if (globalAudioContext && globalAudioContext.state !== 'closed') {
              globalAudioContext.close().catch(e => console.error("Error closing main audio context:", e));
@@ -329,6 +334,13 @@ const App: React.FC = () => {
   }
 
   const handleTranslate = useCallback(async () => {
+    if (isTranslating) {
+        if (apiAbortControllerRef.current) {
+            apiAbortControllerRef.current.abort();
+        }
+        setIsTranslating(false);
+        return;
+    }
     if (!sourceText.trim()) return;
 
     const cacheKey = `${sourceLang}:${targetLang}:${speakerA.name}:${speakerB.name}:${sourceText}`;
@@ -344,11 +356,14 @@ const App: React.FC = () => {
     setTranslatedText('');
     setSpeakerMapping(null);
 
+    apiAbortControllerRef.current = new AbortController();
+    const signal = apiAbortControllerRef.current.signal;
+
     try {
         const sourceLangName = findLanguageName(sourceLang);
         const targetLangName = findLanguageName(targetLang);
         
-        const result = await translateText(sourceText, sourceLangName, targetLangName, speakerA.name, speakerB.name);
+        const result = await translateText(sourceText, sourceLangName, targetLangName, speakerA.name, speakerB.name, signal);
         
         setTranslatedText(result.translatedText);
         setSpeakerMapping(result.speakerMapping);
@@ -368,195 +383,167 @@ const App: React.FC = () => {
 
 
     } catch (err) {
-        console.error(err);
-        setError(t('errorTranslate', language));
+        if (err instanceof Error && err.name === 'AbortError') {
+            console.log("Translation aborted by user.");
+        } else {
+            console.error(err);
+            setError(t('errorTranslate', language));
+        }
     } finally {
         setIsTranslating(false);
+        apiAbortControllerRef.current = null;
     }
-  }, [sourceText, sourceLang, targetLang, language, speakerA.name, speakerB.name]);
+  }, [sourceText, sourceLang, targetLang, language, speakerA.name, speakerB.name, isTranslating]);
 
 
   // Hard reset function for all audio playback.
   const stopAllAudio = useCallback(() => {
-    stopGenerationRef.current = true;
-    
-    // Stop the main cached audio source
-    if (activeSourceNodeRef.current) {
-        activeSourceNodeRef.current.onended = null;
-        try { activeSourceNodeRef.current.stop(); } catch (e) {}
-        activeSourceNodeRef.current = null;
+    if (apiAbortControllerRef.current) {
+        apiAbortControllerRef.current.abort();
+        apiAbortControllerRef.current = null;
     }
-
-    // Stop any streaming audio sources
-    activeAudioSourcesRef.current.forEach(source => {
-        source.onended = null;
-        try { source.stop(); } catch (e) {}
-    });
-    activeAudioSourcesRef.current.clear();
+    if (currentChunkSourceRef.current) {
+        currentChunkSourceRef.current.onended = null;
+        try { currentChunkSourceRef.current.stop(); } catch (e) {}
+        currentChunkSourceRef.current = null;
+    }
     
-    // Reset all playback-related states
-    nextStartTimeRef.current = 0;
-    sourcePauseOffsetRef.current = 0;
-    targetPauseOffsetRef.current = 0;
-    playbackStartRef.current = 0;
+    audioQueueRef.current = [];
+    isPlayingQueueRef.current = false;
     
     setActiveSpeaker(null);
     setIsPlaying(false);
-    setIsGeneratingSpeech(false);
+    setIsLoadingAudio(false);
   }, []);
 
 
   const handleSpeechAction = useCallback(async (textToSpeak: string, textLangCode: string, speakerType: 'source' | 'target') => {
-    // If user clicks a different speaker button, it's a hard stop for the old one and a fresh start for the new one.
-    if (activeSpeaker !== null && activeSpeaker !== speakerType) {
+    // If user clicks stop, or a different button
+    if ((isPlaying || isLoadingAudio) && activeSpeaker === speakerType) {
         stopAllAudio();
+        return;
     }
     
-    const audioContext = await getResumedAudioContext();
-
-    // --- PAUSE ACTION ---
-    // Condition: Clicking the button of a track that is playing from cache.
-    const isCachedAudioPlaying = isPlaying && !isGeneratingSpeech && activeSpeaker === speakerType;
-    if (isCachedAudioPlaying) {
-        setIsPlaying(false);
-        if (activeSourceNodeRef.current) {
-            const elapsedTime = audioContext.currentTime - playbackStartRef.current;
-            if (speakerType === 'source') {
-                sourcePauseOffsetRef.current += elapsedTime;
-            } else {
-                targetPauseOffsetRef.current += elapsedTime;
-            }
-            
-            activeSourceNodeRef.current.onended = null;
-            try { activeSourceNodeRef.current.stop(); } catch(e) {}
-            activeSourceNodeRef.current = null;
-        }
-        return;
-    }
-
-    // --- STOP ACTION (while streaming) ---
-    // Condition: Clicking the button while audio is being generated for it.
-    if (isGeneratingSpeech && activeSpeaker === speakerType) {
+    if (activeSpeaker !== null) {
         stopAllAudio();
-        return;
     }
     
     if (!textToSpeak.trim()) return;
 
-    // --- PLAY / RESUME ACTION ---
     setActiveSpeaker(speakerType);
+    setIsLoadingAudio(true);
     setError(null);
-    
-    // Determine speaker configuration
-    let speakersForApi;
-    if (isMultiSpeakerMode) {
-        if (speakerType === 'target' && speakerMapping) {
-            speakersForApi = {
-                speakerA: { name: speakerMapping[speakerA.name] || speakerA.name, voice: speakerA.voice },
-                speakerB: { name: speakerMapping[speakerB.name] || speakerB.name, voice: speakerB.voice }
-            };
-        } else if (speakerType === 'source') {
-            speakersForApi = { speakerA, speakerB };
+
+    const audioContext = await getResumedAudioContext();
+
+    const playNextChunk = async () => {
+        if (audioQueueRef.current.length === 0) {
+            isPlayingQueueRef.current = false;
+            stopAllAudio(); // Finished queue
+            return;
         }
-    }
 
-    const cacheKey = `${textToSpeak}|${textLangCode}|${voice}|${speed}|${emotion}|${pauseDuration}|${JSON.stringify(speakersForApi)}`;
-
-    // --- From Cache (handles both new play and resume) ---
-    if (audioCacheRef.current.has(cacheKey)) {
-        setIsPlaying(true);
-        const cachedPcm = audioCacheRef.current.get(cacheKey)!.pcm;
-        setLastPlayedPcm(cachedPcm);
+        isPlayingQueueRef.current = true;
+        const pcm = audioQueueRef.current.shift()!;
         
         try {
-            const audioBuffer = await decodeAudioData(cachedPcm, audioContext, 24000, 1);
-            if (activeSpeakerRef.current !== speakerType) return;
+            const audioBuffer = await decodeAudioData(pcm, audioContext, 24000, 1);
+            if (activeSpeakerRef.current !== speakerType) { // Check if cancelled while decoding
+                stopAllAudio();
+                return;
+            }
 
             const source = audioContext.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(audioContext.destination);
-            
-            const offset = speakerType === 'source' ? sourcePauseOffsetRef.current : targetPauseOffsetRef.current;
-            source.start(0, offset);
+            source.start(0);
 
-            playbackStartRef.current = audioContext.currentTime - offset;
-            activeSourceNodeRef.current = source;
+            currentChunkSourceRef.current = source;
 
             source.onended = () => {
-                if (activeSourceNodeRef.current === source) {
-                    stopAllAudio();
+                currentChunkSourceRef.current = null;
+                if (isPlayingQueueRef.current) {
+                    playNextChunk();
                 }
             };
-        } catch(e) {
-            console.error("Error playing cached audio:", e);
+        } catch (e) {
+            console.error("Error playing chunk:", e);
             setError(t('errorUnexpected', language));
             stopAllAudio();
         }
-        return;
-    }
-    
-    // --- Stream (handles new play only) ---
-    if (speakerType === 'source') {
-        sourcePauseOffsetRef.current = 0;
-    } else {
-        targetPauseOffsetRef.current = 0;
-    }
-    stopGenerationRef.current = false;
-    setIsGeneratingSpeech(true);
-    setIsPlaying(false);
-    
+    };
+
+    apiAbortControllerRef.current = new AbortController();
+    const signal = apiAbortControllerRef.current.signal;
+
     try {
-        const textToProcess = textToSpeak;
-        const textLangName = findLanguageName(textLangCode);
+        // FIX: Conditionally chunk text. For multi-speaker mode, the entire text must be sent in one go
+        // to provide the necessary context for the model to assign different voices correctly.
+        // For single-speaker mode, we retain the chunking for a faster, streaming-like response.
+        const chunks = isMultiSpeakerMode
+            ? [textToSpeak.trim()].filter(Boolean) // Use the whole text as a single chunk
+            : textToSpeak.split(/\n+/).filter(p => p.trim().length > 0); // Original chunking for single voice
+
+        if (chunks.length === 0) {
+            stopAllAudio();
+            return;
+        }
         
-        nextStartTimeRef.current = 0;
+        let fullPcmChunks: Uint8Array[] = [];
 
-        const onChunkReady = async (pcmChunk: Uint8Array) => {
-            if (stopGenerationRef.current) return;
-            try {
-                const audioBuffer = await decodeAudioData(pcmChunk, audioContext, 24000, 1);
-                if (stopGenerationRef.current) return;
-
-                const source = audioContext.createBufferSource();
-                source.buffer = audioBuffer;
-                source.connect(audioContext.destination);
-                
-                const scheduleTime = Math.max(nextStartTimeRef.current, audioContext.currentTime);
-                source.start(scheduleTime);
-                nextStartTimeRef.current = scheduleTime + audioBuffer.duration;
-                
-                activeAudioSourcesRef.current.add(source);
-                source.onended = () => {
-                    activeAudioSourcesRef.current.delete(source);
-                    if (activeAudioSourcesRef.current.size === 0 && !isGeneratingSpeech && activeSpeakerRef.current === speakerType) {
-                       stopAllAudio();
-                    }
-                };
-            } catch (e) {
-                console.error("Error processing audio chunk:", e);
+        for (const chunk of chunks) {
+            if (signal.aborted) throw new Error('AbortError');
+            
+            let speakersForApi;
+            if (isMultiSpeakerMode) {
+                if (speakerType === 'target' && speakerMapping) {
+                     speakersForApi = {
+                        speakerA: { name: speakerMapping[speakerA.name] || speakerA.name, voice: speakerA.voice },
+                        speakerB: { name: speakerMapping[speakerB.name] || speakerB.name, voice: speakerB.voice }
+                    };
+                } else if (speakerType === 'source') {
+                    speakersForApi = { speakerA, speakerB };
+                }
             }
-        };
+            const textLangName = findLanguageName(textLangCode);
 
-        const fullPcm = await generateSpeech(
-            textToProcess, voice, speed, textLangName, pauseDuration, emotion, 
-            speakersForApi, onChunkReady, stopGenerationRef
-        );
+            const pcm = await generateSpeech(
+                chunk, voice, speed, textLangName, pauseDuration, emotion, 
+                speakersForApi, signal
+            );
+            
+            if (pcm) {
+                audioQueueRef.current.push(pcm);
+                fullPcmChunks.push(pcm);
+                
+                if (!isPlayingQueueRef.current) {
+                    setIsLoadingAudio(false);
+                    setIsPlaying(true);
+                    playNextChunk();
+                }
+            }
+        }
         
-        if (fullPcm && !stopGenerationRef.current) {
-            setLastPlayedPcm(fullPcm);
-            audioCacheRef.current.set(cacheKey, { pcm: fullPcm });
+        // After all chunks are fetched, combine them for download/share
+        // This won't run if playback was cancelled
+        if (fullPcmChunks.length > 0) {
+           const combinedPcm = new Uint8Array(fullPcmChunks.reduce((acc, val) => acc + val.length, 0));
+           let offset = 0;
+           for(const chunk of fullPcmChunks) {
+               combinedPcm.set(chunk, offset);
+               offset += chunk.length;
+           }
+           setLastPlayedPcm(combinedPcm);
         }
 
     } catch (err) {
-        console.error("Speech action failed:", err);
-        setError(t('errorUnexpected', language));
-    } finally {
-        setIsGeneratingSpeech(false);
-        if (stopGenerationRef.current) {
-            stopAllAudio();
+        if (err.name !== 'AbortError') {
+            console.error("Speech action failed:", err);
+            setError(t('errorUnexpected', language));
         }
+        stopAllAudio();
     }
-  }, [voice, speed, language, activeSpeaker, isPlaying, isGeneratingSpeech, pauseDuration, emotion, speakerA, speakerB, isMultiSpeakerMode, speakerMapping, stopAllAudio]);
+  }, [voice, speed, language, activeSpeaker, isPlaying, isLoadingAudio, pauseDuration, emotion, speakerA, speakerB, isMultiSpeakerMode, speakerMapping, stopAllAudio]);
   
 
   const handleListen = useCallback(() => {
@@ -573,7 +560,10 @@ const App: React.FC = () => {
             // The 'onend' or 'onerror' event will fire to handle final cleanup.
             recognitionRef.current.abort();
         }
-        setIsListening(false); // Provide immediate UI feedback
+        // BUG FIX: Removed immediate state update. The 'onend' or 'onerror'
+        // event handlers are now responsible for all cleanup and state changes,
+        // preventing race conditions where the recognition continues in the
+        // background after the UI state has changed.
         return;
     }
     
@@ -740,14 +730,15 @@ const App: React.FC = () => {
   };
 
   const handlePreviewVoice = async (voiceToPreview: VoiceType) => {
-    // Stop any existing preview sound
     if (previewAudioSourceRef.current) {
         previewAudioSourceRef.current.onended = null;
-        previewAudioSourceRef.current.stop();
+        try { previewAudioSourceRef.current.stop(); } catch(e) {}
         previewAudioSourceRef.current = null;
     }
+    if (previewAbortControllerRef.current) {
+        previewAbortControllerRef.current.abort();
+    }
 
-    // If the user clicks the same preview button again, just stop the sound and exit.
     if (isPreviewingVoice === voiceToPreview) {
         setIsPreviewingVoice(null);
         return;
@@ -755,6 +746,9 @@ const App: React.FC = () => {
 
     setIsPreviewingVoice(voiceToPreview);
     setError(null);
+    
+    previewAbortControllerRef.current = new AbortController();
+    const signal = previewAbortControllerRef.current.signal;
 
     try {
         const audioContext = await getResumedAudioContext();
@@ -764,7 +758,7 @@ const App: React.FC = () => {
             pcm = previewCacheRef.current.get(voiceToPreview)!;
         } else {
             const sampleText = t('voicePreviewText', language);
-            pcm = await previewVoice(voiceToPreview, sampleText);
+            pcm = await previewVoice(voiceToPreview, sampleText, signal);
             if (pcm) {
                 previewCacheRef.current.set(voiceToPreview, pcm);
             }
@@ -778,7 +772,6 @@ const App: React.FC = () => {
             source.start(0);
             previewAudioSourceRef.current = source;
             source.onended = () => {
-                // Check if this source is still the active one before clearing state.
                 if (previewAudioSourceRef.current === source) {
                     setIsPreviewingVoice(null);
                     previewAudioSourceRef.current = null;
@@ -788,8 +781,10 @@ const App: React.FC = () => {
             throw new Error("Preview API returned no audio");
         }
     } catch (err) {
-        console.error("Voice preview failed during API call or playback:", err);
-        setError(t('errorUnexpected', language));
+        if (err.name !== 'AbortError') {
+            console.error("Voice preview failed:", err);
+            setError(t('errorUnexpected', language));
+        }
         setIsPreviewingVoice(null);
     }
   };
@@ -831,14 +826,12 @@ const App: React.FC = () => {
 
   // Button state logic
   const isSourceActive = activeSpeaker === 'source';
-  const isSourceGenerating = isGeneratingSpeech && isSourceActive;
-  const isSourcePlaying = isPlaying && !isGeneratingSpeech && isSourceActive;
-  const isSourcePaused = !isPlaying && !isGeneratingSpeech && isSourceActive && sourcePauseOffsetRef.current > 0;
+  const isSourceLoading = isLoadingAudio && isSourceActive;
+  const isSourcePlaying = isPlaying && isSourceActive;
 
   const isTargetActive = activeSpeaker === 'target';
-  const isTargetGenerating = isGeneratingSpeech && isTargetActive;
-  const isTargetPlaying = isPlaying && !isGeneratingSpeech && isTargetActive;
-  const isTargetPaused = !isPlaying && !isGeneratingSpeech && isTargetActive && targetPauseOffsetRef.current > 0;
+  const isTargetLoading = isLoadingAudio && isTargetActive;
+  const isTargetPlaying = isPlaying && isTargetActive;
 
   return (
     <div className="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
@@ -904,6 +897,7 @@ const App: React.FC = () => {
                     onChange={(e) => setSourceLang(e.target.value)} 
                     className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"
                     dir={getDirectionForLang(sourceLang)}
+                    disabled={activeSpeaker !== null}
                 >
                     {translationLanguages.map((lang: LanguageListItem) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
                 </select>
@@ -917,7 +911,7 @@ const App: React.FC = () => {
                         }}
                         placeholder={isListening ? t('listening', language) : t('placeholder', language)}
                         className={`w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 text-base ${sourcePaddingClass}`}
-                        disabled={isTranslating}
+                        disabled={isTranslating || activeSpeaker !== null}
                         readOnly={isListening}
                         maxLength={MAX_CHARS}
                         dir={getDirectionForLang(sourceLang)}
@@ -945,17 +939,13 @@ const App: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleSpeechAction(sourceText, sourceLang, 'source')}
-                      disabled={isUIBlocked || !sourceText.trim()}
+                      disabled={isUIBlocked || !sourceText.trim() || isTargetActive}
                       className="h-11 flex-grow flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm"
                     >
-                      {isSourceGenerating ? <LoaderIcon /> : isSourcePlaying ? <SoundWaveIcon /> : <SpeakerIcon />}
+                      {isSourceLoading ? <LoaderIcon /> : isSourcePlaying ? <SoundWaveIcon /> : <SpeakerIcon />}
                       <span>
-                        {isSourceGenerating
-                          ? t('generatingSpeech', language)
-                          : isSourcePlaying
-                          ? t('pauseSpeaking', language)
-                          : isSourcePaused
-                          ? t('resumeSpeaking', language)
+                        {isSourceLoading || isSourcePlaying
+                          ? t('stopSpeaking', language)
                           : t('speakSource', language)}
                       </span>
                     </button>
@@ -964,7 +954,12 @@ const App: React.FC = () => {
 
             {/* Swap Button */}
             <div className="my-2 md:my-0">
-                <button onClick={handleSwapLanguages} className="p-2.5 bg-slate-700 hover:bg-slate-600 rounded-full transition-colors transform active:scale-90" aria-label={t('swapLanguages', language)}>
+                <button 
+                    onClick={handleSwapLanguages}
+                    disabled={activeSpeaker !== null} 
+                    className="p-2.5 bg-slate-700 hover:bg-slate-600 rounded-full transition-colors transform active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed" 
+                    aria-label={t('swapLanguages', language)}
+                >
                     <SwapIcon />
                 </button>
             </div>
@@ -978,6 +973,7 @@ const App: React.FC = () => {
                     onChange={(e) => setTargetLang(e.target.value)} 
                     className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"
                     dir={getDirectionForLang(targetLang)}
+                    disabled={activeSpeaker !== null}
                 >
                     {translationLanguages.map((lang: LanguageListItem) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
                 </select>
@@ -1002,17 +998,13 @@ const App: React.FC = () => {
                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleSpeechAction(translatedText, targetLang, 'target')}
-                      disabled={isUIBlocked || !translatedText.trim()}
+                      disabled={isUIBlocked || !translatedText.trim() || isSourceActive}
                       className="h-11 flex-grow flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm"
                     >
-                      {isTargetGenerating ? <LoaderIcon /> : isTargetPlaying ? <SoundWaveIcon /> : <SpeakerIcon />}
+                      {isTargetLoading ? <LoaderIcon /> : isTargetPlaying ? <SoundWaveIcon /> : <SpeakerIcon />}
                       <span>
-                        {isTargetGenerating
-                          ? t('generatingSpeech', language)
-                          : isTargetPlaying
-                          ? t('pauseSpeaking', language)
-                          : isTargetPaused
-                          ? t('resumeSpeaking', language)
+                        {isTargetLoading || isTargetPlaying
+                          ? t('stopSpeaking', language)
                           : t('speakTarget', language)}
                       </span>
                     </button>
@@ -1023,13 +1015,13 @@ const App: React.FC = () => {
         <div className="pt-2">
              <button
               onClick={handleTranslate}
-              disabled={isUIBlocked || !sourceText.trim()}
+              disabled={isUIBlocked || activeSpeaker !== null}
               className="h-11 w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-cyan-600/20 text-sm font-semibold"
             >
               {isTranslating ? (
                 <>
-                  <LoaderIcon />
-                  <span>{t('translatingButton', language)}</span>
+                  <StopIcon />
+                  <span>{t('translatingButtonStop', language)}</span>
                 </>
               ) : (
                 <>
@@ -1073,7 +1065,7 @@ const App: React.FC = () => {
                 <span>{t('shareSettings', language)}</span>
             </button>
 
-            <div className={`transition-opacity duration-500 flex items-center justify-center gap-4 ${lastPlayedPcm && !isGeneratingSpeech && !activeSpeaker ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+            <div className={`transition-opacity duration-500 flex items-center justify-center gap-4 ${lastPlayedPcm && !isLoadingAudio && !activeSpeaker ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
                  <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
                         <input type="radio" name="format" value="mp3" checked={downloadFormat === 'mp3'} onChange={() => setDownloadFormat('mp3')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500"/>
