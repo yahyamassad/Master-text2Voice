@@ -1,113 +1,72 @@
 import { GoogleGenAI, Modality } from "@google/genai";
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// --- START: Utility functions required by the backend ---
+// --- Start of utility functions (self-contained for serverless environment) ---
 
 function decode(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
 }
 
-function encode(bytes: Uint8Array): string {
-  let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
+function generateSilence(duration: number, sampleRate: number, numChannels: number): Uint8Array {
+    const bitsPerSample = 16;
+    const bytesPerSample = bitsPerSample / 8;
+    const numFrames = Math.floor(duration * sampleRate);
+    const bufferSize = numFrames * numChannels * bytesPerSample;
+    return new Uint8Array(bufferSize);
 }
 
-// --- END: Utility functions ---
-
-interface SpeakerConfig {
-    name: string;
-    voice: string;
-}
-type SpeechSpeed = number;
-
-// Server-side AI client initialization
-function getAiClient(): GoogleGenAI {
-    if (!process.env.API_KEY) {
-        throw new Error("API_KEY is not configured on the server.");
+function concatenateUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+    const totalLength = arrays.reduce((acc, value) => acc + value.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const arr of arrays) {
+        result.set(arr, offset);
+        offset += arr.length;
     }
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return result;
 }
 
-// Vercel Serverless Function handler for all speech generation
-export default async function handler(request, response) {
-  if (request.method !== 'POST') {
-    return response.status(405).json({ message: 'Only POST requests allowed' });
-  }
-  
-  try {
-    const { text, voice, speed, emotion, speakers, isPreview } = request.body;
-    if (!text || !voice) {
-      return response.status(400).json({ message: 'Missing required fields' });
+function getEmotionAdverb(emotion: string): string {
+    switch (emotion) {
+        case "Happy": return "cheerfully";
+        case "Sad": return "sadly";
+        case "Formal": return "formally";
+        default: return "";
     }
+}
 
-    const client = getAiClient();
-    let speechConfig: any;
+function processSsmlTags(text: string): string {
+    const ssmlMap: Record<string, string> = {
+        '\\[laugh\\]': '<say-as interpret-as="interjection">haha</say-as>',
+        '\\[laughter\\]': '<say-as interpret-as="interjection">laughter</say-as>',
+        '\\[sigh\\]': '<say-as interpret-as="interjection">sigh</say-as>',
+        '\\[sob\\]': '<say-as interpret-as="interjection">sob</say-as>',
+        '\\[gasp\\]': '<say-as interpret-as="interjection">gasp</say-as>',
+        '\\[cough\\]': '<say-as interpret-as="interjection">cough</say-as>',
+        '\\[hmm\\]': '<say-as interpret-as="interjection">hmm</say-as>',
+        '\\[cheer\\]': '<say-as interpret-as="interjection">hurray</say-as>',
+        '\\[kiss\\]': '<say-as interpret-as="interjection">kiss</say-as>',
+    };
 
-    // Configure for multi-speaker or single-speaker
-    if (!isPreview && speakers && speakers.speakerA?.name?.trim() && speakers.speakerB?.name?.trim()) {
-        speechConfig = {
-            multiSpeakerVoiceConfig: {
-                speakerVoiceConfigs: [
-                    {
-                        speaker: speakers.speakerA.name,
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } }
-                    },
-                    {
-                        speaker: speakers.speakerB.name,
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } }
-                    }
-                ]
-            }
-        };
-    } else {
-        // Default to single speaker for previews or if multi-speaker config is incomplete
-        speechConfig = {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } }
-        };
+    let processedText = text;
+    for (const tag in ssmlMap) {
+        processedText = processedText.replace(new RegExp(tag, 'gi'), ssmlMap[tag]);
     }
-    
-    let promptText = text;
+    return processedText;
+}
 
-    if (!isPreview) {
-        // Add instructions for emotion and speed to the prompt for non-preview generation
-        let instructionPrefix = '';
-        const emotionMap: { [key: string]: string } = {
-            'Happy': 'Say cheerfully:',
-            'Sad': 'Read in a sad tone:',
-            'Formal': 'Read in a formal, professional voice:',
-        };
-        if (emotion !== 'Default' && emotionMap[emotion]) {
-            instructionPrefix = emotionMap[emotion];
-        }
-
-        let speedInstruction = '';
-        if (speed < 0.8) speedInstruction = 'Read very slowly:';
-        else if (speed < 1.0) speedInstruction = 'Read slowly:';
-        else if (speed > 1.2) speedInstruction = 'Read very quickly:';
-        else if (speed > 1.0) speedInstruction = 'Read quickly:';
-        
-        if (instructionPrefix && speedInstruction) {
-            instructionPrefix = `${instructionPrefix.slice(0, -1)} and ${speedInstruction.toLowerCase()}`;
-        } else {
-            instructionPrefix = instructionPrefix || speedInstruction;
-        }
-        
-        if (instructionPrefix) {
-            promptText = `${instructionPrefix}\n${text}`;
-        }
-    }
-
-    // Make the single API call to Gemini
-    const geminiResponse = await client.models.generateContent({
+async function singleSpeechRequest(
+    ai: GoogleGenAI,
+    promptText: string,
+    speechConfig: any,
+): Promise<Uint8Array | null> {
+    const geminiResponse = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: promptText }] }],
         config: {
@@ -117,16 +76,97 @@ export default async function handler(request, response) {
     });
 
     const base64Audio = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
     if (base64Audio) {
-        // The API already returns base64, so we can pass it directly.
-        return response.status(200).json({ audioContent: base64Audio });
-    } else {
-        return response.status(500).json({ message: 'Failed to generate audio content from API' });
+        return decode(base64Audio);
+    }
+    return null;
+}
+
+// --- End of utility functions ---
+
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+    if (req.method !== 'POST') {
+        res.setHeader('Allow', ['POST']);
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-  } catch (error) {
-    console.error('Error in /api/speak:', error.response?.data || error.message);
-    return response.status(500).json({ message: 'Internal Server Error' });
-  }
+    try {
+        const { text, voice, pauseDuration, emotion, speakers } = req.body;
+
+        if (!text || !voice) {
+            return res.status(400).json({ error: 'Missing required parameters: text and voice are required.' });
+        }
+        
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        let speechConfig: any;
+        let promptText = text;
+
+        const isMultiSpeaker = speakers?.speakerA?.name?.trim() && speakers?.speakerB?.name?.trim();
+
+        if (isMultiSpeaker) {
+            speechConfig = {
+                multiSpeakerVoiceConfig: {
+                    speakerVoiceConfigs: [
+                        { speaker: speakers.speakerA.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } } },
+                        { speaker: speakers.speakerB.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } } }
+                    ]
+                }
+            };
+        } else {
+            const adverb = getEmotionAdverb(emotion);
+            const processedTextForEmotion = processSsmlTags(text);
+            if (adverb) {
+                promptText = `Say ${adverb}: ${processedTextForEmotion}`;
+            } else {
+                promptText = processedTextForEmotion;
+            }
+            speechConfig = {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
+            };
+        }
+        
+        let finalPcmData: Uint8Array | null = null;
+        
+        const paragraphs = text.split(/\n+/).filter((p: string) => p.trim() !== '');
+        const numericPauseDuration = Number(pauseDuration);
+
+        if (numericPauseDuration > 0 && paragraphs.length > 1) {
+            const audioChunks: Uint8Array[] = [];
+            const silenceChunk = generateSilence(numericPauseDuration, 24000, 1);
+
+            for (let i = 0; i < paragraphs.length; i++) {
+                const p = paragraphs[i];
+                const processedParagraph = processSsmlTags(p);
+                const adverb = getEmotionAdverb(emotion);
+                const promptForParagraph = isMultiSpeaker ? processedParagraph : (adverb ? `Say ${adverb}: ${processedParagraph}` : processedParagraph);
+                
+                const pcmData = await singleSpeechRequest(ai, promptForParagraph, speechConfig);
+                if (pcmData) {
+                    audioChunks.push(pcmData);
+                    if (i < paragraphs.length - 1) {
+                        audioChunks.push(silenceChunk);
+                    }
+                }
+            }
+            if(audioChunks.length > 0) {
+                finalPcmData = concatenateUint8Arrays(audioChunks);
+            }
+        } else {
+             finalPcmData = await singleSpeechRequest(ai, promptText, speechConfig);
+        }
+
+        if (finalPcmData) {
+            res.setHeader('Content-Type', 'application/octet-stream');
+            res.setHeader('Content-Length', finalPcmData.length);
+            return res.status(200).send(Buffer.from(finalPcmData));
+        } else {
+            return res.status(500).json({ error: 'API did not return audio content.' });
+        }
+
+    } catch (error: any) {
+        console.error("Error in /api/speak:", error);
+        return res.status(500).json({ error: error.message || 'An unknown server error occurred.' });
+    }
 }
