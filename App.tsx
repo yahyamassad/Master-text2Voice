@@ -1,290 +1,189 @@
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { generateSpeech, SpeakerConfig, previewVoice } from './services/geminiService';
-import { translateText } from './services/geminiService';
-import { decodeAudioData, createWavBlob, createMp3Blob } from './utils/audioUtils';
-import { SpeakerIcon, SoundWaveIcon, LoaderIcon, DownloadIcon, TranslateIcon, StopIcon, GlobeIcon, ChevronDownIcon, ReplayIcon, SwapIcon, CopyIcon, CheckIcon, MicrophoneIcon, GearIcon, HistoryIcon, LinkIcon, ShareIcon, InfoIcon, PlayCircleIcon, SawtliLogoIcon } from './components/icons';
-// FIX: Import `translations` object to correctly type the `labelKey` for `allVoices` array below.
-import { t, languageOptions, Language, Direction, translationLanguages, LanguageListItem, translations } from './i18n/translations';
-import { Feedback } from './components/Feedback';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { generateSpeech, translateText, previewVoice, SpeakerConfig } from './services/geminiService';
+import { playAudio, createWavBlob, createMp3Blob, decodeAudioData } from './utils/audioUtils';
+import {
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, PauseIcon
+} from './components/icons';
+import { t, Language, languageOptions, translationLanguages, LanguageListItem } from './i18n/translations';
 import { History } from './components/History';
-
-// Fix: Add types for the Web Speech API to resolve TypeScript errors.
-// These are not always included in default DOM typings.
-interface SpeechRecognitionErrorEvent extends Event {
-    error: string;
-    message: string;
-}
-
-interface SpeechRecognitionEvent extends Event {
-    results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognition extends EventTarget {
-    lang: string;
-    continuous: boolean;
-    interimResults: boolean;
-    onstart: (() => void) | null;
-    onend: (() => void) | null;
-    onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-    onresult: ((event: SpeechRecognitionEvent) => void) | null;
-    start: () => void;
-    stop: () => void;
-    abort: () => void; // Add abort method
-}
-
-declare global {
-    interface Window {
-        SpeechRecognition: new () => SpeechRecognition;
-        webkitSpeechRecognition: new () => SpeechRecognition;
-    }
-}
+const Feedback = React.lazy(() => import('./components/Feedback'));
 
 export interface HistoryItem {
-    id: string;
-    sourceText: string;
-    translatedText: string;
-    sourceLang: string;
-    targetLang: string;
-    timestamp: number;
-    speakerMapping: Record<string, string> | null;
+  id: string;
+  sourceText: string;
+  translatedText: string;
+  sourceLang: string;
+  targetLang: string;
+  timestamp: number;
 }
 
-// FIX: Corrected the list of voices to only include those officially supported by the TTS model.
-// This resolves the primary bug where most voices were failing to generate speech.
-type VoiceType = 'Puck' | 'Kore' | 'Zephyr' | 'Charon' | 'Fenrir';
-type EmotionType = 'Default' | 'Happy' | 'Sad' | 'Formal';
-type ActiveSpeaker = 'source' | 'target' | null;
-type DownloadFormat = 'wav' | 'mp3';
-type CopiedStatus = 'source' | 'target' | 'link' | null;
+const soundEffects = [
+    { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
+    { emoji: '🤣', tag: '[laughter]', labelKey: 'addLaughter' },
+    { emoji: '😮‍💨', tag: '[sigh]', labelKey: 'addSigh' },
+    { emoji: '😭', tag: '[sob]', labelKey: 'addSob' },
+    { emoji: '😱', tag: '[gasp]', labelKey: 'addGasp' },
+    { emoji: '🤧', tag: '[cough]', labelKey: 'addCough' },
+    { emoji: '🤔', tag: '[hmm]', labelKey: 'addHmm' },
+    { emoji: '🎉', tag: '[cheer]', labelKey: 'addCheer' },
+    { emoji: '😘', tag: '[kiss]', labelKey: 'addKiss' },
+];
 
-interface AudioCacheItem {
-    pcm: Uint8Array;
-}
-
-interface TranslationCacheItem {
-    translatedText: string;
-    speakerMapping: Record<string, string> | null;
-}
-
-
-// Create a single, shared AudioContext instance for the entire application lifetime.
-// This prevents hitting browser limits on the number of concurrent AudioContexts.
-let globalAudioContext: AudioContext | null = null;
-
-const getAudioContext = (): AudioContext => {
-    if (!globalAudioContext || globalAudioContext.state === 'closed') {
-        // The sample rate must match the audio from the API (24000 Hz).
-        globalAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    }
-    return globalAudioContext;
-};
-
-/**
- * A robust, centralized async function to get a running AudioContext.
- * It handles resuming a suspended context and gracefully recovers by creating a new
- * context if the existing one fails to resume. This is the core of the audio fix.
- */
-const getResumedAudioContext = async (): Promise<AudioContext> => {
-    let audioContext = getAudioContext();
-
-    if (audioContext.state === 'suspended') {
-        try {
-            await audioContext.resume();
-        } catch (e) {
-            console.warn("AudioContext resume failed, trying to re-create.", e);
-            if (globalAudioContext && globalAudioContext.state !== 'closed') {
-                // await the close() to ensure resources are released before creating a new one.
-                await globalAudioContext.close().catch(err => console.error("Error closing faulty context:", err));
-            }
-            globalAudioContext = null;
-            
-            audioContext = getAudioContext(); // Get the new instance
-            if (audioContext.state === 'suspended') {
-                // Last attempt to resume the new context
-                await audioContext.resume();
-            }
-        }
-    }
-    
-    // If it's still not running after all attempts, something is fundamentally wrong.
-    if (audioContext.state !== 'running') {
-        throw new Error(`AudioContext failed to start. Current state: ${audioContext.state}`);
-    }
-
-    return audioContext;
-};
-
-// Helper function to determine text direction based on language code
-const getDirectionForLang = (langCode: string): 'ltr' | 'rtl' => {
-    const rtlLangs = ['ar', 'he', 'fa', 'ur'];
-    return rtlLangs.includes(langCode) ? 'rtl' : 'ltr';
-};
-
-
+// Main App Component
 const App: React.FC = () => {
-  // FIX: Added missing `=` to the useState declaration. This was causing a major syntax error.
-  const [sourceText, setSourceText] = useState<string>('يزن: مرحباً يا عالم! كيف حالك اليوم؟\n\nلآنا: أنا بخير، شكراً لسؤالك!');
+  const MAX_CHARS = 5000;
+  // --- STATE MANAGEMENT ---
+  const [uiLanguage, setUiLanguage] = useState<Language>('ar');
+  const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
   const [sourceLang, setSourceLang] = useState<string>('ar');
   const [targetLang, setTargetLang] = useState<string>('en');
-  
-  const [voice, setVoice] = useState<VoiceType>('Zephyr');
-  const [emotion, setEmotion] = useState<EmotionType>('Default');
-  const [speed, setSpeed] = useState<number>(1.0); // Now a rate, e.g., 0.75, 1.0, 1.25
-  const [pauseDuration, setPauseDuration] = useState<number>(1.0);
-
-  // New state for multi-speaker configuration
-  const [isMultiSpeakerMode, setIsMultiSpeakerMode] = useState<boolean>(true);
-  // FIX: Updated default speaker voices to valid, supported options ('Puck', 'Kore'). And updated default names.
-  const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'يزن', voice: 'Zephyr' });
-  const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'لآنا', voice: 'Kore' });
-  
-  const [isTranslating, setIsTranslating] = useState<boolean>(false);
-  const [isLoadingAudio, setIsLoadingAudio] = useState<boolean>(false);
-  const [activeSpeaker, setActiveSpeaker] = useState<ActiveSpeaker>(null);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingTask, setLoadingTask] = useState<string>('');
+  const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lastPlayedPcm, setLastPlayedPcm] = useState<Uint8Array | null>(null);
-  
-  const [language, setLanguage] = useState<Language>('ar');
-  const [direction, setDirection] = useState<Direction>('rtl');
-  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
-  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>('mp3');
-  const [isEncodingMp3, setIsEncodingMp3] = useState<boolean>(false);
-  const [isSharing, setIsSharing] = useState<boolean>(false);
-  const [copied, setCopied] = useState<CopiedStatus>(null);
-  const [isListening, setIsListening] = useState<boolean>(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [playbackState, setPlaybackState] = useState<'stopped' | 'playing' | 'paused'>('stopped');
+  const [audioCache, setAudioCache] = useState<Record<'source' | 'target', Uint8Array | null>>({ source: null, target: null });
+
+
+  // Panels and Modals State
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
+  const [isEffectsOpen, setIsEffectsOpen] = useState<boolean>(false);
+  const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
+  const [linkCopied, setLinkCopied] = useState<boolean>(false);
+  const [isSharingAudio, setIsSharingAudio] = useState<boolean>(false);
+
+  // Settings State
+  const [voice, setVoice] = useState('Puck');
+  const [speed, setSpeed] = useState(1.0);
+  const [emotion, setEmotion] = useState('Default');
+  const [pauseDuration, setPauseDuration] = useState(0);
+  const [multiSpeaker, setMultiSpeaker] = useState(false);
+  const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
+  const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
+
+  // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [isPreviewingVoice, setIsPreviewingVoice] = useState<string | null>(null);
-  const [speakerMapping, setSpeakerMapping] = useState<Record<string, string> | null>(null);
   
-  const langDropdownRef = useRef<HTMLDivElement>(null);
-  const settingsModalRef = useRef<HTMLDivElement>(null);
-  const activeSpeakerRef = useRef<ActiveSpeaker>(null);
-  const audioCacheRef = useRef(new Map<string, AudioCacheItem>());
-  const translationCacheRef = useRef(new Map<string, TranslationCacheItem>());
-  const previewAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const previewCacheRef = useRef(new Map<VoiceType, Uint8Array>());
-  // Fix: Correctly type the recognitionRef to use the defined SpeechRecognition interface.
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // Voice Input State
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [micError, setMicError] = useState<string | null>(null);
+
+  // Refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const apiAbortControllerRef = useRef<AbortController | null>(null);
-  const previewAbortControllerRef = useRef<AbortController | null>(null);
+  const recognitionRef = useRef<any | null>(null);
+  const sourceTextAreaRef = useRef<HTMLTextAreaElement>(null);
+  const effectsDropdownRef = useRef<HTMLDivElement>(null);
+
+
+  // --- CORE FUNCTIONS ---
+
+  const stopPlayback = useCallback(() => {
+    if (audioSourceNodeRef.current) {
+        audioSourceNodeRef.current.onended = null; 
+        try { audioSourceNodeRef.current.stop(); } catch(e) {}
+    }
+    if (audioContextRef.current) {
+        try { audioContextRef.current.close(); } catch(e) {}
+    }
+    audioSourceNodeRef.current = null;
+    audioContextRef.current = null;
+    setPlaybackState('stopped');
+    setActivePlayer(null);
+  }, []);
   
-  // Refs for chunked audio playback
-  const audioQueueRef = useRef<Uint8Array[]>([]);
-  const isPlayingQueueRef = useRef(false);
-  const currentChunkSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const stopAll = useCallback(() => {
+    if (apiAbortControllerRef.current) {
+      apiAbortControllerRef.current.abort();
+    }
+    if (recognitionRef.current) {
+        recognitionRef.current.abort();
+        setIsListening(false);
+    }
+    stopPlayback();
+    setIsLoading(false);
+    setLoadingTask('');
+    setIsSharingAudio(false);
+  }, [stopPlayback]);
 
+  // --- EFFECTS ---
 
-  const isWebShareSupported = !!(navigator.share && navigator.canShare);
-
-  // Keep ref in sync with state to avoid stale closures in async callbacks
+  // Clear audio cache when text or settings change
   useEffect(() => {
-    activeSpeakerRef.current = activeSpeaker;
-  }, [activeSpeaker]);
+    if (playbackState !== 'stopped' && activePlayer === 'source') stopPlayback();
+    setAudioCache(c => ({...c, source: null}));
+  }, [sourceText, voice, speed, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, stopPlayback]);
 
-  // Load history from localStorage on initial load
   useEffect(() => {
-      try {
-          const storedHistory = localStorage.getItem('translationHistory');
-          if (storedHistory) {
-              setHistory(JSON.parse(storedHistory));
-          }
-      } catch (error) {
-          console.error("Failed to load history from localStorage:", error);
+    if (playbackState !== 'stopped' && activePlayer === 'target') stopPlayback();
+    setAudioCache(c => ({...c, target: null}));
+  }, [translatedText, voice, speed, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, stopPlayback]);
+
+
+  // Load state from localStorage on initial render
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem('sawtli_history');
+      if (savedHistory) setHistory(JSON.parse(savedHistory));
+
+      const savedSettings = localStorage.getItem('sawtli_settings');
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        if (settings.voice) setVoice(settings.voice);
+        if (settings.speed) setSpeed(settings.speed);
+        if (settings.emotion) setEmotion(settings.emotion);
+        if (settings.pauseDuration) setPauseDuration(settings.pauseDuration);
+        if (settings.multiSpeaker) setMultiSpeaker(settings.multiSpeaker);
+        if (settings.speakerA) setSpeakerA(settings.speakerA);
+        if (settings.speakerB) setSpeakerB(settings.speakerB);
+        if (settings.sourceLang) setSourceLang(settings.sourceLang);
+        if (settings.targetLang) setTargetLang(settings.targetLang);
+        if (settings.uiLanguage) setUiLanguage(settings.uiLanguage);
       }
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlSourceText = urlParams.get('sourceText');
+      const urlSourceLang = urlParams.get('sourceLang');
+      const urlTargetLang = urlParams.get('targetLang');
+      if(urlSourceText) setSourceText(decodeURIComponent(urlSourceText));
+      if(urlSourceLang) setSourceLang(urlSourceLang);
+      if(urlTargetLang) setTargetLang(urlTargetLang);
+
+
+    } catch (e) {
+      console.error("Failed to load state from localStorage or URL", e);
+    }
   }, []);
 
-  // Save history to localStorage whenever it changes
+  // Save state to localStorage whenever it changes
   useEffect(() => {
-      try {
-          localStorage.setItem('translationHistory', JSON.stringify(history));
-      } catch (error) {
-          console.error("Failed to save history to localStorage:", error);
+    try {
+      const settings = { voice, speed, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, sourceLang, targetLang, uiLanguage };
+      localStorage.setItem('sawtli_settings', JSON.stringify(settings));
+      if (history.length > 0) {
+          localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
-  }, [history]);
-
-  // Combined effect for initial app setup from URL, localStorage, or browser settings.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    
-    // 1. Set UI Language
-    const langFromUrl = params.get('lang') as Language | null;
-    const langFromStorage = localStorage.getItem('appLanguage') as Language | null;
-    let initialLang: Language = 'en'; // Default
-    const isValidLang = (lang: string | null): lang is Language => !!lang && languageOptions.some(opt => opt.value === lang);
-
-    if (isValidLang(langFromUrl)) {
-        initialLang = langFromUrl;
-    } else if (isValidLang(langFromStorage)) {
-        initialLang = langFromStorage;
-    } else {
-        const browserLang = navigator.language.split('-')[0];
-        if (isValidLang(browserLang)) {
-            initialLang = browserLang;
-        }
+    } catch (e) {
+      console.error("Failed to save state to localStorage", e);
     }
-    const selectedOption = languageOptions.find(opt => opt.value === initialLang) ?? languageOptions[1];
-    setLanguage(selectedOption.value);
-    setDirection(selectedOption.dir);
-    localStorage.setItem('appLanguage', selectedOption.value);
+  }, [voice, speed, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, history, sourceLang, targetLang, uiLanguage]);
 
-    // 2. Set translation and speech settings from URL if they exist
-    const sl = params.get('sl');
-    if (sl && translationLanguages.some(l => l.code === sl)) setSourceLang(sl);
-    else if (translationLanguages.some(l => l.code === selectedOption.value)) {
-        // Fallback to sync with UI language if no 'sl' param
-        setSourceLang(selectedOption.value);
-    }
-
-    const tl = params.get('tl');
-    if (tl && translationLanguages.some(l => l.code === tl)) setTargetLang(tl);
-
-    const text = params.get('text');
-    if (text) setSourceText(decodeURIComponent(text));
-    
-    const voiceParam = params.get('voice') as VoiceType;
-    if (voiceParam && allVoices.some(v => v.value === voiceParam)) setVoice(voiceParam);
-    
-    const emotionParam = params.get('emotion') as EmotionType;
-    if (emotionParam && ['Default', 'Happy', 'Sad', 'Formal'].includes(emotionParam)) setEmotion(emotionParam);
-
-    const speedParam = params.get('speed');
-    if (speedParam && !isNaN(parseFloat(speedParam))) setSpeed(parseFloat(speedParam));
-    
-    const pauseParam = params.get('pause');
-    if (pauseParam && !isNaN(parseFloat(pauseParam))) setPauseDuration(parseFloat(pauseParam));
-
-  }, []);
-
-  // Update document attributes and title when language changes
+  // Set document direction based on UI language
   useEffect(() => {
-    document.documentElement.lang = language;
-    document.documentElement.dir = direction;
-    document.title = t('pageTitle', language);
-  }, [language, direction]);
+    document.documentElement.lang = uiLanguage;
+    document.documentElement.dir = languageOptions.find(l => l.value === uiLanguage)?.dir || 'ltr';
+  }, [uiLanguage]);
 
-  // Handle clicks outside dropdowns/modals to close them
+  // Click outside to close sound effects dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-        if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
-            setIsLangDropdownOpen(false);
-        }
-        if (settingsModalRef.current && !settingsModalRef.current.contains(event.target as Node)) {
-            // Stop any preview playback when closing the modal
-            if (previewAudioSourceRef.current) {
-                previewAudioSourceRef.current.stop();
-                previewAudioSourceRef.current = null;
-                setIsPreviewingVoice(null);
-            }
-            if (previewAbortControllerRef.current) {
-                previewAbortControllerRef.current.abort();
-            }
-            setIsSettingsModalOpen(false);
+        if (effectsDropdownRef.current && !effectsDropdownRef.current.contains(event.target as Node)) {
+            setIsEffectsOpen(false);
         }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -293,960 +192,692 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Cleanup speech recognition and audio contexts on component unmount
-  useEffect(() => {
-    return () => {
-        if (recognitionRef.current) {
-            recognitionRef.current.abort();
-        }
-        if (apiAbortControllerRef.current) {
-            apiAbortControllerRef.current.abort();
-        }
-        if (previewAbortControllerRef.current) {
-            previewAbortControllerRef.current.abort();
-        }
-        if (globalAudioContext && globalAudioContext.state !== 'closed') {
-             globalAudioContext.close().catch(e => console.error("Error closing main audio context:", e));
-             globalAudioContext = null;
-        }
-    };
-  }, []);
 
-  const handleLanguageChange = (newLang: Language) => {
-    const selectedOption = languageOptions.find(opt => opt.value === newLang);
-    if (selectedOption) {
-      setLanguage(selectedOption.value);
-      setDirection(selectedOption.dir);
-       // Sync source language with UI language for a better UX
-       if (translationLanguages.some(l => l.code === selectedOption.value)) {
-          setSourceLang(selectedOption.value);
-       }
+  const handleSpeak = useCallback(async (text: string, langCode: string, target: 'source' | 'target') => {
+      // Case 1: Clicked on a playing button -> Pause
+      if (playbackState === 'playing' && activePlayer === target) {
+          if (audioContextRef.current) {
+              audioContextRef.current.suspend();
+              setPlaybackState('paused');
+          }
+          return;
+      }
+
+      // Case 2: Clicked on a paused button -> Resume
+      if (playbackState === 'paused' && activePlayer === target) {
+          if (audioContextRef.current) {
+              audioContextRef.current.resume();
+              setPlaybackState('playing');
+          }
+          return;
+      }
       
-      const params = new URLSearchParams(window.location.search);
-      params.set('lang', newLang);
-      window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-      localStorage.setItem('appLanguage', selectedOption.value);
-    }
-    setIsLangDropdownOpen(false);
+      // Case 3: A new playback is requested
+      if (playbackState !== 'stopped') {
+          stopPlayback();
+      }
+      
+      if (!text.trim()) return;
+
+      setActivePlayer(target);
+      setError(null);
+
+      try {
+          let pcmData = audioCache[target];
+
+          if (!pcmData) {
+              setIsLoading(true);
+              setLoadingTask(t('generatingSpeech', uiLanguage));
+              apiAbortControllerRef.current = new AbortController();
+              const signal = apiAbortControllerRef.current.signal;
+
+              const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+              const languageName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
+
+              const generatedPcm = await generateSpeech(text, voice, speed, languageName, pauseDuration, emotion, speakersConfig, signal);
+              
+              setIsLoading(false);
+              setLoadingTask('');
+
+              if (signal.aborted) throw new Error('AbortError');
+              if (!generatedPcm) throw new Error(t('errorApiNoAudio', uiLanguage));
+              
+              pcmData = generatedPcm;
+              setAudioCache(prev => ({ ...prev, [target]: pcmData }));
+          }
+
+          if (pcmData) {
+              const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+              audioContextRef.current = context;
+
+              if (context.state === 'suspended') {
+                  await context.resume();
+              }
+              
+              const audioBuffer = await decodeAudioData(pcmData, context, 24000, 1);
+              const source = context.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(context.destination);
+              
+              source.onended = () => {
+                  if (audioContextRef.current && audioContextRef.current.state !== 'suspended') {
+                     stopPlayback();
+                  }
+              };
+
+              source.start(0);
+              audioSourceNodeRef.current = source;
+              setPlaybackState('playing');
+          }
+      } catch (err: any) {
+          if (err.name !== 'AbortError') {
+              console.error("Speech generation/playback failed:", err);
+              setError(err.message || t('errorUnexpected', uiLanguage));
+          }
+          stopPlayback();
+          setIsLoading(false);
+          setLoadingTask('');
+      }
+  }, [playbackState, activePlayer, audioCache, multiSpeaker, speakerA, speakerB, voice, speed, pauseDuration, emotion, uiLanguage, stopPlayback]);
+  
+  const handleTranslate = async () => {
+      if(isLoading) {
+          stopAll();
+          return;
+      }
+      if (!sourceText.trim()) return;
+
+      setIsLoading(true);
+      setLoadingTask(t('translatingButton', uiLanguage));
+      setError(null);
+      setTranslatedText('');
+
+      apiAbortControllerRef.current = new AbortController();
+      const signal = apiAbortControllerRef.current.signal;
+
+      try {
+          const result = await translateText(sourceText, sourceLang, targetLang, speakerA.name, speakerB.name, signal);
+          setTranslatedText(result.translatedText);
+
+          const newHistoryItem: HistoryItem = {
+              id: new Date().toISOString(),
+              sourceText,
+              translatedText: result.translatedText,
+              sourceLang,
+              targetLang,
+              timestamp: Date.now()
+          };
+          setHistory(prev => [newHistoryItem, ...prev.slice(0, 49)]);
+
+      } catch (err: any) {
+          if (err.name !== 'AbortError') {
+              console.error("Translation failed:", err);
+              setError(err.message || t('errorTranslate', uiLanguage));
+          }
+      } finally {
+          setIsLoading(false);
+          setLoadingTask('');
+      }
   };
   
-  const findLanguageName = (code: string): string => {
-      return translationLanguages.find(lang => lang.code === code)?.name || code;
-  }
-
-  const handleTranslate = useCallback(async () => {
-    if (isTranslating) {
-        if (apiAbortControllerRef.current) {
-            apiAbortControllerRef.current.abort();
-        }
-        setIsTranslating(false);
-        return;
-    }
-    if (!sourceText.trim()) return;
-
-    const cacheKey = `${sourceLang}:${targetLang}:${speakerA.name}:${speakerB.name}:${sourceText}`;
-    if (translationCacheRef.current.has(cacheKey)) {
-        const cachedResult = translationCacheRef.current.get(cacheKey)!;
-        setTranslatedText(cachedResult.translatedText);
-        setSpeakerMapping(cachedResult.speakerMapping);
-        return;
-    }
-
-    setIsTranslating(true);
-    setError(null);
-    setTranslatedText('');
-    setSpeakerMapping(null);
-
-    apiAbortControllerRef.current = new AbortController();
-    const signal = apiAbortControllerRef.current.signal;
-
-    try {
-        const sourceLangName = findLanguageName(sourceLang);
-        const targetLangName = findLanguageName(targetLang);
-        
-        const result = await translateText(sourceText, sourceLangName, targetLangName, speakerA.name, speakerB.name, signal);
-        
-        setTranslatedText(result.translatedText);
-        setSpeakerMapping(result.speakerMapping);
-        translationCacheRef.current.set(cacheKey, result);
-
-        // Add to history
-        const newHistoryItem: HistoryItem = {
-            id: `hist-${Date.now()}`,
-            sourceText,
-            translatedText: result.translatedText,
-            sourceLang,
-            targetLang,
-            timestamp: Date.now(),
-            speakerMapping: result.speakerMapping,
-        };
-        setHistory(prev => [newHistoryItem, ...prev.filter(item => item.sourceText !== sourceText)]);
-
-
-    } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
-            console.log("Translation aborted by user.");
-        } else {
-            console.error(err);
-            setError(t('errorTranslate', language));
-        }
-    } finally {
-        setIsTranslating(false);
-        apiAbortControllerRef.current = null;
-    }
-  }, [sourceText, sourceLang, targetLang, language, speakerA.name, speakerB.name, isTranslating]);
-
-
-  // Hard reset function for all audio playback.
-  const stopAllAudio = useCallback(() => {
-    if (apiAbortControllerRef.current) {
-        apiAbortControllerRef.current.abort();
-        apiAbortControllerRef.current = null;
-    }
-    if (currentChunkSourceRef.current) {
-        currentChunkSourceRef.current.onended = null;
-        try { currentChunkSourceRef.current.stop(); } catch (e) {}
-        currentChunkSourceRef.current = null;
-    }
-    
-    audioQueueRef.current = [];
-    isPlayingQueueRef.current = false;
-    
-    setActiveSpeaker(null);
-    setIsPlaying(false);
-    setIsLoadingAudio(false);
-  }, []);
-
-
-  const handleSpeechAction = useCallback(async (textToSpeak: string, textLangCode: string, speakerType: 'source' | 'target') => {
-    // If user clicks stop, or a different button
-    if ((isPlaying || isLoadingAudio) && activeSpeaker === speakerType) {
-        stopAllAudio();
-        return;
-    }
-    
-    if (activeSpeaker !== null) {
-        stopAllAudio();
-    }
-    
-    if (!textToSpeak.trim()) return;
-
-    setActiveSpeaker(speakerType);
-    setIsLoadingAudio(true);
-    setError(null);
-
-    const audioContext = await getResumedAudioContext();
-
-    const playNextChunk = async () => {
-        if (audioQueueRef.current.length === 0) {
-            isPlayingQueueRef.current = false;
-            stopAllAudio(); // Finished queue
-            return;
-        }
-
-        isPlayingQueueRef.current = true;
-        const pcm = audioQueueRef.current.shift()!;
-        
-        try {
-            const audioBuffer = await decodeAudioData(pcm, audioContext, 24000, 1);
-            if (activeSpeakerRef.current !== speakerType) { // Check if cancelled while decoding
-                stopAllAudio();
-                return;
-            }
-
-            const source = audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioContext.destination);
-            source.start(0);
-
-            currentChunkSourceRef.current = source;
-
-            source.onended = () => {
-                currentChunkSourceRef.current = null;
-                if (isPlayingQueueRef.current) {
-                    playNextChunk();
-                }
-            };
-        } catch (e) {
-            console.error("Error playing chunk:", e);
-            setError(t('errorUnexpected', language));
-            stopAllAudio();
-        }
-    };
-
-    apiAbortControllerRef.current = new AbortController();
-    const signal = apiAbortControllerRef.current.signal;
-
-    try {
-        // FIX: Conditionally chunk text. For multi-speaker mode, the entire text must be sent in one go
-        // to provide the necessary context for the model to assign different voices correctly.
-        // For single-speaker mode, we retain the chunking for a faster, streaming-like response.
-        const chunks = isMultiSpeakerMode && speakerA.name.trim() && speakerB.name.trim()
-            ? [textToSpeak.trim()].filter(Boolean) // Use the whole text as a single chunk
-            : textToSpeak.split(/\n+/).filter(p => p.trim().length > 0); // Original chunking for single voice
-
-        if (chunks.length === 0) {
-            stopAllAudio();
-            return;
-        }
-        
-        let fullPcmChunks: Uint8Array[] = [];
-
-        for (const chunk of chunks) {
-            if (signal.aborted) throw new Error('AbortError');
-            
-            let speakersForApi;
-            if (isMultiSpeakerMode) {
-                if (speakerType === 'target' && speakerMapping) {
-                     speakersForApi = {
-                        speakerA: { name: speakerMapping[speakerA.name] || speakerA.name, voice: speakerA.voice },
-                        speakerB: { name: speakerMapping[speakerB.name] || speakerB.name, voice: speakerB.voice }
-                    };
-                } else if (speakerType === 'source') {
-                    speakersForApi = { speakerA, speakerB };
-                }
-            }
-            const textLangName = findLanguageName(textLangCode);
-
-            const pcm = await generateSpeech(
-                chunk, voice, speed, textLangName, pauseDuration, emotion, 
-                speakersForApi, signal
-            );
-            
-            if (pcm) {
-                audioQueueRef.current.push(pcm);
-                fullPcmChunks.push(pcm);
-                
-                if (!isPlayingQueueRef.current) {
-                    setIsLoadingAudio(false);
-                    setIsPlaying(true);
-                    playNextChunk();
-                }
-            }
-        }
-        
-        // After all chunks are fetched, combine them for download/share
-        // This won't run if playback was cancelled
-        if (fullPcmChunks.length > 0) {
-           const combinedPcm = new Uint8Array(fullPcmChunks.reduce((acc, val) => acc + val.length, 0));
-           let offset = 0;
-           for(const chunk of fullPcmChunks) {
-               combinedPcm.set(chunk, offset);
-               offset += chunk.length;
-           }
-           setLastPlayedPcm(combinedPcm);
-        }
-
-    } catch (err) {
-        if (err.name !== 'AbortError') {
-            console.error("Speech action failed:", err);
-            setError(t('errorUnexpected', language));
-        }
-        stopAllAudio();
-    }
-  }, [voice, speed, language, activeSpeaker, isPlaying, isLoadingAudio, pauseDuration, emotion, speakerA, speakerB, isMultiSpeakerMode, speakerMapping, stopAllAudio]);
-  
-
-  const handleListen = useCallback(() => {
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) {
-        setError(t('errorMicNotSupported', language));
-        return;
-    }
-
-    // Stop listening: A robust, manual cleanup process.
+   const handleToggleListening = () => {
     if (isListening) {
-        if (recognitionRef.current) {
-            // Detach all event handlers to prevent lingering events from causing state issues
-            recognitionRef.current.onstart = null;
-            recognitionRef.current.onresult = null;
-            recognitionRef.current.onerror = null;
-            recognitionRef.current.onend = null;
-            
-            // Gracefully stop the recognition
-            recognitionRef.current.stop();
-            recognitionRef.current = null;
-        }
-        // Manually and synchronously update the state to ensure the UI is responsive.
-        setIsListening(false);
-        return;
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
     }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setMicError(t('errorMicNotSupported', uiLanguage));
+      return;
+    }
+
+    recognitionRef.current = new SpeechRecognition();
+    const recognition = recognitionRef.current;
     
-    // Start listening
-    const recognition = new SpeechRecognitionAPI();
-    recognitionRef.current = recognition;
-
-    const selectedLangDetails = translationLanguages.find(lang => lang.code === sourceLang);
-    const speechLangCode = selectedLangDetails ? selectedLangDetails.speechCode : sourceLang;
-
-    recognition.lang = speechLangCode;
+    recognition.lang = translationLanguages.find(l => l.code === sourceLang)?.speechCode || 'en-US';
     recognition.continuous = true;
     recognition.interimResults = true;
 
     recognition.onstart = () => {
-        setIsListening(true);
-        setError(null);
-        setSourceText('');
+      setIsListening(true);
+      setMicError(null);
     };
 
     recognition.onend = () => {
-        // This handler is now primarily for "natural" stops (e.g., after silence).
-        // It defensively checks if it's still the active recognition instance before cleaning up.
-        if (recognitionRef.current === recognition) {
-             recognitionRef.current = null;
-             setIsListening(false);
-        }
+      setIsListening(false);
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('Speech recognition error:', event);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            setError(t('errorMicPermission', language));
-        } else if (event.error !== 'aborted' && event.error !== 'no-speech') { // 'no-speech' is a common, non-critical error
-            setError(t('errorUnexpected', language));
-        }
-        
-        // Always run cleanup to reset state, but only if this is the active instance.
-        if (recognitionRef.current === recognition) {
-            recognitionRef.current = null;
-            setIsListening(false);
-        }
+    recognition.onerror = (event: any) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setMicError(t('errorMicPermission', uiLanguage));
+      } else {
+        setMicError(event.error);
+      }
+      setIsListening(false);
     };
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-        if (!recognitionRef.current) return;
-        const transcript = Array.from(event.results)
-            .map(result => result[0])
-            .map(result => result.transcript)
-            .join('');
-        setSourceText(transcript);
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+      setSourceText(prev => prev + finalTranscript);
     };
-    
+
     recognition.start();
-  }, [isListening, sourceLang, language]);
+  };
 
 
-  const handleDownload = async () => {
-    if (!lastPlayedPcm) return;
-
-    let blob: Blob;
-    let filename: string;
-    
-    if (downloadFormat === 'mp3') {
-        setIsEncodingMp3(true);
-        setError(null);
-        try {
-            await new Promise(resolve => setTimeout(resolve, 10));
-            blob = await createMp3Blob(lastPlayedPcm, 1, 24000);
-            filename = 'sawtli-speech.mp3';
-        } catch (e) {
-            console.error("MP3 encoding failed:", e);
-            setError(t('errorMp3Encoding', language));
-            setIsEncodingMp3(false);
-            return;
-        } finally {
-            setIsEncodingMp3(false);
-        }
-    } else {
-        blob = createWavBlob(lastPlayedPcm, 1, 24000);
-        filename = 'sawtli-speech.wav';
-    }
-    
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+  const swapLanguages = () => {
+    setSourceLang(targetLang);
+    setTargetLang(sourceLang);
+    setSourceText(translatedText);
+    setTranslatedText(sourceText);
   };
   
-  const handleShareAudio = async () => {
-    if (!lastPlayedPcm) return;
-    if (!isWebShareSupported) {
-        setError(t('shareNotSupported', language));
-        return;
-    }
-
-    setIsSharing(true);
-    setError(null);
-    try {
-        const blob = await createMp3Blob(lastPlayedPcm, 1, 24000);
-        const file = new File([blob], 'sawtli-speech.mp3', { type: 'audio/mpeg' });
-        
-        await navigator.share({
-            files: [file],
-            title: t('sharedAudioTitle', language),
-            text: t('sharedAudioText', language),
-        });
-    } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-            console.error("Web Share API failed:", err);
-            setError(t('errorUnexpected', language));
-        }
-    } finally {
-        setIsSharing(false);
-    }
+  const handleHistoryLoad = (item: HistoryItem) => {
+    setSourceText(item.sourceText);
+    setTranslatedText(item.translatedText);
+    setSourceLang(item.sourceLang);
+    setTargetLang(item.targetLang);
+    setIsHistoryOpen(false);
+  };
+  
+  const handleCopy = (text: string, type: 'target') => {
+      if (!text) return;
+      navigator.clipboard.writeText(text);
+      if (type === 'target') {
+          setCopiedTarget(true);
+          setTimeout(() => setCopiedTarget(false), 2000);
+      }
   };
 
   const handleShareLink = () => {
       const params = new URLSearchParams();
-      params.set('sl', sourceLang);
-      params.set('tl', targetLang);
-      params.set('text', encodeURIComponent(sourceText));
-      params.set('voice', voice);
-      params.set('emotion', emotion);
-      params.set('speed', speed.toString());
-      params.set('pause', pauseDuration.toString());
-      
+      params.set('sourceText', encodeURIComponent(sourceText));
+      params.set('sourceLang', sourceLang);
+      params.set('targetLang', targetLang);
       const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
-
-      navigator.clipboard.writeText(url).then(() => {
-          handleCopy(url, 'link');
-      });
+      navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  const handleSwapLanguages = () => {
-      setSourceLang(targetLang);
-      setTargetLang(sourceLang);
-      setSourceText(translatedText);
-      setTranslatedText(sourceText);
-      setSpeakerMapping(null); // Clear mapping as the context has changed
-  };
-
-  const handleCopy = (text: string, type: 'source' | 'target' | 'link') => {
-      if (!text) return;
-      if (type !== 'link') {
-        navigator.clipboard.writeText(text);
-      }
-      setCopied(type);
-      setTimeout(() => setCopied(null), 2000);
-  };
-
-  const handleClearHistory = () => {
-      setHistory([]);
-  };
-
-  const handleLoadHistoryItem = (item: HistoryItem) => {
-      setSourceText(item.sourceText);
-      setTranslatedText(item.translatedText);
-      setSourceLang(item.sourceLang);
-      setTargetLang(item.targetLang);
-      setSpeakerMapping(item.speakerMapping);
-      setIsHistoryModalOpen(false);
-  };
-
-  const handlePreviewVoice = async (voiceToPreview: VoiceType) => {
-    if (previewAudioSourceRef.current) {
-        previewAudioSourceRef.current.onended = null;
-        try { previewAudioSourceRef.current.stop(); } catch(e) {}
-        previewAudioSourceRef.current = null;
-    }
-    if (previewAbortControllerRef.current) {
-        previewAbortControllerRef.current.abort();
-    }
-
-    if (isPreviewingVoice === voiceToPreview) {
-        setIsPreviewingVoice(null);
-        return;
-    }
-
-    setIsPreviewingVoice(voiceToPreview);
+  const generateAudioBlob = useCallback(async (text: string, langCode: string, format: 'wav' | 'mp3') => {
+    if (!text.trim()) return null;
     setError(null);
-    
-    previewAbortControllerRef.current = new AbortController();
-    const signal = previewAbortControllerRef.current.signal;
+    setLoadingTask(t('encoding', uiLanguage));
+    setIsLoading(true);
+
+    apiAbortControllerRef.current = new AbortController();
+    const signal = apiAbortControllerRef.current.signal;
 
     try {
-        const audioContext = await getResumedAudioContext();
+      const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+      const languageName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
+      const pcmData = await generateSpeech(text, voice, speed, languageName, pauseDuration, emotion, speakersConfig, signal);
+      if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage));
 
-        let pcm: Uint8Array | null;
-        if (previewCacheRef.current.has(voiceToPreview)) {
-            pcm = previewCacheRef.current.get(voiceToPreview)!;
-        } else {
-            const sampleText = t('voicePreviewText', language);
-            pcm = await previewVoice(voiceToPreview, sampleText, signal);
-            if (pcm) {
-                previewCacheRef.current.set(voiceToPreview, pcm);
-            }
-        }
-
-        if (pcm) {
-            const buffer = await decodeAudioData(pcm, audioContext, 24000, 1);
-            const source = audioContext.createBufferSource();
-            source.buffer = buffer;
-            source.connect(audioContext.destination);
-            source.start(0);
-            previewAudioSourceRef.current = source;
-            source.onended = () => {
-                if (previewAudioSourceRef.current === source) {
-                    setIsPreviewingVoice(null);
-                    previewAudioSourceRef.current = null;
-                }
-            };
-        } else {
-            throw new Error("Preview API returned no audio");
-        }
-    } catch (err) {
+      if (format === 'wav') {
+        return createWavBlob(pcmData, 1, 24000);
+      } else {
+        return await createMp3Blob(pcmData, 1, 24000);
+      }
+    } catch (err: any) {
         if (err.name !== 'AbortError') {
-            console.error("Voice preview failed:", err);
-            setError(t('errorUnexpected', language));
+          console.error(`Audio generation for ${format} failed:`, err);
+          setError(err.message || (format === 'mp3' ? t('errorMp3Encoding', uiLanguage) : t('errorSpeechGeneration', uiLanguage)));
         }
-        setIsPreviewingVoice(null);
+        return null;
+    } finally {
+        setIsLoading(false);
+        setLoadingTask('');
+    }
+  }, [multiSpeaker, speakerA, speakerB, voice, speed, pauseDuration, emotion, uiLanguage]);
+
+  const handleDownload = async (format: 'wav' | 'mp3') => {
+    const textToProcess = translatedText || sourceText;
+    const langToProcess = translatedText ? targetLang : sourceLang;
+    const blob = await generateAudioBlob(textToProcess, langToProcess, format);
+    if (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sawtli_audio.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    setIsDownloadOpen(false);
+  };
+  
+  const handleShareAudio = async () => {
+    const textToProcess = translatedText || sourceText;
+    const langToProcess = translatedText ? targetLang : sourceLang;
+    setIsSharingAudio(true);
+    const blob = await generateAudioBlob(textToProcess, langToProcess, 'mp3');
+    setIsSharingAudio(false);
+
+    if (blob) {
+      const file = new File([blob], 'sawtli_audio.mp3', { type: 'audio/mpeg' });
+      const shareData = {
+        title: t('sharedAudioTitle', uiLanguage),
+        text: t('sharedAudioText', uiLanguage),
+        files: [file],
+      };
+      if (navigator.canShare && navigator.canShare(shareData)) {
+        try {
+          await navigator.share(shareData);
+        } catch (err) {
+          console.error("Sharing failed", err);
+        }
+      } else {
+        alert(t('shareNotSupported', uiLanguage));
+      }
+    }
+  };
+  
+  const handleInsertTag = (tag: string) => {
+    const textarea = sourceTextAreaRef.current;
+    if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = sourceText;
+        const newText = text.substring(0, start) + ` ${tag} ` + text.substring(end);
+        setSourceText(newText);
+        setIsEffectsOpen(false);
+
+        textarea.focus();
+        // Use a timeout to ensure the state update has rendered before setting selection
+        setTimeout(() => {
+            const newCursorPos = start + tag.length + 2; // +2 for spaces
+            textarea.selectionStart = textarea.selectionEnd = newCursorPos;
+        }, 0);
     }
   };
 
 
-  const currentLanguageLabel = languageOptions.find(opt => opt.value === language)?.label;
-  
-  const MAX_CHARS = 5000;
-  const isUIBlocked = isTranslating || isListening || isSharing || !!isPreviewingVoice;
+  const getButtonState = (target: 'source' | 'target') => {
+      const defaultLabel = target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage);
+      
+      if (activePlayer !== target) {
+          return { icon: <SpeakerIcon />, label: defaultLabel };
+      }
 
-  // FIX: Use `keyof typeof translations` instead of `keyof typeof t` for `labelKey`.
-  // `t` is a function, and `keyof typeof t` does not correctly represent the keys of the translation object, leading to type errors.
-  // FIX: The list of voices has been corrected to include only the 5 supported voices.
-  const allVoices: { value: VoiceType; labelKey: keyof typeof translations }[] = [
-      { value: 'Puck', labelKey: 'voicePuck' },
-      { value: 'Zephyr', labelKey: 'voiceZephyr' },
-      { value: 'Kore', labelKey: 'voiceKore' },
-      { value: 'Charon', labelKey: 'voiceCharon' },
-      { value: 'Fenrir', labelKey: 'voiceFenrir' },
-  ];
+      switch (playbackState) {
+          case 'playing':
+              return { icon: <PauseIcon />, label: t('pauseSpeaking', uiLanguage) };
+          case 'paused':
+              return { icon: <PlayCircleIcon />, label: t('resumeSpeaking', uiLanguage) };
+          case 'stopped':
+          default:
+              return { icon: <SpeakerIcon />, label: defaultLabel };
+      }
+  };
 
-  // Logic for dynamic textarea padding
-  const pageDir = direction;
-  const sourceTextDir = getDirectionForLang(sourceLang);
-  let sourcePaddingClass = '';
-  if (pageDir === 'rtl' && sourceTextDir === 'ltr') {
-      sourcePaddingClass = 'pl-10';
-  } else if (pageDir === 'ltr' && sourceTextDir === 'rtl') {
-      sourcePaddingClass = 'pr-10';
-  }
 
-  const targetTextDir = getDirectionForLang(targetLang);
-  let targetPaddingClass = '';
-  if (pageDir === 'rtl' && targetTextDir === 'ltr') {
-      targetPaddingClass = 'pl-10';
-  } else if (pageDir === 'ltr' && targetTextDir === 'rtl') {
-      targetPaddingClass = 'pr-10';
-  }
+  // --- RENDER ---
+  const sourceButtonState = getButtonState('source');
+  const targetButtonState = getButtonState('target');
 
-  // Button state logic
-  const isSourceActive = activeSpeaker === 'source';
-  const isSourceLoading = isLoadingAudio && isSourceActive;
-  const isSourcePlaying = isPlaying && isSourceActive;
+  const sourceTextArea = (
+    <div className="flex flex-col space-y-3 md:w-1/2">
+      <LanguageSelect value={sourceLang} onChange={setSourceLang} />
+      <div className="relative flex-grow">
+          <textarea
+              ref={sourceTextAreaRef}
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              placeholder={t('placeholder', uiLanguage)}
+              maxLength={MAX_CHARS}
+              className="w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors"
+          />
+          <div className="absolute bottom-2 right-2 text-xs text-slate-500">{sourceText.length} / {MAX_CHARS}</div>
+      </div>
+       <div className="flex items-center gap-2 flex-wrap bg-slate-900/50 p-2 rounded-lg">
+          <span className="text-xs font-bold text-slate-400">{t('soundEffects', uiLanguage)}:</span>
+            <div className="relative" ref={effectsDropdownRef}>
+                <button
+                    onClick={() => setIsEffectsOpen(!isEffectsOpen)}
+                    className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors text-sm"
+                >
+                    {t('addEffect', uiLanguage)}
+                </button>
+                {isEffectsOpen && (
+                    <div className="absolute bottom-full mb-2 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-20 w-48 animate-fade-in-down max-h-60 overflow-y-auto">
+                        {soundEffects.map(effect => (
+                          <button
+                            key={effect.tag}
+                            onClick={() => handleInsertTag(effect.tag)}
+                            title={t(effect.labelKey as any, uiLanguage)}
+                            className="w-full flex items-center gap-3 text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-600 transition-colors"
+                          >
+                            <span className="text-xl leading-none">{effect.emoji}</span>
+                            <span>{t(effect.labelKey as any, uiLanguage)}</span>
+                          </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+       <div className="flex items-stretch gap-3">
+          <ActionButton
+            icon={isLoading && activePlayer === 'source' ? <LoaderIcon /> : sourceButtonState.icon}
+            onClick={() => handleSpeak(sourceText, sourceLang, 'source')}
+            label={isLoading && activePlayer === 'source' ? loadingTask : sourceButtonState.label}
+            disabled={(isLoading && activePlayer !== 'source')}
+            className="flex-grow bg-cyan-600 hover:bg-cyan-500 shadow-cyan-600/20"
+          />
+          <button
+            onClick={handleToggleListening}
+            title={isListening ? t('stopListening', uiLanguage) : t('voiceInput', uiLanguage)}
+            className={`w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-lg transition-colors ${
+              isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
+          >
+            <MicrophoneIcon className="h-6 w-6" />
+          </button>
+       </div>
+    </div>
+  );
 
-  const isTargetActive = activeSpeaker === 'target';
-  const isTargetLoading = isLoadingAudio && isTargetActive;
-  const isTargetPlaying = isPlaying && isTargetActive;
+  const translatedTextArea = (
+      <div className="flex flex-col space-y-3 md:w-1/2">
+           <LanguageSelect value={targetLang} onChange={setTargetLang} />
+           <div className="relative flex-grow">
+              <textarea
+                  value={translatedText}
+                  readOnly
+                  placeholder={t('translationPlaceholder', uiLanguage)}
+                  className="w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none"
+              />
+               <div className="absolute top-2 right-2">
+                  <button onClick={() => handleCopy(translatedText, 'target')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-white bg-slate-700/50 rounded-md">
+                      {copiedTarget ? <CheckIcon className="h-5 w-5 text-green-400"/> : <CopyIcon />}
+                  </button>
+              </div>
+              <div className="absolute bottom-2 right-2 text-xs text-slate-500">{translatedText.length} / {MAX_CHARS}</div>
+           </div>
+           <ActionButton
+                icon={isLoading && activePlayer === 'target' ? <LoaderIcon /> : targetButtonState.icon}
+                onClick={() => handleSpeak(translatedText, targetLang, 'target')}
+                label={isLoading && activePlayer === 'target' ? loadingTask : targetButtonState.label}
+                disabled={!translatedText.trim() || (isLoading && activePlayer !== 'target')}
+                className="bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20"
+           />
+      </div>
+  );
+
+  const swapButton = (
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 my-4 md:my-0">
+         <button onClick={swapLanguages} title={t('swapLanguages', uiLanguage)} className="h-11 w-11 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full transition-transform active:scale-90 border-4 border-slate-800">
+            <SwapIcon />
+        </button>
+     </div>
+  );
 
   return (
-    <div className="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-5xl bg-slate-800 rounded-2xl shadow-2xl p-4 sm:p-6 space-y-4 transform transition-all duration-300 relative glow-container">
-        <div ref={langDropdownRef} className="absolute top-4 ltr:left-4 rtl:right-4 z-20">
-          <button
-            onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-            className="flex items-center gap-2 bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 p-2 w-36 justify-between transition-colors hover:bg-slate-600"
-            aria-label={t('selectInterfaceLanguage', language)}
-            aria-haspopup="true"
-            aria-expanded={isLangDropdownOpen}
-          >
-            <GlobeIcon />
-            <span className="flex-grow text-center">{currentLanguageLabel}</span>
-            <ChevronDownIcon className={`w-4 h-4 transition-transform duration-300 ${isLangDropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {isLangDropdownOpen && (
-             <div className="absolute top-full mt-1 w-36 bg-slate-700 border border-slate-600 rounded-lg shadow-lg overflow-hidden animate-fade-in-down">
-                {languageOptions.map(option => (
-                  <button
-                    key={option.value}
-                    onClick={() => handleLanguageChange(option.value)}
-                    className="w-full text-sm text-left px-4 py-2 hover:bg-cyan-600 transition-colors"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-        
-        <div className="text-center pt-10 sm:pt-6">
-            <div className="flex items-center justify-center gap-3 mb-2">
-                <SawtliLogoIcon className="w-10 h-10 text-cyan-400" />
-                <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider">
-                    Sawtli
-                </h1>
-            </div>
-            <p className="text-cyan-400 text-md">
-                {t('subtitle', language)}
-            </p>
-        </div>
+    <div className="bg-slate-900 text-white min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8">
+      <div className="w-full max-w-4xl mx-auto">
 
-        {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-center text-sm animate-fade-in-down">
-            {error}
-          </div>
-        )}
-        
-        {copied === 'link' && (
-          <div className="bg-green-500/20 border border-green-500 text-green-300 p-3 rounded-lg text-center text-sm animate-fade-in-down">
-            {t('linkCopied', language)}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center">
-            {/* Source Text Area */}
-            <div className="flex flex-col space-y-2">
-                <label htmlFor="source-lang" className="text-sm text-slate-300">{t('sourceLanguage', language)}</label>
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row justify-between items-center w-full mb-6">
+            <div className="flex items-center justify-center gap-3 mb-4 sm:mb-0">
+                <SawtliLogoIcon className="w-12 h-12 text-cyan-400" />
+                 <div>
+                    <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider">{t('pageTitle', uiLanguage).split(' ')[0]}</h1>
+                    <p className="text-slate-400 text-sm sm:text-base">{t('subtitle', uiLanguage)}</p>
+                </div>
+            </div>
+            <div className="flex items-center gap-2 bg-slate-800 p-2 rounded-full">
+                <GlobeIcon className="w-5 h-5 text-slate-400"/>
                 <select 
-                    id="source-lang" 
-                    value={sourceLang} 
-                    onChange={(e) => setSourceLang(e.target.value)} 
-                    className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"
-                    dir={getDirectionForLang(sourceLang)}
-                    disabled={activeSpeaker !== null}
+                    value={uiLanguage} 
+                    onChange={e => setUiLanguage(e.target.value as Language)}
+                    className="bg-transparent text-white focus:outline-none"
+                    aria-label={t('selectInterfaceLanguage', uiLanguage)}
                 >
-                    {translationLanguages.map((lang: LanguageListItem) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
+                    {languageOptions.map(lang => (
+                        <option key={lang.value} value={lang.value} className="bg-slate-700">{lang.label}</option>
+                    ))}
                 </select>
-                <div className="relative">
-                    <textarea
-                        value={sourceText}
-                        onChange={(e) => {
-                            setSourceText(e.target.value);
-                            setTranslatedText('');
-                            setSpeakerMapping(null);
-                        }}
-                        placeholder={isListening ? t('listening', language) : t('placeholder', language)}
-                        className={`w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 text-base ${sourcePaddingClass}`}
-                        disabled={isTranslating || activeSpeaker !== null}
-                        readOnly={isListening}
-                        maxLength={MAX_CHARS}
-                        dir={getDirectionForLang(sourceLang)}
-                    />
-                    <button 
-                        onClick={() => handleCopy(sourceText, 'source')} 
-                        className="absolute top-2 ltr:right-2 rtl:left-2 p-1.5 bg-slate-700/50 hover:bg-slate-600 rounded-full text-slate-300 hover:text-white transition-colors" 
-                        aria-label={t('copy', language)}
-                        title={t('copyTooltip', language)}
-                    >
-                        {copied === 'source' ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
-                    </button>
-                    <div className="text-right text-xs text-slate-400 mt-1">{sourceText.length} / {MAX_CHARS}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleListen}
-                      disabled={isUIBlocked || activeSpeaker !== null}
-                      className={`h-11 flex-grow flex items-center justify-center gap-2 text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm disabled:cursor-not-allowed disabled:bg-slate-700 ${isListening ? 'bg-red-600 hover:bg-red-500 animate-pulse' : 'bg-cyan-700 hover:bg-cyan-600'}`}
-                      aria-label={isListening ? t('stopListening', language) : t('voiceInput', language)}
-                      title={isListening ? t('stopListening', language) : t('voiceInput', language)}
-                    >
-                      {isListening ? <StopIcon /> : <MicrophoneIcon className="w-5 h-5" />}
-                      <span>{isListening ? t('listening', language) : t('voiceInput', language)}</span>
-                    </button>
-                    <button
-                      onClick={() => handleSpeechAction(sourceText, sourceLang, 'source')}
-                      disabled={isUIBlocked || !sourceText.trim() || isTargetActive}
-                      className="h-11 flex-grow flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm"
-                    >
-                      {isSourceLoading ? <LoaderIcon /> : isSourcePlaying ? <SoundWaveIcon /> : <SpeakerIcon />}
-                      <span>
-                        {isSourceLoading || isSourcePlaying
-                          ? t('stopSpeaking', language)
-                          : t('speakSource', language)}
-                      </span>
-                    </button>
+            </div>
+        </header>
+
+        <main className="w-full space-y-6">
+            {/* Main Translator UI */}
+            <div className="bg-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 relative glow-container">
+                {error && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{error}</p></div>}
+                {micError && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{micError}</p></div>}
+                
+                <div className="relative flex flex-col md:flex-row gap-4">
+                    {sourceTextArea}
+                    {swapButton}
+                    {translatedTextArea}
                 </div>
             </div>
 
-            {/* Swap Button */}
-            <div className="my-2 md:my-0">
-                <button 
-                    onClick={handleSwapLanguages}
-                    disabled={activeSpeaker !== null} 
-                    className="p-2.5 bg-slate-700 hover:bg-slate-600 rounded-full transition-colors transform active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed" 
-                    aria-label={t('swapLanguages', language)}
-                >
-                    <SwapIcon />
+            {/* Central Translate Button */}
+             <div className="flex items-center justify-center -mt-2">
+                <button onClick={handleTranslate} disabled={isLoading && loadingTask !== '' && loadingTask !== t('translatingButton', uiLanguage)} className="h-12 px-8 flex items-center justify-center gap-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-600 disabled:cursor-not-allowed text-slate-900 font-bold rounded-full transition-transform active:scale-95 shadow-lg shadow-cyan-500/20 text-lg transform hover:-translate-y-1">
+                    {isLoading && loadingTask === t('translatingButton', uiLanguage) ? <LoaderIcon /> : <TranslateIcon />}
+                    <span>
+                        {isLoading && loadingTask === t('translatingButton', uiLanguage) 
+                            ? t('translatingButtonStop', uiLanguage) 
+                            : t('translateButton', uiLanguage)}
+                    </span>
                 </button>
             </div>
 
-            {/* Target Text Area */}
-            <div className="flex flex-col space-y-2">
-                <label htmlFor="target-lang" className="text-sm text-slate-300">{t('targetLanguage', language)}</label>
-                <select 
-                    id="target-lang" 
-                    value={targetLang} 
-                    onChange={(e) => setTargetLang(e.target.value)} 
-                    className="bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-2.5"
-                    dir={getDirectionForLang(targetLang)}
-                    disabled={activeSpeaker !== null}
-                >
-                    {translationLanguages.map((lang: LanguageListItem) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
-                </select>
-                <div className="relative">
-                    <textarea
-                        value={translatedText}
-                        readOnly
-                        placeholder={t('translationPlaceholder', language)}
-                        className={`w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors duration-300 placeholder-slate-500 cursor-not-allowed text-base ${targetPaddingClass}`}
-                        dir={getDirectionForLang(targetLang)}
-                    />
-                    <button 
-                        onClick={() => handleCopy(translatedText, 'target')} 
-                        className="absolute top-2 ltr:right-2 rtl:left-2 p-1.5 bg-slate-700/50 hover:bg-slate-600 rounded-full text-slate-300 hover:text-white transition-colors" 
-                        aria-label={t('copy', language)}
-                        title={t('copyTooltip', language)}
-                    >
-                        {copied === 'target' ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
-                    </button>
-                    <div className="text-right text-xs text-slate-400 mt-1">{translatedText.length} / {MAX_CHARS}</div>
-                 </div>
-                 <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleSpeechAction(translatedText, targetLang, 'target')}
-                      disabled={isUIBlocked || !translatedText.trim() || isSourceActive}
-                      className="h-11 flex-grow flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm"
-                    >
-                      {isTargetLoading ? <LoaderIcon /> : isTargetPlaying ? <SoundWaveIcon /> : <SpeakerIcon />}
-                      <span>
-                        {isTargetLoading || isTargetPlaying
-                          ? t('stopSpeaking', language)
-                          : t('speakTarget', language)}
-                      </span>
-                    </button>
-                 </div>
+            {/* Action Buttons Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 text-center">
+                <ActionCard icon={<GearIcon />} label={t('speechSettings', uiLanguage)} onClick={() => setIsSettingsOpen(true)} />
+                <ActionCard icon={<HistoryIcon />} label={t('historyButton', uiLanguage)} onClick={() => setIsHistoryOpen(true)} />
+                <ActionCard 
+                    icon={linkCopied ? <CheckIcon className="text-green-400"/> : <LinkIcon />} 
+                    label={linkCopied ? t('linkCopied', uiLanguage) : t('shareSettings', uiLanguage)} 
+                    onClick={handleShareLink} 
+                />
+                <ActionCard icon={<DownloadIcon />} label={t('downloadButton', uiLanguage)} onClick={() => setIsDownloadOpen(true)} />
+                <ActionCard 
+                    icon={isSharingAudio ? <LoaderIcon /> : <ShareIcon />}
+                    label={isSharingAudio ? t('sharingAudio', uiLanguage) : t('shareAudio', uiLanguage)} 
+                    onClick={handleShareAudio} 
+                    disabled={isSharingAudio}
+                />
             </div>
-        </div>
-        
-        <div className="pt-2">
-             <button
-              onClick={handleTranslate}
-              disabled={isUIBlocked || activeSpeaker !== null}
-              className="h-11 w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 shadow-lg shadow-cyan-600/20 text-sm font-semibold"
-            >
-              {isTranslating ? (
-                <>
-                  <StopIcon />
-                  <span>{t('translatingButtonStop', language)}</span>
-                </>
-              ) : (
-                <>
-                  <TranslateIcon />
-                  <span>{t('translateButton', language)}</span>
-                </>
-              )}
-            </button>
-        </div>
-
-        {/* Controls and Download */}
-        <div className="border-t border-slate-700 pt-5 flex flex-wrap items-center justify-center gap-4">
-            <button
-                onClick={() => setIsSettingsModalOpen(true)}
-                disabled={isTranslating || activeSpeaker !== null || isListening || isSharing}
-                className="h-11 flex items-center justify-center gap-2 text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm disabled:cursor-not-allowed bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700"
-                aria-label={t('openSpeechSettings', language)}
-            >
-                <GearIcon />
-                <span>{t('speechSettings', language)}</span>
-            </button>
-
-            <button
-                onClick={() => setIsHistoryModalOpen(true)}
-                disabled={isTranslating || activeSpeaker !== null || isListening || isSharing}
-                className="h-11 flex items-center justify-center gap-2 text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm disabled:cursor-not-allowed bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700"
-                aria-label={t('historyButton', language)}
-            >
-                <HistoryIcon />
-                <span>{t('historyButton', language)}</span>
-            </button>
             
-            <button
-                onClick={handleShareLink}
-                disabled={isTranslating || activeSpeaker !== null || isListening || isSharing || !sourceText.trim()}
-                title={t('shareSettingsTooltip', language)}
-                className="h-11 flex items-center justify-center gap-2 text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm disabled:cursor-not-allowed bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700"
-                aria-label={t('shareSettings', language)}
-            >
-                <LinkIcon />
-                <span>{t('shareSettings', language)}</span>
-            </button>
+            {/* Modals & Panels */}
+            {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{voice, setVoice, speed, setSpeed, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, stopAll}} />}
+            {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={() => { setHistory([]); localStorage.removeItem('sawtli_history'); }} onLoad={handleHistoryLoad}/>}
+            {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask === t('encoding', uiLanguage)} />}
 
-            <div className={`transition-opacity duration-500 flex items-center justify-center gap-4 ${lastPlayedPcm && !isLoadingAudio && !activeSpeaker ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
-                 <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-                        <input type="radio" name="format" value="mp3" checked={downloadFormat === 'mp3'} onChange={() => setDownloadFormat('mp3')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500"/>
-                        MP3
-                    </label>
-                     <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-                        <input type="radio" name="format" value="wav" checked={downloadFormat === 'wav'} onChange={() => setDownloadFormat('wav')} className="w-4 h-4 text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500"/>
-                        WAV
-                    </label>
-                </div>
-                <button 
-                    onClick={handleDownload} 
-                    disabled={isEncodingMp3 || isSharing}
-                    className="h-11 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm"
-                >
-                    {isEncodingMp3 ? <LoaderIcon /> : <DownloadIcon />}
-                    <span>{isEncodingMp3 ? t('encoding', language) : `${t('downloadButton', language)}`}</span>
-                </button>
-                <button
-                    onClick={handleShareAudio}
-                    disabled={isEncodingMp3 || isSharing || !isWebShareSupported}
-                    title={!isWebShareSupported ? t('shareNotSupported', language) : t('shareAudioTooltip', language)}
-                    className="h-11 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-300 transform active:scale-95 text-sm"
-                    aria-label={t('shareAudio', language)}
-                >
-                    {isSharing ? <LoaderIcon /> : <ShareIcon />}
-                    <span>{isSharing ? t('sharingAudio', language) : t('shareAudio', language)}</span>
-                </button>
-            </div>
-        </div>
-        
-        {isSettingsModalOpen && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in-down p-4">
-                <div ref={settingsModalRef} className="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4 relative">
-                    <button onClick={() => setIsSettingsModalOpen(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white transition-colors" aria-label="Close settings">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                    <h3 className="text-xl font-semibold text-center text-cyan-400">{t('speechSettings', language)}</h3>
-                    
-                    <div className="space-y-4 text-sm">
-                        {/* Voice Selection */}
-                        <div>
-                            <label htmlFor="voice-select" className="block text-slate-300 mb-1">{t('voiceLabel', language)}</label>
-                            <div className="flex items-center gap-2">
-                                <select id="voice-select" value={voice} onChange={(e) => setVoice(e.target.value as VoiceType)} disabled={isUIBlocked} className="w-full p-2.5 bg-slate-700 border border-slate-600 text-white rounded-lg focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50 flex-grow">
-                                    {allVoices.map(v => <option key={v.value} value={v.value}>{t(v.labelKey, language)}</option>)}
-                                </select>
-                                <button type="button" onClick={() => handlePreviewVoice(voice)} disabled={isUIBlocked} className="p-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title={t('previewVoiceTooltip', language)}>
-                                    {isPreviewingVoice === voice ? <LoaderIcon /> : <PlayCircleIcon />}
-                                </button>
-                            </div>
-                        </div>
-                        {/* Emotion Selection */}
-                        <div>
-                            <label htmlFor="emotion-select" className="block text-slate-300 mb-1">{t('speechEmotion', language)}</label>
-                            <select id="emotion-select" value={emotion} onChange={(e) => setEmotion(e.target.value as EmotionType)} disabled={isUIBlocked} className="w-full p-2.5 bg-slate-700 border border-slate-600 text-white rounded-lg focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50">
-                                {(['Default', 'Happy', 'Sad', 'Formal'] as EmotionType[]).map(e => (
-                                    <option key={e} value={e}>{t(`emotion${e}` as any, language)}</option>
-                                ))}
-                            </select>
-                        </div>
-                        {/* Speed Selection */}
-                        <div>
-                            <label htmlFor="speed-select" className="block text-slate-300 mb-1">{t('speedLabel', language)}</label>
-                            <select id="speed-select" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} disabled={isUIBlocked} className="w-full p-2.5 bg-slate-700 border border-slate-600 text-white rounded-lg focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50">
-                                <option value={0.75}>{t('speedVerySlow', language)}</option>
-                                <option value={0.9}>{t('speedSlow', language)}</option>
-                                <option value={1.0}>{t('speedNormal', language)}</option>
-                                <option value={1.1}>{t('speedFast', language)}</option>
-                                <option value={1.25}>{t('speedVeryFast', language)}</option>
-                            </select>
-                        </div>
-                        {/* Pause Selection */}
-                        <div>
-                            <label htmlFor="pause-select" className="block text-slate-300 mb-1">{t('pauseLabel', language)}</label>
-                            <select id="pause-select" value={pauseDuration} onChange={(e) => setPauseDuration(parseFloat(e.target.value))} disabled={isUIBlocked} className="w-full p-2.5 bg-slate-700 border border-slate-600 text-white rounded-lg focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50">
-                                {[0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5].map(s => (
-                                    <option key={s} value={s}>{s.toFixed(1)} {t('seconds', language)}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Multi-speaker settings */}
-                    <div className="border-t border-slate-700 pt-4 space-y-4">
-                         <div className="flex items-center justify-between">
-                            <h4 className="text-lg font-semibold text-cyan-400">{t('multiSpeakerSettings', language)}</h4>
-                            <div className="relative group">
-                                <InfoIcon className="text-slate-400 cursor-pointer" />
-                                <div className="absolute bottom-full ltr:right-0 rtl:left-0 mb-2 w-64 p-2 bg-slate-900 text-slate-300 text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                    {t('multiSpeakerInfo', language)}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between bg-slate-700/50 p-3 rounded-lg">
-                            <div className="flex-grow cursor-pointer" onClick={() => setIsMultiSpeakerMode(!isMultiSpeakerMode)}>
-                                <p className="text-sm font-medium text-slate-300">{t('enableMultiSpeaker', language)}</p>
-                                <p className="text-xs text-slate-400 font-normal">{t('enableMultiSpeakerInfo', language)}</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    id="multi-speaker-toggle" 
-                                    className="sr-only peer" 
-                                    checked={isMultiSpeakerMode}
-                                    onChange={() => setIsMultiSpeakerMode(!isMultiSpeakerMode)}
-                                />
-                                <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] ltr:left-[2px] rtl:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
-                            </label>
-                        </div>
-                        <div className={`transition-opacity duration-300 space-y-4 ${isMultiSpeakerMode ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div>
-                                    <label htmlFor="speakerA-name" className="text-sm block text-slate-300 mb-1">{t('speakerName', language)} 1</label>
-                                    <input type="text" id="speakerA-name" value={speakerA.name} onChange={(e) => setSpeakerA({...speakerA, name: e.target.value})} placeholder={t('speaker1', language)} disabled={!isMultiSpeakerMode} className="w-full p-2.5 bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50" />
-                                </div>
-                                <div>
-                                    <label htmlFor="speakerA-voice" className="text-sm block text-slate-300 mb-1">{t('speakerVoice', language)} 1</label>
-                                    <div className="flex items-center gap-2">
-                                        <select id="speakerA-voice" value={speakerA.voice} onChange={(e) => setSpeakerA({...speakerA, voice: e.target.value as VoiceType})} disabled={!isMultiSpeakerMode} className="w-full p-2.5 bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50 flex-grow">
-                                            {allVoices.map(v => <option key={v.value} value={v.value}>{t(v.labelKey, language)}</option>)}
-                                        </select>
-                                        <button type="button" onClick={() => handlePreviewVoice(speakerA.voice as VoiceType)} disabled={isUIBlocked || !isMultiSpeakerMode} className="p-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title={t('previewVoiceTooltip', language)}>
-                                            {isPreviewingVoice === speakerA.voice && isMultiSpeakerMode ? <LoaderIcon /> : <PlayCircleIcon />}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div>
-                                    <label htmlFor="speakerB-name" className="text-sm block text-slate-300 mb-1">{t('speakerName', language)} 2</label>
-                                    <input type="text" id="speakerB-name" value={speakerB.name} onChange={(e) => setSpeakerB({...speakerB, name: e.target.value})} placeholder={t('speaker2', language)} disabled={!isMultiSpeakerMode} className="w-full p-2.5 bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50" />
-                                </div>
-                                <div>
-                                    <label htmlFor="speakerB-voice" className="text-sm block text-slate-300 mb-1">{t('speakerVoice', language)} 2</label>
-                                    <div className="flex items-center gap-2">
-                                        <select id="speakerB-voice" value={speakerB.voice} onChange={(e) => setSpeakerB({...speakerB, voice: e.target.value as VoiceType})} disabled={!isMultiSpeakerMode} className="w-full p-2.5 bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 disabled:opacity-50 flex-grow">
-                                            {allVoices.map(v => <option key={v.value} value={v.value}>{t(v.labelKey, language)}</option>)}
-                                        </select>
-                                        <button type="button" onClick={() => handlePreviewVoice(speakerB.voice as VoiceType)} disabled={isUIBlocked || !isMultiSpeakerMode} className="p-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title={t('previewVoiceTooltip', language)}>
-                                            {isPreviewingVoice === speakerB.voice && isMultiSpeakerMode ? <LoaderIcon /> : <PlayCircleIcon />}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {isHistoryModalOpen && (
-            <History 
-                items={history}
-                language={language}
-                onClose={() => setIsHistoryModalOpen(false)}
-                onClear={handleClearHistory}
-                onLoad={handleLoadHistoryItem}
-            />
-        )}
-
-
-        {/* Feedback Section */}
-        <div className="border-t border-slate-700 mt-2 pt-4">
-            <Feedback language={language} />
-        </div>
+            {/* Feedback Section */}
+            <Suspense fallback={<div className="flex justify-center p-8"><LoaderIcon /></div>}>
+                <Feedback language={uiLanguage} />
+            </Suspense>
+        </main>
       </div>
-      <footer className="text-slate-500 mt-4 text-xs">
-        Copyright &copy; Yahya Massad - 2024
-      </footer>
     </div>
   );
 };
+
+
+// --- SUB-COMPONENTS ---
+
+const LanguageSelect: React.FC<{ value: string, onChange: (value: string) => void }> = ({ value, onChange }) => (
+    <select 
+        value={value} 
+        onChange={e => onChange(e.target.value)}
+        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-base w-full"
+    >
+        {translationLanguages.map(lang => (
+            <option key={lang.code} value={lang.code}>{lang.name}</option>
+        ))}
+    </select>
+);
+
+const ActionButton: React.FC<{
+    icon: React.ReactNode, onClick: () => void, label: string, disabled: boolean, className?: string,
+}> = ({ icon, onClick, label, disabled, className = "" }) => (
+     <button onClick={onClick} disabled={disabled} title={label} className={`h-11 px-4 flex items-center justify-center gap-2 text-white font-bold rounded-lg transition-all transform active:scale-95 disabled:bg-slate-700 disabled:cursor-not-allowed ${className}`}>
+        {icon}
+        <span className="hidden sm:inline">{label}</span>
+        <span className="sm:hidden">{label}</span>
+    </button>
+);
+
+const ActionCard: React.FC<{icon: React.ReactNode, label: string, onClick: () => void, disabled?: boolean}> = ({icon, label, onClick, disabled}) => (
+    <button 
+        onClick={onClick} 
+        disabled={disabled}
+        className="bg-slate-800 p-4 rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-slate-700/80 transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+        <div className="text-cyan-400">{icon}</div>
+        <span className="text-sm font-semibold text-slate-300">{label}</span>
+    </button>
+);
+
+const SettingsModal: React.FC<any> = ({ onClose, uiLanguage, voice, setVoice, speed, setSpeed, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, stopAll }) => {
+    const voiceOptions = [ {id: 'Puck', label: t('voicePuck', uiLanguage)}, {id: 'Kore', label: t('voiceKore', uiLanguage)}, {id: 'Zephyr', label: t('voiceZephyr', uiLanguage)}, {id: 'Charon', label: t('voiceCharon', uiLanguage)}, {id: 'Fenrir', label: t('voiceFenrir', uiLanguage)} ];
+    const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+    const previewAbortControllerRef = useRef<AbortController | null>(null);
+
+    const handlePreview = async (voiceId: string) => {
+        if (previewingVoice) {
+            previewAbortControllerRef.current?.abort();
+            setPreviewingVoice(null);
+            return;
+        }
+        setPreviewingVoice(voiceId);
+        previewAbortControllerRef.current = new AbortController();
+        try {
+            const pcmData = await previewVoice(voiceId, t('voicePreviewText', uiLanguage), previewAbortControllerRef.current.signal);
+            if (pcmData) {
+                await playAudio(pcmData, () => setPreviewingVoice(null));
+            } else {
+                setPreviewingVoice(null);
+            }
+        } catch (err: any) {
+            if (err.name !== 'AbortError') console.error("Preview failed:", err);
+            setPreviewingVoice(null);
+        }
+    };
+
+    useEffect(() => {
+        return () => { // Cleanup on unmount
+            previewAbortControllerRef.current?.abort();
+            stopAll();
+        }
+    }, [stopAll]);
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
+            <div className="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-semibold text-cyan-400">{t('speechSettings', uiLanguage)}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div className="space-y-6 overflow-y-auto pr-2">
+                    {/* Single Speaker Settings */}
+                    <div className="space-y-4 p-4 border border-slate-700 rounded-lg">
+                        <label className="block text-sm font-bold text-slate-300">{t('voiceLabel', uiLanguage)}</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {voiceOptions.map(opt => (
+                                <div key={opt.id} className="flex items-center">
+                                    <button onClick={() => handlePreview(opt.id)} title={t('previewVoiceTooltip', uiLanguage)} className="p-2 text-cyan-400 hover:text-cyan-300">
+                                        {previewingVoice === opt.id ? <StopIcon /> : <PlayCircleIcon />}
+                                    </button>
+                                    <button onClick={() => setVoice(opt.id)} className={`w-full text-left px-3 py-2 rounded-md transition-colors text-sm ${voice === opt.id ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{opt.label}</button>
+                                </div>
+                            ))}
+                        </div>
+                        <label className="block text-sm font-bold text-slate-300 pt-2">{t('speechEmotion', uiLanguage)}</label>
+                        <select value={emotion} onChange={e => setEmotion(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md">
+                            <option value="Default">{t('emotionDefault', uiLanguage)}</option>
+                            <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
+                            <option value="Sad">{t('emotionSad', uiLanguage)}</option>
+                            <option value="Formal">{t('emotionFormal', uiLanguage)}</option>
+                        </select>
+                        <label className="block text-sm font-bold text-slate-300 pt-2">{t('pauseLabel', uiLanguage)}</label>
+                        <div className="flex items-center gap-3">
+                            <input type="range" min="0" max="5" step="0.5" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer" />
+                            <span className="text-sm text-cyan-400 w-12 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
+                        </div>
+                    </div>
+
+                    {/* Multi Speaker Settings */}
+                    <div className="space-y-4 p-4 border border-slate-700 rounded-lg">
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-bold text-slate-300">{t('multiSpeakerSettings', uiLanguage)}</label>
+                            <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={multiSpeaker} onChange={() => setMultiSpeaker(!multiSpeaker)} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div></label>
+                        </div>
+                        <p className="text-xs text-slate-400">{t('enableMultiSpeakerInfo', uiLanguage)}</p>
+                        {multiSpeaker && (
+                            <div className="space-y-4 pt-2 animate-fade-in-down">
+                                <p className="text-xs text-cyan-300 bg-cyan-900/50 p-2 rounded-md">{t('multiSpeakerInfo', uiLanguage)}</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs text-slate-400">{t('speakerName', uiLanguage)}</label>
+                                        <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} placeholder={t('speaker1', uiLanguage)} className="mt-1 w-full p-2 bg-slate-900/50 border-2 border-slate-600 rounded-lg text-sm" />
+                                    </div>
+                                     <div>
+                                        <label className="text-xs text-slate-400">{t('speakerVoice', uiLanguage)}</label>
+                                        <select value={speakerA.voice} onChange={e => setSpeakerA({...speakerA, voice: e.target.value})} className="mt-1 w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-sm">
+                                            {voiceOptions.map(opt => (
+                                                <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-slate-400">{t('speakerName', uiLanguage)}</label>
+                                        <input type="text" value={speakerB.name} onChange={e => setSpeakerB({...speakerB, name: e.target.value})} placeholder={t('speaker2', uiLanguage)} className="mt-1 w-full p-2 bg-slate-900/50 border-2 border-slate-600 rounded-lg text-sm" />
+                                    </div>
+                                     <div>
+                                        <label className="text-xs text-slate-400">{t('speakerVoice', uiLanguage)}</label>
+                                        <select value={speakerB.voice} onChange={e => setSpeakerB({...speakerB, voice: e.target.value})} className="mt-1 w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-sm">
+                                            {voiceOptions.map(opt => (
+                                                <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+};
+
+const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' | 'mp3') => void, uiLanguage: Language, isLoading: boolean}> = ({onClose, onDownload, uiLanguage, isLoading}) => {
+    return (
+         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
+            <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+                <h3 className="text-xl font-semibold text-cyan-400 text-center mb-6">{t('downloadPanelTitle', uiLanguage)}</h3>
+                <div className="flex flex-col space-y-3">
+                     <button onClick={() => onDownload('wav')} disabled={isLoading} className="w-full flex items-center justify-center gap-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        {isLoading ? <LoaderIcon /> : 'WAV'}
+                     </button>
+                      <button onClick={() => onDownload('mp3')} disabled={isLoading} className="w-full flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        {isLoading ? <LoaderIcon /> : 'MP3'}
+                      </button>
+                </div>
+            </div>
+        </div>
+    )
+};
+
 
 export default App;
