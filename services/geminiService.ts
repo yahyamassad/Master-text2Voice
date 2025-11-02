@@ -1,101 +1,45 @@
-import { decode } from '../utils/audioUtils';
+import type { SpeakerConfig } from '../App';
 
 export type SpeechSpeed = number;
-export interface SpeakerConfig {
-    name: string;
-    voice: string;
-}
 
 interface TranslationResult {
     translatedText: string;
     speakerMapping: Record<string, string>;
 }
 
-// This function now calls our own backend API endpoint instead of Gemini directly.
-export async function translateText(text: string, sourceLang: string, targetLang: string, speakerAName: string, speakerBName: string, signal: AbortSignal): Promise<TranslationResult> {
-    const response = await fetch('/api/translate', {
-        method: 'POST',
-        signal: signal,
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            text,
-            sourceLang,
-            targetLang,
-            speakerAName,
-            speakerBName
-        }),
-    });
-
-    if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ message: 'Translation request failed' }));
-        console.error('Error from /api/translate:', errorBody);
-        throw new Error(errorBody.message || "API_ERROR");
-    }
-
-    const result = await response.json();
-    
-    // Convert array from API back to the record format expected by the app
-    const speakerMappingRecord: Record<string, string> = {};
-    if (result.speakerMapping) {
-        for (const mapping of result.speakerMapping) {
-            speakerMappingRecord[mapping.original] = mapping.translated;
-        }
-    }
-    
-    return {
-        translatedText: result.translatedText,
-        speakerMapping: speakerMappingRecord
-    };
-}
-
-// A unified function for fetching speech from our backend endpoint.
-async function fetchSpeech(
-    text: string,
-    voice: string,
-    speed: SpeechSpeed,
-    emotion: string,
-    speakers: { speakerA: SpeakerConfig, speakerB: SpeakerConfig } | undefined,
-    isPreview: boolean,
+export async function translateText(
+    text: string, 
+    sourceLang: string, 
+    targetLang: string, 
+    speakerAName: string, 
+    speakerBName: string, 
     signal: AbortSignal
-): Promise<Uint8Array | null> {
+): Promise<TranslationResult> {
     if (signal.aborted) {
-        throw new Error('AbortError');
+        throw new DOMException('Aborted', 'AbortError');
     }
+    
+    try {
+        const response = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, sourceLang, targetLang }),
+            signal: signal,
+        });
 
-    const response = await fetch('/api/speak', {
-        method: 'POST',
-        signal: signal,
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            text,
-            voice,
-            speed,
-            emotion,
-            speakers,
-            isPreview,
-        }),
-    });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `Request failed with status ${response.status}` }));
+            throw new Error(errorData.error || `Request failed with status ${response.status}`);
+        }
 
-    if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ message: 'Speech generation request failed' }));
-        console.error('Error from /api/speak:', errorBody);
-        throw new Error(errorBody.message || 'Failed to generate audio content from API');
+        const result: TranslationResult = await response.json();
+        return result;
+
+    } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        throw new Error(`Translation failed: ${errorMessage}`);
     }
-
-    const data = await response.json();
-    const base64Audio = data.audioContent;
-
-    if (base64Audio) {
-        // Decode the base64 string received from our backend into a Uint8Array for the audio player.
-        return decode(base64Audio);
-    }
-
-    console.error('Failed to get audio content from the backend response.');
-    return null;
 }
 
 
@@ -109,10 +53,35 @@ export async function generateSpeech(
     speakers: { speakerA: SpeakerConfig, speakerB: SpeakerConfig } | undefined,
     signal: AbortSignal
 ): Promise<Uint8Array | null> {
-    return fetchSpeech(text, voice, speed, emotion, speakers, false, signal);
+    if (signal.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+    }
+
+    try {
+        const response = await fetch('/api/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, voice, speed, languageName, pauseDuration, emotion, speakers }),
+            signal: signal,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `Request failed with status ${response.status}` }));
+            throw new Error(errorData.error || `Request failed with status ${response.status}`);
+        }
+        
+        const audioData = await response.arrayBuffer();
+        if (audioData.byteLength === 0) return null;
+        return new Uint8Array(audioData);
+
+    } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        throw new Error(`Speech generation failed: ${errorMessage}`);
+    }
 }
 
 export async function previewVoice(voice: string, sampleText: string, signal: AbortSignal): Promise<Uint8Array | null> {
-    // For previews, we pass default values for speed/emotion and no speakers.
-    return fetchSpeech(sampleText, voice, 1.0, 'Default', undefined, true, signal);
+    // This function can remain simple, as the backend handles the default values.
+    return generateSpeech(sampleText, voice, 1.0, 'English', 0, 'Default', undefined, signal);
 }
