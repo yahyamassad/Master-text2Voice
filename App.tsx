@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { generateSpeech, translateText, previewVoice, SpeakerConfig } from './services/geminiService';
+import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob, decodeAudioData } from './utils/audioUtils';
 import {
   SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, PauseIcon
@@ -16,6 +16,11 @@ export interface HistoryItem {
   sourceLang: string;
   targetLang: string;
   timestamp: number;
+}
+
+export interface SpeakerConfig {
+    name: string;
+    voice: string;
 }
 
 const soundEffects = [

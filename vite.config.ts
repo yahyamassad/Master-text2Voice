@@ -5,9 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Expose the Vercel-provided environment variable to the client-side code.
-    // Vite performs a direct string replacement, so the value needs to be stringified.
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
     // FIX: Expose Firebase environment variables to the client-side code. This is necessary
     // to make them available under `process.env` and resolve TypeScript errors.
     'process.env.VITE_FIREBASE_API_KEY': JSON.stringify(process.env.VITE_FIREBASE_API_KEY),
