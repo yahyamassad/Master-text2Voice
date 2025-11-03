@@ -1,6 +1,14 @@
 import React from 'react';
 
-export const SpeakerIcon: React.FC = () => (
+// A helper type for icons that can be styled with a className.
+interface IconProps {
+  className?: string;
+}
+
+// A helper function to safely combine class names.
+const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ');
+
+export const SpeakerIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     className="h-6 w-6"
@@ -17,7 +25,7 @@ export const SpeakerIcon: React.FC = () => (
   </svg>
 );
 
-export const SoundWaveIcon: React.FC = () => (
+export const SoundWaveIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -42,7 +50,7 @@ export const SoundWaveIcon: React.FC = () => (
 );
 
 
-export const LoaderIcon: React.FC = () => (
+export const LoaderIcon = () => (
   <svg
     className="animate-spin h-6 w-6 text-white"
     xmlns="http://www.w3.org/2000/svg"
@@ -65,7 +73,7 @@ export const LoaderIcon: React.FC = () => (
   </svg>
 );
 
-export const DownloadIcon: React.FC = () => (
+export const DownloadIcon = () => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
     className="h-6 w-6" 
@@ -82,7 +90,7 @@ export const DownloadIcon: React.FC = () => (
   </svg>
 );
 
-export const TranslateIcon: React.FC = () => (
+export const TranslateIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -99,7 +107,7 @@ export const TranslateIcon: React.FC = () => (
     </svg>
 );
 
-export const StopIcon: React.FC = () => (
+export const StopIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     className="h-6 w-6"
@@ -114,10 +122,16 @@ export const StopIcon: React.FC = () => (
   </svg>
 );
 
-export const StarIcon: React.FC<{ className?: string }> = ({ className }) => (
+export const PauseIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+    </svg>
+);
+
+export const StarIcon = ({ className }: IconProps) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
-    className={`h-5 w-5 ${className}`}
+    className={cn('h-5 w-5', className)}
     viewBox="0 0 24 24" 
     fill="currentColor" 
   >
@@ -125,37 +139,37 @@ export const StarIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-export const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+export const CopyIcon = ({ className }: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
   </svg>
 );
 
-export const CheckIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+export const CheckIcon = ({ className }: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
   </svg>
 );
 
-export const ExternalLinkIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 inline-block mx-1 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+export const ExternalLinkIcon = ({ className }: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-4 w-4 inline-block mx-1', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
   </svg>
 );
 
-export const ChevronDownIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+export const ChevronDownIcon = ({ className }: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
   </svg>
 );
 
-export const GlobeIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+export const GlobeIcon = ({ className }: IconProps) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m0 0a9 9 0 019-9m-9 9a9 9 0 009 9" />
   </svg>
 );
 
-export const ReplayIcon: React.FC = () => (
+export const ReplayIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -172,7 +186,7 @@ export const ReplayIcon: React.FC = () => (
     </svg>
 );
 
-export const SwapIcon: React.FC = () => (
+export const SwapIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -189,14 +203,14 @@ export const SwapIcon: React.FC = () => (
     </svg>
 );
 
-export const MicrophoneIcon: React.FC<{ className?: string }> = ({ className }) => (
+export const MicrophoneIcon = ({ className }: IconProps) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
     <path d="M17 11h-1c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92z" />
   </svg>
 );
 
-export const GearIcon: React.FC = () => (
+export const GearIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -218,7 +232,7 @@ export const GearIcon: React.FC = () => (
     </svg>
 );
 
-export const HistoryIcon: React.FC = () => (
+export const HistoryIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -235,7 +249,7 @@ export const HistoryIcon: React.FC = () => (
     </svg>
 );
 
-export const LinkIcon: React.FC = () => (
+export const LinkIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -252,7 +266,7 @@ export const LinkIcon: React.FC = () => (
     </svg>
 );
 
-export const ShareIcon: React.FC = () => (
+export const ShareIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -269,13 +283,13 @@ export const ShareIcon: React.FC = () => (
     </svg>
 );
 
-export const InfoIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+export const InfoIcon = ({ className }: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
 );
 
-export const PlayCircleIcon: React.FC = () => (
+export const PlayCircleIcon = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         className="h-6 w-6" 
@@ -286,17 +300,32 @@ export const PlayCircleIcon: React.FC = () => (
     </svg>
 );
 
-export const SawtliLogoIcon: React.FC<{ className?: string }> = ({ className }) => (
+export const SawtliLogoIcon = ({ className }: IconProps) => (
     <svg 
-        viewBox="0 0 24 24" 
+        viewBox="0 0 70 32" 
         fill="none" 
         xmlns="http://www.w3.org/2000/svg" 
         className={className}
     >
-        <path d="M3 10V14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M7 7V17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M12 4V20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M17 7V17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M21 10V14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <defs>
+            <linearGradient id="sawtli-gradient" x1="35" y1="0" x2="35" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#22D3EE"/>
+                <stop offset="1" stopColor="#3B82F6"/>
+            </linearGradient>
+        </defs>
+        <g fill="url(#sawtli-gradient)">
+            <rect y="9" width="4" height="14" rx="2"/>
+            <rect x="6" y="6" width="4" height="20" rx="2"/>
+            <rect x="12" y="3" width="4" height="26" rx="2"/>
+            <rect x="18" y="3" width="4" height="26" rx="2"/>
+            <rect x="25" y="0" width="3.5" height="32" rx="1.75"/>
+            <rect x="30.5" y="0" width="3.5" height="32" rx="1.75"/>
+            <rect x="36" y="0" width="3.5" height="32" rx="1.75"/>
+            <rect x="41.5" y="0" width="3.5" height="32" rx="1.75"/>
+            <rect x="48" y="3" width="4" height="26" rx="2"/>
+            <rect x="54" y="3" width="4" height="26" rx="2"/>
+            <rect x="60" y="6" width="4" height="20" rx="2"/>
+            <rect x="66" y="9" width="4" height="14" rx="2"/>
+        </g>
     </svg>
 );
