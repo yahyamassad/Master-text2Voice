@@ -24,16 +24,16 @@ function getFirebase() {
     if (!initializationAttempted) {
         initializationAttempted = true; // Mark that we are trying to initialize, even if it fails
 
-        // FIX: Switched from `import.meta.env` to `process.env` to resolve TypeScript errors.
-        // The `process.env` variables are defined in `vite.config.ts`.
+        // FIX: Reverted to the standard Vite way of accessing env vars using `import.meta.env`.
+        // This is type-safe and avoids issues with `process` not being defined in the browser.
         const firebaseConfig = {
-            apiKey: process.env.VITE_FIREBASE_API_KEY,
-            authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-            projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-            storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-            messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-            appId: process.env.VITE_FIREBASE_APP_ID,
-            measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID
+            apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+            authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+            projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+            storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+            appId: import.meta.env.VITE_FIREBASE_APP_ID,
+            measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
         };
 
         const hasSufficientConfig = firebaseConfig.projectId && firebaseConfig.apiKey;
