@@ -10,7 +10,7 @@ function cn(...classes: (string | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-export function SpeakerIcon() {
+function SpeakerIcon() {
   return (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -29,7 +29,7 @@ export function SpeakerIcon() {
   );
 }
 
-export function SoundWaveIcon() {
+function SoundWaveIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -56,7 +56,7 @@ export function SoundWaveIcon() {
 }
 
 
-export function LoaderIcon() {
+function LoaderIcon() {
   return (
   <svg
     className="animate-spin h-6 w-6 text-white"
@@ -81,7 +81,7 @@ export function LoaderIcon() {
   );
 }
 
-export function DownloadIcon() {
+function DownloadIcon() {
   return (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
@@ -100,7 +100,7 @@ export function DownloadIcon() {
   );
 }
 
-export function TranslateIcon() {
+function TranslateIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -119,7 +119,7 @@ export function TranslateIcon() {
     );
 }
 
-export function StopIcon() {
+function StopIcon() {
   return (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -136,7 +136,7 @@ export function StopIcon() {
   );
 }
 
-export function PauseIcon() {
+function PauseIcon() {
     return (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
         <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
@@ -144,7 +144,7 @@ export function PauseIcon() {
     );
 }
 
-export function StarIcon({ className }: IconProps) {
+function StarIcon({ className }: IconProps) {
   return (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
@@ -157,7 +157,7 @@ export function StarIcon({ className }: IconProps) {
   );
 }
 
-export function CopyIcon({ className }: IconProps) {
+function CopyIcon({ className }: IconProps) {
   return (
   <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -165,7 +165,7 @@ export function CopyIcon({ className }: IconProps) {
   );
 }
 
-export function CheckIcon({ className }: IconProps) {
+function CheckIcon({ className }: IconProps) {
   return (
   <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -173,7 +173,7 @@ export function CheckIcon({ className }: IconProps) {
   );
 }
 
-export function ExternalLinkIcon({ className }: IconProps) {
+function ExternalLinkIcon({ className }: IconProps) {
   return (
   <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-4 w-4 inline-block mx-1', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -181,7 +181,7 @@ export function ExternalLinkIcon({ className }: IconProps) {
   );
 }
 
-export function ChevronDownIcon({ className }: IconProps) {
+function ChevronDownIcon({ className }: IconProps) {
   return (
   <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -189,7 +189,7 @@ export function ChevronDownIcon({ className }: IconProps) {
   );
 }
 
-export function GlobeIcon({ className }: IconProps) {
+function GlobeIcon({ className }: IconProps) {
   return (
   <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m0 0a9 9 0 019-9m-9 9a9 9 0 009 9" />
@@ -197,7 +197,7 @@ export function GlobeIcon({ className }: IconProps) {
   );
 }
 
-export function ReplayIcon() {
+function ReplayIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -216,7 +216,7 @@ export function ReplayIcon() {
     );
 }
 
-export function SwapIcon() {
+function SwapIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -235,7 +235,7 @@ export function SwapIcon() {
     );
 }
 
-export function MicrophoneIcon({ className }: IconProps) {
+function MicrophoneIcon({ className }: IconProps) {
   return (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
@@ -244,7 +244,7 @@ export function MicrophoneIcon({ className }: IconProps) {
   );
 }
 
-export function GearIcon() {
+function GearIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -268,7 +268,7 @@ export function GearIcon() {
     );
 }
 
-export function HistoryIcon() {
+function HistoryIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -287,7 +287,7 @@ export function HistoryIcon() {
     );
 }
 
-export function LinkIcon() {
+function LinkIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -306,7 +306,7 @@ export function LinkIcon() {
     );
 }
 
-export function ShareIcon() {
+function ShareIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -325,7 +325,7 @@ export function ShareIcon() {
     );
 }
 
-export function InfoIcon({ className }: IconProps) {
+function InfoIcon({ className }: IconProps) {
     return (
     <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -333,7 +333,7 @@ export function InfoIcon({ className }: IconProps) {
     );
 }
 
-export function PlayCircleIcon() {
+function PlayCircleIcon() {
     return (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -346,7 +346,7 @@ export function PlayCircleIcon() {
     );
 }
 
-export function SawtliLogoIcon({ className }: IconProps) {
+function SawtliLogoIcon({ className }: IconProps) {
     return (
     <svg 
         viewBox="0 0 70 32" 
@@ -377,3 +377,29 @@ export function SawtliLogoIcon({ className }: IconProps) {
     </svg>
     );
 }
+
+export {
+  SpeakerIcon,
+  SoundWaveIcon,
+  LoaderIcon,
+  DownloadIcon,
+  TranslateIcon,
+  StopIcon,
+  PauseIcon,
+  StarIcon,
+  CopyIcon,
+  CheckIcon,
+  ExternalLinkIcon,
+  ChevronDownIcon,
+  GlobeIcon,
+  ReplayIcon,
+  SwapIcon,
+  MicrophoneIcon,
+  GearIcon,
+  HistoryIcon,
+  LinkIcon,
+  ShareIcon,
+  InfoIcon,
+  PlayCircleIcon,
+  SawtliLogoIcon,
+};
