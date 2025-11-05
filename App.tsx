@@ -1,13 +1,14 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
-import { playAudio, createWavBlob, createMp3Blob, decodeAudioData } from './utils/audioUtils';
+import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, PauseIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, LiveChatIcon
 } from './components/icons';
-import { t, Language, languageOptions, translationLanguages, LanguageListItem } from './i18n/translations';
+import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
 import { History } from './components/History';
 const Feedback = React.lazy(() => import('./components/Feedback'));
+const LiveChatModal = React.lazy(() => import('./components/LiveChatModal'));
+
 
 export interface HistoryItem {
   id: string;
@@ -22,6 +23,24 @@ export interface SpeakerConfig {
     name: string;
     voice: string;
 }
+
+interface SettingsModalProps {
+  onClose: () => void;
+  uiLanguage: Language;
+  voice: string;
+  setVoice: React.Dispatch<React.SetStateAction<string>>;
+  emotion: string;
+  setEmotion: React.Dispatch<React.SetStateAction<string>>;
+  pauseDuration: number;
+  setPauseDuration: React.Dispatch<React.SetStateAction<number>>;
+  multiSpeaker: boolean;
+  setMultiSpeaker: React.Dispatch<React.SetStateAction<boolean>>;
+  speakerA: SpeakerConfig;
+  setSpeakerA: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  speakerB: SpeakerConfig;
+  setSpeakerB: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+}
+
 
 const soundEffects = [
     { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
@@ -48,24 +67,24 @@ const App: React.FC = () => {
   const [loadingTask, setLoadingTask] = useState<string>('');
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [playbackState, setPlaybackState] = useState<'stopped' | 'playing' | 'paused'>('stopped');
-  const [audioCache, setAudioCache] = useState<Record<'source' | 'target', Uint8Array | null>>({ source: null, target: null });
-
+  
+  // Server Health Check State
+  const [serverConfig, setServerConfig] = useState<{ status: 'checking' | 'configured' | 'unconfigured', error: string | null }>({ status: 'checking', error: null });
 
   // Panels and Modals State
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
   const [isEffectsOpen, setIsEffectsOpen] = useState<boolean>(false);
+  const [isLiveChatOpen, setIsLiveChatOpen] = useState<boolean>(false);
   const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   const [isSharingAudio, setIsSharingAudio] = useState<boolean>(false);
 
   // Settings State
   const [voice, setVoice] = useState('Puck');
-  const [speed, setSpeed] = useState(1.0);
   const [emotion, setEmotion] = useState('Default');
-  const [pauseDuration, setPauseDuration] = useState(0);
+  const [pauseDuration, setPauseDuration] = useState(1.0); // Default to 1s for better experience
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
@@ -78,56 +97,68 @@ const App: React.FC = () => {
   const [micError, setMicError] = useState<string | null>(null);
 
   // Refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const apiAbortControllerRef = useRef<AbortController | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const recognitionRef = useRef<any | null>(null);
   const sourceTextAreaRef = useRef<HTMLTextAreaElement>(null);
   const effectsDropdownRef = useRef<HTMLDivElement>(null);
 
 
   // --- CORE FUNCTIONS ---
-
-  const stopPlayback = useCallback(() => {
-    if (audioSourceNodeRef.current) {
-        audioSourceNodeRef.current.onended = null; 
-        try { audioSourceNodeRef.current.stop(); } catch(e) {}
-    }
-    if (audioContextRef.current) {
-        try { audioContextRef.current.close(); } catch(e) {}
-    }
-    audioSourceNodeRef.current = null;
-    audioContextRef.current = null;
-    setPlaybackState('stopped');
-    setActivePlayer(null);
-  }, []);
   
   const stopAll = useCallback(() => {
+    // Abort any ongoing API calls (translate, download, speak)
     if (apiAbortControllerRef.current) {
       apiAbortControllerRef.current.abort();
+      apiAbortControllerRef.current = null;
     }
+     // Stop any currently playing audio
+    if (audioSourceRef.current) {
+        try {
+            audioSourceRef.current.stop();
+        } catch (e) { /* Ignore if already stopped */ }
+        audioSourceRef.current = null;
+    }
+    
+    // Stop voice recognition
     if (recognitionRef.current) {
         recognitionRef.current.abort();
         setIsListening(false);
     }
-    stopPlayback();
-    setIsLoading(false);
+    // Reset playback and sharing states ONLY. The calling function will handle its own loading state.
+    setActivePlayer(null);
     setLoadingTask('');
     setIsSharingAudio(false);
-  }, [stopPlayback]);
+    setIsLoading(false); // Ensure main loading state is also reset
+  }, []);
 
   // --- EFFECTS ---
 
-  // Clear audio cache when text or settings change
+  // Stop any active audio if the text or settings that would affect it are changed.
   useEffect(() => {
-    if (playbackState !== 'stopped' && activePlayer === 'source') stopPlayback();
-    setAudioCache(c => ({...c, source: null}));
-  }, [sourceText, voice, speed, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, stopPlayback]);
+    if (activePlayer) {
+      stopAll();
+    }
+  }, [sourceText, translatedText, voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, activePlayer, stopAll]);
 
+  // Server configuration check
   useEffect(() => {
-    if (playbackState !== 'stopped' && activePlayer === 'target') stopPlayback();
-    setAudioCache(c => ({...c, target: null}));
-  }, [translatedText, voice, speed, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, stopPlayback]);
+    const checkServerConfig = async () => {
+      try {
+        const response = await fetch('/api/health');
+        const data = await response.json();
+        if (data.configured) {
+          setServerConfig({ status: 'configured', error: null });
+        } else {
+          setServerConfig({ status: 'unconfigured', error: data.message });
+        }
+      } catch (err) {
+        console.error("Health check failed:", err);
+        setServerConfig({ status: 'unconfigured', error: 'Could not connect to the server to verify configuration. Please check your network or deployment status.' });
+      }
+    };
+    checkServerConfig();
+  }, []);
 
 
   // Load state from localStorage on initial render
@@ -140,7 +171,6 @@ const App: React.FC = () => {
       if (savedSettings) {
         const settings = JSON.parse(savedSettings);
         if (settings.voice) setVoice(settings.voice);
-        if (settings.speed) setSpeed(settings.speed);
         if (settings.emotion) setEmotion(settings.emotion);
         if (settings.pauseDuration) setPauseDuration(settings.pauseDuration);
         if (settings.multiSpeaker) setMultiSpeaker(settings.multiSpeaker);
@@ -168,7 +198,7 @@ const App: React.FC = () => {
   // Save state to localStorage whenever it changes
   useEffect(() => {
     try {
-      const settings = { voice, speed, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, sourceLang, targetLang, uiLanguage };
+      const settings = { voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, sourceLang, targetLang, uiLanguage };
       localStorage.setItem('sawtli_settings', JSON.stringify(settings));
       if (history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
@@ -176,7 +206,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Failed to save state to localStorage", e);
     }
-  }, [voice, speed, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, history, sourceLang, targetLang, uiLanguage]);
+  }, [voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, history, sourceLang, targetLang, uiLanguage]);
 
   // Set document direction based on UI language
   useEffect(() => {
@@ -196,94 +226,63 @@ const App: React.FC = () => {
         document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-
-  const handleSpeak = useCallback(async (text: string, langCode: string, target: 'source' | 'target') => {
-      // Case 1: Clicked on a playing button -> Pause
-      if (playbackState === 'playing' && activePlayer === target) {
-          if (audioContextRef.current) {
-              audioContextRef.current.suspend();
-              setPlaybackState('paused');
-          }
+  
+  const handleSpeak = async (text: string, target: 'source' | 'target') => {
+      if (isLoading || activePlayer) {
+          stopAll();
           return;
       }
 
-      // Case 2: Clicked on a paused button -> Resume
-      if (playbackState === 'paused' && activePlayer === target) {
-          if (audioContextRef.current) {
-              audioContextRef.current.resume();
-              setPlaybackState('playing');
-          }
-          return;
-      }
-      
-      // Case 3: A new playback is requested
-      if (playbackState !== 'stopped') {
-          stopPlayback();
-      }
-      
       if (!text.trim()) return;
-
+      
+      setIsLoading(true);
+      setLoadingTask(t('generatingSpeech', uiLanguage));
       setActivePlayer(target);
       setError(null);
+      apiAbortControllerRef.current = new AbortController();
+      const signal = apiAbortControllerRef.current.signal;
 
       try {
-          let pcmData = audioCache[target];
+        const langCode = target === 'source' ? sourceLang : targetLang;
+        const langName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
+        const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
 
-          if (!pcmData) {
-              setIsLoading(true);
-              setLoadingTask(t('generatingSpeech', uiLanguage));
-              apiAbortControllerRef.current = new AbortController();
-              const signal = apiAbortControllerRef.current.signal;
+        const pcmData = await generateSpeech(
+            text,
+            voice,
+            1.0, // speed
+            langName,
+            pauseDuration,
+            emotion,
+            speakersConfig,
+            signal
+        );
+        
+        setIsLoading(false); 
+        setLoadingTask('');
 
-              const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
-              const languageName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
+        if (pcmData) {
+            audioSourceRef.current = await playAudio(pcmData, () => {
+                setActivePlayer(null);
+                audioSourceRef.current = null;
+            });
+        } else {
+            stopAll();
+        }
 
-              const generatedPcm = await generateSpeech(text, voice, speed, languageName, pauseDuration, emotion, speakersConfig, signal);
-              
-              setIsLoading(false);
-              setLoadingTask('');
-
-              if (signal.aborted) throw new Error('AbortError');
-              if (!generatedPcm) throw new Error(t('errorApiNoAudio', uiLanguage));
-              
-              pcmData = generatedPcm;
-              setAudioCache(prev => ({ ...prev, [target]: pcmData }));
-          }
-
-          if (pcmData) {
-              const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-              audioContextRef.current = context;
-
-              if (context.state === 'suspended') {
-                  await context.resume();
-              }
-              
-              const audioBuffer = await decodeAudioData(pcmData, context, 24000, 1);
-              const source = context.createBufferSource();
-              source.buffer = audioBuffer;
-              source.connect(context.destination);
-              
-              source.onended = () => {
-                  if (audioContextRef.current && audioContextRef.current.state !== 'suspended') {
-                     stopPlayback();
-                  }
-              };
-
-              source.start(0);
-              audioSourceNodeRef.current = source;
-              setPlaybackState('playing');
-          }
       } catch (err: any) {
-          if (err.name !== 'AbortError') {
-              console.error("Speech generation/playback failed:", err);
+          if (err.message === 'API_KEY_MISSING') {
+              setError(t('errorApiKeyMissing', uiLanguage));
+          } else if (err.name === 'TimeoutError') {
+              setError(t('errorRequestTimeout', uiLanguage));
+          } else if (err.name !== 'AbortError') {
+              console.error("Audio generation/playback failed:", err);
               setError(err.message || t('errorUnexpected', uiLanguage));
           }
-          stopPlayback();
-          setIsLoading(false);
-          setLoadingTask('');
+          // Full cleanup in case of any error or abort.
+          stopAll();
       }
-  }, [playbackState, activePlayer, audioCache, multiSpeaker, speakerA, speakerB, voice, speed, pauseDuration, emotion, uiLanguage, stopPlayback]);
+  };
   
   const handleTranslate = async () => {
       if(isLoading) {
@@ -299,29 +298,46 @@ const App: React.FC = () => {
 
       apiAbortControllerRef.current = new AbortController();
       const signal = apiAbortControllerRef.current.signal;
-
+      
       try {
-          const result = await translateText(sourceText, sourceLang, targetLang, speakerA.name, speakerB.name, signal);
-          setTranslatedText(result.translatedText);
-
-          const newHistoryItem: HistoryItem = {
-              id: new Date().toISOString(),
+          const result = await translateText(
               sourceText,
-              translatedText: result.translatedText,
               sourceLang,
               targetLang,
-              timestamp: Date.now()
-          };
-          setHistory(prev => [newHistoryItem, ...prev.slice(0, 49)]);
+              speakerA.name,
+              speakerB.name,
+              signal
+          );
+
+          if (!signal.aborted) {
+              const fullTranslation = result.translatedText;
+              setTranslatedText(fullTranslation);
+              const newHistoryItem: HistoryItem = {
+                  id: new Date().toISOString(),
+                  sourceText,
+                  translatedText: fullTranslation,
+                  sourceLang,
+                  targetLang,
+                  timestamp: Date.now()
+              };
+              setHistory(prev => [newHistoryItem, ...prev.slice(0, 49)]);
+          }
 
       } catch (err: any) {
-          if (err.name !== 'AbortError') {
+          if (err.message === 'API_KEY_MISSING') {
+              setError(t('errorApiKeyMissing', uiLanguage));
+          } else if (err.name === 'TimeoutError') {
+              setError(t('errorRequestTimeout', uiLanguage));
+          } else if (err.name !== 'AbortError') {
               console.error("Translation failed:", err);
               setError(err.message || t('errorTranslate', uiLanguage));
           }
       } finally {
           setIsLoading(false);
           setLoadingTask('');
+          if(apiAbortControllerRef.current?.signal === signal) {
+            apiAbortControllerRef.current = null;
+          }
       }
   };
   
@@ -415,42 +431,62 @@ const App: React.FC = () => {
       setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  const generateAudioBlob = useCallback(async (text: string, langCode: string, format: 'wav' | 'mp3') => {
+  const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
     if (!text.trim()) return null;
     setError(null);
-    setLoadingTask(t('encoding', uiLanguage));
     setIsLoading(true);
-
+    setLoadingTask(`${t('encoding', uiLanguage)}...`);
     apiAbortControllerRef.current = new AbortController();
     const signal = apiAbortControllerRef.current.signal;
+    let blob = null;
 
     try {
-      const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
-      const languageName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
-      const pcmData = await generateSpeech(text, voice, speed, languageName, pauseDuration, emotion, speakersConfig, signal);
-      if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage));
+        const langCode = translatedText ? targetLang : sourceLang;
+        const langName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
+        const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
 
+        const pcmData = await generateSpeech(
+            text,
+            voice,
+            1.0, // speed
+            langName,
+            pauseDuration,
+            emotion,
+            speakersConfig,
+            signal
+        );
+
+      if (!pcmData) {
+          throw new Error(t('errorApiNoAudio', uiLanguage));
+      }
+      if(signal.aborted) throw new Error('AbortError');
+      
       if (format === 'wav') {
-        return createWavBlob(pcmData, 1, 24000);
+        blob = createWavBlob(pcmData, 1, 24000);
       } else {
-        return await createMp3Blob(pcmData, 1, 24000);
+        blob = await createMp3Blob(pcmData, 1, 24000);
       }
     } catch (err: any) {
-        if (err.name !== 'AbortError') {
+        if (err.message === 'API_KEY_MISSING') {
+            setError(t('errorApiKeyMissing', uiLanguage));
+        } else if (err.name === 'TimeoutError') {
+            setError(t('errorRequestTimeout', uiLanguage));
+        } else if (err.name !== 'AbortError') {
           console.error(`Audio generation for ${format} failed:`, err);
           setError(err.message || (format === 'mp3' ? t('errorMp3Encoding', uiLanguage) : t('errorSpeechGeneration', uiLanguage)));
         }
-        return null;
     } finally {
-        setIsLoading(false);
-        setLoadingTask('');
+        stopAll();
+        if(apiAbortControllerRef.current?.signal === signal) {
+            apiAbortControllerRef.current = null;
+        }
     }
-  }, [multiSpeaker, speakerA, speakerB, voice, speed, pauseDuration, emotion, uiLanguage]);
+    return blob;
+  }, [multiSpeaker, speakerA, speakerB, voice, pauseDuration, emotion, uiLanguage, stopAll, translatedText, sourceLang, targetLang]);
 
   const handleDownload = async (format: 'wav' | 'mp3') => {
     const textToProcess = translatedText || sourceText;
-    const langToProcess = translatedText ? targetLang : sourceLang;
-    const blob = await generateAudioBlob(textToProcess, langToProcess, format);
+    const blob = await generateAudioBlob(textToProcess, format);
     if (blob) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -466,9 +502,8 @@ const App: React.FC = () => {
   
   const handleShareAudio = async () => {
     const textToProcess = translatedText || sourceText;
-    const langToProcess = translatedText ? targetLang : sourceLang;
     setIsSharingAudio(true);
-    const blob = await generateAudioBlob(textToProcess, langToProcess, 'mp3');
+    const blob = await generateAudioBlob(textToProcess, 'mp3');
     setIsSharingAudio(false);
 
     if (blob) {
@@ -511,27 +546,36 @@ const App: React.FC = () => {
 
 
   const getButtonState = (target: 'source' | 'target') => {
-      const defaultLabel = target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage);
-      
-      if (activePlayer !== target) {
-          return { icon: <SpeakerIcon />, label: defaultLabel };
-      }
+      const isThisPlayerActive = activePlayer === target;
 
-      switch (playbackState) {
-          case 'playing':
-              return { icon: <PauseIcon />, label: t('pauseSpeaking', uiLanguage) };
-          case 'paused':
-              return { icon: <PlayCircleIcon />, label: t('resumeSpeaking', uiLanguage) };
-          case 'stopped':
-          default:
-              return { icon: <SpeakerIcon />, label: defaultLabel };
+      if (isLoading && loadingTask.startsWith(t('generatingSpeech', uiLanguage)) && isThisPlayerActive) {
+           return { 
+             icon: <LoaderIcon />, 
+             label: loadingTask,
+             className: 'bg-red-600 hover:bg-red-500' 
+            };
       }
+      if (isThisPlayerActive) {
+            return {
+                icon: <SoundWaveIcon />,
+                label: t('stopSpeaking', uiLanguage),
+                className: 'bg-red-600 hover:bg-red-500'
+            };
+      }
+      
+      const defaultLabel = target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage);
+      const className = target === 'source' 
+        ? 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-600/20' 
+        : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20';
+
+      return { icon: <SpeakerIcon />, label: defaultLabel, className };
   };
 
 
   // --- RENDER ---
   const sourceButtonState = getButtonState('source');
   const targetButtonState = getButtonState('target');
+  const isServerReady = serverConfig.status === 'configured';
 
   const sourceTextArea = (
     <div className="flex flex-col space-y-3 md:w-1/2">
@@ -575,11 +619,11 @@ const App: React.FC = () => {
         </div>
        <div className="flex items-stretch gap-3">
           <ActionButton
-            icon={isLoading && activePlayer === 'source' ? <LoaderIcon /> : sourceButtonState.icon}
-            onClick={() => handleSpeak(sourceText, sourceLang, 'source')}
-            label={isLoading && activePlayer === 'source' ? loadingTask : sourceButtonState.label}
-            disabled={(isLoading && activePlayer !== 'source')}
-            className="flex-grow bg-cyan-600 hover:bg-cyan-500 shadow-cyan-600/20"
+            icon={sourceButtonState.icon}
+            onClick={() => handleSpeak(sourceText, 'source')}
+            label={sourceButtonState.label}
+            disabled={(isLoading && activePlayer !== 'source') || !isServerReady}
+            className={`flex-grow ${sourceButtonState.className}`}
           />
           <button
             onClick={handleToggleListening}
@@ -612,11 +656,11 @@ const App: React.FC = () => {
               <div className="absolute bottom-2 right-2 text-xs text-slate-500">{translatedText.length} / {MAX_CHARS}</div>
            </div>
            <ActionButton
-                icon={isLoading && activePlayer === 'target' ? <LoaderIcon /> : targetButtonState.icon}
-                onClick={() => handleSpeak(translatedText, targetLang, 'target')}
-                label={isLoading && activePlayer === 'target' ? loadingTask : targetButtonState.label}
-                disabled={!translatedText.trim() || (isLoading && activePlayer !== 'target')}
-                className="bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20"
+                icon={targetButtonState.icon}
+                onClick={() => handleSpeak(translatedText, 'target')}
+                label={targetButtonState.label}
+                disabled={!translatedText.trim() || (isLoading && activePlayer !== 'target') || !isServerReady}
+                className={`flex-grow ${targetButtonState.className}`}
            />
       </div>
   );
@@ -663,6 +707,20 @@ const App: React.FC = () => {
                 {error && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{error}</p></div>}
                 {micError && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{micError}</p></div>}
                 
+                {serverConfig.status === 'checking' && (
+                    <div className="bg-slate-700/50 p-4 rounded-lg text-center mb-4">
+                        <p className="flex items-center justify-center gap-2">
+                            <LoaderIcon /> {t('checkingServerConfig', uiLanguage)}
+                        </p>
+                    </div>
+                )}
+                {serverConfig.status === 'unconfigured' && (
+                    <div className="bg-red-900/50 border border-red-500 text-red-300 p-4 rounded-lg space-y-2 mb-4">
+                        <h3 className="font-bold text-lg text-center">{t('configNeededTitle', uiLanguage)}</h3>
+                        <p className="text-sm text-center">{serverConfig.error}</p>
+                    </div>
+                )}
+
                 <div className="relative flex flex-col md:flex-row gap-4">
                     {sourceTextArea}
                     {swapButton}
@@ -672,41 +730,44 @@ const App: React.FC = () => {
 
             {/* Central Translate Button */}
              <div className="flex items-center justify-center -mt-2">
-                <button onClick={handleTranslate} disabled={isLoading && loadingTask !== '' && loadingTask !== t('translatingButton', uiLanguage)} className="h-12 px-8 flex items-center justify-center gap-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-600 disabled:cursor-not-allowed text-slate-900 font-bold rounded-full transition-transform active:scale-95 shadow-lg shadow-cyan-500/20 text-lg transform hover:-translate-y-1">
-                    {isLoading && loadingTask === t('translatingButton', uiLanguage) ? <LoaderIcon /> : <TranslateIcon />}
+                <button onClick={handleTranslate} disabled={isLoading || !isServerReady} className="h-12 px-8 flex items-center justify-center gap-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-600 disabled:cursor-not-allowed text-slate-900 font-bold rounded-full transition-transform active:scale-95 shadow-lg shadow-cyan-500/20 text-lg transform hover:-translate-y-1">
+                    {isLoading && loadingTask.startsWith(t('translatingButton', uiLanguage)) ? <LoaderIcon /> : <TranslateIcon />}
                     <span>
-                        {isLoading && loadingTask === t('translatingButton', uiLanguage) 
-                            ? t('translatingButtonStop', uiLanguage) 
+                        {isLoading && loadingTask.startsWith(t('translatingButton', uiLanguage))
+                            ? loadingTask
                             : t('translateButton', uiLanguage)}
                     </span>
                 </button>
             </div>
 
             {/* Action Buttons Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
                 <ActionCard icon={<GearIcon />} label={t('speechSettings', uiLanguage)} onClick={() => setIsSettingsOpen(true)} />
+                <ActionCard icon={<LiveChatIcon />} label={t('liveChat', uiLanguage)} onClick={() => setIsLiveChatOpen(true)} />
                 <ActionCard icon={<HistoryIcon />} label={t('historyButton', uiLanguage)} onClick={() => setIsHistoryOpen(true)} />
                 <ActionCard 
                     icon={linkCopied ? <CheckIcon className="text-green-400"/> : <LinkIcon />} 
                     label={linkCopied ? t('linkCopied', uiLanguage) : t('shareSettings', uiLanguage)} 
                     onClick={handleShareLink} 
                 />
-                <ActionCard icon={<DownloadIcon />} label={t('downloadButton', uiLanguage)} onClick={() => setIsDownloadOpen(true)} />
+                <ActionCard icon={<DownloadIcon />} label={t('downloadButton', uiLanguage)} onClick={() => setIsDownloadOpen(true)} disabled={isLoading || !isServerReady} />
                 <ActionCard 
                     icon={isSharingAudio ? <LoaderIcon /> : <ShareIcon />}
                     label={isSharingAudio ? t('sharingAudio', uiLanguage) : t('shareAudio', uiLanguage)} 
                     onClick={handleShareAudio} 
-                    disabled={isSharingAudio}
+                    disabled={isSharingAudio || isLoading || !isServerReady}
                 />
             </div>
             
             {/* Modals & Panels */}
-            {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{voice, setVoice, speed, setSpeed, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, stopAll}} />}
+            {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB}} />}
             {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={() => { setHistory([]); localStorage.removeItem('sawtli_history'); }} onLoad={handleHistoryLoad}/>}
-            {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask === t('encoding', uiLanguage)} />}
+            {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} />}
+            {isLiveChatOpen && <Suspense fallback={<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"><LoaderIcon /></div>}><LiveChatModal onClose={() => setIsLiveChatOpen(false)} uiLanguage={uiLanguage} /></Suspense>}
 
-            {/* Feedback Section */}
-            <Suspense fallback={<div className="flex justify-center p-8"><LoaderIcon /></div>}>
+
+            {/* Suspended Modals */}
+             <Suspense fallback={<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"><LoaderIcon /></div>}>
                 <Feedback language={uiLanguage} />
             </Suspense>
         </main>
@@ -751,38 +812,54 @@ const ActionCard: React.FC<{icon: React.ReactNode, label: string, onClick: () =>
     </button>
 );
 
-const SettingsModal: React.FC<any> = ({ onClose, uiLanguage, voice, setVoice, speed, setSpeed, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, stopAll }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB }) => {
     const voiceOptions = [ {id: 'Puck', label: t('voicePuck', uiLanguage)}, {id: 'Kore', label: t('voiceKore', uiLanguage)}, {id: 'Zephyr', label: t('voiceZephyr', uiLanguage)}, {id: 'Charon', label: t('voiceCharon', uiLanguage)}, {id: 'Fenrir', label: t('voiceFenrir', uiLanguage)} ];
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
     const previewAbortControllerRef = useRef<AbortController | null>(null);
+    const previewAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+
+    const stopPreview = useCallback(() => {
+        previewAbortControllerRef.current?.abort();
+        if (previewAudioSourceRef.current) {
+            try { previewAudioSourceRef.current.stop(); } catch(e) {}
+            previewAudioSourceRef.current = null;
+        }
+        setPreviewingVoice(null);
+    }, []);
 
     const handlePreview = async (voiceId: string) => {
         if (previewingVoice) {
-            previewAbortControllerRef.current?.abort();
-            setPreviewingVoice(null);
-            return;
+            stopPreview();
+            if (previewingVoice === voiceId) return;
         }
         setPreviewingVoice(voiceId);
         previewAbortControllerRef.current = new AbortController();
         try {
             const pcmData = await previewVoice(voiceId, t('voicePreviewText', uiLanguage), previewAbortControllerRef.current.signal);
-            if (pcmData) {
-                await playAudio(pcmData, () => setPreviewingVoice(null));
+            if (pcmData && !previewAbortControllerRef.current.signal.aborted) {
+                previewAudioSourceRef.current = await playAudio(pcmData, () => {
+                    setPreviewingVoice(null);
+                    previewAudioSourceRef.current = null;
+                });
             } else {
                 setPreviewingVoice(null);
             }
         } catch (err: any) {
-            if (err.name !== 'AbortError') console.error("Preview failed:", err);
+            if (err.message === 'API_KEY_MISSING') {
+                alert(t('errorApiKeyMissing', uiLanguage)); // Use a simple alert for the modal
+            } else if (err.name !== 'AbortError') {
+                 console.error("Preview failed:", err);
+            }
             setPreviewingVoice(null);
         }
     };
 
     useEffect(() => {
-        return () => { // Cleanup on unmount
-            previewAbortControllerRef.current?.abort();
-            stopAll();
+        return () => { 
+            stopPreview();
         }
-    }, [stopAll]);
+    }, [stopPreview]);
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
@@ -800,7 +877,7 @@ const SettingsModal: React.FC<any> = ({ onClose, uiLanguage, voice, setVoice, sp
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {voiceOptions.map(opt => (
                                 <div key={opt.id} className="flex items-center">
-                                    <button onClick={() => handlePreview(opt.id)} title={t('previewVoiceTooltip', uiLanguage)} className="p-2 text-cyan-400 hover:text-cyan-300">
+                                    <button onClick={() => handlePreview(opt.id)} title={t('previewVoiceTooltip', uiLanguage)} className="p-2 text-cyan-400 hover:text-cyan-300 disabled:opacity-50" disabled={!!previewingVoice && previewingVoice !== opt.id}>
                                         {previewingVoice === opt.id ? <StopIcon /> : <PlayCircleIcon />}
                                     </button>
                                     <button onClick={() => setVoice(opt.id)} className={`w-full text-left px-3 py-2 rounded-md transition-colors text-sm ${voice === opt.id ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{opt.label}</button>
@@ -817,7 +894,7 @@ const SettingsModal: React.FC<any> = ({ onClose, uiLanguage, voice, setVoice, sp
                         <label className="block text-sm font-bold text-slate-300 pt-2">{t('pauseLabel', uiLanguage)}</label>
                         <div className="flex items-center gap-3">
                             <input type="range" min="0" max="5" step="0.5" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer" />
-                            <span className="text-sm text-cyan-400 w-12 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
+                            <span className="text-sm text-cyan-400 w-16 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
                         </div>
                     </div>
 
@@ -866,7 +943,7 @@ const SettingsModal: React.FC<any> = ({ onClose, uiLanguage, voice, setVoice, sp
     )
 };
 
-const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' | 'mp3') => void, uiLanguage: Language, isLoading: boolean}> = ({onClose, onDownload, uiLanguage, isLoading}) => {
+const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' | 'mp3') => void, uiLanguage: Language, isLoading: boolean, onCancel: () => void}> = ({onClose, onDownload, uiLanguage, isLoading, onCancel}) => {
     return (
          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
             <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
@@ -878,6 +955,11 @@ const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' |
                       <button onClick={() => onDownload('mp3')} disabled={isLoading} className="w-full flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
                         {isLoading ? <LoaderIcon /> : 'MP3'}
                       </button>
+                      {isLoading && (
+                        <button onClick={onCancel} className="w-full mt-2 flex items-center justify-center gap-3 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            <StopIcon /> {t('stopSpeaking', uiLanguage)}
+                        </button>
+                      )}
                 </div>
             </div>
         </div>
