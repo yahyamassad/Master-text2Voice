@@ -1,8 +1,11 @@
+
+
 export type Language = 'ar' | 'en' | 'fr';
 export type Direction = 'rtl' | 'ltr';
 export interface LanguageListItem {
     code: string;
     name: string;
+    speechCode: string;
 }
 
 export const translations = {
@@ -12,9 +15,9 @@ export const translations = {
     fr: 'Sawtli - Traducteur & Synthèse Vocale',
   },
   subtitle: {
-    ar: 'اكتب... تكلم... ترجم... استمع',
-    en: 'Write... Speak... Translate... Listen',
-    fr: 'Écrivez... Parlez... Traduisez... Écoutez',
+    ar: 'اكتب • تكلم • ترجم • استمع',
+    en: 'Write • Speak • Translate • Listen',
+    fr: 'Écrivez • Parlez • Traduisez • Écoutez',
   },
   placeholder: {
     ar: 'أدخل النص هنا...',
@@ -91,36 +94,6 @@ export const translations = {
     en: 'Hello, this is a preview of my voice.',
     fr: 'Bonjour, ceci est un aperçu de ma voix.',
   },
-  speedLabel: {
-    ar: 'سرعة النطق',
-    en: 'Speech Speed',
-    fr: 'Vitesse de la parole',
-  },
-  speedVerySlow: {
-    ar: 'بطيء جداً',
-    en: 'Very Slow',
-    fr: 'Très Lent',
-  },
-  speedSlow: {
-    ar: 'بطيء',
-    en: 'Slow',
-    fr: 'Lent',
-  },
-  speedNormal: {
-    ar: 'عادي',
-    en: 'Normal',
-    fr: 'Normale',
-  },
-  speedFast: {
-    ar: 'سريع',
-    en: 'Fast',
-    fr: 'Rapide',
-  },
-  speedVeryFast: {
-    ar: 'سريع جداً',
-    en: 'Very Fast',
-    fr: 'Très Rapide',
-  },
   speechEmotion: {
     ar: 'نبرة الصوت',
     en: 'Speech Emotion',
@@ -196,6 +169,61 @@ export const translations = {
     en: 'e.g., Lana',
     fr: 'ex: Lana',
   },
+  soundEffects: {
+    ar: 'مؤثرات صوتية',
+    en: 'Sound Effects',
+    fr: 'Effets Sonores',
+  },
+  addEffect: {
+    ar: 'إضافة مؤثر',
+    en: 'Add Effect',
+    fr: 'Ajouter un Effet',
+  },
+  addLaugh: {
+    ar: 'إضافة ضحكة',
+    en: 'Add Laugh',
+    fr: 'Ajouter un Rire',
+  },
+  addLaughter: {
+    ar: 'إضافة ضحكة قوية',
+    en: 'Add Laughter',
+    fr: 'Ajouter un Rire Fort',
+  },
+  addSigh: {
+    ar: 'إضافة تنهيدة',
+    en: 'Add Sigh',
+    fr: 'Ajouter un Soupir',
+  },
+  addSob: {
+    ar: 'إضافة بكاء',
+    en: 'Add Sob',
+    fr: 'Ajouter un Sanglot',
+  },
+  addGasp: {
+    ar: 'إضافة شهقة',
+    en: 'Add Gasp',
+    fr: 'Ajouter un Hoquet de Surprise',
+  },
+  addCough: {
+    ar: 'إضافة سعلة',
+    en: 'Add Cough',
+    fr: 'Ajouter une Toux',
+  },
+  addHmm: {
+    ar: 'إضافة همهمة',
+    en: 'Add Hmm',
+    fr: 'Ajouter un Hmm',
+  },
+  addCheer: {
+    ar: 'إضافة هتاف',
+    en: 'Add Cheer',
+    fr: 'Ajouter une Acclamation',
+  },
+  addKiss: {
+    ar: 'إضافة قبلة',
+    en: 'Add Kiss',
+    fr: 'Ajouter un Baiser',
+  },
   translateButton: {
     ar: 'ترجمة',
     en: 'Translate',
@@ -205,6 +233,11 @@ export const translations = {
     ar: 'جاري الترجمة...',
     en: 'Translating...',
     fr: 'Traduction...',
+  },
+  translatingButtonStop: {
+    ar: 'إيقاف الترجمة',
+    en: 'Stop Translating',
+    fr: 'Arrêter la traduction',
   },
   speakSource: {
     ar: 'استمع للنص الأصلي',
@@ -237,9 +270,9 @@ export const translations = {
     fr: 'Reprendre',
   },
   stopSpeaking: {
-    ar: 'إيقاف الصوت',
-    en: 'Stop Audio',
-    fr: 'Arrêter l\'Audio',
+    ar: 'إيقاف',
+    en: 'Stop',
+    fr: 'Arrêter',
   },
   generatingSpeech: {
     ar: 'جاري التوليد...',
@@ -376,25 +409,125 @@ export const translations = {
     en: 'To',
     fr: 'À',
   },
+   liveChat: {
+    ar: 'محادثة مباشرة',
+    en: 'Live Chat',
+    fr: 'Chat en direct',
+  },
+  liveChatTitle: {
+    ar: 'محادثة صوتية مباشرة',
+    en: 'Live Voice Conversation',
+    fr: 'Conversation vocale en direct',
+  },
+  liveChatWelcome: {
+    ar: 'جاهز للتحدث؟ ابدأ محادثة مباشرة مع مساعدنا الذكي.',
+    en: 'Ready to talk? Start a live conversation with our AI assistant.',
+    fr: 'Prêt à parler ? Démarrez une conversation en direct avec notre assistant IA.',
+  },
+  liveChatConfigNeededTitle: {
+    ar: 'مطلوب مفتاح Gemini API',
+    en: 'Gemini API Key Required',
+    fr: 'Clé API Gemini Requise',
+  },
+  liveChatConfigNeededBody: {
+      ar: 'ميزة المحادثة المباشرة معطلة. لتفعيلها، يرجى إضافة مفتاح Gemini API الخاص بك كمتغير بيئة بالاسم التالي في منصة النشر الخاصة بك:',
+      en: 'The Live Chat feature is disabled. To enable it, please add your Gemini API key as an Environment Variable with the following name in your deployment platform:',
+      fr: 'La fonction Live Chat est désactivée. Pour l\'activer, veuillez ajouter votre clé API Gemini en tant que variable d\'environnement avec le nom suivant sur votre plateforme de déploiement :',
+  },
+  startConversation: {
+    ar: 'بدء المحادثة',
+    en: 'Start Conversation',
+    fr: 'Démarrer la conversation',
+  },
+  endConversation: {
+    ar: 'إنهاء المحادثة',
+    en: 'End Conversation',
+    fr: 'Terminer la conversation',
+  },
+  statusConnecting: {
+    ar: 'جاري الاتصال...',
+    en: 'Connecting...',
+    fr: 'Connexion...',
+  },
+  statusListening: {
+    ar: 'أستمع...',
+    en: 'Listening...',
+    fr: 'Écoute...',
+  },
+  statusSpeaking: {
+    ar: 'يتحدث...',
+    en: 'Speaking...',
+    fr: 'En train de parler...',
+  },
+  you: {
+    ar: 'أنت',
+    en: 'You',
+    fr: 'Vous',
+  },
+  ai: {
+    ar: 'مساعد',
+    en: 'AI',
+    fr: 'IA',
+  },
+  checkingServerConfig: {
+    ar: 'جاري فحص إعدادات الخادم...',
+    en: 'Checking server configuration...',
+    fr: 'Vérification de la configuration du serveur...',
+  },
+  configNeededTitle: {
+      ar: 'إجراء مطلوب: إعدادات الخادم غير مكتملة',
+      en: 'Action Required: Server Configuration Incomplete',
+      fr: 'Action Requise : Configuration du Serveur Incomplète',
+  },
+  configNeededBody_AppOwner: {
+    ar: 'يا صاحب التطبيق! الميزات الأساسية معطلة لأن مفتاح API غير موجود. لإصلاح ذلك، اذهب إلى لوحة تحكم Vercel وأضف متغير بيئة (Environment Variable) بالإعدادات التالية.',
+    en: 'Hey App Owner! Core features are disabled because the API key is missing. To fix this, go to your Vercel dashboard and add an Environment Variable with the following settings.',
+    fr: 'Salut propriétaire de l\'application ! Les fonctionnalités de base sont désactivées car la clé API est manquante. Pour résoudre ce problème, accédez à votre tableau de bord Vercel et ajoutez une variable d\'environnement avec les paramètres suivants.',
+  },
+  goToVercelButton: {
+      ar: 'الذهاب إلى إعدادات Vercel',
+      en: 'Go to Vercel Settings',
+      fr: 'Aller aux paramètres Vercel',
+  },
+  configNeededNote_Users: {
+      ar: 'ملاحظة: هذه الرسالة تظهر فقط لصاحب التطبيق. لن يراها المستخدمون العاديون بمجرد اكتمال الإعداد.',
+      en: 'Note: This message is only visible to the app owner. Regular users will not see this once the setup is complete.',
+      fr: 'Remarque : Ce message n\'est visible que par le propriétaire de l\'application. Les utilisateurs réguliers ne le verront pas une fois la configuration terminée.',
+  },
+  errorLiveChat: {
+    ar: 'حدث خطأ أثناء المحادثة المباشرة. يرجى المحاولة مرة أخرى.',
+    en: 'An error occurred during the live chat. Please try again.',
+    fr: 'Une erreur est survenue pendant le chat en direct. Veuillez réessayer.',
+  },
+  errorApiKeyMissing: {
+      ar: 'وضع المطور: يرجى إدخال مفتاح Gemini API الخاص بك عند المطالبة لاستخدام هذه الميزة.',
+      en: 'Developer Mode: Please enter your Gemini API Key when prompted to use this feature.',
+      fr: 'Mode Développeur : Veuillez saisir votre clé API Gemini lorsque vous y êtes invité pour utiliser cette fonctionnalité.',
+  },
   errorApiNoAudio: {
     ar: 'لم يتم استلام أي بيانات صوتية من الواجهة البرمجية.',
     en: 'No audio data received from the API.',
     fr: 'Aucune donnée audio reçue de l\'API.',
   },
   errorUnexpected: {
-    ar: 'حدث خطأ غير متوقع.',
-    en: 'An unexpected error occurred.',
-    fr: 'Une erreur inattendue est survenue.',
+    ar: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
+    en: 'An unexpected error occurred. Please try again.',
+    fr: 'Une erreur inattendue est survenue. Veuillez réessayer.',
   },
-  errorGemini: {
-    ar: 'فشل في توليد الصوت. يرجى التحقق من وحدة التحكم لمزيد من التفاصيل.',
-    en: 'Failed to generate speech. Please check the console for more details.',
-    fr: 'Échec de la génération de la parole. Veuillez consulter la console pour plus de détails.',
+  errorRequestTimeout: {
+    ar: 'استغرق الطلب وقتاً طويلاً جداً. قد يحدث هذا مع النصوص الطويلة. يرجى المحاولة بنص أقصر أو التحقق من اتصالك بالإنترنت.',
+    en: 'The request took too long. This can happen with long texts. Please try with a shorter text or check your internet connection.',
+    fr: 'La requête a pris trop de temps. Cela peut arriver avec des textes longs. Veuillez essayer avec un texte plus court ou vérifier votre connexion.',
+  },
+  errorSpeechGeneration: {
+    ar: 'فشل في توليد الصوت. قد تكون هناك مشكلة في الخدمة. يرجى المحاولة مرة أخرى لاحقاً.',
+    en: 'Failed to generate speech. There may be an issue with the service. Please try again later.',
+    fr: 'Échec de la génération de la parole. Il y a peut-être un problème avec le service. Veuillez réessayer plus tard.',
   },
   errorTranslate: {
-    ar: 'فشلت عملية الترجمة.',
-    en: 'Translation failed.',
-    fr: 'La traduction a échoué.',
+    ar: 'فشلت عملية الترجمة. يرجى التحقق من النص والمحاولة مرة أخرى.',
+    en: 'Translation failed. Please check your text and try again.',
+    fr: 'La traduction a échoué. Veuillez vérifier votre texte et réessayer.',
   },
   errorMp3Encoding: {
     ar: 'فشل تحويل الملف إلى MP3. يرجى محاولة التحميل بصيغة WAV.',
@@ -528,7 +661,7 @@ export const translations = {
   },
   firebaseSetupStep4Body: {
       ar: 'من لوحة تحكم Firebase، اذهب إلى Firestore Database وأنشئ قاعدة بيانات في \'وضع الإنتاج\'. بعد ذلك، اذهب إلى تبويب \'القواعد\' (Rules) والصق القاعدة الآمنة أدناه. هذه القاعدة تسمح لأي شخص بقراءة وإضافة التعليقات، ولكنها تمنع أي شخص من تعديل أو حذف تعليقات الآخرين.',
-      en: 'From the Firebase dashboard, go to Firestore Database and create a database in \'production mode\'. Then, go to the \'Rules\' tab and paste the secure rule below. This rule allows anyone to read and create feedback, but prevents anyone from updating or deleting others\' posts.',
+      en: 'From the Firebase dashboard, go to to Firestore Database and create a database in \'production mode\'. Then, go to the \'Rules\' tab and paste the secure rule below. This rule allows anyone to read and create feedback, but prevents anyone from updating or deleting others\' posts.',
       fr: 'Depuis le tableau de bord Firebase, accédez à la base de données Firestore et créez une base de données en \'mode production\'. Ensuite, allez dans l\'onglet \'Règles\' et collez la règle sécurisée ci-dessous. Cette règle permet à quiconque de lire et de créer des commentaires, mais empêche quiconque de mettre à jour ou de supprimer les messages des autres.',
   },
   firebaseSetupStep5Title: {
@@ -550,26 +683,40 @@ export const languageOptions: { value: Language; label: string; dir: Direction }
 ];
 
 export const translationLanguages: LanguageListItem[] = [
-    { code: 'ar', name: 'Arabic' },
-    { code: 'bn', name: 'Bengali' },
-    { code: 'zh', name: 'Chinese' },
-    { code: 'en', name: 'English' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'hi', name: 'Hindi' },
-    { code: 'id', name: 'Indonesian' },
-    { code: 'it', name: 'Italian' },
-    { code: 'ja', name: 'Japanese' },
-    { code: 'ko', name: 'Korean' },
-    { code: 'ms', name: 'Malay' },
-    { code: 'pt', name: 'Portuguese' },
-    { code: 'ru', name: 'Russian' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'tr', name: 'Turkish' },
-    { code: 'vi', name: 'Vietnamese' },
+    { code: 'ar', name: 'Arabic', speechCode: 'ar-SA' },
+    { code: 'bn', name: 'Bengali', speechCode: 'bn-BD' },
+    { code: 'zh', name: 'Chinese', speechCode: 'zh-CN' },
+    { code: 'en', name: 'English', speechCode: 'en-US' },
+    { code: 'fr', name: 'French', speechCode: 'fr-FR' },
+    { code: 'de', name: 'German', speechCode: 'de-DE' },
+    { code: 'hi', name: 'Hindi', speechCode: 'hi-IN' },
+    { code: 'id', name: 'Indonesian', speechCode: 'id-ID' },
+    { code: 'it', name: 'Italian', speechCode: 'it-IT' },
+    { code: 'ja', name: 'Japanese', speechCode: 'ja-JP' },
+    { code: 'ko', name: 'Korean', speechCode: 'ko-KR' },
+    { code: 'ms', name: 'Malay', speechCode: 'ms-MY' },
+    { code: 'pt', name: 'Portuguese', speechCode: 'pt-BR' },
+    { code: 'ru', name: 'Russian', speechCode: 'ru-RU' },
+    { code: 'es', name: 'Spanish', speechCode: 'es-ES' },
+    { code: 'tr', name: 'Turkish', speechCode: 'tr-TR' },
+    { code: 'vi', name: 'Vietnamese', speechCode: 'vi-VN' },
 ];
 
 
-export const t = (key: keyof typeof translations, lang: Language): string => {
-  return translations[key][lang] || translations[key]['en'];
-};
+/**
+ * Gets a translated string for a given key and language.
+ * Falls back to English if the key is not found for the given language.
+ * This is now a hoisted function declaration to prevent module initialization errors.
+ * It also includes a defensive check to prevent crashes if a key is missing entirely.
+ * @param key The key of the translation string.
+ * @param lang The target language.
+ * @returns The translated string.
+ */
+export function t(key: keyof typeof translations, lang: Language): string {
+  const entry = translations[key];
+  if (!entry) {
+    console.error(`Translation key "${key}" not found.`);
+    return key; // Return the key itself as a fallback to prevent crashing.
+  }
+  return entry[lang] || entry['en'];
+}
