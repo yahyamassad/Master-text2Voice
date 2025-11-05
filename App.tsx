@@ -2,27 +2,14 @@ import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, LiveChatIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, LiveChatIcon, WarningIcon, ExternalLinkIcon
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
 import { History } from './components/History';
+import { HistoryItem, SpeakerConfig } from './types'; // FIX: Import from central types file
 const Feedback = React.lazy(() => import('./components/Feedback'));
 const LiveChatModal = React.lazy(() => import('./components/LiveChatModal'));
 
-
-export interface HistoryItem {
-  id: string;
-  sourceText: string;
-  translatedText: string;
-  sourceLang: string;
-  targetLang: string;
-  timestamp: number;
-}
-
-export interface SpeakerConfig {
-    name: string;
-    voice: string;
-}
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -704,6 +691,9 @@ const App: React.FC = () => {
         <main className="w-full space-y-6">
             {/* Main Translator UI */}
             <div className="bg-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 relative glow-container">
+                
+                {serverConfig.status === 'unconfigured' && <ConfigErrorOverlay uiLanguage={uiLanguage} errorMessage={serverConfig.error || ''} />}
+                
                 {error && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{error}</p></div>}
                 {micError && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{micError}</p></div>}
                 
@@ -714,14 +704,8 @@ const App: React.FC = () => {
                         </p>
                     </div>
                 )}
-                {serverConfig.status === 'unconfigured' && (
-                    <div className="bg-red-900/50 border border-red-500 text-red-300 p-4 rounded-lg space-y-2 mb-4">
-                        <h3 className="font-bold text-lg text-center">{t('configNeededTitle', uiLanguage)}</h3>
-                        <p className="text-sm text-center">{serverConfig.error}</p>
-                    </div>
-                )}
 
-                <div className="relative flex flex-col md:flex-row gap-4">
+                <div className={`relative flex flex-col md:flex-row gap-4 ${serverConfig.status === 'unconfigured' ? 'opacity-20 pointer-events-none' : ''}`}>
                     {sourceTextArea}
                     {swapButton}
                     {translatedTextArea}
@@ -778,6 +762,32 @@ const App: React.FC = () => {
 
 
 // --- SUB-COMPONENTS ---
+
+const ConfigErrorOverlay: React.FC<{uiLanguage: Language, errorMessage: string}> = ({ uiLanguage, errorMessage }) => {
+  const vercelLink = "https://vercel.com/dashboard";
+  const variableName = errorMessage.includes('API_KEY') ? 'API_KEY' : 'Environment Variable';
+
+  return (
+    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-20 flex items-center justify-center p-4 rounded-2xl">
+      <div className="bg-slate-800 border-2 border-red-500/50 rounded-2xl shadow-2xl p-6 max-w-lg w-full text-center space-y-4 animate-fade-in-down">
+        <div className="w-14 h-14 mx-auto bg-red-500/20 rounded-full flex items-center justify-center border-2 border-red-500/30">
+          <WarningIcon className="w-8 h-8 text-red-400" />
+        </div>
+        <h3 className="text-xl font-bold text-red-300">{t('configNeededTitle', uiLanguage)}</h3>
+        <p className="text-slate-400 text-sm">{t('configNeededBody_AppOwner', uiLanguage)}</p>
+        <div dir="ltr" className="my-2 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left text-sm">
+          <div><span className="text-slate-500">Name:</span> {variableName}</div>
+          <div><span className="text-slate-500">Value:</span> sk-YourGeminiApiKey...</div>
+        </div>
+        <a href={vercelLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 mt-2 px-4 py-2 bg-cyan-600 text-white font-bold rounded-md hover:bg-cyan-500 transition-colors">
+          {t('goToVercelButton', uiLanguage)} <ExternalLinkIcon className="h-4 w-4" />
+        </a>
+        <p className="text-xs text-slate-500 pt-2">{t('configNeededNote_Users', uiLanguage)}</p>
+      </div>
+    </div>
+  );
+};
+
 
 const LanguageSelect: React.FC<{ value: string, onChange: (value: string) => void }> = ({ value, onChange }) => (
     <select 
