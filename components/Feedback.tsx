@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { db, isFirebaseConfigured } from '../firebaseConfig';
+import { getFirebase } from '../firebaseConfig';
 import { t, Language } from '../i18n/translations';
 import { StarIcon, LoaderIcon, CopyIcon, ExternalLinkIcon, ChevronDownIcon } from './icons';
-// FIX: Import modular v9+ Firestore functions and types.
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+// STABILITY FIX: Switched to Firebase v8 compat imports to resolve module errors and
+// ensure consistent type resolution (e.g., for firebase.firestore.Timestamp).
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
+
 
 interface FeedbackProps {
     language: Language;
@@ -14,11 +17,11 @@ interface FeedbackItem {
     name: string;
     comment: string;
     rating: number;
-    // FIX: Use the correct v9+ Timestamp type.
-    createdAt: Timestamp; 
+    // STABILITY FIX: Use Timestamp type from the v8 compat import.
+    createdAt: firebase.firestore.Timestamp; 
 }
 
-const formatTimestamp = (timestamp: Timestamp | null, lang: string): string => {
+const formatTimestamp = (timestamp: firebase.firestore.Timestamp | null, lang: string): string => {
     if (!timestamp || typeof timestamp.toDate !== 'function') return '';
     const date = timestamp.toDate();
     const now = new Date();
@@ -44,7 +47,7 @@ const formatTimestamp = (timestamp: Timestamp | null, lang: string): string => {
 };
 
 
-export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
+const Feedback: React.FC<FeedbackProps> = ({ language }) => {
     const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -59,18 +62,21 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
     const [varsCopyButtonText, setVarsCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
     const [rulesCopyButtonText, setRulesCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
 
+    // Call getFirebase() once at the top of the component to get the instance and status.
+    const { db, isFirebaseConfigured } = getFirebase();
 
     useEffect(() => {
+        // Use the db and isFirebaseConfigured variables from the call above.
         if (!isFirebaseConfigured || !db) {
             setIsLoading(false);
             return;
         }
+        
+        // STABILITY FIX: Use v8 compat/namespaced Firestore functions.
+        const feedbackCollectionRef = db.collection('feedback');
+        const q = feedbackCollectionRef.orderBy('createdAt', 'desc');
 
-        // FIX: Reverted to v9+ modular syntax for querying Firestore.
-        const feedbackCollection = collection(db, 'feedback');
-        const q = query(feedbackCollection, orderBy('createdAt', 'desc'));
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const unsubscribe = q.onSnapshot((querySnapshot) => {
             const feedbackData: FeedbackItem[] = [];
             querySnapshot.forEach((doc) => {
                 feedbackData.push({ id: doc.id, ...doc.data() } as FeedbackItem);
@@ -84,7 +90,7 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
         });
 
         return () => unsubscribe();
-    }, [language]);
+    }, [language, db, isFirebaseConfigured]); // Add db and isFirebaseConfigured to dependency array.
 
     useEffect(() => {
       setVarsCopyButtonText(t('firebaseSetupCopyButton', language));
@@ -93,19 +99,20 @@ export const Feedback: React.FC<FeedbackProps> = ({ language }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        // The `db` instance is already available from the getFirebase() call.
         if (!comment.trim() || rating === 0 || !db) return;
         
         setIsSubmitting(true);
         setSubmitStatus(null);
         
         try {
-            // FIX: Reverted to v9+ modular `addDoc()` method and `serverTimestamp()`.
-            const feedbackCollection = collection(db, 'feedback');
-            await addDoc(feedbackCollection, {
+            // STABILITY FIX: Use v8 compat/namespaced Firestore functions.
+            const feedbackCollectionRef = db.collection('feedback');
+            await feedbackCollectionRef.add({
                 name: name.trim() || 'Anonymous',
                 comment: comment.trim(),
                 rating: rating,
-                createdAt: serverTimestamp()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             setName('');
             setComment('');
@@ -151,7 +158,7 @@ service cloud.firestore {
         }
     };
 
-
+    // Use the `isFirebaseConfigured` variable from the top-level call.
     if (!isFirebaseConfigured) {
         return (
             <div className="p-4 sm:p-6 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300">
@@ -311,3 +318,5 @@ service cloud.firestore {
         </div>
     );
 };
+
+export default Feedback;
