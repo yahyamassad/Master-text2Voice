@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { HistoryItem } from '../App';
+import { HistoryItem } from '../types';
 import { t, Language, translationLanguages } from '../i18n/translations';
 
 interface HistoryProps {
