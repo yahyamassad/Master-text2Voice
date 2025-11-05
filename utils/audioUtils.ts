@@ -1,6 +1,6 @@
 // This tells TypeScript that the 'lamejs' object is available globally,
 // as it is loaded from a <script> tag in index.html.
-declare const lamejs: any;
+// declare const lamejs: any; // REMOVED: This can confuse bundlers. Accessing via window is safer.
 
 /**
  * Decodes a base64 string into a Uint8Array.
@@ -14,6 +14,23 @@ export function decode(base64: string): Uint8Array {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes;
+}
+
+// FIX: Added and exported the 'encode' function, which is required by the LiveChatModal
+// to send audio data to the Gemini Live API.
+/**
+ * Encodes a Uint8Array into a base64 string, as required for sending audio data
+ * to the Google GenAI API.
+ * @param bytes The raw byte array to encode.
+ * @returns A base64-encoded string.
+ */
+export function encode(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 /**
@@ -40,6 +57,43 @@ export async function decodeAudioData(
   }
   return buffer;
 }
+
+
+/**
+ * A new, hyper-reliable, and isolated function to play raw PCM audio data.
+ * It creates a new, fresh AudioContext for EVERY playback request. This eliminates
+ * all issues with suspended or closed contexts from previous interactions, which is
+ * the primary cause of silent audio failures in modern browsers.
+ * @param pcmData The raw audio data (16-bit PCM).
+ * @param onEnded A callback function to execute when playback finishes.
+ * @returns A Promise that resolves with the AudioBufferSourceNode that is playing.
+ */
+export async function playAudio(pcmData: Uint8Array, onEnded: () => void): Promise<AudioBufferSourceNode> {
+    // Create a brand new, clean AudioContext for this specific playback.
+    // This is the core of the fix to guarantee a running state.
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    
+    // Although a new context created via user-gesture should be 'running',
+    // this is a harmless safety check.
+    if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+    }
+
+    const audioBuffer = await decodeAudioData(pcmData, audioContext, 24000, 1);
+    
+    const source = audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioContext.destination);
+    source.onended = () => {
+        // After playback, close the context to release resources.
+        audioContext.close();
+        onEnded();
+    };
+    source.start(0);
+
+    return source;
+}
+
 
 /**
  * Creates a WAV file Blob from raw PCM audio data.
@@ -96,7 +150,7 @@ export function createWavBlob(pcmData: Uint8Array, numChannels: number, sampleRa
 export function createMp3Blob(pcmData: Uint8Array, numChannels: number, sampleRate: number): Promise<Blob> {
     return new Promise((resolve, reject) => {
         try {
-            const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, 128); // 128 kbps
+            const mp3encoder = new (window as any).lamejs.Mp3Encoder(numChannels, sampleRate, 128); // 128 kbps
             const pcmDataInt16 = new Int16Array(pcmData.buffer);
 
             const mp3Data: Int8Array[] = [];
@@ -130,7 +184,7 @@ export function createMp3Blob(pcmData: Uint8Array, numChannels: number, sampleRa
  * @param duration Duration of silence in seconds.
  * @param sampleRate The sample rate of the audio.
  * @param numChannels Number of audio channels.
- * @returns A Uint8Array filled with zeros representing silence.
+ * @returns A Uint8Array filled with zeros representing silence in PCM.
  */
 export function generateSilence(duration: number, sampleRate: number, numChannels: number): Uint8Array {
   const bitsPerSample = 16;
