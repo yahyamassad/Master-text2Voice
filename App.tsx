@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
@@ -65,6 +64,7 @@ const App: React.FC = () => {
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
   const [isEffectsOpen, setIsEffectsOpen] = useState<boolean>(false);
   const [isLiveChatOpen, setIsLiveChatOpen] = useState<boolean>(false);
+  const [copiedSource, setCopiedSource] = useState<boolean>(false);
   const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   const [isSharingAudio, setIsSharingAudio] = useState<boolean>(false);
@@ -124,11 +124,14 @@ const App: React.FC = () => {
 
   // Stop any active audio if the text or settings that would affect it are changed.
   useEffect(() => {
-    if (activePlayer) {
+    // Only stop if something is actively playing.
+    // This prevents stopping a 'generate' task before it has a chance to play.
+    if (activePlayer && audioSourceRef.current) {
       stopAll();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceText, translatedText, voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
+  }, [sourceText, translatedText, voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB]);
+
 
   // Server configuration check
   useEffect(() => {
@@ -400,10 +403,13 @@ const App: React.FC = () => {
     setIsHistoryOpen(false);
   };
   
-  const handleCopy = (text: string, type: 'target') => {
+  const handleCopy = (text: string, type: 'source' | 'target') => {
       if (!text) return;
       navigator.clipboard.writeText(text);
-      if (type === 'target') {
+      if (type === 'source') {
+          setCopiedSource(true);
+          setTimeout(() => setCopiedSource(false), 2000);
+      } else if (type === 'target') {
           setCopiedTarget(true);
           setTimeout(() => setCopiedTarget(false), 2000);
       }
@@ -565,6 +571,8 @@ const App: React.FC = () => {
   const sourceButtonState = getButtonState('source');
   const targetButtonState = getButtonState('target');
   const isServerReady = serverConfig.status === 'configured';
+  const isSourceRtl = translationLanguages.find(l => l.code === sourceLang)?.code === 'ar';
+  const isTargetRtl = translationLanguages.find(l => l.code === targetLang)?.code === 'ar';
 
   const sourceTextArea = (
     <div className="flex flex-col space-y-3 md:w-1/2">
@@ -576,9 +584,15 @@ const App: React.FC = () => {
               onChange={(e) => setSourceText(e.target.value)}
               placeholder={t('placeholder', uiLanguage)}
               maxLength={MAX_CHARS}
-              className="w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors"
+              dir={isSourceRtl ? 'rtl' : 'ltr'}
+              className={`w-full h-48 p-3 pr-10 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors ${isSourceRtl ? 'text-right' : 'text-left'}`}
           />
-          <div className="absolute bottom-2 right-2 text-xs text-slate-500">{sourceText.length} / {MAX_CHARS}</div>
+          <div className="absolute top-2 right-2">
+              <button onClick={() => handleCopy(sourceText, 'source')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-white bg-slate-700/50 rounded-md">
+                  {copiedSource ? <CheckIcon className="h-5 w-5 text-green-400"/> : <CopyIcon />}
+              </button>
+          </div>
+          <div className={`absolute bottom-2 text-xs text-slate-500 ${isSourceRtl ? 'left-2' : 'right-2'}`}>{sourceText.length} / {MAX_CHARS}</div>
       </div>
        <div className="flex items-center gap-2 flex-wrap bg-slate-900/50 p-2 rounded-lg">
           <span className="text-xs font-bold text-slate-400">{t('soundEffects', uiLanguage)}:</span>
@@ -635,22 +649,25 @@ const App: React.FC = () => {
                   value={translatedText}
                   readOnly
                   placeholder={t('translationPlaceholder', uiLanguage)}
-                  className="w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none"
+                  dir={isTargetRtl ? 'rtl' : 'ltr'}
+                  className={`w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none ${isTargetRtl ? 'pr-10 text-right' : 'pl-10 text-left'}`}
               />
-               <div className="absolute top-2 right-2">
+               <div className={`absolute top-2 ${isTargetRtl ? 'right-2' : 'left-2'}`}>
                   <button onClick={() => handleCopy(translatedText, 'target')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-white bg-slate-700/50 rounded-md">
                       {copiedTarget ? <CheckIcon className="h-5 w-5 text-green-400"/> : <CopyIcon />}
                   </button>
               </div>
-              <div className="absolute bottom-2 right-2 text-xs text-slate-500">{translatedText.length} / {MAX_CHARS}</div>
+              <div className={`absolute bottom-2 text-xs text-slate-500 ${isTargetRtl ? 'left-2' : 'right-2'}`}>{translatedText.length} / {MAX_CHARS}</div>
            </div>
-           <ActionButton
-                icon={targetButtonState.icon}
-                onClick={() => handleSpeak(translatedText, 'target')}
-                label={targetButtonState.label}
-                disabled={!translatedText.trim() || (isLoading && activePlayer !== 'target') || !isServerReady}
-                className={`flex-grow ${targetButtonState.className}`}
-           />
+           <div className="flex items-stretch gap-3">
+               <ActionButton
+                    icon={targetButtonState.icon}
+                    onClick={() => handleSpeak(translatedText, 'target')}
+                    label={targetButtonState.label}
+                    disabled={!translatedText.trim() || (isLoading && activePlayer !== 'target') || !isServerReady}
+                    className={`flex-grow ${targetButtonState.className}`}
+               />
+           </div>
       </div>
   );
 
@@ -844,8 +861,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
 
     const handlePreview = async (voiceId: string) => {
         if (previewingVoice || isPreviewLoading) {
+            const currentTask = previewingVoice || isPreviewLoading;
             stopPreview();
-            if ((previewingVoice || isPreviewLoading) === voiceId) return;
+            if (currentTask === voiceId) return;
         }
         
         setIsPreviewLoading(voiceId);
