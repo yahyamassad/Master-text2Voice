@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
@@ -126,7 +127,8 @@ const App: React.FC = () => {
     if (activePlayer) {
       stopAll();
     }
-  }, [sourceText, translatedText, voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, activePlayer, stopAll]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceText, translatedText, voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
 
   // Server configuration check
   useEffect(() => {
@@ -825,6 +827,7 @@ const ActionCard: React.FC<{icon: React.ReactNode, label: string, onClick: () =>
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB }) => {
     const voiceOptions = [ {id: 'Puck', label: t('voicePuck', uiLanguage)}, {id: 'Kore', label: t('voiceKore', uiLanguage)}, {id: 'Zephyr', label: t('voiceZephyr', uiLanguage)}, {id: 'Charon', label: t('voiceCharon', uiLanguage)}, {id: 'Fenrir', label: t('voiceFenrir', uiLanguage)} ];
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+    const [isPreviewLoading, setIsPreviewLoading] = useState<string | null>(null);
     const previewAbortControllerRef = useRef<AbortController | null>(null);
     const previewAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
@@ -836,18 +839,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
             previewAudioSourceRef.current = null;
         }
         setPreviewingVoice(null);
+        setIsPreviewLoading(null);
     }, []);
 
     const handlePreview = async (voiceId: string) => {
-        if (previewingVoice) {
+        if (previewingVoice || isPreviewLoading) {
             stopPreview();
-            if (previewingVoice === voiceId) return;
+            if ((previewingVoice || isPreviewLoading) === voiceId) return;
         }
-        setPreviewingVoice(voiceId);
+        
+        setIsPreviewLoading(voiceId);
+        setPreviewingVoice(null);
         previewAbortControllerRef.current = new AbortController();
+
         try {
             const pcmData = await previewVoice(voiceId, t('voicePreviewText', uiLanguage), previewAbortControllerRef.current.signal);
+            
+            setIsPreviewLoading(null);
+
             if (pcmData && !previewAbortControllerRef.current.signal.aborted) {
+                setPreviewingVoice(voiceId);
                 previewAudioSourceRef.current = await playAudio(pcmData, () => {
                     setPreviewingVoice(null);
                     previewAudioSourceRef.current = null;
@@ -861,6 +872,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
             } else if (err.name !== 'AbortError') {
                  console.error("Preview failed:", err);
             }
+            setIsPreviewLoading(null);
             setPreviewingVoice(null);
         }
     };
@@ -887,8 +899,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {voiceOptions.map(opt => (
                                 <div key={opt.id} className="flex items-center">
-                                    <button onClick={() => handlePreview(opt.id)} title={t('previewVoiceTooltip', uiLanguage)} className="p-2 text-cyan-400 hover:text-cyan-300 disabled:opacity-50" disabled={!!previewingVoice && previewingVoice !== opt.id}>
-                                        {previewingVoice === opt.id ? <StopIcon /> : <PlayCircleIcon />}
+                                    <button 
+                                        onClick={() => handlePreview(opt.id)} 
+                                        title={t('previewVoiceTooltip', uiLanguage)} 
+                                        className="p-2 text-cyan-400 hover:text-cyan-300 disabled:opacity-50" 
+                                        disabled={!!(isPreviewLoading && isPreviewLoading !== opt.id) || !!(previewingVoice && previewingVoice !== opt.id)}
+                                    >
+                                        {isPreviewLoading === opt.id ? <LoaderIcon /> : (previewingVoice === opt.id ? <StopIcon /> : <PlayCircleIcon />)}
                                     </button>
                                     <button onClick={() => setVoice(opt.id)} className={`w-full text-left px-3 py-2 rounded-md transition-colors text-sm ${voice === opt.id ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{opt.label}</button>
                                 </div>
