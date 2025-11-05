@@ -144,7 +144,9 @@ function PauseIcon() {
     );
 }
 
-function StarIcon({ className }: IconProps) {
+// STABILITY FIX: Converted StarIcon to a React.FC to correctly handle the 'key' prop
+// when used in lists, resolving a type error and React warning in Feedback.tsx.
+const StarIcon: React.FC<IconProps> = ({ className }) => {
   return (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
@@ -155,7 +157,7 @@ function StarIcon({ className }: IconProps) {
     <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
   </svg>
   );
-}
+};
 
 function CopyIcon({ className }: IconProps) {
   return (
@@ -378,6 +380,30 @@ function SawtliLogoIcon({ className }: IconProps) {
     );
 }
 
+function LiveChatIcon() {
+    return (
+    <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        className="h-6 w-6" 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor" 
+        strokeWidth={2}
+    >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+    );
+}
+
+function WarningIcon({ className }: IconProps) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+    );
+}
+
+
 export {
   SpeakerIcon,
   SoundWaveIcon,
@@ -402,4 +428,6 @@ export {
   InfoIcon,
   PlayCircleIcon,
   SawtliLogoIcon,
+  LiveChatIcon,
+  WarningIcon,
 };
