@@ -2,10 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getFirebase } from '../firebaseConfig';
 import { t, Language } from '../i18n/translations';
 import { StarIcon, LoaderIcon, CopyIcon, ExternalLinkIcon, ChevronDownIcon } from './icons';
-// STABILITY FIX: Switched to Firebase v8 compat imports to resolve module errors and
-// ensure consistent type resolution (e.g., for firebase.firestore.Timestamp).
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
+// MODERNIZATION: Switched to Firebase v9 modular imports for better performance and to fix runtime loading errors.
+import {
+    collection,
+    query,
+    orderBy,
+    onSnapshot,
+    addDoc,
+    serverTimestamp,
+    Timestamp
+} from 'firebase/firestore';
 
 
 interface FeedbackProps {
@@ -17,11 +23,11 @@ interface FeedbackItem {
     name: string;
     comment: string;
     rating: number;
-    // STABILITY FIX: Use Timestamp type from the v8 compat import.
-    createdAt: firebase.firestore.Timestamp; 
+    // STABILITY FIX: Use v9 modular Timestamp type.
+    createdAt: Timestamp; 
 }
 
-const formatTimestamp = (timestamp: firebase.firestore.Timestamp | null, lang: string): string => {
+const formatTimestamp = (timestamp: Timestamp | null, lang: string): string => {
     if (!timestamp || typeof timestamp.toDate !== 'function') return '';
     const date = timestamp.toDate();
     const now = new Date();
@@ -72,11 +78,11 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
             return;
         }
         
-        // STABILITY FIX: Use v8 compat/namespaced Firestore functions.
-        const feedbackCollectionRef = db.collection('feedback');
-        const q = feedbackCollectionRef.orderBy('createdAt', 'desc');
+        // Use v9 modular functions for Firestore
+        const feedbackCollectionRef = collection(db, 'feedback');
+        const q = query(feedbackCollectionRef, orderBy('createdAt', 'desc'));
 
-        const unsubscribe = q.onSnapshot((querySnapshot) => {
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const feedbackData: FeedbackItem[] = [];
             querySnapshot.forEach((doc) => {
                 feedbackData.push({ id: doc.id, ...doc.data() } as FeedbackItem);
@@ -106,13 +112,13 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
         setSubmitStatus(null);
         
         try {
-            // STABILITY FIX: Use v8 compat/namespaced Firestore functions.
-            const feedbackCollectionRef = db.collection('feedback');
-            await feedbackCollectionRef.add({
+            // Use v9 modular functions for Firestore
+            const feedbackCollectionRef = collection(db, 'feedback');
+            await addDoc(feedbackCollectionRef, {
                 name: name.trim() || 'Anonymous',
                 comment: comment.trim(),
                 rating: rating,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                createdAt: serverTimestamp()
             });
             setName('');
             setComment('');
