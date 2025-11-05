@@ -1,5 +1,5 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
-import type { SpeakerConfig } from '../App';
+import type { SpeakerConfig } from '../types';
 import { decode, generateSilence, concatenateUint8Arrays } from '../utils/audioUtils';
 
 
