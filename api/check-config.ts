@@ -21,10 +21,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // This check is enough to hide the setup overlay for the owner.
   try {
     // Optional: Make a lightweight, non-billing call to further validate the key if needed.
-    // For now, just checking existence is sufficient.
-    const ai = new GoogleGenAI({ apiKey });
+    // For now, just checking existence and successful initialization is sufficient.
+    new GoogleGenAI({ apiKey }); // The constructor will throw if the key is structurally invalid.
     // A quick check like listing models could be used, but might incur minor costs.
-    // For simplicity, we assume if the key exists, it's configured.
+    // For simplicity, we assume if the key exists and initializes, it's configured.
     // If API calls fail later, the enhanced error messages in speak/translate will guide the user.
 
     return res.status(200).json({ configured: true });
