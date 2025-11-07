@@ -659,6 +659,66 @@ export const translations = {
     en: 'Failed to clear cloud history.',
     fr: 'Échec de l\'effacement de l\'historique cloud.',
   },
+  developerPowers: {
+    ar: 'صلاحيات المطور',
+    en: 'Developer Powers',
+    fr: 'Pouvoirs de développeur',
+  },
+  ownerUidInfo: {
+    ar: 'لتعريفك كمالك للتطبيق، قم بتعيين VITE_OWNER_UID في Vercel إلى المعرف الخاص بك.',
+    en: 'To identify you as the app owner, set VITE_OWNER_UID in Vercel to your ID.',
+    fr: 'Pour vous identifier comme propriétaire de l\'application, définissez VITE_OWNER_UID dans Vercel sur votre ID.',
+  },
+  yourUserId: {
+    ar: 'معرف المستخدم الخاص بك',
+    en: 'Your User ID',
+    fr: 'Votre ID utilisateur',
+  },
+  copyIdTooltip: {
+    ar: 'نسخ المعرف',
+    en: 'Copy ID',
+    fr: 'Copier l\'ID',
+  },
+  devModeActive: {
+    ar: 'وضع المطور مفعل',
+    en: 'Developer Mode is Active',
+    fr: 'Le mode développeur est actif',
+  },
+  devModeInactive: {
+    ar: 'وضع المطور معطل',
+    en: 'Developer Mode is Inactive',
+    fr: 'Le mode développeur est inactif',
+  },
+  devModeInfo: {
+    ar: 'عند التفعيل، سيتم تجاوز جميع حدود الاستخدام اليومية. يجب تعيين OWNER_SECRET_KEY في Vercel.',
+    en: 'When active, all daily usage limits will be bypassed. Requires OWNER_SECRET_KEY to be set in Vercel.',
+    fr: 'Lorsqu\'il est actif, toutes les limites d\'utilisation quotidiennes seront contournées. Nécessite que OWNER_SECRET_KEY soit défini dans Vercel.',
+  },
+  enterSecretKey: {
+    ar: 'أدخل مفتاح المطور السري',
+    en: 'Enter Developer Secret Key',
+    fr: 'Entrez la clé secrète du développeur',
+  },
+  activate: {
+    ar: 'تفعيل',
+    en: 'Activate',
+    fr: 'Activer',
+  },
+  deactivate: {
+    ar: 'تعطيل',
+    en: 'Deactivate',
+    fr: 'Désactiver',
+  },
+  keySaved: {
+    ar: 'تم الحفظ! ستظل صلاحياتك فعالة لهذه الجلسة.',
+    en: 'Saved! Your powers are active for this session.',
+    fr: 'Enregistré ! Vos pouvoirs sont actifs pour cette session.',
+  },
+  keyRemoved: {
+    ar: 'تم تعطيل وضع المطور.',
+    en: 'Developer mode deactivated.',
+    fr: 'Mode développeur désactivé.',
+  },
   errorApiKeyMissing: {
       ar: 'وضع المطور: يرجى إدخال مفتاح Gemini API الخاص بك عند المطالبة لاستخدام هذه الميزة.',
       en: 'Developer Mode: Please enter your Gemini API Key when prompted to use this feature.',
