@@ -2,12 +2,12 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyRateLimiting } from './_lib/rate-limiter';
 
-// A map to convert UI emotion selection to a direct prompt prefix for the model,
+// A map to convert UI emotion selection to a direct prompt adverb for the model,
 // aligning with documented examples for better reliability.
-const emotionPromptMap: { [key: string]: string } = {
-  'Happy': 'Happily: ',
-  'Sad': 'Sadly: ',
-  'Formal': 'Formally: '
+const emotionAdverbMap: { [key: string]: string } = {
+  'Happy': 'cheerfully',
+  'Sad': 'sadly',
+  'Formal': 'formally'
 };
 
 // =================================================================================
@@ -47,17 +47,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
 
         // --- REVISED PROMPT ENGINEERING ---
-        // This logic now aligns strictly with documented examples to ensure model compatibility
-        // and prevent internal server errors caused by unexpected prompt formats.
-        if (isMultiSpeaker) {
-            promptText = `TTS the following conversation between ${speakers.speakerA.name} and ${speakers.speakerB.name}:\n${text}`;
-        } else if (emotion && emotion !== 'Default') {
-            const prefix = emotionPromptMap[emotion];
-            if (prefix) {
-                promptText = prefix + text;
+        // For specialized models, less explicit instruction in the prompt can be better,
+        // letting the configuration guide the model.
+        if (!isMultiSpeaker && emotion && emotion !== 'Default') {
+            const adverb = emotionAdverbMap[emotion];
+            if (adverb) {
+                // For single-speaker, follow the documentation's instruction format.
+                promptText = `Say ${adverb}: ${text}`;
             }
         }
-        // If single speaker and default emotion, the text is passed as-is, which is the correct behavior.
+        // For multi-speaker, we now rely *solely* on the multiSpeakerVoiceConfig
+        // and the `Speaker: text` format in the input, removing any conversational prefix
+        // to avoid potential conflicts or confusion for the model.
         // --- END REVISION ---
 
         const config: any = {
@@ -101,7 +102,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ audioContent: base64Audio });
         
     } catch (error: any) {
-        console.error("Full error in /api/speak:", JSON.stringify(error, null, 2));
+        // --- STABILITY FIX: Use safe logging ---
+        // Directly log the error object instead of using JSON.stringify, which can fail on
+        // complex objects with circular references from the SDK, causing the catch block itself to crash.
+        console.error("Full error in /api/speak:", error);
 
         let errorMessage = 'An unknown server error occurred.';
         if (error.message) {
