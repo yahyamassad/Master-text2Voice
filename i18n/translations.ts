@@ -714,57 +714,6 @@ export const translations = {
     en: 'Speech recognition is not supported by your browser.',
     fr: 'La reconnaissance vocale n\'est pas prise en charge par votre navigateur.',
   },
-  // FIX: Add translations for the LiveChatModal component.
-  liveChatTitle: {
-    ar: 'محادثة مباشرة مع صوتلي',
-    en: 'Live Conversation with Sawtli',
-    fr: 'Conversation en direct avec Sawtli',
-  },
-  liveChatWelcome: {
-    ar: 'اضغط على الزر أدناه لبدء محادثة صوتية فورية مع صوتلي.',
-    en: 'Press the button below to start a real-time voice conversation with Sawtli.',
-    fr: 'Appuyez sur le bouton ci-dessous pour démarrer une conversation vocale en temps réel avec Sawtli.',
-  },
-  startConversation: {
-    ar: 'بدء المحادثة',
-    en: 'Start Conversation',
-    fr: 'Démarrer la conversation',
-  },
-  endConversation: {
-    ar: 'إنهاء المحادثة',
-    en: 'End Conversation',
-    fr: 'Terminer la conversation',
-  },
-  statusConnecting: {
-    ar: 'جاري الاتصال...',
-    en: 'Connecting...',
-    fr: 'Connexion en cours...',
-  },
-  statusListening: {
-    ar: 'جاري الاستماع...',
-    en: 'Listening...',
-    fr: 'Écoute en cours...',
-  },
-  statusSpeaking: {
-    ar: 'صوتلي يتحدث...',
-    en: 'Sawtli is speaking...',
-    fr: 'Sawtli parle...',
-  },
-  errorLiveChat: {
-    ar: 'حدث خطأ أثناء الجلسة المباشرة. يرجى المحاولة مرة أخرى.',
-    en: 'An error occurred during the live session. Please try again.',
-    fr: 'Une erreur s\'est produite pendant la session en direct. Veuillez réessayer.',
-  },
-  liveChatConfigNeededTitle: {
-    ar: 'إعدادات المحادثة المباشرة مطلوبة',
-    en: 'Live Chat Configuration Required',
-    fr: 'Configuration du chat en direct requise',
-  },
-  liveChatConfigNeededBody: {
-    ar: 'ميزة المحادثة المباشرة معطلة. يجب على مالك التطبيق إضافة VITE_GEMINI_API_KEY إلى متغيرات البيئة من جانب العميل لتمكينها.',
-    en: 'The Live Chat feature is disabled. The app owner must add the VITE_GEMINI_API_KEY to the client-side environment variables to enable it.',
-    fr: 'La fonction de chat en direct est désactivée. Le propriétaire de l\'application doit ajouter VITE_GEMINI_API_KEY aux variables d\'environnement côté client pour l\'activer.',
-  },
   feedbackTitle: {
     ar: 'آراء المستخدمين',
     en: 'User Feedback',

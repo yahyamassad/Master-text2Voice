@@ -122,7 +122,6 @@ async function singleSpeechRequestDev(
  * Creates the headers for production API calls, including the owner's bypass token if available.
  * @returns A Headers object.
  */
-// FIX: Add optional idToken parameter to include Firebase Auth in production requests.
 function getProductionHeaders(idToken?: string): Headers {
     const headers = new Headers();
     headers.append('Content-Type', 'application/json');
@@ -141,7 +140,6 @@ function getProductionHeaders(idToken?: string): Headers {
 }
 // --- End Helper ---
 
-// FIX: Add optional idToken parameter to match the function call in App.tsx.
 export async function translateText(
     text: string, 
     sourceLang: string, 
@@ -233,7 +231,6 @@ ${text}
         try {
             const response = await fetch('/api/translate', {
                 method: 'POST',
-// FIX: Pass idToken to headers function.
                 headers: getProductionHeaders(idToken),
                 body: JSON.stringify({ text, sourceLang, targetLang }),
                 signal: signal,
@@ -265,7 +262,6 @@ ${text}
 }
 
 
-// FIX: Add optional idToken parameter to match the function call in App.tsx.
 export async function generateSpeech(
     text: string,
     voice: string,
@@ -356,7 +352,6 @@ export async function generateSpeech(
         try {
             const response = await fetch('/api/speak', {
                 method: 'POST',
-// FIX: Pass idToken to headers function.
                 headers: getProductionHeaders(idToken),
                 body: JSON.stringify({ text, voice, speed, languageName, pauseDuration, emotion, speakers }),
                 signal: signal,
@@ -400,6 +395,6 @@ export async function previewVoice(voice: string, sampleText: string, signal: Ab
         'Default',  // Default emotion
         undefined,  // Not multi-speaker
         signal,
-        undefined   // CRITICAL FIX: Pass 'undefined' for the new 'idToken' parameter to match the updated function signature.
+        undefined   // No idToken needed for a preview
     );
 }

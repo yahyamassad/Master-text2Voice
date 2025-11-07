@@ -187,7 +187,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (finalPcmData) {
             res.setHeader('Content-Type', 'application/octet-stream');
             res.setHeader('Content-Length', finalPcmData.length);
-            // FIX: Use Buffer.from() to correctly send binary data in the response.
             return res.status(200).send(Buffer.from(finalPcmData));
         } else {
             return res.status(500).json({ error: 'API did not return audio content, and no specific reason was found.' });

@@ -15,7 +15,6 @@ import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocu
 const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
 
-
 interface SettingsModalProps {
   onClose: () => void;
   uiLanguage: Language;
@@ -36,6 +35,10 @@ interface SettingsModalProps {
   targetLang: string;
 }
 
+interface AudioControlModalProps {
+    onClose: () => void;
+    uiLanguage: Language;
+}
 
 const soundEffects = [
     { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
@@ -1017,8 +1020,7 @@ const App: React.FC = () => {
             {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
             {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} />}
             {isAudioControlOpen && <AudioControlModal onClose={() => setIsAudioControlOpen(false)} uiLanguage={uiLanguage} />}
-
-
+            
             {/* Suspended Modals */}
              <Suspense fallback={<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"><LoaderIcon /></div>}>
                 {isAccountOpen && <AccountModal 
@@ -1218,272 +1220,235 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
-            <div className="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-6">
+            <div className="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-6 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-semibold text-cyan-400">{t('speechSettings', uiLanguage)}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close settings">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
-                <div className="space-y-6 overflow-y-auto pr-2">
-                    {/* Gemini HD Voices */}
-                    <div className="space-y-4 p-4 border border-cyan-500/30 rounded-lg">
-                         <label className="block text-sm font-bold text-cyan-400">{t('geminiHdVoices', uiLanguage)}</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {voiceOptions.map(opt => (
-                                <div key={opt.id} className="flex items-center">
+
+                <div className="flex-grow overflow-y-auto pr-2 space-y-6">
+                    {/* Voice Selection */}
+                     <div className="space-y-3">
+                        <label className="block text-sm font-bold text-slate-300">{t('voiceLabel', uiLanguage)}</label>
+                        
+                        {/* Gemini Voices */}
+                        <div>
+                            <p className="text-cyan-400 font-semibold mb-2">{t('geminiHdVoices', uiLanguage)}</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                               {voiceOptions.map(opt => (
                                     <button 
-                                        onClick={() => handleGeminiPreview(opt.id)} 
-                                        title={t('previewVoiceTooltip', uiLanguage)} 
-                                        className="p-2 text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
-                                        disabled={previewingVoice && previewingVoice !== opt.id}
+                                        key={opt.id} 
+                                        onClick={() => setVoice(opt.id)}
+                                        className={`p-3 rounded-lg text-left transition-all border-2 ${voice === opt.id ? 'bg-cyan-500/20 border-cyan-500' : 'bg-slate-700 border-slate-600 hover:bg-slate-600/50'}`}
                                     >
-                                        {previewingVoice === opt.id ? <LoaderIcon /> : <PlayCircleIcon />}
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-semibold">{opt.label}</span>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleGeminiPreview(opt.id); }} 
+                                                title={t('previewVoiceTooltip', uiLanguage)}
+                                                className={`p-1 rounded-full ${previewingVoice === opt.id ? 'bg-red-500 text-white' : 'hover:bg-slate-500/50'}`}
+                                            >
+                                                {previewingVoice === opt.id ? <StopIcon /> : <PlayCircleIcon />}
+                                            </button>
+                                        </div>
                                     </button>
-                                    <button onClick={() => setVoice(opt.id)} className={`w-full text-left px-3 py-2 rounded-md transition-colors text-sm ${voice === opt.id ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{opt.label}</button>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
+                             <p className="text-xs text-slate-500 mt-2">{t('geminiVoicesNote', uiLanguage)}</p>
                         </div>
-                        <p className="text-xs text-slate-400 mt-3 text-center">{t('geminiVoicesNote', uiLanguage)}</p>
-                        <div className={`${!isGeminiVoiceSelected ? 'opacity-50 cursor-not-allowed' : ''}`} title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}>
-                            <label className="block text-sm font-bold text-slate-300 pt-2">{t('speechEmotion', uiLanguage)}</label>
-                            <select value={emotion} onChange={e => setEmotion(e.target.value)} disabled={!isGeminiVoiceSelected} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md disabled:cursor-not-allowed">
+                        
+                        {/* System Voices */}
+                        <div>
+                            <p className="text-cyan-400 font-semibold mb-2">{t('systemVoices', uiLanguage)}</p>
+                             <div className="relative">
+                                <select 
+                                    value={voice} 
+                                    onChange={e => setVoice(e.target.value)}
+                                    className="h-12 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-base w-full appearance-none pr-10"
+                                >
+                                    <option value="" disabled>{t('selectVoice', uiLanguage)}</option>
+                                    <optgroup label={t('suggestedVoices', uiLanguage)}>
+                                        {relevantSystemVoices.suggested.map(v => (
+                                            <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
+                                        ))}
+                                    </optgroup>
+                                    <optgroup label={t('otherSystemVoices', uiLanguage)}>
+                                         {relevantSystemVoices.other.map(v => (
+                                            <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
+                                        ))}
+                                    </optgroup>
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                                    <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                </div>
+                            </div>
+                             {!isGeminiVoiceSelected && (
+                                <button
+                                    onClick={handleSystemPreview}
+                                    className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded-md transition-colors"
+                                >
+                                    {isSystemSpeaking ? <StopIcon /> : <PlayCircleIcon />}
+                                    {t('previewSystemVoice', uiLanguage)}
+                                </button>
+                             )}
+                        </div>
+
+                    </div>
+
+                    {/* Emotion & Pause */}
+                     <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
+                        <div>
+                            <label htmlFor="emotion" className="block text-sm font-bold text-slate-300 mb-2">{t('speechEmotion', uiLanguage)}</label>
+                            <select 
+                                id="emotion"
+                                value={emotion}
+                                onChange={e => setEmotion(e.target.value)}
+                                disabled={!isGeminiVoiceSelected}
+                                title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
+                                className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-base w-full disabled:cursor-not-allowed"
+                            >
                                 <option value="Default">{t('emotionDefault', uiLanguage)}</option>
                                 <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
                                 <option value="Sad">{t('emotionSad', uiLanguage)}</option>
                                 <option value="Formal">{t('emotionFormal', uiLanguage)}</option>
                             </select>
-                            <label className="block text-sm font-bold text-slate-300 pt-4">{t('pauseLabel', uiLanguage)}</label>
-                            <div className="flex items-center gap-3">
-                                <input type="range" min="0" max="5" step="0.5" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} disabled={!isGeminiVoiceSelected} className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed" />
-                                <span className="text-sm text-cyan-400 w-16 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
+                        </div>
+                        <div>
+                            <label htmlFor="pause" className="block text-sm font-bold text-slate-300 mb-2">{t('pauseLabel', uiLanguage)}</label>
+                             <div className="flex items-center gap-2">
+                                <input
+                                    id="pause"
+                                    type="range"
+                                    min="0"
+                                    max="5"
+                                    step="0.1"
+                                    value={pauseDuration}
+                                    onChange={e => setPauseDuration(parseFloat(e.target.value))}
+                                    disabled={!isGeminiVoiceSelected}
+                                    title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
+                                    className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed"
+                                />
+                                <span className="text-sm text-slate-400 w-12 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
                             </div>
                         </div>
                     </div>
-                     {/* System Voices */}
-                    {(relevantSystemVoices.suggested.length > 0 || relevantSystemVoices.other.length > 0) && (
-                        <div className="space-y-4 p-4 border border-slate-700 rounded-lg">
-                             <label className="block text-sm font-bold text-slate-300">{t('systemVoices', uiLanguage)}</label>
-                             <div className="flex items-center gap-2">
-                                <select value={voice} onChange={e => setVoice(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md">
-                                    <>
-                                        {/* This placeholder is shown when a Gemini voice is selected */}
-                                        <option value="" disabled>{t('selectVoice', uiLanguage)}</option>
-                                        
-                                        {relevantSystemVoices.suggested.length > 0 && (
-                                            <optgroup label={t('suggestedVoices', uiLanguage)}>
-                                                {relevantSystemVoices.suggested.map((v) => (
-                                                    <option key={`${v.name}-${v.lang}`} value={v.name}>{v.name} ({v.lang})</option>
-                                                ))}
-                                            </optgroup>
-                                        )}
-                                        
-                                        {relevantSystemVoices.other.length > 0 && (
-                                            <optgroup label={t('otherSystemVoices', uiLanguage)}>
-                                                {relevantSystemVoices.other.map((v) => (
-                                                    <option key={`${v.name}-${v.lang}`} value={v.name}>{v.name} ({v.lang})</option>
-                                                ))}
-                                            </optgroup>
-                                        )}
-                                    </>
-                                </select>
-                                <button
-                                    onClick={handleSystemPreview}
-                                    disabled={isGeminiVoiceSelected || previewingVoice !== null}
-                                    title={t('previewSystemVoice', uiLanguage)}
-                                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {isSystemSpeaking ? <StopIcon /> : <PlayCircleIcon />}
-                                </button>
-                             </div>
-                        </div>
-                    )}
-                    {/* Multi Speaker Settings */}
-                    <div className={`space-y-4 p-4 border border-slate-700 rounded-lg ${!isGeminiVoiceSelected ? 'opacity-50 cursor-not-allowed' : ''}`} title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}>
-                        <div className="flex items-center justify-between">
-                            <label className="text-sm font-bold text-slate-300">{t('multiSpeakerSettings', uiLanguage)}</label>
-                            <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={multiSpeaker} onChange={() => setMultiSpeaker(!multiSpeaker)} disabled={!isGeminiVoiceSelected} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div></label>
-                        </div>
-                        <p className="text-xs text-slate-400">{t('enableMultiSpeakerInfo', uiLanguage)}</p>
-                        {multiSpeaker && isGeminiVoiceSelected && (
-                            <div className="space-y-4 pt-2 animate-fade-in-down">
-                                <p className="text-xs text-cyan-300 bg-cyan-900/50 p-2 rounded-md">{t('multiSpeakerInfo', uiLanguage)}</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs text-slate-400">{t('speakerName', uiLanguage)}</label>
-                                        <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} placeholder={t('speaker1', uiLanguage)} className="mt-1 w-full p-2 bg-slate-900/50 border-2 border-slate-600 rounded-lg text-sm" />
-                                    </div>
-                                     <div>
-                                        <label className="text-xs text-slate-400">{t('speakerVoice', uiLanguage)}</label>
-                                        <select value={speakerA.voice} onChange={e => setSpeakerA({...speakerA, voice: e.target.value})} className="mt-1 w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-sm">
-                                            {voiceOptions.map(opt => (
-                                                <option key={opt.id} value={opt.id}>{opt.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs text-slate-400">{t('speakerName', uiLanguage)}</label>
-                                        <input type="text" value={speakerB.name} onChange={e => setSpeakerB({...speakerB, name: e.target.value})} placeholder={t('speaker2', uiLanguage)} className="mt-1 w-full p-2 bg-slate-900/50 border-2 border-slate-600 rounded-lg text-sm" />
-                                    </div>
-                                     <div>
-                                        <label className="text-xs text-slate-400">{t('speakerVoice', uiLanguage)}</label>
-                                        <select value={speakerB.voice} onChange={e => setSpeakerB({...speakerB, voice: e.target.value})} className="mt-1 w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-sm">
-                                            {voiceOptions.map(opt => (
-                                                <option key={opt.id} value={opt.id}>{opt.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                    
+                    {/* Multi-speaker */}
+                    <div className={`p-4 bg-slate-900/50 rounded-lg ${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
+                        <h4 className="text-md font-bold text-slate-300 mb-2">{t('multiSpeakerSettings', uiLanguage)}</h4>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={multiSpeaker}
+                                onChange={e => setMultiSpeaker(e.target.checked)}
+                                disabled={!isGeminiVoiceSelected}
+                                title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
+                                className="h-5 w-5 rounded bg-slate-600 border-slate-500 text-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed"
+                            />
+                            <span className="text-slate-200">{t('enableMultiSpeaker', uiLanguage)}</span>
+                        </label>
+                        <p className="text-xs text-slate-500 mt-2">{t('enableMultiSpeakerInfo', uiLanguage)}</p>
+                        
+                        {multiSpeaker && (
+                            <div className="mt-4 space-y-3 border-t border-slate-700 pt-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <input 
+                                        type="text" 
+                                        value={speakerA.name} 
+                                        onChange={e => setSpeakerA({...speakerA, name: e.target.value})}
+                                        placeholder={t('speaker1', uiLanguage)}
+                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500" 
+                                    />
+                                    <select 
+                                        value={speakerA.voice} 
+                                        onChange={e => setSpeakerA({...speakerA, voice: e.target.value})}
+                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500"
+                                    >
+                                        {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                    </select>
                                 </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <input 
+                                        type="text" 
+                                        value={speakerB.name} 
+                                        onChange={e => setSpeakerB({...speakerB, name: e.target.value})}
+                                        placeholder={t('speaker2', uiLanguage)}
+                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500" 
+                                    />
+                                    <select 
+                                        value={speakerB.voice} 
+                                        onChange={e => setSpeakerB({...speakerB, voice: e.target.value})}
+                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500"
+                                    >
+                                        {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                    </select>
+                                </div>
+                                <p className="text-xs text-slate-500 pt-1">{t('multiSpeakerInfo', uiLanguage)}</p>
                             </div>
                         )}
                     </div>
                 </div>
-            </div>
-        </div>
-    )
-};
 
-const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' | 'mp3') => void, uiLanguage: Language, isLoading: boolean, onCancel: () => void}> = ({onClose, onDownload, uiLanguage, isLoading, onCancel}) => {
-    return (
-         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
-            <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-semibold text-cyan-400 text-center mb-6">{t('downloadPanelTitle', uiLanguage)}</h3>
-                <div className="flex flex-col space-y-3">
-                     <button onClick={() => onDownload('wav')} disabled={isLoading} className="w-full flex items-center justify-center gap-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
-                        {isLoading ? <LoaderIcon /> : 'WAV'}
-                     </button>
-                      <button onClick={() => onDownload('mp3')} disabled={isLoading} className="w-full flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
-                        {isLoading ? <LoaderIcon /> : 'MP3'}
-                      </button>
-                      {isLoading && (
-                        <button onClick={onCancel} className="w-full mt-2 flex items-center justify-center gap-3 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                            <StopIcon /> {t('stopSpeaking', uiLanguage)}
-                        </button>
-                      )}
+                <div className="mt-4 border-t border-slate-700 pt-4">
+                     <button onClick={onClose} className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition-colors">
+                        Close
+                    </button>
                 </div>
             </div>
         </div>
-    )
+    );
 };
 
-const AudioControlModal: React.FC<{onClose: () => void, uiLanguage: Language}> = ({onClose, uiLanguage}) => {
-    
-    // STARTUP CRASH FIX: Convert component definitions from const arrow functions to standard function declarations.
-    // This hoists the functions, ensuring they are defined before the AudioControlModal's JSX tries to render them,
-    // which prevents a "Cannot access '...' before initialization" error.
-    
-    function StaticKnob({label, value}: {label: string, value: number}) {
-        const rotation = -135 + (value / 100) * 270;
-        return (
-            <div className="flex flex-col items-center gap-2">
-                <div className="w-20 h-20 p-1 bg-slate-900 rounded-full shadow-inner">
-                  <div 
-                    className="w-full h-full bg-gradient-radial from-slate-600 to-slate-800 rounded-full relative flex items-center justify-center border-2 border-slate-700"
-                    style={{transform: `rotate(${rotation}deg)`}}
-                  >
-                    <div className="w-1 h-5 bg-cyan-300 absolute top-1 rounded-full shadow-[0_0_5px_#22d3ee]"></div>
-                    <div className="absolute w-full h-full rounded-full border border-black/20"></div>
-                  </div>
-                </div>
-                <span className="text-sm text-slate-300 font-semibold mt-1">{label}</span>
-                <span className="text-xs font-mono text-cyan-400">{value}</span>
-            </div>
-        );
-    };
 
-    function StaticSlider({label, value}: {label: string, value: number}) {
-        return (
-            <div className="w-full">
-                <div className="flex justify-between items-center text-xs mb-1">
-                    <span className="text-slate-400 font-semibold">{label}</span>
-                    <span className="font-mono text-white">{value}</span>
-                </div>
-                <div className="w-full h-2 bg-slate-900 rounded-full relative group">
-                    <div className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500 rounded-full" style={{ width: `${value}%` }}></div>
-                    <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full border-2 border-cyan-400 shadow-[0_0_5px_#22d3ee,0_0_10px_#22d3ee] transition-transform group-hover:scale-110" style={{ left: `calc(${value}% - 10px)` }}></div>
-                </div>
+const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' | 'mp3') => void, uiLanguage: Language, isLoading: boolean, onCancel: () => void}> = ({onClose, onDownload, uiLanguage, isLoading, onCancel}) => (
+     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
+        <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+             <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-cyan-400">{t('downloadPanelTitle', uiLanguage)}</h3>
+                <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close download options">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
             </div>
-        );
-    };
-    
-    function StaticVerticalSlider({label, value}: {label: string, value: number}) {
-        return (
-            <div className="flex flex-col items-center justify-end gap-2 h-full">
-                <div className="relative w-4 h-32 bg-slate-900 rounded-full group">
-                    <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-cyan-500 to-indigo-500 rounded-b-full" style={{ height: `${value}%` }}></div>
-                    <div className="absolute left-1/2 -translate-x-1/2 w-6 h-2 bg-white rounded-sm border-2 border-cyan-400 shadow-[0_0_5px_#22d3ee] transition-transform group-hover:scale-110" style={{ bottom: `calc(${value}% - 4px)` }}></div>
+            {isLoading ? (
+                <div className="flex flex-col items-center justify-center gap-4 py-8">
+                    <LoaderIcon />
+                    <p className="text-slate-400">{t('encoding', uiLanguage)}</p>
+                    <button onClick={onCancel} className="mt-2 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm">Cancel</button>
                 </div>
-                <span className="text-[10px] text-slate-500 font-mono mt-1">{label}</span>
-            </div>
-        );
-    };
+            ) : (
+                <div className="space-y-3">
+                    <button onClick={() => onDownload('mp3')} className="w-full h-12 px-4 flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg transition-colors">
+                        Download as MP3
+                    </button>
+                    <button onClick={() => onDownload('wav')} className="w-full h-12 px-4 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors">
+                        Download as WAV
+                    </button>
+                </div>
+            )}
+        </div>
+     </div>
+);
 
+const AudioControlModal: React.FC<AudioControlModalProps> = ({ onClose, uiLanguage }) => {
+    // This is a placeholder component for future development.
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
-            <div className="bg-slate-800 border border-cyan-500/20 w-full max-w-3xl rounded-2xl shadow-2xl p-6 flex flex-col" onClick={e => e.stopPropagation()}>
-                 <div className="flex justify-between items-center mb-4">
+            <div className="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-semibold text-cyan-400">{t('audioControlTitle', uiLanguage)}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close">
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close audio controls">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
-
-                <div className="p-3 mb-4 text-center bg-cyan-900/50 border border-cyan-500/30 rounded-lg">
-                    <p className="font-bold text-cyan-300">{t('comingSoon', uiLanguage)}</p>
-                    <p className="text-xs text-cyan-400">{t('featureUnavailable', uiLanguage)}</p>
+                
+                <div className="text-center py-10 opacity-50">
+                    <SoundEnhanceIcon />
+                    <h4 className="text-2xl font-bold mt-4">{t('comingSoon', uiLanguage)}</h4>
+                    <p className="text-slate-400 mt-2">{t('featureUnavailable', uiLanguage)}</p>
                 </div>
-
-                <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* EQ Column */}
-                        <div className="md:col-span-1 p-4 bg-slate-900/50 border border-slate-700 rounded-lg shadow-inner">
-                            <h4 className="text-sm font-bold text-slate-300 mb-4 text-center tracking-widest">{t('equalizer', uiLanguage)}</h4>
-                            <div className="flex justify-around items-end h-32 gap-3">
-                                <StaticVerticalSlider label="60Hz" value={60} />
-                                <StaticVerticalSlider label="250Hz" value={40} />
-                                <StaticVerticalSlider label="1kHz" value={75} />
-                                <StaticVerticalSlider label="4kHz" value={55} />
-                                <StaticVerticalSlider label="12kHz" value={65} />
-                            </div>
-                        </div>
-
-                        {/* Center Column */}
-                        <div className="md:col-span-1 space-y-6">
-                             {/* Master Section */}
-                            <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg shadow-inner">
-                                <h4 className="text-sm font-bold text-slate-300 mb-4 text-center tracking-widest">{t('masterSection', uiLanguage)}</h4>
-                                <StaticSlider label={t('masterVolume', uiLanguage)} value={80} />
-                                <div className="flex justify-around mt-6">
-                                    <StaticKnob label={t('stereoWidth', uiLanguage)} value={75}/>
-                                </div>
-                            </div>
-                            {/* Dynamics */}
-                            <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg shadow-inner">
-                                <h4 className="text-sm font-bold text-slate-300 mb-4 text-center tracking-widest">{t('dynamics', uiLanguage)}</h4>
-                                <div className="grid grid-cols-2 gap-4">
-                                   <StaticKnob label={t('compressor', uiLanguage)} value={40} />
-                                   <StaticKnob label={t('limiter', uiLanguage)} value={95} />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Effects Column */}
-                        <div className="md:col-span-1 space-y-6">
-                            <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg space-y-4 shadow-inner">
-                                <h4 className="text-sm font-bold text-slate-300 text-center tracking-widest">{t('effects', uiLanguage)}</h4>
-                                <StaticSlider label={t('reverb', uiLanguage)} value={30}/>
-                                <StaticSlider label={t('echo', uiLanguage)} value={15}/>
-                                <StaticSlider label={t('chorus', uiLanguage)} value={50}/>
-                            </div>
-                             <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg shadow-inner">
-                                 <div className="flex items-center justify-between">
-                                    <label className="text-sm font-bold text-slate-300">{t('hdAudio', uiLanguage)}</label>
-                                    <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" disabled defaultChecked className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div></label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                
             </div>
         </div>
     );
