@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyRateLimiting } from './_lib/rate-limiter';
 
@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         let promptText: string;
         const config: any = {
-            responseModalities: ['AUDIO'],
+            responseModalities: [Modality.AUDIO],
         };
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
         
@@ -78,13 +78,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
         
-        // --- RADICAL FIX: SIMPLIFY PAYLOAD STRUCTURE ---
-        // Instead of sending a complex Content[] object, send the prompt directly as a string.
-        // This is a more robust approach for this text-only model and avoids potential
-        // fragility in how the API handles the complex object structure.
+        // --- DEFINITIVE FIX: STRICTLY ADHERE TO DOCUMENTED PAYLOAD STRUCTURE ---
+        // The TTS model requires the `contents` field to be a `Content[]` array,
+        // specifically `[{ parts: [{ text: "..." }] }]`. My previous "simplification" to a
+        // plain string was incorrect and was the root cause of the server crashes.
+        // This change reverts to the officially documented and required structure.
         const result = await ai.models.generateContent({
             model,
-            contents: promptText,
+            contents: [{ parts: [{ text: promptText }] }],
             config,
         });
 
