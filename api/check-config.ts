@@ -16,16 +16,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
   
-  // The presence of the key is the most important check for the owner.
-  // A subsequent API call failing due to billing is a separate, diagnosable issue.
-  // This check is enough to hide the setup overlay for the owner.
   try {
-    // Optional: Make a lightweight, non-billing call to further validate the key if needed.
-    // For now, just checking existence and successful initialization is sufficient.
-    new GoogleGenAI({ apiKey }); // The constructor will throw if the key is structurally invalid.
-    // A quick check like listing models could be used, but might incur minor costs.
-    // For simplicity, we assume if the key exists and initializes, it's configured.
-    // If API calls fail later, the enhanced error messages in speak/translate will guide the user.
+    // This instantiates the client to check if the API key is structurally valid.
+    // The constructor throws an error if the key is invalid, which is caught below.
+    // By not assigning it to a variable, we avoid the "unused variable" build error.
+    new GoogleGenAI({ apiKey });
 
     return res.status(200).json({ configured: true });
 
