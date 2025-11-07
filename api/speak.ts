@@ -80,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const result = await ai.models.generateContent({
             model,
-            contents: [{ parts: [{ text: promptText }] }],
+            contents: promptText, // RADICAL CHANGE: Use a simple string instead of the structured Content[] array.
             config,
         });
 
