@@ -2,6 +2,14 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyRateLimiting } from './_lib/rate-limiter';
 
+// A map to convert UI emotion selection to a direct prompt prefix for the model,
+// aligning with documented examples for better reliability.
+const emotionPromptMap: { [key: string]: string } = {
+  'Happy': 'Happily: ',
+  'Sad': 'Sadly: ',
+  'Formal': 'Formally: '
+};
+
 // =================================================================================
 // Vercel Serverless Function Handler
 // =================================================================================
@@ -18,13 +26,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(429).json({ error: error.message || 'Rate limit exceeded.' });
     }
 
-    const { text, voice, emotion, pauseDuration, speakers } = req.body;
+    // `pauseDuration` from the body is intentionally unused. The model's natural
+    // handling of paragraph breaks is more reliable than manual text manipulation.
+    const { text, voice, emotion, speakers } = req.body;
 
     if (!voice) {
         return res.status(400).json({ error: 'Missing required parameter: voice is required.' });
     }
     
-    // CRITICAL FIX: Prevent processing empty text, which causes a silent API failure.
     if (!text || !text.trim()) {
         return res.status(400).json({ error: 'Input text cannot be empty.' });
     }
@@ -35,27 +44,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const model = "gemini-2.5-flash-preview-tts";
         
         let promptText = text;
-
-        // --- CORRECTED PROMPT LOGIC ---
-        // For single-speaker mode, prefix the text with a direct instruction for emotion.
-        // The model is trained to understand this specific format.
-        // For multi-speaker mode, the text is passed as-is, as the model uses the
-        // speaker names in the text (e.g., "Yazan: ...") to differentiate voices.
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
-        if (!isMultiSpeaker && emotion && emotion !== 'Default') {
-            promptText = `Say it in a ${emotion} tone: ${text}`;
+
+        // --- REVISED PROMPT ENGINEERING ---
+        // This logic now aligns strictly with documented examples to ensure model compatibility
+        // and prevent internal server errors caused by unexpected prompt formats.
+        if (isMultiSpeaker) {
+            promptText = `TTS the following conversation between ${speakers.speakerA.name} and ${speakers.speakerB.name}:\n${text}`;
+        } else if (emotion && emotion !== 'Default') {
+            const prefix = emotionPromptMap[emotion];
+            if (prefix) {
+                promptText = prefix + text;
+            }
         }
-        // The `pauseDuration` is intentionally ignored here, as the model handles paragraph
-        // breaks (double newlines) automatically with a natural pause. Forcing it via text
-        // proved to be unreliable and caused errors.
-        // --- END CORRECTION ---
+        // If single speaker and default emotion, the text is passed as-is, which is the correct behavior.
+        // --- END REVISION ---
 
         const config: any = {
             responseModalities: [Modality.AUDIO],
         };
 
         if (isMultiSpeaker) {
-            // Multi-speaker config.
             config.speechConfig = {
                 multiSpeakerVoiceConfig: {
                     speakerVoiceConfigs: [
@@ -65,7 +74,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             };
         } else {
-            // Single-speaker mode configuration.
             config.speechConfig = {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             };
@@ -73,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const result = await ai.models.generateContent({
             model,
-            contents: [{ parts: [{ text: promptText }] }], // Use the correctly formatted prompt
+            contents: [{ parts: [{ text: promptText }] }],
             config,
         });
 
@@ -83,7 +91,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const finishReason = result.candidates?.[0]?.finishReason;
             const finishMessage = result.candidates?.[0]?.finishMessage || 'No specific message.';
             console.error(`Audio generation failed. Reason: ${finishReason}, Message: ${finishMessage}`);
-            // Provide a more specific error if the model refused to generate audio.
             if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
                  throw new Error(`Could not generate audio due to content policy: ${finishReason}.`);
             }
