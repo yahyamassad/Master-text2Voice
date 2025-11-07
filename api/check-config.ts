@@ -20,26 +20,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   
   try {
-    // Attempting to instantiate the client will throw an error for a malformed key.
-    // This is a good first-pass validation before making an actual API call.
-    new GoogleGenAI({ apiKey: apiKey });
+    // This is a cheap, synchronous check for a syntactically valid key format.
+    // The constructor will throw an error if the key is malformed (e.g., contains invalid characters).
+    new GoogleGenAI({ apiKey });
     
     // If we reach here, the key format is syntactically valid.
     return res.status(200).json({ configured: true });
 
   } catch (error: any) {
-      let errorMessage = 'An unknown error occurred during API key validation.';
-      if (error && error.message) {
-          // Extract a cleaner error message if available
-          const match = error.message.match(/\[GoogleGenerativeAI Error\]:\s*(.*)/);
-          errorMessage = match ? match[1] : error.message;
-      }
+      console.error("API key validation failed during instantiation:", error);
       
-      console.error("Config check validation failed:", errorMessage);
-      
+      // If the constructor throws, the key is likely malformed. Return a static, safe message
+      // to avoid sending a complex error object that could break client-side JSON parsing.
       return res.status(200).json({ 
           configured: false, 
-          message: `API key validation failed: ${errorMessage}`
+          message: 'API key validation failed: The key appears to be malformed or invalid.'
       });
   }
 }
