@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyRateLimiting } from './_lib/rate-limiter';
 
@@ -45,7 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         let promptText: string;
         const config: any = {
-            responseModalities: [Modality.AUDIO],
+            // Use string literal to strictly match documentation examples.
+            responseModalities: ['AUDIO'],
         };
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
         
@@ -55,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
 
-        // --- FINAL PROMPT ENGINEERING STRATEGY ---
+        // --- PROMPT ENGINEERING STRATEGY ---
         if (isMultiSpeaker) {
             promptText = `TTS the following conversation between ${speakers.speakerA.name} and ${speakers.speakerB.name}:\n${text}`;
             config.speechConfig = {
@@ -78,15 +79,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
         
-        // --- RADICAL FIX FOR 500 ERROR ---
-        // The persistent 500 internal server errors suggest an undocumented fragility in the TTS model's
-        // handling of the `contents` payload. While other models use the complex `Content[]` array format,
-        // this model appears to crash internally when receiving it.
-        // To provide a definitive solution, we are simplifying the payload to the most basic format: a direct string.
-        // This removes the complex object structure that was the likely cause of the recurring server-side failures.
+        // --- CORRECTED PAYLOAD STRUCTURE ---
+        // The previous attempt to send the prompt as a simple string was incorrect for the TTS model.
+        // The official documentation requires a structured `Content[]` array. This change adheres
+        // strictly to that format to resolve the persistent 500 internal server errors.
         const result = await ai.models.generateContent({
             model,
-            contents: promptText, // Pass prompt directly as a string
+            contents: [{ parts: [{ text: promptText }] }], // Use the documented structure
             config,
         });
 
