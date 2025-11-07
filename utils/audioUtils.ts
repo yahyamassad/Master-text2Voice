@@ -16,14 +16,12 @@ export function decode(base64: string): Uint8Array {
   return bytes;
 }
 
-// FIX: Added and exported the 'encode' function, which is required by the LiveChatModal
-// to send audio data to the Gemini Live API.
 /**
- * Encodes a Uint8Array into a base64 string, as required for sending audio data
- * to the Google GenAI API.
+ * Encodes a Uint8Array into a base64 string.
  * @param bytes The raw byte array to encode.
  * @returns A base64-encoded string.
  */
+// FIX: Export 'encode' function for use in LiveChatModal.
 export function encode(bytes: Uint8Array): string {
   let binary = '';
   const len = bytes.byteLength;

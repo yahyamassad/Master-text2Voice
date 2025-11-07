@@ -1,14 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, LiveChatIcon, WarningIcon, ExternalLinkIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, SoundEnhanceIcon, UserIcon
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
 import { History } from './components/History';
-import { HistoryItem, SpeakerConfig } from './types'; // FIX: Import from central types file
-const Feedback = React.lazy(() => import('./components/Feedback'));
-const LiveChatModal = React.lazy(() => import('./components/LiveChatModal'));
+import { HistoryItem, SpeakerConfig } from './types';
+import { getAuth, onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { getFirebase } from './firebaseConfig';
+import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument } from './services/firestoreService';
+
+
+const Feedback = lazy(() => import('./components/Feedback'));
+const AccountModal = lazy(() => import('./components/AccountModal'));
 
 
 interface SettingsModalProps {
@@ -26,6 +31,9 @@ interface SettingsModalProps {
   setSpeakerA: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   speakerB: SpeakerConfig;
   setSpeakerB: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  systemVoices: SpeechSynthesisVoice[];
+  sourceLang: string;
+  targetLang: string;
 }
 
 
@@ -41,9 +49,11 @@ const soundEffects = [
     { emoji: '😘', tag: '[kiss]', labelKey: 'addKiss' },
 ];
 
+const geminiVoices = ['Puck', 'Kore', 'Zephyr', 'Charon', 'Fenrir'];
+
 // Main App Component
 const App: React.FC = () => {
-  const MAX_CHARS = 5000;
+  const MAX_CHARS_PER_REQUEST = 5000;
   // --- STATE MANAGEMENT ---
   const [uiLanguage, setUiLanguage] = useState<Language>('ar');
   const [sourceText, setSourceText] = useState<string>('');
@@ -55,6 +65,14 @@ const App: React.FC = () => {
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
   const [error, setError] = useState<string | null>(null);
   
+  // Auth State
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+
+  // Daily Usage State
+  const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number } | null>(null);
+
   // Server Health Check State
   const [serverConfig, setServerConfig] = useState<{ status: 'checking' | 'configured' | 'unconfigured', error: string | null }>({ status: 'checking', error: null });
 
@@ -63,19 +81,22 @@ const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
   const [isEffectsOpen, setIsEffectsOpen] = useState<boolean>(false);
-  const [isLiveChatOpen, setIsLiveChatOpen] = useState<boolean>(false);
+  const [isAudioControlOpen, setIsAudioControlOpen] = useState<boolean>(false);
+  const [isAccountOpen, setIsAccountOpen] = useState<boolean>(false);
   const [copiedSource, setCopiedSource] = useState<boolean>(false);
   const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   const [isSharingAudio, setIsSharingAudio] = useState<boolean>(false);
 
   // Settings State
-  const [voice, setVoice] = useState('Puck');
+  const [voice, setVoice] = useState('Puck'); // Now stores voice name for both Gemini and System
   const [emotion, setEmotion] = useState('Default');
   const [pauseDuration, setPauseDuration] = useState(1.0); // Default to 1s for better experience
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
+  const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
+
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -87,9 +108,11 @@ const App: React.FC = () => {
   // Refs
   const apiAbortControllerRef = useRef<AbortController | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const recognitionRef = useRef<any | null>(null);
   const sourceTextAreaRef = useRef<HTMLTextAreaElement>(null);
   const effectsDropdownRef = useRef<HTMLDivElement>(null);
+  const firestoreUnsubscribeRef = useRef<(() => void) | null>(null);
 
 
   // --- CORE FUNCTIONS ---
@@ -100,12 +123,17 @@ const App: React.FC = () => {
       apiAbortControllerRef.current.abort();
       apiAbortControllerRef.current = null;
     }
-     // Stop any currently playing audio
+     // Stop any currently playing Gemini audio
     if (audioSourceRef.current) {
         try {
             audioSourceRef.current.stop();
         } catch (e) { /* Ignore if already stopped */ }
         audioSourceRef.current = null;
+    }
+    
+    // Stop any currently playing Native Speech Synthesis
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
     }
     
     // Stop voice recognition
@@ -121,12 +149,61 @@ const App: React.FC = () => {
   }, []);
 
   // --- EFFECTS ---
+  
+  // Firebase Authentication State Observer & Firestore History Sync
+  useEffect(() => {
+    const { isFirebaseConfigured } = getFirebase();
+    if (isFirebaseConfigured) {
+        const auth = getAuth();
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            setIsAuthLoading(false);
+
+            // Unsubscribe from any previous Firestore listener
+            if (firestoreUnsubscribeRef.current) {
+                firestoreUnsubscribeRef.current();
+                firestoreUnsubscribeRef.current = null;
+            }
+
+            if (currentUser) {
+                // User is logged in, fetch history from Firestore and subscribe to changes
+                firestoreUnsubscribeRef.current = subscribeToHistory(currentUser.uid, (items) => {
+                    setHistory(items);
+                });
+            } else {
+                // User is logged out, load history from localStorage
+                try {
+                    const savedHistory = localStorage.getItem('sawtli_history');
+                    setHistory(savedHistory ? JSON.parse(savedHistory) : []);
+                } catch (e) {
+                    console.error("Failed to load history from localStorage", e);
+                    setHistory([]);
+                }
+            }
+        });
+        return () => {
+            unsubscribeAuth();
+             if (firestoreUnsubscribeRef.current) {
+                firestoreUnsubscribeRef.current(); // Cleanup Firestore listener on component unmount
+            }
+        };
+    } else {
+        // If Firebase is not configured, we are not in an auth-loading state.
+        setIsAuthLoading(false);
+        // Load local history if Firebase is not configured
+        try {
+            const savedHistory = localStorage.getItem('sawtli_history');
+            if (savedHistory) setHistory(JSON.parse(savedHistory));
+        } catch (e) { console.error("Failed to load history from localStorage", e); }
+    }
+  }, []);
+
 
   // Stop any active audio if the text or settings that would affect it are changed.
   useEffect(() => {
     // Only stop if something is actively playing.
     // This prevents stopping a 'generate' task before it has a chance to play.
-    if (activePlayer && audioSourceRef.current) {
+    if (activePlayer && (audioSourceRef.current || window.speechSynthesis.speaking)) {
       stopAll();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,12 +230,27 @@ const App: React.FC = () => {
   }, []);
 
 
-  // Load state from localStorage on initial render
+  // Load system voices
+  useEffect(() => {
+    const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        if(voices.length > 0) {
+            setSystemVoices(voices);
+        }
+    };
+    loadVoices();
+    // Voices list can be loaded asynchronously.
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    return () => {
+        window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
+
+
+  // Load state from localStorage on initial render (settings only now)
   useEffect(() => {
     try {
-      const savedHistory = localStorage.getItem('sawtli_history');
-      if (savedHistory) setHistory(JSON.parse(savedHistory));
-
       const savedSettings = localStorage.getItem('sawtli_settings');
       if (savedSettings) {
         const settings = JSON.parse(savedSettings);
@@ -192,13 +284,14 @@ const App: React.FC = () => {
     try {
       const settings = { voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, sourceLang, targetLang, uiLanguage };
       localStorage.setItem('sawtli_settings', JSON.stringify(settings));
-      if (history.length > 0) {
+       // Only save history to localStorage if the user is NOT logged in.
+      if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
     } catch (e) {
       console.error("Failed to save state to localStorage", e);
     }
-  }, [voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, history, sourceLang, targetLang, uiLanguage]);
+  }, [voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB, history, sourceLang, targetLang, uiLanguage, user]);
 
   // Set document direction based on UI language
   useEffect(() => {
@@ -226,53 +319,89 @@ const App: React.FC = () => {
       }
 
       if (!text.trim()) return;
-      
-      setIsLoading(true);
-      setLoadingTask(t('generatingSpeech', uiLanguage));
-      setActivePlayer(target);
-      setError(null);
-      apiAbortControllerRef.current = new AbortController();
-      const signal = apiAbortControllerRef.current.signal;
 
-      try {
-        const langCode = target === 'source' ? sourceLang : targetLang;
-        const langName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
-        const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+      const isGeminiVoice = geminiVoices.includes(voice);
 
-        const pcmData = await generateSpeech(
-            text,
-            voice,
-            1.0, // speed
-            langName,
-            pauseDuration,
-            emotion,
-            speakersConfig,
-            signal
-        );
-        
-        setIsLoading(false); 
-        setLoadingTask('');
+      if (isGeminiVoice) {
+            setIsLoading(true);
+            setLoadingTask(t('generatingSpeech', uiLanguage));
+            setActivePlayer(target);
+            setError(null);
+            apiAbortControllerRef.current = new AbortController();
+            const signal = apiAbortControllerRef.current.signal;
 
-        if (pcmData) {
-            audioSourceRef.current = await playAudio(pcmData, () => {
-                setActivePlayer(null);
-                audioSourceRef.current = null;
-            });
-        } else {
-            stopAll();
+            try {
+                const langCode = target === 'source' ? sourceLang : targetLang;
+                const langName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
+                const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+                
+                const idToken = user ? await user.getIdToken() : undefined;
+
+                const { pcmData, usage } = await generateSpeech(
+                    text,
+                    voice,
+                    1.0, // speed
+                    langName,
+                    pauseDuration,
+                    emotion,
+                    speakersConfig,
+                    signal,
+                    idToken
+                );
+                
+                if (usage) setDailyUsage(usage);
+                setIsLoading(false); 
+                setLoadingTask('');
+
+                if (pcmData) {
+                    audioSourceRef.current = await playAudio(pcmData, () => {
+                        setActivePlayer(null);
+                        audioSourceRef.current = null;
+                    });
+                } else {
+                    stopAll();
+                }
+
+            } catch (err: any) {
+                if (err.message === 'API_KEY_MISSING') {
+                    setError(t('errorApiKeyMissing', uiLanguage));
+                } else if (err.message === 'RATE_LIMIT_EXCEEDED') {
+                    setError(t('errorRateLimit', uiLanguage));
+                } else if (err.name === 'TimeoutError') {
+                    setError(t('errorRequestTimeout', uiLanguage));
+                } else if (err.name !== 'AbortError') {
+                    console.error("Audio generation/playback failed:", err);
+                    setError(err.message || t('errorUnexpected', uiLanguage));
+                }
+                // Full cleanup in case of any error or abort.
+                stopAll();
+            }
+      } else {
+        // Use Native Browser Speech Synthesis
+        const utterance = new SpeechSynthesisUtterance(text);
+        const selectedVoice = systemVoices.find(v => v.name === voice);
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
         }
-
-      } catch (err: any) {
-          if (err.message === 'API_KEY_MISSING') {
-              setError(t('errorApiKeyMissing', uiLanguage));
-          } else if (err.name === 'TimeoutError') {
-              setError(t('errorRequestTimeout', uiLanguage));
-          } else if (err.name !== 'AbortError') {
-              console.error("Audio generation/playback failed:", err);
-              setError(err.message || t('errorUnexpected', uiLanguage));
-          }
-          // Full cleanup in case of any error or abort.
-          stopAll();
+        utterance.lang = selectedVoice?.lang || (target === 'source' ? sourceLang : targetLang);
+        
+        nativeUtteranceRef.current = utterance;
+        
+        utterance.onstart = () => {
+            setActivePlayer(target);
+        };
+        utterance.onend = () => {
+            setActivePlayer(null);
+            nativeUtteranceRef.current = null;
+        };
+        utterance.onerror = (e) => {
+            console.error("SpeechSynthesis Error:", e);
+            setError(t('errorSpeechGeneration', uiLanguage));
+            setActivePlayer(null);
+            nativeUtteranceRef.current = null;
+        };
+        
+        window.speechSynthesis.speak(utterance);
       }
   };
   
@@ -292,17 +421,21 @@ const App: React.FC = () => {
       const signal = apiAbortControllerRef.current.signal;
       
       try {
+          const idToken = user ? await user.getIdToken() : undefined;
           const result = await translateText(
               sourceText,
               sourceLang,
               targetLang,
               speakerA.name,
               speakerB.name,
-              signal
+              signal,
+              idToken
           );
+          
+          if (result.usage) setDailyUsage(result.usage);
 
           if (!signal.aborted) {
-              const fullTranslation = result.translatedText;
+              const fullTranslation = result.data.translatedText;
               setTranslatedText(fullTranslation);
               const newHistoryItem: HistoryItem = {
                   id: new Date().toISOString(),
@@ -312,12 +445,22 @@ const App: React.FC = () => {
                   targetLang,
                   timestamp: Date.now()
               };
-              setHistory(prev => [newHistoryItem, ...prev.slice(0, 49)]);
+
+              if (user) {
+                // Save to Firestore (don't need id or timestamp, Firestore adds its own)
+                const { id, timestamp, ...itemToSave } = newHistoryItem;
+                await addHistoryItem(user.uid, itemToSave);
+              } else {
+                // Save to local state and update localStorage via useEffect
+                setHistory(prev => [newHistoryItem, ...prev.slice(0, 49)]);
+              }
           }
 
       } catch (err: any) {
           if (err.message === 'API_KEY_MISSING') {
               setError(t('errorApiKeyMissing', uiLanguage));
+          } else if (err.message === 'RATE_LIMIT_EXCEEDED') {
+              setError(t('errorRateLimit', uiLanguage));
           } else if (err.name === 'TimeoutError') {
               setError(t('errorRequestTimeout', uiLanguage));
           } else if (err.name !== 'AbortError') {
@@ -428,6 +571,13 @@ const App: React.FC = () => {
 
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
     if (!text.trim()) return null;
+
+    // A system voice cannot be downloaded this way, so show an error.
+    if (!geminiVoices.includes(voice)) {
+        setError(t('errorDownloadSystemVoice', uiLanguage));
+        return null;
+    }
+    
     setError(null);
     setIsLoading(true);
     setLoadingTask(`${t('encoding', uiLanguage)}...`);
@@ -439,8 +589,9 @@ const App: React.FC = () => {
         const langCode = translatedText ? targetLang : sourceLang;
         const langName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
         const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+        const idToken = user ? await user.getIdToken() : undefined;
 
-        const pcmData = await generateSpeech(
+        const { pcmData, usage } = await generateSpeech(
             text,
             voice,
             1.0, // speed
@@ -448,8 +599,11 @@ const App: React.FC = () => {
             pauseDuration,
             emotion,
             speakersConfig,
-            signal
+            signal,
+            idToken
         );
+        
+        if(usage) setDailyUsage(usage);
 
       if (!pcmData) {
           throw new Error(t('errorApiNoAudio', uiLanguage));
@@ -464,6 +618,8 @@ const App: React.FC = () => {
     } catch (err: any) {
         if (err.message === 'API_KEY_MISSING') {
             setError(t('errorApiKeyMissing', uiLanguage));
+        } else if (err.message === 'RATE_LIMIT_EXCEEDED') {
+            setError(t('errorRateLimit', uiLanguage));
         } else if (err.name === 'TimeoutError') {
             setError(t('errorRequestTimeout', uiLanguage));
         } else if (err.name !== 'AbortError') {
@@ -477,7 +633,7 @@ const App: React.FC = () => {
         }
     }
     return blob;
-  }, [multiSpeaker, speakerA, speakerB, voice, pauseDuration, emotion, uiLanguage, stopAll, translatedText, sourceLang, targetLang]);
+  }, [voice, multiSpeaker, speakerA, speakerB, pauseDuration, emotion, uiLanguage, stopAll, translatedText, sourceLang, targetLang, user]);
 
   const handleDownload = async (format: 'wav' | 'mp3') => {
     const textToProcess = translatedText || sourceText;
@@ -566,6 +722,73 @@ const App: React.FC = () => {
       return { icon: <SpeakerIcon />, label: defaultLabel, className };
   };
 
+  const handleSignIn = () => {
+      const { isFirebaseConfigured } = getFirebase();
+      if (!isFirebaseConfigured) {
+          alert('Firebase is not configured. Sign-in is disabled.');
+          return;
+      }
+      const auth = getAuth();
+      const provider = new GoogleAuthProvider();
+      signInWithPopup(auth, provider).catch(error => {
+          console.error("Sign-in error:", error);
+          setError(t('signInError', uiLanguage));
+      });
+  };
+
+  const handleSignOut = () => {
+      const { isFirebaseConfigured } = getFirebase();
+      if (!isFirebaseConfigured) return;
+      
+      const auth = getAuth();
+      signOut(auth).catch(error => {
+          console.error("Sign-out error:", error);
+      });
+  };
+
+  const handleClearHistory = async () => {
+    if (user) {
+        // Cloud history
+        if(window.confirm(t('clearCloudHistoryInfo', uiLanguage))) {
+            try {
+                await clearHistoryForUser(user.uid);
+                alert(t('historyClearSuccess', uiLanguage));
+            } catch (e) {
+                console.error(e);
+                alert(t('historyClearError', uiLanguage));
+            }
+        }
+    } else {
+        // Local history
+        setHistory([]);
+        localStorage.removeItem('sawtli_history');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    if (window.confirm(t('deleteAccountConfirmationPrompt', uiLanguage))) {
+        setIsLoading(true);
+        setLoadingTask('Deleting account...');
+        try {
+            // 1. Delete Firestore data (history, etc.)
+            await clearHistoryForUser(user.uid);
+            // 2. Delete the root user document
+            await deleteUserDocument(user.uid);
+            // 3. Delete the auth user
+            await user.delete();
+            alert(t('accountDeletedSuccess', uiLanguage));
+            setIsAccountOpen(false);
+        } catch (error) {
+            console.error("Account deletion error:", error);
+            setError(t('accountDeletionError', uiLanguage));
+        } finally {
+            setIsLoading(false);
+            setLoadingTask('');
+        }
+    }
+  };
+
 
   // --- RENDER ---
   const sourceButtonState = getButtonState('source');
@@ -573,6 +796,7 @@ const App: React.FC = () => {
   const isServerReady = serverConfig.status === 'configured';
   const isSourceRtl = translationLanguages.find(l => l.code === sourceLang)?.code === 'ar';
   const isTargetRtl = translationLanguages.find(l => l.code === targetLang)?.code === 'ar';
+  const isUsingSystemVoice = !geminiVoices.includes(voice);
 
   const sourceTextArea = (
     <div className="flex flex-col space-y-3 md:w-1/2">
@@ -583,7 +807,7 @@ const App: React.FC = () => {
               value={sourceText}
               onChange={(e) => setSourceText(e.target.value)}
               placeholder={t('placeholder', uiLanguage)}
-              maxLength={MAX_CHARS}
+              maxLength={MAX_CHARS_PER_REQUEST}
               dir={isSourceRtl ? 'rtl' : 'ltr'}
               className={`w-full h-48 p-3 pr-10 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors ${isSourceRtl ? 'text-right' : 'text-left'}`}
           />
@@ -592,14 +816,16 @@ const App: React.FC = () => {
                   {copiedSource ? <CheckIcon className="h-5 w-5 text-green-400"/> : <CopyIcon />}
               </button>
           </div>
-          <div className={`absolute bottom-2 text-xs text-slate-500 ${isSourceRtl ? 'left-2' : 'right-2'}`}>{sourceText.length} / {MAX_CHARS}</div>
+          <div className={`absolute bottom-2 text-xs text-slate-500 ${isSourceRtl ? 'left-2' : 'right-2'}`}>{sourceText.length} / {MAX_CHARS_PER_REQUEST}</div>
       </div>
-       <div className="flex items-center gap-2 flex-wrap bg-slate-900/50 p-2 rounded-lg">
+       <div className={`flex items-center gap-2 flex-wrap bg-slate-900/50 p-2 rounded-lg ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
           <span className="text-xs font-bold text-slate-400">{t('soundEffects', uiLanguage)}:</span>
             <div className="relative" ref={effectsDropdownRef}>
                 <button
                     onClick={() => setIsEffectsOpen(!isEffectsOpen)}
-                    className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors text-sm"
+                    disabled={isUsingSystemVoice}
+                    className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors text-sm disabled:cursor-not-allowed"
+                    title={isUsingSystemVoice ? t('geminiExclusiveFeature', uiLanguage) : t('addEffect', uiLanguage)}
                 >
                     {t('addEffect', uiLanguage)}
                 </button>
@@ -657,7 +883,7 @@ const App: React.FC = () => {
                       {copiedTarget ? <CheckIcon className="h-5 w-5 text-green-400"/> : <CopyIcon />}
                   </button>
               </div>
-              <div className={`absolute bottom-2 text-xs text-slate-500 ${isTargetRtl ? 'left-2' : 'right-2'}`}>{translatedText.length} / {MAX_CHARS}</div>
+              <div className={`absolute bottom-2 text-xs text-slate-500 ${isTargetRtl ? 'left-2' : 'right-2'}`}>{translatedText.length} / {MAX_CHARS_PER_REQUEST}</div>
            </div>
            <div className="flex items-stretch gap-3">
                <ActionButton
@@ -692,19 +918,37 @@ const App: React.FC = () => {
                     <p className="text-slate-400 text-sm sm:text-base">{t('subtitle', uiLanguage)}</p>
                 </div>
             </div>
-            <div className="flex items-center gap-2 bg-slate-800 p-2 rounded-full">
-                <GlobeIcon className="w-5 h-5 text-slate-400"/>
-                <select 
-                    value={uiLanguage} 
-                    onChange={e => setUiLanguage(e.target.value as Language)}
-                    className="bg-transparent text-white focus:outline-none"
-                    aria-label={t('selectInterfaceLanguage', uiLanguage)}
-                >
-                    {languageOptions.map(lang => (
-                        <option key={lang.value} value={lang.value} className="bg-slate-700">{lang.label}</option>
-                    ))}
-                </select>
+            <div className="flex items-center gap-4">
+                 <div className="flex items-center gap-2 bg-slate-800 p-2 rounded-full">
+                    <GlobeIcon className="w-5 h-5 text-slate-400"/>
+                    <select 
+                        value={uiLanguage} 
+                        onChange={e => setUiLanguage(e.target.value as Language)}
+                        className="bg-transparent text-white focus:outline-none"
+                        aria-label={t('selectInterfaceLanguage', uiLanguage)}
+                    >
+                        {languageOptions.map(lang => (
+                            <option key={lang.value} value={lang.value} className="bg-slate-700">{lang.label}</option>
+                        ))}
+                    </select>
+                </div>
+                 {isAuthLoading ? (
+                    <div className="w-24 h-10 bg-slate-700 rounded-full animate-pulse"></div>
+                ) : user ? (
+                    <div className="flex items-center gap-2">
+                         <button onClick={() => setIsAccountOpen(true)} className="flex items-center gap-2 p-1 rounded-full hover:bg-slate-700 transition-colors" title={t('manageAccount', uiLanguage)}>
+                            <img src={user.photoURL || undefined} alt={user.displayName || 'User'} className="w-8 h-8 rounded-full" />
+                            <span className="text-sm font-semibold hidden sm:inline">{user.displayName}</span>
+                        </button>
+                    </div>
+                ) : (
+                    <button onClick={handleSignIn} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-full flex items-center gap-2">
+                        <UserIcon className="w-5 h-5" />
+                        <span className="text-sm font-semibold">{t('signIn', uiLanguage)}</span>
+                    </button>
+                )}
             </div>
+           
         </header>
 
         <main className="w-full space-y-6">
@@ -731,8 +975,8 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* Central Translate Button */}
-             <div className="flex items-center justify-center -mt-2">
+            {/* Daily Usage and Translate Button */}
+             <div className="flex flex-col sm:flex-row items-center justify-center -mt-2 gap-4">
                 <button onClick={handleTranslate} disabled={isLoading || !isServerReady} className="h-12 px-8 flex items-center justify-center gap-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-600 disabled:cursor-not-allowed text-slate-900 font-bold rounded-full transition-transform active:scale-95 shadow-lg shadow-cyan-500/20 text-lg transform hover:-translate-y-1">
                     {isLoading && loadingTask.startsWith(t('translatingButton', uiLanguage)) ? <LoaderIcon /> : <TranslateIcon />}
                     <span>
@@ -741,36 +985,54 @@ const App: React.FC = () => {
                             : t('translateButton', uiLanguage)}
                     </span>
                 </button>
+                 {isServerReady && dailyUsage && (
+                    <div className="text-xs text-center text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
+                       <span>{t('dailyUsageLabel', uiLanguage)}: </span>
+                       <span className="font-mono">{dailyUsage.used.toLocaleString()} / {dailyUsage.limit.toLocaleString()}</span>
+                    </div>
+                )}
             </div>
 
             {/* Action Buttons Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
                 <ActionCard icon={<GearIcon />} label={t('speechSettings', uiLanguage)} onClick={() => setIsSettingsOpen(true)} />
-                <ActionCard icon={<LiveChatIcon />} label={t('liveChat', uiLanguage)} onClick={() => setIsLiveChatOpen(true)} />
+                <ActionCard icon={<SoundEnhanceIcon />} label={t('audioControl', uiLanguage)} onClick={() => setIsAudioControlOpen(true)} />
                 <ActionCard icon={<HistoryIcon />} label={t('historyButton', uiLanguage)} onClick={() => setIsHistoryOpen(true)} />
                 <ActionCard 
                     icon={linkCopied ? <CheckIcon className="text-green-400"/> : <LinkIcon />} 
                     label={linkCopied ? t('linkCopied', uiLanguage) : t('shareSettings', uiLanguage)} 
                     onClick={handleShareLink} 
                 />
-                <ActionCard icon={<DownloadIcon />} label={t('downloadButton', uiLanguage)} onClick={() => setIsDownloadOpen(true)} disabled={isLoading || !isServerReady} />
+                <ActionCard icon={<DownloadIcon />} label={t('downloadButton', uiLanguage)} onClick={() => setIsDownloadOpen(true)} disabled={isLoading || !isServerReady || isUsingSystemVoice} />
                 <ActionCard 
                     icon={isSharingAudio ? <LoaderIcon /> : <ShareIcon />}
                     label={isSharingAudio ? t('sharingAudio', uiLanguage) : t('shareAudio', uiLanguage)} 
                     onClick={handleShareAudio} 
-                    disabled={isSharingAudio || isLoading || !isServerReady}
+                    disabled={isSharingAudio || isLoading || !isServerReady || isUsingSystemVoice}
                 />
             </div>
             
             {/* Modals & Panels */}
-            {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB}} />}
-            {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={() => { setHistory([]); localStorage.removeItem('sawtli_history'); }} onLoad={handleHistoryLoad}/>}
+            {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices}} />}
+            {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
             {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} />}
-            {isLiveChatOpen && <Suspense fallback={<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"><LoaderIcon /></div>}><LiveChatModal onClose={() => setIsLiveChatOpen(false)} uiLanguage={uiLanguage} /></Suspense>}
+            {isAudioControlOpen && <AudioControlModal onClose={() => setIsAudioControlOpen(false)} uiLanguage={uiLanguage} />}
 
 
             {/* Suspended Modals */}
              <Suspense fallback={<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"><LoaderIcon /></div>}>
+                {isAccountOpen && <AccountModal 
+                    onClose={() => setIsAccountOpen(false)} 
+                    uiLanguage={uiLanguage}
+                    user={user}
+                    dailyUsage={dailyUsage}
+                    onSignOut={() => {
+                        handleSignOut();
+                        setIsAccountOpen(false);
+                    }}
+                    onClearHistory={handleClearHistory}
+                    onDeleteAccount={handleDeleteAccount}
+                />}
                 <Feedback language={uiLanguage} />
             </Suspense>
         </main>
@@ -841,42 +1103,52 @@ const ActionCard: React.FC<{icon: React.ReactNode, label: string, onClick: () =>
     </button>
 );
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices, sourceLang, targetLang }) => {
     const voiceOptions = [ {id: 'Puck', label: t('voicePuck', uiLanguage)}, {id: 'Kore', label: t('voiceKore', uiLanguage)}, {id: 'Zephyr', label: t('voiceZephyr', uiLanguage)}, {id: 'Charon', label: t('voiceCharon', uiLanguage)}, {id: 'Fenrir', label: t('voiceFenrir', uiLanguage)} ];
-    const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
-    const [isPreviewLoading, setIsPreviewLoading] = useState<string | null>(null);
-    const previewAbortControllerRef = useRef<AbortController | null>(null);
-    const previewAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const isGeminiVoiceSelected = geminiVoices.includes(voice);
 
+    const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+    const [isSystemSpeaking, setIsSystemSpeaking] = useState(false);
+    const previewAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const previewAbortControllerRef = useRef<AbortController | null>(null);
 
     const stopPreview = useCallback(() => {
         previewAbortControllerRef.current?.abort();
-        if (previewAudioSourceRef.current) {
-            try { previewAudioSourceRef.current.stop(); } catch(e) {}
-            previewAudioSourceRef.current = null;
-        }
+        previewAbortControllerRef.current = null;
+        previewAudioSourceRef.current?.stop();
+        previewAudioSourceRef.current = null;
+        window.speechSynthesis.cancel();
         setPreviewingVoice(null);
-        setIsPreviewLoading(null);
+        setIsSystemSpeaking(false);
     }, []);
 
-    const handlePreview = async (voiceId: string) => {
-        if (previewingVoice || isPreviewLoading) {
-            const currentTask = previewingVoice || isPreviewLoading;
+    useEffect(() => {
+      // Cleanup function to stop any preview when the modal is closed
+      return () => {
+          stopPreview();
+      };
+    }, [stopPreview]);
+    
+    // Stop preview if the main voice selection changes
+    useEffect(() => {
+        stopPreview();
+    }, [voice, stopPreview]);
+
+
+    const handleGeminiPreview = async (voiceId: string) => {
+        if (previewingVoice === voiceId) {
             stopPreview();
-            if (currentTask === voiceId) return;
+            return;
         }
-        
-        setIsPreviewLoading(voiceId);
-        setPreviewingVoice(null);
+        stopPreview();
+        setPreviewingVoice(voiceId);
         previewAbortControllerRef.current = new AbortController();
 
         try {
-            const pcmData = await previewVoice(voiceId, t('voicePreviewText', uiLanguage), previewAbortControllerRef.current.signal);
-            
-            setIsPreviewLoading(null);
+            const { pcmData } = await previewVoice(voiceId, t('voicePreviewText', uiLanguage), previewAbortControllerRef.current.signal);
+            if (previewAbortControllerRef.current.signal.aborted) return;
 
-            if (pcmData && !previewAbortControllerRef.current.signal.aborted) {
-                setPreviewingVoice(voiceId);
+            if (pcmData) {
                 previewAudioSourceRef.current = await playAudio(pcmData, () => {
                     setPreviewingVoice(null);
                     previewAudioSourceRef.current = null;
@@ -885,21 +1157,64 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                 setPreviewingVoice(null);
             }
         } catch (err: any) {
-            if (err.message === 'API_KEY_MISSING') {
-                alert(t('errorApiKeyMissing', uiLanguage)); // Use a simple alert for the modal
-            } else if (err.name !== 'AbortError') {
-                 console.error("Preview failed:", err);
+            if (err.name !== 'AbortError') {
+                console.error("Preview failed:", err);
+                // Optionally show a user-facing error
             }
-            setIsPreviewLoading(null);
             setPreviewingVoice(null);
         }
     };
-
-    useEffect(() => {
-        return () => { 
+    
+    const handleSystemPreview = () => {
+        if (isSystemSpeaking) {
             stopPreview();
+            return;
         }
-    }, [stopPreview]);
+        stopPreview();
+
+        const selectedSystemVoice = systemVoices.find(v => v.name === voice);
+        if (!selectedSystemVoice) return;
+        
+        const utterance = new SpeechSynthesisUtterance(t('voicePreviewText', uiLanguage));
+        utterance.voice = selectedSystemVoice;
+        utterance.lang = selectedSystemVoice.lang;
+        utterance.onstart = () => setIsSystemSpeaking(true);
+        utterance.onend = () => setIsSystemSpeaking(false);
+        utterance.onerror = () => setIsSystemSpeaking(false);
+        
+        window.speechSynthesis.speak(utterance);
+    };
+
+
+    const relevantSystemVoices = useMemo(() => {
+        if (!systemVoices || systemVoices.length === 0) {
+            return { suggested: [], other: [] };
+        }
+
+        const sourceLangCode = sourceLang.split('-')[0];
+        const targetLangCode = targetLang.split('-')[0];
+        const suggestedLangs = new Set([sourceLangCode, targetLangCode, 'ar']); // Also suggest arabic voices
+
+        const uniqueVoices = Array.from(new Map(systemVoices.map(v => [v.name, v])).values()) as SpeechSynthesisVoice[];
+        
+        const suggested: SpeechSynthesisVoice[] = [];
+        const other: SpeechSynthesisVoice[] = [];
+
+        uniqueVoices.forEach(v => {
+            const voiceLangCode = (v.lang || '').split('-')[0];
+            if (suggestedLangs.has(voiceLangCode)) {
+                suggested.push(v);
+            } else {
+                other.push(v);
+            }
+        });
+        
+        const sorter = (a: SpeechSynthesisVoice, b: SpeechSynthesisVoice) => a.name.localeCompare(b.name);
+        suggested.sort(sorter);
+        other.sort(sorter);
+
+        return { suggested, other };
+    }, [systemVoices, sourceLang, targetLang]);
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
@@ -911,46 +1226,86 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                     </button>
                 </div>
                 <div className="space-y-6 overflow-y-auto pr-2">
-                    {/* Single Speaker Settings */}
-                    <div className="space-y-4 p-4 border border-slate-700 rounded-lg">
-                        <label className="block text-sm font-bold text-slate-300">{t('voiceLabel', uiLanguage)}</label>
+                    {/* Gemini HD Voices */}
+                    <div className="space-y-4 p-4 border border-cyan-500/30 rounded-lg">
+                         <label className="block text-sm font-bold text-cyan-400">{t('geminiHdVoices', uiLanguage)}</label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {voiceOptions.map(opt => (
                                 <div key={opt.id} className="flex items-center">
                                     <button 
-                                        onClick={() => handlePreview(opt.id)} 
+                                        onClick={() => handleGeminiPreview(opt.id)} 
                                         title={t('previewVoiceTooltip', uiLanguage)} 
-                                        className="p-2 text-cyan-400 hover:text-cyan-300 disabled:opacity-50" 
-                                        disabled={!!(isPreviewLoading && isPreviewLoading !== opt.id) || !!(previewingVoice && previewingVoice !== opt.id)}
+                                        className="p-2 text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
+                                        disabled={previewingVoice && previewingVoice !== opt.id}
                                     >
-                                        {isPreviewLoading === opt.id ? <LoaderIcon /> : (previewingVoice === opt.id ? <StopIcon /> : <PlayCircleIcon />)}
+                                        {previewingVoice === opt.id ? <LoaderIcon /> : <PlayCircleIcon />}
                                     </button>
                                     <button onClick={() => setVoice(opt.id)} className={`w-full text-left px-3 py-2 rounded-md transition-colors text-sm ${voice === opt.id ? 'bg-cyan-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>{opt.label}</button>
                                 </div>
                             ))}
                         </div>
-                        <label className="block text-sm font-bold text-slate-300 pt-2">{t('speechEmotion', uiLanguage)}</label>
-                        <select value={emotion} onChange={e => setEmotion(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md">
-                            <option value="Default">{t('emotionDefault', uiLanguage)}</option>
-                            <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
-                            <option value="Sad">{t('emotionSad', uiLanguage)}</option>
-                            <option value="Formal">{t('emotionFormal', uiLanguage)}</option>
-                        </select>
-                        <label className="block text-sm font-bold text-slate-300 pt-2">{t('pauseLabel', uiLanguage)}</label>
-                        <div className="flex items-center gap-3">
-                            <input type="range" min="0" max="5" step="0.5" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer" />
-                            <span className="text-sm text-cyan-400 w-16 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
+                        <p className="text-xs text-slate-400 mt-3 text-center">{t('geminiVoicesNote', uiLanguage)}</p>
+                        <div className={`${!isGeminiVoiceSelected ? 'opacity-50 cursor-not-allowed' : ''}`} title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}>
+                            <label className="block text-sm font-bold text-slate-300 pt-2">{t('speechEmotion', uiLanguage)}</label>
+                            <select value={emotion} onChange={e => setEmotion(e.target.value)} disabled={!isGeminiVoiceSelected} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md disabled:cursor-not-allowed">
+                                <option value="Default">{t('emotionDefault', uiLanguage)}</option>
+                                <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
+                                <option value="Sad">{t('emotionSad', uiLanguage)}</option>
+                                <option value="Formal">{t('emotionFormal', uiLanguage)}</option>
+                            </select>
+                            <label className="block text-sm font-bold text-slate-300 pt-4">{t('pauseLabel', uiLanguage)}</label>
+                            <div className="flex items-center gap-3">
+                                <input type="range" min="0" max="5" step="0.5" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} disabled={!isGeminiVoiceSelected} className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed" />
+                                <span className="text-sm text-cyan-400 w-16 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
+                            </div>
                         </div>
                     </div>
-
+                     {/* System Voices */}
+                    {(relevantSystemVoices.suggested.length > 0 || relevantSystemVoices.other.length > 0) && (
+                        <div className="space-y-4 p-4 border border-slate-700 rounded-lg">
+                             <label className="block text-sm font-bold text-slate-300">{t('systemVoices', uiLanguage)}</label>
+                             <div className="flex items-center gap-2">
+                                <select value={voice} onChange={e => setVoice(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md">
+                                    <>
+                                        {/* This placeholder is shown when a Gemini voice is selected */}
+                                        <option value="" disabled>{t('selectVoice', uiLanguage)}</option>
+                                        
+                                        {relevantSystemVoices.suggested.length > 0 && (
+                                            <optgroup label={t('suggestedVoices', uiLanguage)}>
+                                                {relevantSystemVoices.suggested.map((v) => (
+                                                    <option key={`${v.name}-${v.lang}`} value={v.name}>{v.name} ({v.lang})</option>
+                                                ))}
+                                            </optgroup>
+                                        )}
+                                        
+                                        {relevantSystemVoices.other.length > 0 && (
+                                            <optgroup label={t('otherSystemVoices', uiLanguage)}>
+                                                {relevantSystemVoices.other.map((v) => (
+                                                    <option key={`${v.name}-${v.lang}`} value={v.name}>{v.name} ({v.lang})</option>
+                                                ))}
+                                            </optgroup>
+                                        )}
+                                    </>
+                                </select>
+                                <button
+                                    onClick={handleSystemPreview}
+                                    disabled={isGeminiVoiceSelected || previewingVoice !== null}
+                                    title={t('previewSystemVoice', uiLanguage)}
+                                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isSystemSpeaking ? <StopIcon /> : <PlayCircleIcon />}
+                                </button>
+                             </div>
+                        </div>
+                    )}
                     {/* Multi Speaker Settings */}
-                    <div className="space-y-4 p-4 border border-slate-700 rounded-lg">
+                    <div className={`space-y-4 p-4 border border-slate-700 rounded-lg ${!isGeminiVoiceSelected ? 'opacity-50 cursor-not-allowed' : ''}`} title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}>
                         <div className="flex items-center justify-between">
                             <label className="text-sm font-bold text-slate-300">{t('multiSpeakerSettings', uiLanguage)}</label>
-                            <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={multiSpeaker} onChange={() => setMultiSpeaker(!multiSpeaker)} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div></label>
+                            <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={multiSpeaker} onChange={() => setMultiSpeaker(!multiSpeaker)} disabled={!isGeminiVoiceSelected} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div></label>
                         </div>
                         <p className="text-xs text-slate-400">{t('enableMultiSpeakerInfo', uiLanguage)}</p>
-                        {multiSpeaker && (
+                        {multiSpeaker && isGeminiVoiceSelected && (
                             <div className="space-y-4 pt-2 animate-fade-in-down">
                                 <p className="text-xs text-cyan-300 bg-cyan-900/50 p-2 rounded-md">{t('multiSpeakerInfo', uiLanguage)}</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1009,6 +1364,129 @@ const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' |
             </div>
         </div>
     )
+};
+
+const AudioControlModal: React.FC<{onClose: () => void, uiLanguage: Language}> = ({onClose, uiLanguage}) => {
+    
+    // STARTUP CRASH FIX: Convert component definitions from const arrow functions to standard function declarations.
+    // This hoists the functions, ensuring they are defined before the AudioControlModal's JSX tries to render them,
+    // which prevents a "Cannot access '...' before initialization" error.
+    
+    function StaticKnob({label, value}: {label: string, value: number}) {
+        const rotation = -135 + (value / 100) * 270;
+        return (
+            <div className="flex flex-col items-center gap-2">
+                <div className="w-20 h-20 p-1 bg-slate-900 rounded-full shadow-inner">
+                  <div 
+                    className="w-full h-full bg-gradient-radial from-slate-600 to-slate-800 rounded-full relative flex items-center justify-center border-2 border-slate-700"
+                    style={{transform: `rotate(${rotation}deg)`}}
+                  >
+                    <div className="w-1 h-5 bg-cyan-300 absolute top-1 rounded-full shadow-[0_0_5px_#22d3ee]"></div>
+                    <div className="absolute w-full h-full rounded-full border border-black/20"></div>
+                  </div>
+                </div>
+                <span className="text-sm text-slate-300 font-semibold mt-1">{label}</span>
+                <span className="text-xs font-mono text-cyan-400">{value}</span>
+            </div>
+        );
+    };
+
+    function StaticSlider({label, value}: {label: string, value: number}) {
+        return (
+            <div className="w-full">
+                <div className="flex justify-between items-center text-xs mb-1">
+                    <span className="text-slate-400 font-semibold">{label}</span>
+                    <span className="font-mono text-white">{value}</span>
+                </div>
+                <div className="w-full h-2 bg-slate-900 rounded-full relative group">
+                    <div className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500 rounded-full" style={{ width: `${value}%` }}></div>
+                    <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white rounded-full border-2 border-cyan-400 shadow-[0_0_5px_#22d3ee,0_0_10px_#22d3ee] transition-transform group-hover:scale-110" style={{ left: `calc(${value}% - 10px)` }}></div>
+                </div>
+            </div>
+        );
+    };
+    
+    function StaticVerticalSlider({label, value}: {label: string, value: number}) {
+        return (
+            <div className="flex flex-col items-center justify-end gap-2 h-full">
+                <div className="relative w-4 h-32 bg-slate-900 rounded-full group">
+                    <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-cyan-500 to-indigo-500 rounded-b-full" style={{ height: `${value}%` }}></div>
+                    <div className="absolute left-1/2 -translate-x-1/2 w-6 h-2 bg-white rounded-sm border-2 border-cyan-400 shadow-[0_0_5px_#22d3ee] transition-transform group-hover:scale-110" style={{ bottom: `calc(${value}% - 4px)` }}></div>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1">{label}</span>
+            </div>
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
+            <div className="bg-slate-800 border border-cyan-500/20 w-full max-w-3xl rounded-2xl shadow-2xl p-6 flex flex-col" onClick={e => e.stopPropagation()}>
+                 <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-semibold text-cyan-400">{t('audioControlTitle', uiLanguage)}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                <div className="p-3 mb-4 text-center bg-cyan-900/50 border border-cyan-500/30 rounded-lg">
+                    <p className="font-bold text-cyan-300">{t('comingSoon', uiLanguage)}</p>
+                    <p className="text-xs text-cyan-400">{t('featureUnavailable', uiLanguage)}</p>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* EQ Column */}
+                        <div className="md:col-span-1 p-4 bg-slate-900/50 border border-slate-700 rounded-lg shadow-inner">
+                            <h4 className="text-sm font-bold text-slate-300 mb-4 text-center tracking-widest">{t('equalizer', uiLanguage)}</h4>
+                            <div className="flex justify-around items-end h-32 gap-3">
+                                <StaticVerticalSlider label="60Hz" value={60} />
+                                <StaticVerticalSlider label="250Hz" value={40} />
+                                <StaticVerticalSlider label="1kHz" value={75} />
+                                <StaticVerticalSlider label="4kHz" value={55} />
+                                <StaticVerticalSlider label="12kHz" value={65} />
+                            </div>
+                        </div>
+
+                        {/* Center Column */}
+                        <div className="md:col-span-1 space-y-6">
+                             {/* Master Section */}
+                            <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg shadow-inner">
+                                <h4 className="text-sm font-bold text-slate-300 mb-4 text-center tracking-widest">{t('masterSection', uiLanguage)}</h4>
+                                <StaticSlider label={t('masterVolume', uiLanguage)} value={80} />
+                                <div className="flex justify-around mt-6">
+                                    <StaticKnob label={t('stereoWidth', uiLanguage)} value={75}/>
+                                </div>
+                            </div>
+                            {/* Dynamics */}
+                            <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg shadow-inner">
+                                <h4 className="text-sm font-bold text-slate-300 mb-4 text-center tracking-widest">{t('dynamics', uiLanguage)}</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                   <StaticKnob label={t('compressor', uiLanguage)} value={40} />
+                                   <StaticKnob label={t('limiter', uiLanguage)} value={95} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Effects Column */}
+                        <div className="md:col-span-1 space-y-6">
+                            <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg space-y-4 shadow-inner">
+                                <h4 className="text-sm font-bold text-slate-300 text-center tracking-widest">{t('effects', uiLanguage)}</h4>
+                                <StaticSlider label={t('reverb', uiLanguage)} value={30}/>
+                                <StaticSlider label={t('echo', uiLanguage)} value={15}/>
+                                <StaticSlider label={t('chorus', uiLanguage)} value={50}/>
+                            </div>
+                             <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg shadow-inner">
+                                 <div className="flex items-center justify-between">
+                                    <label className="text-sm font-bold text-slate-300">{t('hdAudio', uiLanguage)}</label>
+                                    <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" disabled defaultChecked className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 

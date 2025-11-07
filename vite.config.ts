@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   define: {
+    // Expose NODE_ENV to client code to allow environment-specific logic.
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
     // FIX: Expose Firebase environment variables to the client-side code. This is necessary
     // to make them available under `process.env` and resolve TypeScript errors.
     'process.env.VITE_FIREBASE_API_KEY': JSON.stringify(process.env.VITE_FIREBASE_API_KEY),
@@ -14,5 +16,7 @@ export default defineConfig({
     'process.env.VITE_FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
     'process.env.VITE_FIREBASE_APP_ID': JSON.stringify(process.env.VITE_FIREBASE_APP_ID),
     'process.env.VITE_FIREBASE_MEASUREMENT_ID': JSON.stringify(process.env.VITE_FIREBASE_MEASUREMENT_ID),
+    // FIX: Expose Gemini API key for client-side features like Live Chat.
+    'process.env.VITE_GEMINI_API_KEY': JSON.stringify(process.env.VITE_GEMINI_API_KEY),
   }
 })

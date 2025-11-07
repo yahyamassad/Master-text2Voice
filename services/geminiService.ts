@@ -4,11 +4,23 @@ import { decode, generateSilence, concatenateUint8Arrays } from '../utils/audioU
 
 
 export type SpeechSpeed = number;
+type DailyUsage = { used: number; limit: number };
 
-interface TranslationResult {
+interface TranslationData {
     translatedText: string;
     speakerMapping: Record<string, string>;
 }
+
+interface TranslationResult {
+    data: TranslationData;
+    usage: DailyUsage | null;
+}
+
+interface SpeechResult {
+    pcmData: Uint8Array | null;
+    usage: DailyUsage | null;
+}
+
 
 // --- Start of Dev Mode Client-Side Logic ---
 
@@ -67,7 +79,7 @@ async function singleSpeechRequestDev(
     promptText: string,
     speechConfig: any,
     signal: AbortSignal,
-): Promise<Uint8Array | null> {
+): Promise<Uint8Array> {
     
     // In dev mode, we can't easily abort a fetch-like call within the SDK,
     // so we check the signal before making the call.
@@ -82,22 +94,62 @@ async function singleSpeechRequestDev(
         },
     });
 
-    const base64Audio = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    const candidate = geminiResponse.candidates?.[0];
+    const base64Audio = candidate?.content?.parts?.[0]?.inlineData?.data;
+
     if (base64Audio) {
         return decode(base64Audio);
     }
-    return null;
+
+    // If no audio, log the response for debugging and throw an error.
+    console.error("Gemini API did not return audio. Full response:", JSON.stringify(geminiResponse, null, 2));
+
+    let reason = "The API returned a valid response, but it did not contain audio data. This can happen if billing is not enabled for the API key's project.";
+    if (geminiResponse.promptFeedback?.blockReason) {
+        reason = `Request was blocked by the API. Reason: ${geminiResponse.promptFeedback.blockReason}`;
+    } else if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+        reason = `Content generation finished for an unexpected reason: ${candidate.finishReason}`;
+    } else if (!candidate) {
+        reason = "The API response contained no valid candidates. This might be due to a safety block, an invalid API key, or a billing issue on the associated Google Cloud project.";
+    }
+
+    throw new Error(reason);
 }
 // --- End of Dev Mode Client-Side Logic ---
 
+// --- Helper for Production API calls ---
+/**
+ * Creates the headers for production API calls, including the owner's bypass token if available.
+ * @returns A Headers object.
+ */
+// FIX: Add optional idToken parameter to include Firebase Auth in production requests.
+function getProductionHeaders(idToken?: string): Headers {
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    
+    // Check session storage for the owner's secret key to bypass rate limits.
+    const bypassToken = sessionStorage.getItem('owner_secret_key');
+    if (bypassToken) {
+        headers.append('x-bypass-token', bypassToken);
+    }
+    
+    if (idToken) {
+        headers.append('Authorization', `Bearer ${idToken}`);
+    }
+    
+    return headers;
+}
+// --- End Helper ---
 
+// FIX: Add optional idToken parameter to match the function call in App.tsx.
 export async function translateText(
     text: string, 
     sourceLang: string, 
     targetLang: string, 
     speakerAName: string, 
     speakerBName: string, 
-    signal: AbortSignal
+    signal: AbortSignal,
+    idToken?: string
 ): Promise<TranslationResult> {
     if (signal.aborted) {
         throw new DOMException('Aborted', 'AbortError');
@@ -162,8 +214,11 @@ ${text}
             }
         
             return {
-                translatedText: parsedResult.translatedText,
-                speakerMapping: speakerMappingRecord
+                data: {
+                    translatedText: parsedResult.translatedText,
+                    speakerMapping: speakerMappingRecord
+                },
+                usage: null // No usage tracking in dev mode
             };
 
         } catch (error) {
@@ -178,21 +233,31 @@ ${text}
         try {
             const response = await fetch('/api/translate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+// FIX: Pass idToken to headers function.
+                headers: getProductionHeaders(idToken),
                 body: JSON.stringify({ text, sourceLang, targetLang }),
                 signal: signal,
             });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ error: `Request failed with status ${response.status}` }));
+                // Specific check for rate limit error
+                if (response.status === 429) {
+                    throw new Error('RATE_LIMIT_EXCEEDED');
+                }
                 throw new Error(errorData.error || `Request failed with status ${response.status}`);
             }
 
-            const result: TranslationResult = await response.json();
-            return result;
+            const used = response.headers.get('x-ratelimit-used');
+            const limit = response.headers.get('x-ratelimit-limit');
+            const usage: DailyUsage | null = used && limit ? { used: parseInt(used, 10), limit: parseInt(limit, 10) } : null;
+
+            const result: TranslationData = await response.json();
+            return { data: result, usage };
 
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') throw error;
+            if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') throw error;
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
             throw new Error(`Translation failed: ${errorMessage}`);
         }
@@ -200,6 +265,7 @@ ${text}
 }
 
 
+// FIX: Add optional idToken parameter to match the function call in App.tsx.
 export async function generateSpeech(
     text: string,
     voice: string,
@@ -208,8 +274,9 @@ export async function generateSpeech(
     pauseDuration: number,
     emotion: string,
     speakers: { speakerA: SpeakerConfig, speakerB: SpeakerConfig } | undefined,
-    signal: AbortSignal
-): Promise<Uint8Array | null> {
+    signal: AbortSignal,
+    idToken?: string
+): Promise<SpeechResult> {
     if (signal.aborted) {
         throw new DOMException('Aborted', 'AbortError');
     }
@@ -263,11 +330,9 @@ export async function generateSpeech(
                     const promptForParagraph = isMultiSpeaker ? processedParagraph : (adverb ? `Say ${adverb}: ${processedParagraph}` : processedParagraph);
                     
                     const pcmData = await singleSpeechRequestDev(ai, promptForParagraph, speechConfig, signal);
-                    if (pcmData) {
-                        audioChunks.push(pcmData);
-                        if (i < paragraphs.length - 1) {
-                            audioChunks.push(silenceChunk);
-                        }
+                    audioChunks.push(pcmData);
+                    if (i < paragraphs.length - 1) {
+                        audioChunks.push(silenceChunk);
                     }
                 }
                 if(audioChunks.length > 0) {
@@ -277,7 +342,7 @@ export async function generateSpeech(
                  finalPcmData = await singleSpeechRequestDev(ai, promptText, speechConfig, signal);
             }
             
-            return finalPcmData;
+            return { pcmData: finalPcmData, usage: null };
 
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') throw error;
@@ -291,30 +356,50 @@ export async function generateSpeech(
         try {
             const response = await fetch('/api/speak', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+// FIX: Pass idToken to headers function.
+                headers: getProductionHeaders(idToken),
                 body: JSON.stringify({ text, voice, speed, languageName, pauseDuration, emotion, speakers }),
                 signal: signal,
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: `Request failed with status ${response.status}` }));
+                 const errorData = await response.json().catch(() => ({ error: `Request failed with status ${response.status}` }));
+                // Specific check for rate limit error
+                if (response.status === 429) {
+                    throw new Error('RATE_LIMIT_EXCEEDED');
+                }
                 throw new Error(errorData.error || `Request failed with status ${response.status}`);
             }
             
+            const used = response.headers.get('x-ratelimit-used');
+            const limit = response.headers.get('x-ratelimit-limit');
+            const usage: DailyUsage | null = used && limit ? { used: parseInt(used, 10), limit: parseInt(limit, 10) } : null;
+
             const audioData = await response.arrayBuffer();
-            if (audioData.byteLength === 0) return null;
-            return new Uint8Array(audioData);
+            if (audioData.byteLength === 0) return { pcmData: null, usage };
+            return { pcmData: new Uint8Array(audioData), usage };
 
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') throw error;
+             if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') throw error;
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
             throw new Error(`Speech generation failed: ${errorMessage}`);
         }
     }
 }
 
-export async function previewVoice(voice: string, sampleText: string, signal: AbortSignal): Promise<Uint8Array | null> {
-    // This function can remain simple, as the backend handles the default values.
-    // The hybrid logic in generateSpeech will be automatically used.
-    return generateSpeech(sampleText, voice, 1.0, 'English', 0, 'Default', undefined, signal);
+export async function previewVoice(voice: string, sampleText: string, signal: AbortSignal): Promise<SpeechResult> {
+    // This function makes a controlled, minimal call to generateSpeech for a high-quality preview.
+    // We use default parameters for a consistent preview experience.
+    return generateSpeech(
+        sampleText,
+        voice,
+        1.0,        // Normal speed
+        'English',  // Language doesn't strictly matter for a preview but English is a safe default
+        0,          // No pause
+        'Default',  // Default emotion
+        undefined,  // Not multi-speaker
+        signal,
+        undefined   // CRITICAL FIX: Pass 'undefined' for the new 'idToken' parameter to match the updated function signature.
+    );
 }

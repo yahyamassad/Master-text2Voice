@@ -1,5 +1,7 @@
+import { Buffer } from "buffer";
 import { GoogleGenAI, Modality } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { checkRateLimit } from './_lib/rate-limiter';
 
 // --- Start of utility functions (self-contained for serverless environment) ---
 
@@ -65,7 +67,7 @@ async function singleSpeechRequest(
     ai: GoogleGenAI,
     promptText: string,
     speechConfig: any,
-): Promise<Uint8Array | null> {
+): Promise<Uint8Array> {
     const geminiResponse = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: promptText }] }],
@@ -75,11 +77,26 @@ async function singleSpeechRequest(
         },
     });
 
-    const base64Audio = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    const candidate = geminiResponse.candidates?.[0];
+    const base64Audio = candidate?.content?.parts?.[0]?.inlineData?.data;
+
     if (base64Audio) {
         return decode(base64Audio);
     }
-    return null;
+    
+    // If no audio, log the response for debugging and throw an error.
+    console.error("Gemini API did not return audio. Full response:", JSON.stringify(geminiResponse, null, 2));
+    
+    let reason = "The API returned a valid response, but it did not contain audio data.";
+    if (geminiResponse.promptFeedback?.blockReason) {
+        reason = `Request was blocked by the API. Reason: ${geminiResponse.promptFeedback.blockReason}`;
+    } else if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+        reason = `Content generation finished for an unexpected reason: ${candidate.finishReason}`;
+    } else if (!candidate) {
+        reason = "The API response contained no valid candidates. This might be due to a safety block or an issue with the prompt.";
+    }
+
+    throw new Error(reason);
 }
 
 // --- End of utility functions ---
@@ -91,13 +108,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    try {
-        const { text, voice, pauseDuration, emotion, speakers } = req.body;
+    const { text, voice, pauseDuration, emotion, speakers } = req.body;
 
-        if (!text || !voice) {
-            return res.status(400).json({ error: 'Missing required parameters: text and voice are required.' });
-        }
-        
+    if (!text || !voice) {
+        return res.status(400).json({ error: 'Missing required parameters: text and voice are required.' });
+    }
+    
+    // Enforce rate limiting before processing the request
+    const charCount = text.length;
+    const { isRateLimited, currentUsage, limit } = await checkRateLimit(req, charCount);
+
+    // Set headers on every response to keep the client updated
+    res.setHeader('X-RateLimit-Limit', limit);
+    res.setHeader('X-RateLimit-Used', currentUsage);
+    
+    if (isRateLimited) {
+        return res.status(429).json({ error: 'You have exceeded the daily usage limit. Please try again tomorrow.' });
+    }
+
+    try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
         let speechConfig: any;
@@ -143,11 +172,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const promptForParagraph = isMultiSpeaker ? processedParagraph : (adverb ? `Say ${adverb}: ${processedParagraph}` : processedParagraph);
                 
                 const pcmData = await singleSpeechRequest(ai, promptForParagraph, speechConfig);
-                if (pcmData) {
-                    audioChunks.push(pcmData);
-                    if (i < paragraphs.length - 1) {
-                        audioChunks.push(silenceChunk);
-                    }
+                audioChunks.push(pcmData);
+                if (i < paragraphs.length - 1) {
+                    audioChunks.push(silenceChunk);
                 }
             }
             if(audioChunks.length > 0) {
@@ -160,9 +187,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (finalPcmData) {
             res.setHeader('Content-Type', 'application/octet-stream');
             res.setHeader('Content-Length', finalPcmData.length);
+            // FIX: Use Buffer.from() to correctly send binary data in the response.
             return res.status(200).send(Buffer.from(finalPcmData));
         } else {
-            return res.status(500).json({ error: 'API did not return audio content.' });
+            return res.status(500).json({ error: 'API did not return audio content, and no specific reason was found.' });
         }
 
     } catch (error: any) {

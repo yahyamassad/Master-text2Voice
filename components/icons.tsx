@@ -380,17 +380,30 @@ function SawtliLogoIcon({ className }: IconProps) {
     );
 }
 
-function LiveChatIcon() {
+function SoundEnhanceIcon() {
     return (
-    <svg 
-        xmlns="http://www.w3.org/2000/svg" 
-        className="h-6 w-6" 
-        fill="none" 
-        viewBox="0 0 24 24" 
-        stroke="currentColor" 
-        strokeWidth={2}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-6 w-6"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
     >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 6h16M4 12h16M4 18h16M6 4v4m4-4v12m4-12v4m4 0v8"
+      />
+    </svg>
+    );
+}
+
+// FIX: Add UserIcon component as it was missing.
+function UserIcon({ className }: IconProps) {
+    return (
+    <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
     </svg>
     );
 }
@@ -399,6 +412,14 @@ function WarningIcon({ className }: IconProps) {
     return (
         <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+    );
+}
+
+function TrashIcon({ className }: IconProps) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
     );
 }
@@ -428,6 +449,8 @@ export {
   InfoIcon,
   PlayCircleIcon,
   SawtliLogoIcon,
-  LiveChatIcon,
+  SoundEnhanceIcon,
+  UserIcon,
   WarningIcon,
+  TrashIcon,
 };

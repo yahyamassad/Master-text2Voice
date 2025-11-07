@@ -1,19 +1,34 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { kv } from '@vercel/kv';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { checkRateLimit, getRateLimitKey } from './_lib/rate-limiter';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', ['POST']);
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
+    
+    const { text, sourceLang, targetLang } = req.body;
+
+    if (!text || !sourceLang || !targetLang) {
+        return res.status(400).json({ error: 'Missing required parameters: text, sourceLang, and targetLang are required.' });
+    }
+
+    // Enforce rate limiting before processing the request
+    const charCount = text.length;
+    const { isRateLimited, currentUsage, limit } = await checkRateLimit(req, charCount);
+    
+    // Set headers on every response to keep the client updated
+    res.setHeader('X-RateLimit-Limit', limit);
+    res.setHeader('X-RateLimit-Used', currentUsage);
+
+    if (isRateLimited) {
+        return res.status(429).json({ error: 'You have exceeded the daily usage limit. Please try again tomorrow.' });
+    }
+
 
     try {
-        const { text, sourceLang, targetLang } = req.body;
-        
-        if (!text || !sourceLang || !targetLang) {
-            return res.status(400).json({ error: 'Missing required parameters: text, sourceLang, and targetLang are required.' });
-        }
-
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = 'gemini-2.5-flash';
 

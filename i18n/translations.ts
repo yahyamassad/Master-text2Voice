@@ -59,28 +59,68 @@ export const translations = {
     en: 'Voice',
     fr: 'Voix',
   },
+   geminiHdVoices: {
+    ar: 'أصوات Gemini HD',
+    en: 'Gemini HD Voices',
+    fr: 'Voix Gemini HD',
+  },
+  geminiVoicesNote: {
+    ar: 'هذه الأصوات عالية الجودة ومُحسَّنة للغة العربية الفصحى. قد تتوفر لهجات إضافية في المستقبل.',
+    en: 'These high-quality voices are optimized for standard Arabic. Additional dialects may become available in the future.',
+    fr: 'Ces voix de haute qualité sont optimisées pour l\'arabe standard. Des dialectes supplémentaires pourraient être disponibles à l\'avenir.',
+  },
+  systemVoices: {
+    ar: 'أصوات النظام',
+    en: 'System Voices',
+    fr: 'Voix du Système',
+  },
+  suggestedVoices: {
+    ar: 'الأصوات المقترحة',
+    en: 'Suggested Voices',
+    fr: 'Voix Suggérées',
+  },
+  otherSystemVoices: {
+    ar: 'أصوات النظام الأخرى',
+    en: 'Other System Voices',
+    fr: 'Autres Voix du Système',
+  },
+  noRelevantSystemVoices: {
+    ar: 'لا توجد أصوات نظام ذات صلة',
+    en: 'No relevant system voices found',
+    fr: 'Aucune voix système pertinente trouvée',
+  },
+  selectVoice: {
+    ar: 'اختر صوتاً...',
+    en: 'Select a voice...',
+    fr: 'Sélectionnez une voix...',
+  },
+  geminiExclusiveFeature: {
+    ar: 'ميزة حصرية لأصوات Gemini HD',
+    en: 'This feature is exclusive to Gemini HD voices',
+    fr: 'Cette fonctionnalité est exclusive aux voix Gemini HD',
+  },
   voicePuck: {
-    ar: 'صوت (Puck) - ذكر',
+    ar: 'صوت عربي ١ (رجل)',
     en: 'Puck (Male)',
     fr: 'Puck (Masculin)',
   },
   voiceKore: {
-    ar: 'صوت (Kore) - أنثى',
+    ar: 'صوت عربي ١ (أنثى)',
     en: 'Kore (Female)',
     fr: 'Kore (Féminine)',
   },
   voiceZephyr: {
-    ar: 'صوت (Zephyr) - أنثى',
+    ar: 'صوت عربي ٢ (أنثى)',
     en: 'Zephyr (Female)',
     fr: 'Zephyr (Féminin)',
   },
   voiceCharon: {
-    ar: 'صوت (Charon) - ذكر',
+    ar: 'صوت عربي ٢ (رجل)',
     en: 'Charon (Male)',
     fr: 'Charon (Masculin)',
   },
   voiceFenrir: {
-    ar: 'صوت (Fenrir) - ذكر',
+    ar: 'صوت عربي ٣ (رجل)',
     en: 'Fenrir (Male)',
     fr: 'Fenrir (Masculin)',
   },
@@ -89,10 +129,15 @@ export const translations = {
     en: 'Preview this voice',
     fr: 'Aperçu de cette voix',
   },
+  previewSystemVoice: {
+    ar: 'معاينة صوت النظام',
+    en: 'Preview System Voice',
+    fr: 'Aperçu de la voix du système',
+  },
   voicePreviewText: {
-    ar: 'مرحباً، هذه معاينة لصوتي.',
-    en: 'Hello, this is a preview of my voice.',
-    fr: 'Bonjour, ceci est un aperçu de ma voix.',
+    ar: 'صوتلي معك أحلى',
+    en: 'Sawtli sounds sweeter with you.',
+    fr: 'Sawtli sonne plus doux avec vous.',
   },
   speechEmotion: {
     ar: 'نبرة الصوت',
@@ -409,65 +454,95 @@ export const translations = {
     en: 'To',
     fr: 'À',
   },
-   liveChat: {
-    ar: 'محادثة مباشرة',
-    en: 'Live Chat',
-    fr: 'Chat en direct',
+  audioControl: {
+    ar: 'استوديو الصوت',
+    en: 'Sound Studio',
+    fr: 'Studio Son',
   },
-  liveChatTitle: {
-    ar: 'محادثة صوتية مباشرة',
-    en: 'Live Voice Conversation',
-    fr: 'Conversation vocale en direct',
+  audioControlTitle: {
+    ar: 'استوديو تحسين الصوت',
+    en: 'Audio Enhancement Studio',
+    fr: 'Studio d\'Amélioration Audio',
   },
-  liveChatWelcome: {
-    ar: 'جاهز للتحدث؟ ابدأ محادثة مباشرة مع مساعدنا الذكي.',
-    en: 'Ready to talk? Start a live conversation with our AI assistant.',
-    fr: 'Prêt à parler ? Démarrez une conversation en direct avec notre assistant IA.',
+  comingSoon: {
+    ar: 'معاينة استوديو الصوت',
+    en: 'Sound Studio Preview',
+    fr: 'Aperçu du Studio Son',
   },
-  liveChatConfigNeededTitle: {
-    ar: 'مطلوب مفتاح Gemini API',
-    en: 'Gemini API Key Required',
-    fr: 'Clé API Gemini Requise',
+  featureUnavailable: {
+    ar: 'عناصر التحكم التفاعلية والمؤثرات الصوتية قيد التطوير حالياً!',
+    en: 'Interactive controls and audio effects are currently under development!',
+    fr: 'Les commandes interactives et les effets audio sont en cours de développement !',
   },
-  liveChatConfigNeededBody: {
-      ar: 'ميزة المحادثة المباشرة معطلة. لتفعيلها، يرجى إضافة مفتاح Gemini API الخاص بك كمتغير بيئة بالاسم التالي في منصة النشر الخاصة بك:',
-      en: 'The Live Chat feature is disabled. To enable it, please add your Gemini API key as an Environment Variable with the following name in your deployment platform:',
-      fr: 'La fonction Live Chat est désactivée. Pour l\'activer, veuillez ajouter votre clé API Gemini en tant que variable d\'environnement avec le nom suivant sur votre plateforme de déploiement :',
+  hdAudio: {
+    ar: 'صوت عالي الدقة (HD)',
+    en: 'HD Audio',
+    fr: 'Audio HD',
   },
-  startConversation: {
-    ar: 'بدء المحادثة',
-    en: 'Start Conversation',
-    fr: 'Démarrer la conversation',
+  equalizer: {
+    ar: 'موازن الصوت (EQ)',
+    en: 'Equalizer (EQ)',
+    fr: 'Égaliseur (EQ)',
   },
-  endConversation: {
-    ar: 'إنهاء المحادثة',
-    en: 'End Conversation',
-    fr: 'Terminer la conversation',
+  dynamics: {
+    ar: 'الديناميكيات',
+    en: 'Dynamics',
+    fr: 'Dynamiques',
   },
-  statusConnecting: {
-    ar: 'جاري الاتصال...',
-    en: 'Connecting...',
-    fr: 'Connexion...',
+  compressor: {
+    ar: 'ضاغط',
+    en: 'Compressor',
+    fr: 'Compresseur',
   },
-  statusListening: {
-    ar: 'أستمع...',
-    en: 'Listening...',
-    fr: 'Écoute...',
+  limiter: {
+    ar: 'محدد',
+    en: 'Limiter',
+    fr: 'Limiteur',
   },
-  statusSpeaking: {
-    ar: 'يتحدث...',
-    en: 'Speaking...',
-    fr: 'En train de parler...',
+  effects: {
+    ar: 'المؤثرات',
+    en: 'Effects',
+    fr: 'Effets',
   },
-  you: {
-    ar: 'أنت',
-    en: 'You',
-    fr: 'Vous',
+  reverb: {
+    ar: 'صدى',
+    en: 'Reverb',
+    fr: 'Réverbération',
   },
-  ai: {
-    ar: 'مساعد',
-    en: 'AI',
-    fr: 'IA',
+  echo: {
+    ar: 'تكرار',
+    en: 'Echo',
+    fr: 'Écho',
+  },
+  masterSection: {
+    ar: 'القسم الرئيسي',
+    en: 'Master Section',
+    fr: 'Section Maître',
+  },
+  masterVolume: {
+    ar: 'مستوى الصوت الرئيسي',
+    en: 'Master Volume',
+    fr: 'Volume Principal',
+  },
+  stereoWidth: {
+    ar: 'اتساع ستيريو',
+    en: 'Stereo Width',
+    fr: 'Largeur Stéréo',
+  },
+  threshold: {
+    ar: 'عتبة',
+    en: 'Threshold',
+    fr: 'Seuil',
+  },
+  ratio: {
+    ar: 'نسبة',
+    en: 'Ratio',
+    fr: 'Ratio',
+  },
+  chorus: {
+    ar: 'كورال',
+    en: 'Chorus',
+    fr: 'Chorus',
   },
   checkingServerConfig: {
     ar: 'جاري فحص إعدادات الخادم...',
@@ -494,10 +569,95 @@ export const translations = {
       en: 'Note: This message is only visible to the app owner. Regular users will not see this once the setup is complete.',
       fr: 'Remarque : Ce message n\'est visible que par le propriétaire de l\'application. Les utilisateurs réguliers ne le verront pas une fois la configuration terminée.',
   },
-  errorLiveChat: {
-    ar: 'حدث خطأ أثناء المحادثة المباشرة. يرجى المحاولة مرة أخرى.',
-    en: 'An error occurred during the live chat. Please try again.',
-    fr: 'Une erreur est survenue pendant le chat en direct. Veuillez réessayer.',
+  dailyUsageLabel: {
+    ar: 'الاستخدام اليومي',
+    en: 'Daily Usage',
+    fr: 'Usage Quotidien',
+  },
+  signIn: {
+    ar: 'تسجيل الدخول',
+    en: 'Sign In',
+    fr: 'Se connecter',
+  },
+  signOut: {
+    ar: 'تسجيل الخروج',
+    en: 'Sign Out',
+    fr: 'Se déconnecter',
+  },
+  signInError: {
+    ar: 'فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.',
+    en: 'Sign-in failed. Please try again.',
+    fr: 'La connexion a échoué. Veuillez réessayer.',
+  },
+  manageAccount: {
+    ar: 'إدارة الحساب',
+    en: 'Manage Account',
+    fr: 'Gérer le Compte',
+  },
+  joinedDate: {
+    ar: 'تاريخ الانضمام',
+    en: 'Joined',
+    fr: 'Inscrit le',
+  },
+  dataManagement: {
+    ar: 'إدارة البيانات',
+    en: 'Data Management',
+    fr: 'Gestion des Données',
+  },
+  clearCloudHistory: {
+    ar: 'مسح سجل السحابة',
+    en: 'Clear Cloud History',
+    fr: 'Effacer l\'Historique Cloud',
+  },
+  clearCloudHistoryInfo: {
+    ar: 'سيؤدي هذا إلى حذف سجل الترجمة بالكامل بشكل دائم من حسابك.',
+    en: 'This will permanently delete your entire translation history from your account.',
+    fr: 'Ceci supprimera définitivement tout votre historique de traduction de votre compte.',
+  },
+  dangerZone: {
+    ar: 'منطقة الخطر',
+    en: 'Danger Zone',
+    fr: 'Zone de Danger',
+  },
+  deleteAccount: {
+    ar: 'حذف الحساب',
+    en: 'Delete Account',
+    fr: 'Supprimer le Compte',
+  },
+  deleteAccountInfo: {
+    ar: 'سيؤدي هذا إلى حذف حسابك وجميع بياناتك المرتبطة به بشكل دائم. لا يمكن التراجع عن هذا الإجراء.',
+    en: 'This will permanently delete your account and all associated data. This action cannot be undone.',
+    fr: 'Ceci supprimera définitivement votre compte et toutes les données associées. Cette action est irréversible.',
+  },
+  deleteConfirmation: {
+    ar: 'هل أنت متأكد؟',
+    en: 'Are you sure?',
+    fr: 'Êtes-vous sûr ?',
+  },
+  deleteAccountConfirmationPrompt: {
+    ar: 'هل أنت متأكد أنك تريد حذف حسابك؟ سيتم مسح جميع بياناتك بشكل دائم.',
+    en: 'Are you sure you want to delete your account? All of your data will be permanently erased.',
+    fr: 'Êtes-vous sûr de vouloir supprimer votre compte ? Toutes vos données seront effacées de manière permanente.',
+  },
+  accountDeletedSuccess: {
+    ar: 'تم حذف حسابك بنجاح.',
+    en: 'Your account has been successfully deleted.',
+    fr: 'Votre compte a été supprimé avec succès.',
+  },
+  accountDeletionError: {
+    ar: 'حدث خطأ أثناء حذف الحساب. قد تحتاج إلى تسجيل الدخول مرة أخرى والمحاولة مرة أخرى.',
+    en: 'An error occurred while deleting the account. You may need to sign in again and retry.',
+    fr: 'Une erreur est survenue lors de la suppression du compte. Vous devrez peut-être vous reconnecter et réessayer.',
+  },
+  historyClearSuccess: {
+    ar: 'تم مسح سجل السحابة بنجاح.',
+    en: 'Cloud history cleared successfully.',
+    fr: 'L\'historique cloud a été effacé avec succès.',
+  },
+  historyClearError: {
+    ar: 'فشل مسح سجل السحابة.',
+    en: 'Failed to clear cloud history.',
+    fr: 'Échec de l\'effacement de l\'historique cloud.',
   },
   errorApiKeyMissing: {
       ar: 'وضع المطور: يرجى إدخال مفتاح Gemini API الخاص بك عند المطالبة لاستخدام هذه الميزة.',
@@ -513,6 +673,11 @@ export const translations = {
     ar: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
     en: 'An unexpected error occurred. Please try again.',
     fr: 'Une erreur inattendue est survenue. Veuillez réessayer.',
+  },
+   errorRateLimit: {
+    ar: 'لقد وصلت إلى الحد الأقصى للاستخدام اليومي من الأحرف. يرجى المحاولة مرة أخرى غدًا.',
+    en: 'You have reached the daily character usage limit. Please try again tomorrow.',
+    fr: 'Vous avez atteint la limite quotidienne d\'utilisation des caractères. Veuillez réessayer demain.',
   },
   errorRequestTimeout: {
     ar: 'استغرق الطلب وقتاً طويلاً جداً. قد يحدث هذا مع النصوص الطويلة. يرجى المحاولة بنص أقصر أو التحقق من اتصالك بالإنترنت.',
@@ -534,6 +699,11 @@ export const translations = {
     en: 'Failed to encode to MP3. Please try downloading as WAV.',
     fr: 'Échec de l\'encodage en MP3. Veuillez essayer de télécharger en WAV.',
   },
+   errorDownloadSystemVoice: {
+    ar: 'لا يمكن تحميل الأصوات من النظام. يرجى اختيار أحد أصوات Gemini HD لتفعيل التحميل.',
+    en: 'System voices cannot be downloaded. Please select a Gemini HD voice to enable downloading.',
+    fr: 'Les voix du système ne peuvent pas être téléchargées. Veuillez sélectionner une voix Gemini HD pour activer le téléchargement.',
+  },
   errorMicPermission: {
     ar: 'تم رفض إذن الوصول إلى الميكروفون. يرجى تفعيل الإذن من إعدادات المتصفح.',
     en: 'Microphone permission was denied. Please enable it in your browser settings.',
@@ -543,6 +713,57 @@ export const translations = {
     ar: 'ميزة التعرف على الكلام غير مدعومة في متصفحك.',
     en: 'Speech recognition is not supported by your browser.',
     fr: 'La reconnaissance vocale n\'est pas prise en charge par votre navigateur.',
+  },
+  // FIX: Add translations for the LiveChatModal component.
+  liveChatTitle: {
+    ar: 'محادثة مباشرة مع صوتلي',
+    en: 'Live Conversation with Sawtli',
+    fr: 'Conversation en direct avec Sawtli',
+  },
+  liveChatWelcome: {
+    ar: 'اضغط على الزر أدناه لبدء محادثة صوتية فورية مع صوتلي.',
+    en: 'Press the button below to start a real-time voice conversation with Sawtli.',
+    fr: 'Appuyez sur le bouton ci-dessous pour démarrer une conversation vocale en temps réel avec Sawtli.',
+  },
+  startConversation: {
+    ar: 'بدء المحادثة',
+    en: 'Start Conversation',
+    fr: 'Démarrer la conversation',
+  },
+  endConversation: {
+    ar: 'إنهاء المحادثة',
+    en: 'End Conversation',
+    fr: 'Terminer la conversation',
+  },
+  statusConnecting: {
+    ar: 'جاري الاتصال...',
+    en: 'Connecting...',
+    fr: 'Connexion en cours...',
+  },
+  statusListening: {
+    ar: 'جاري الاستماع...',
+    en: 'Listening...',
+    fr: 'Écoute en cours...',
+  },
+  statusSpeaking: {
+    ar: 'صوتلي يتحدث...',
+    en: 'Sawtli is speaking...',
+    fr: 'Sawtli parle...',
+  },
+  errorLiveChat: {
+    ar: 'حدث خطأ أثناء الجلسة المباشرة. يرجى المحاولة مرة أخرى.',
+    en: 'An error occurred during the live session. Please try again.',
+    fr: 'Une erreur s\'est produite pendant la session en direct. Veuillez réessayer.',
+  },
+  liveChatConfigNeededTitle: {
+    ar: 'إعدادات المحادثة المباشرة مطلوبة',
+    en: 'Live Chat Configuration Required',
+    fr: 'Configuration du chat en direct requise',
+  },
+  liveChatConfigNeededBody: {
+    ar: 'ميزة المحادثة المباشرة معطلة. يجب على مالك التطبيق إضافة VITE_GEMINI_API_KEY إلى متغيرات البيئة من جانب العميل لتمكينها.',
+    en: 'The Live Chat feature is disabled. The app owner must add the VITE_GEMINI_API_KEY to the client-side environment variables to enable it.',
+    fr: 'La fonction de chat en direct est désactivée. Le propriétaire de l\'application doit ajouter VITE_GEMINI_API_KEY aux variables d\'environnement côté client pour l\'activer.',
   },
   feedbackTitle: {
     ar: 'آراء المستخدمين',
