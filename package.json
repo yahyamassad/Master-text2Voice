@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node ./node_modules/patch-package/bin.js && vite build",
-    "preview": "vite preview"
+    "build": "vite build",
+    "preview": "vite preview",
+    "postinstall": "node ./node_modules/patch-package/bin.js"
   },
   "dependencies": {
     "@google/genai": "^1.28.0",
