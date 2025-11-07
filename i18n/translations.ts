@@ -140,9 +140,9 @@ export const translations = {
     fr: 'Aperçu de la voix du système',
   },
   voicePreviewText: {
-    ar: 'صوتلي معك أحلى',
-    en: 'Sawtli sounds sweeter with you.',
-    fr: 'Sawtli sonne plus doux avec vous.',
+    ar: 'مرحباً. هذا هو صوتي.',
+    en: 'Hello. This is my voice.',
+    fr: 'Bonjour. C\'est ma voix.',
   },
   emotionLabel: {
     ar: 'النبرة العامة',
@@ -579,6 +579,11 @@ export const translations = {
     en: 'Sign In',
     fr: 'Se connecter',
   },
+  signInNotConfigured: {
+    ar: 'خدمة تسجيل الدخول غير مهيأة حاليًا.',
+    en: 'Sign-in service is not currently configured.',
+    fr: 'Le service de connexion n\'est pas configuré actuellement.',
+  },
   signOut: {
     ar: 'تسجيل الخروج',
     en: 'Sign Out',
@@ -825,14 +830,14 @@ export const translations = {
     fr: 'Aucun commentaire pour le moment. Soyez le premier à partager votre avis !',
   },
   feedbackConfigNeededTitle: {
-      ar: 'ميزة التقييمات معطلة',
-      en: 'Feedback Feature Disabled',
-      fr: 'Fonctionnalité de Commentaires Désactivée',
+      ar: 'ميزة تسجيل الدخول والتقييمات معطلة',
+      en: 'Login & Feedback Features Disabled',
+      fr: 'Fonctionnalités de Connexion & Commentaires Désactivées',
   },
   feedbackConfigNeededBody: {
-      ar: 'يا صاحب التطبيق! لعرض التقييمات والسماح للمستخدمين بإرسالها، تحتاج إلى إعداد Firebase Firestore. يرجى اتباع الدليل.',
-      en: 'Hey App Owner! To display and submit feedback, you need to set up Firebase Firestore. Please follow the guide.',
-      fr: 'Salut propriétaire de l\'application ! Pour afficher et soumettre des commentaires, vous devez configurer Firebase Firestore. Veuillez suivre le guide.',
+      ar: 'يا صاحب التطبيق! لتمكين تسجيل دخول المستخدمين، حفظ السجلات، والتقييمات، تحتاج إلى إعداد Firebase. يرجى اتباع الدليل.',
+      en: 'Hey App Owner! To enable user sign-in, history saving, and feedback, you need to set up Firebase. Please follow the guide.',
+      fr: 'Salut propriétaire de l\'application ! Pour activer la connexion des utilisateurs, la sauvegarde de l\'historique et les commentaires, vous devez configurer Firebase. Veuillez suivre le guide.',
   },
   firebaseSetupGuideTitle: {
       ar: 'دليل إعداد Firebase (لصاحب التطبيق)',
@@ -855,14 +860,14 @@ export const translations = {
       fr: 'Aller à la Console Firebase',
   },
   firebaseSetupStep2Title: {
-      ar: 'الخطوة 2: تفعيل Firestore',
-      en: 'Step 2: Enable Firestore',
-      fr: 'Étape 2 : Activer Firestore',
+      ar: 'الخطوة 2: تفعيل المصادقة و Firestore',
+      en: 'Step 2: Enable Authentication & Firestore',
+      fr: 'Étape 2 : Activer l\'Authentification & Firestore',
   },
   firebaseSetupStep2Body: {
-      ar: 'في مشروعك، انتقل إلى قسم Firestore Database وأنشئ قاعدة بيانات في وضع الإنتاج.',
-      en: 'In your project, go to the Firestore Database section and create a database in production mode.',
-      fr: 'Dans votre projet, allez à la section Firestore Database et créez une base de données en mode production.',
+      ar: 'في مشروعك، قم بتفعيل "Authentication" (اختر Google كمزود خدمة). ثم، أنشئ قاعدة بيانات "Firestore Database" في وضع الإنتاج.',
+      en: 'In your project, enable "Authentication" (choose Google as a provider). Then, create a "Firestore Database" in production mode.',
+      fr: 'Dans votre projet, activez "Authentication" (choisissez Google comme fournisseur). Ensuite, créez une base de données "Firestore Database" en mode production.',
   },
   firebaseSetupStep3Title: {
       ar: 'الخطوة 3: إضافة متغيرات البيئة',
@@ -870,9 +875,9 @@ export const translations = {
       fr: 'Étape 3 : Ajouter les variables d\'environnement',
   },
   firebaseSetupStep3Body: {
-      ar: 'انسخ بيانات تهيئة Firebase لتطبيق الويب الخاص بك وأضفها كمتغيرات بيئة في لوحة تحكم Vercel.',
-      en: 'Copy your Firebase web app configuration credentials and add them as environment variables in your Vercel dashboard.',
-      fr: 'Copiez les informations de configuration de votre application web Firebase et ajoutez-les comme variables d\'environnement dans votre tableau de bord Vercel.',
+      ar: 'انسخ بيانات تهيئة Firebase لتطبيق الويب الخاص بك وأضفها كمتغيرات بيئة في لوحة تحكم Vercel. يجب أن تبدأ أسماء المتغيرات بـ `VITE_`.',
+      en: 'Copy your Firebase web app configuration credentials and add them as environment variables in your Vercel dashboard. The variable names must start with `VITE_`.',
+      fr: 'Copiez les informations de configuration de votre application web Firebase et ajoutez-les comme variables d\'environnement dans votre tableau de bord Vercel. Les noms des variables doivent commencer par `VITE_`.',
   },
   firebaseSetupStep4Title: {
       ar: 'الخطوة 4: تعيين قواعد Firestore',
@@ -880,9 +885,9 @@ export const translations = {
       fr: 'Étape 4 : Définir les règles Firestore',
   },
   firebaseSetupStep4Body: {
-      ar: 'اذهب إلى علامة التبويب "Rules" في Firestore واستبدل القواعد الافتراضية بالقواعد التالية للسماح للمستخدمين بكتابة التقييمات ولكن ليس تعديلها أو حذفها.',
-      en: 'Go to the "Rules" tab in Firestore and replace the default rules with the following to allow users to write feedback but not modify or delete it.',
-      fr: 'Allez dans l\'onglet "Rules" de Firestore et remplacez les règles par défaut par les suivantes pour permettre aux utilisateurs d\'écrire des commentaires mais pas de les modifier ou de les supprimer.',
+      ar: 'اذهب إلى علامة التبويب "Rules" في Firestore واستبدل القواعد الافتراضية بالقواعد التالية للسماح للمستخدمين بإدارة بياناتهم الخاصة والتقييمات.',
+      en: 'Go to the "Rules" tab in Firestore and replace the default rules with the following to allow users to manage their own data and feedback.',
+      fr: 'Allez dans l\'onglet "Rules" de Firestore et remplacez les règles par défaut par les suivantes pour permettre aux utilisateurs de gérer leurs propres données et commentaires.',
   },
   firebaseSetupStep5Title: {
       ar: 'الخطوة 5: إعادة نشر التطبيق',
