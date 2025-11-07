@@ -380,25 +380,6 @@ function SawtliLogoIcon({ className }: IconProps) {
     );
 }
 
-function SoundEnhanceIcon() {
-    return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      className="h-6 w-6"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M4 6h16M4 12h16M4 18h16M6 4v4m4-4v12m4-12v4m4 0v8"
-      />
-    </svg>
-    );
-}
-
 function UserIcon({ className }: IconProps) {
     return (
     <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} viewBox="0 0 20 20" fill="currentColor">
@@ -420,6 +401,26 @@ function TrashIcon({ className }: IconProps) {
         <svg xmlns="http://www.w3.org/2000/svg" className={cn('h-5 w-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
+    );
+}
+
+function SoundEnhanceIcon() {
+    return (
+    <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        className="h-6 w-6" 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+    >
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+        <path d="M12 6v12"></path>
+        <path d="M15 9l-6 6"></path>
+        <path d="M9 9l6 6"></path>
+    </svg>
     );
 }
 
@@ -448,8 +449,8 @@ export {
   InfoIcon,
   PlayCircleIcon,
   SawtliLogoIcon,
-  SoundEnhanceIcon,
   UserIcon,
   WarningIcon,
   TrashIcon,
+  SoundEnhanceIcon,
 };

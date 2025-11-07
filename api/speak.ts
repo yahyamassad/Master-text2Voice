@@ -1,105 +1,103 @@
-import { Buffer } from "buffer";
 import { GoogleGenAI, Modality } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { applyRateLimiting } from './_lib/rate-limiter';
 
-// --- Start of utility functions (self-contained for serverless environment) ---
+// =================================================================================
+// SSML Processing Engine - The core of the new implementation
+// =================================================================================
 
-function decode(base64: string): Uint8Array {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-}
+// Maps UI sound effect tags to SSML interjections.
+const soundEffectMap: { [key: string]: string } = {
+    '[laugh]': '<say-as interpret-as="interjection">laugh</say-as>',
+    '[laughter]': '<say-as interpret-as="interjection">laughter</say-as>',
+    '[sigh]': '<say-as interpret-as="interjection">sigh</say-as>',
+    '[sob]': '<say-as interpret-as="interjection">sob</say-as>',
+    '[gasp]': '<say-as interpret-as="interjection">gasp</say-as>',
+    '[cough]': '<say-as interpret-as="interjection">cough</say-as>',
+    '[hmm]': '<say-as interpret-as="interjection">hmm</say-as>',
+    '[cheer]': '<say-as interpret-as="interjection">cheer</say-as>',
+    '[kiss]': '<say-as interpret-as="interjection">kiss</say-as>',
+};
 
-function generateSilence(duration: number, sampleRate: number, numChannels: number): Uint8Array {
-    const bitsPerSample = 16;
-    const bytesPerSample = bitsPerSample / 8;
-    const numFrames = Math.floor(duration * sampleRate);
-    const bufferSize = numFrames * numChannels * bytesPerSample;
-    return new Uint8Array(bufferSize);
-}
+// Maps UI emotion settings to SSML prosody attributes.
+const emotionProsodyMap: { [key: string]: { rate: string; pitch: string } } = {
+    'Default': { rate: 'medium', pitch: 'medium' },
+    'Happy': { rate: 'fast', pitch: 'high' },
+    'Sad': { rate: 'slow', pitch: 'low' },
+    'Formal': { rate: 'medium', pitch: 'medium' }, // Formality is more about diction, but we can keep prosody neutral.
+    // Inline emotions
+    'cheerfully': { rate: 'fast', pitch: 'high' },
+    'sadly': { rate: 'slow', pitch: 'low' },
+    'formally': { rate: 'medium', pitch: 'medium' },
+    'angrily': { rate: 'fast', pitch: 'medium' }, // Example of future extension
+    'softly': { rate: 'slow', pitch: 'low' }
+};
 
-function concatenateUint8Arrays(arrays: Uint8Array[]): Uint8Array {
-    const totalLength = arrays.reduce((acc, value) => acc + value.length, 0);
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const arr of arrays) {
-        result.set(arr, offset);
-        offset += arr.length;
-    }
-    return result;
-}
-
-function getEmotionAdverb(emotion: string): string {
-    switch (emotion) {
-        case "Happy": return "cheerfully";
-        case "Sad": return "sadly";
-        case "Formal": return "formally";
-        default: return "";
-    }
-}
-
-function processSsmlTags(text: string): string {
-    const ssmlMap: Record<string, string> = {
-        '\\[laugh\\]': '<say-as interpret-as="interjection">haha</say-as>',
-        '\\[laughter\\]': '<say-as interpret-as="interjection">laughter</say-as>',
-        '\\[sigh\\]': '<say-as interpret-as="interjection">sigh</say-as>',
-        '\\[sob\\]': '<say-as interpret-as="interjection">sob</say-as>',
-        '\\[gasp\\]': '<say-as interpret-as="interjection">gasp</say-as>',
-        '\\[cough\\]': '<say-as interpret-as="interjection">cough</say-as>',
-        '\\[hmm\\]': '<say-as interpret-as="interjection">hmm</say-as>',
-        '\\[cheer\\]': '<say-as interpret-as="interjection">hurray</say-as>',
-        '\\[kiss\\]': '<say-as interpret-as="interjection">kiss</say-as>',
-    };
-
-    let processedText = text;
-    for (const tag in ssmlMap) {
-        processedText = processedText.replace(new RegExp(tag, 'gi'), ssmlMap[tag]);
-    }
-    return processedText;
-}
-
-async function singleSpeechRequest(
-    ai: GoogleGenAI,
-    promptText: string,
-    speechConfig: any,
-): Promise<Uint8Array> {
-    const geminiResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: promptText }] }],
-        config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: speechConfig,
-        },
+// A simple utility to escape characters that are special in XML/SSML.
+function escapeXml(text: string): string {
+    return text.replace(/[<>&'"]/g, (char) => {
+        switch (char) {
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '&': return '&amp;';
+            case '\'': return '&apos;';
+            case '"': return '&quot;';
+            default: return char;
+        }
     });
-
-    const candidate = geminiResponse.candidates?.[0];
-    const base64Audio = candidate?.content?.parts?.[0]?.inlineData?.data;
-
-    if (base64Audio) {
-        return decode(base64Audio);
-    }
-    
-    // If no audio, log the response for debugging and throw an error.
-    console.error("Gemini API did not return audio. Full response:", JSON.stringify(geminiResponse, null, 2));
-    
-    let reason = "The API returned a valid response, but it did not contain audio data.";
-    if (geminiResponse.promptFeedback?.blockReason) {
-        reason = `Request was blocked by the API. Reason: ${geminiResponse.promptFeedback.blockReason}`;
-    } else if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
-        reason = `Content generation finished for an unexpected reason: ${candidate.finishReason}`;
-    } else if (!candidate) {
-        reason = "The API response contained no valid candidates. This might be due to a safety block or an issue with the prompt.";
-    }
-
-    throw new Error(reason);
 }
 
-// --- End of utility functions ---
+/**
+ * Processes raw text with custom tags into a complete SSML string.
+ * This function is the heart of the intelligent speech generation.
+ * @param text The user's input text, e.g., "Hello [laugh] (sadly) I am not well."
+ * @param overallEmotion The default emotion for the entire text.
+ * @param pauseDuration The duration in seconds for paragraph breaks.
+ * @returns A single, well-formed SSML string.
+ */
+function processTextToSsml(text: string, overallEmotion: string, pauseDuration: number): string {
+    // Start with the default prosody based on the overall emotion setting.
+    let currentProsody = emotionProsodyMap[overallEmotion] || emotionProsodyMap['Default'];
+    let ssmlBody = '';
+    
+    // Regex to split the text by our custom tags `[...]` and `(...)`, keeping the delimiters.
+    const parts = text.split(/(\[.*?\]|\(.*?\))/g).filter(p => p);
 
+    for (const part of parts) {
+        if (part.startsWith('[') && part.endsWith(']')) {
+            // It's a sound effect tag, e.g., "[laugh]"
+            ssmlBody += soundEffectMap[part.toLowerCase()] || '';
+        } else if (part.startsWith('(') && part.endsWith(')')) {
+            // It's an inline emotional cue, e.g., "(sadly)"
+            const cue = part.slice(1, -1).trim().toLowerCase();
+            const newProsody = emotionProsodyMap[cue];
+            if (newProsody) {
+                currentProsody = newProsody;
+            }
+            // Note: The cue itself is not spoken, it only changes the style for the next part.
+        } else {
+            // It's a regular piece of text.
+            const cleanedPart = part.trim();
+            if (cleanedPart) {
+                // Wrap the text in the currently active prosody settings.
+                ssmlBody += `<prosody rate="${currentProsody.rate}" pitch="${currentProsody.pitch}">${escapeXml(cleanedPart)}</prosody> `;
+            }
+            // After speaking this part, revert to the overall emotion's prosody.
+            currentProsody = emotionProsodyMap[overallEmotion] || emotionProsodyMap['Default'];
+        }
+    }
+    
+    // Replace newlines with SSML break tags for natural pauses between paragraphs.
+    const finalBodyWithPauses = ssmlBody.trim().replace(/\n+/g, `<break time="${pauseDuration}s"/>`);
+
+    // Wrap everything in the root <speak> tag.
+    return `<speak>${finalBodyWithPauses}</speak>`;
+}
+
+
+// =================================================================================
+// Vercel Serverless Function Handler
+// =================================================================================
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -107,100 +105,94 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { text, voice, pauseDuration, emotion, speakers } = req.body;
-
-    if (!text || !voice) {
-        return res.status(400).json({ error: 'Missing required parameters: text and voice are required.' });
+    try {
+        await applyRateLimiting(req, res);
+    } catch (error: any) {
+        return res.status(429).json({ error: error.message || 'Rate limit exceeded.' });
     }
+
+    const { text, voice, emotion, pauseDuration, speakers } = req.body;
+
+    if (!voice) {
+        return res.status(400).json({ error: 'Missing required parameter: voice is required.' });
+    }
+    
+    // CRITICAL FIX: Prevent processing empty text, which causes a silent API failure.
+    if (!text || !text.trim()) {
+        return res.status(400).json({ error: 'Input text cannot be empty.' });
+    }
+
 
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const model = "gemini-2.5-flash-preview-tts";
         
-        let speechConfig: any;
-        let promptText = text;
+        // The core logic is now simplified to one SSML generation step.
+        const ssmlText = processTextToSsml(text, emotion, pauseDuration);
+        
+        // The API configuration is now simpler.
+        const config: any = {
+            responseModalities: [Modality.AUDIO],
+        };
 
-        const isMultiSpeaker = speakers?.speakerA?.name?.trim() && speakers?.speakerB?.name?.trim();
-
-        if (isMultiSpeaker) {
-            speechConfig = {
+        if (speakers && speakers.speakerA && speakers.speakerB) {
+            // Multi-speaker mode still works by passing speaker names.
+            // The model will use SSML for tone and this config for voice assignment.
+            config.speechConfig = {
                 multiSpeakerVoiceConfig: {
                     speakerVoiceConfigs: [
                         { speaker: speakers.speakerA.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } } },
-                        { speaker: speakers.speakerB.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } } }
+                        { speaker: speakers.speakerB.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } } },
                     ]
                 }
             };
         } else {
-            const adverb = getEmotionAdverb(emotion);
-            const processedTextForEmotion = processSsmlTags(text);
-            if (adverb) {
-                promptText = `Say ${adverb}: ${processedTextForEmotion}`;
-            } else {
-                promptText = processedTextForEmotion;
-            }
-            speechConfig = {
+            // Single-speaker mode configuration.
+            config.speechConfig = {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             };
         }
         
-        let finalPcmData: Uint8Array | null = null;
+        // A single, efficient API call with the complete SSML payload.
+        const result = await ai.models.generateContent({
+            model,
+            contents: [{ parts: [{ text: ssmlText }] }],
+            config,
+        });
+
+        const base64Audio = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         
-        const paragraphs = text.split(/\n+/).filter((p: string) => p.trim() !== '');
-        const numericPauseDuration = Number(pauseDuration);
-
-        if (numericPauseDuration > 0 && paragraphs.length > 1) {
-            const audioChunks: Uint8Array[] = [];
-            const silenceChunk = generateSilence(numericPauseDuration, 24000, 1);
-
-            for (let i = 0; i < paragraphs.length; i++) {
-                const p = paragraphs[i];
-                const processedParagraph = processSsmlTags(p);
-                const adverb = getEmotionAdverb(emotion);
-                const promptForParagraph = isMultiSpeaker ? processedParagraph : (adverb ? `Say ${adverb}: ${processedParagraph}` : processedParagraph);
-                
-                const pcmData = await singleSpeechRequest(ai, promptForParagraph, speechConfig);
-                audioChunks.push(pcmData);
-                if (i < paragraphs.length - 1) {
-                    audioChunks.push(silenceChunk);
-                }
-            }
-            if(audioChunks.length > 0) {
-                finalPcmData = concatenateUint8Arrays(audioChunks);
-            }
-        } else {
-             finalPcmData = await singleSpeechRequest(ai, promptText, speechConfig);
+        if (!base64Audio) {
+            // Check for specific finish reasons from the model for better debugging.
+            const finishReason = result.candidates?.[0]?.finishReason;
+            const finishMessage = result.candidates?.[0]?.finishMessage || 'No specific message.';
+            console.error(`Audio generation failed. Reason: ${finishReason}, Message: ${finishMessage}`);
+            throw new Error(`Could not generate audio. Model finished with reason: ${finishReason}.`);
         }
 
-        if (finalPcmData) {
-            res.setHeader('Content-Type', 'application/octet-stream');
-            res.setHeader('Content-Length', finalPcmData.length);
-            return res.status(200).send(Buffer.from(finalPcmData));
-        } else {
-            return res.status(500).json({ error: 'API did not return audio content, and no specific reason was found.' });
-        }
-
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(200).json({ audioContent: base64Audio });
+        
     } catch (error: any) {
-        // Log the full error structure for debugging in Vercel logs
         console.error("Full error in /api/speak:", JSON.stringify(error, null, 2));
 
-        // Construct a more detailed error message for the frontend
         let errorMessage = 'An unknown server error occurred.';
         if (error.message) {
             errorMessage = error.message;
         }
-        
-        // Check for common, user-fixable issues in the message from Google's API
+
+        // Provide more user-friendly error messages for common API issues
         const lowerCaseError = errorMessage.toLowerCase();
         if (lowerCaseError.includes('api key not valid')) {
             errorMessage = 'Gemini API Error: The API key provided in Vercel is not valid. Please check the `API_KEY` environment variable.';
-        } else if (lowerCaseError.includes('billing') || lowerCaseError.includes('project has not enabled billing')) {
-            errorMessage = 'Gemini API Error: Billing is not enabled for the Google Cloud project associated with the API key. Please enable billing to use this feature.';
+        } else if (lowerCaseError.includes('billing')) {
+            errorMessage = 'Gemini API Error: Billing is not enabled for the Google Cloud project. Please enable billing.';
         } else if (lowerCaseError.includes('permission_denied') || lowerCaseError.includes('api not enabled')) {
-             errorMessage = 'Gemini API Error: The "Generative Language API" or "Vertex AI API" is not enabled in your Google Cloud project. Please visit your Google Cloud Console and enable it.';
-        } else if (lowerCaseError.includes('not found')) {
-            errorMessage = `Gemini API Error: The requested resource was not found. This can sometimes indicate an issue with the API key's project association.`;
+             errorMessage = 'Gemini API Error: The "Generative Language API" or "Vertex AI API" is not enabled in your Google Cloud project.';
+        } else if (lowerCaseError.includes('rate limit')) {
+             errorMessage = 'You have reached the daily character usage limit. Please try again tomorrow.';
         }
-        
+
         return res.status(500).json({ error: errorMessage });
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { getFirebase } from '../firebaseConfig';
 import { t, Language } from '../i18n/translations';
 import { StarIcon, LoaderIcon, CopyIcon, ExternalLinkIcon, ChevronDownIcon } from './icons';
@@ -68,11 +68,11 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
     const [varsCopyButtonText, setVarsCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
     const [rulesCopyButtonText, setRulesCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
 
-    // Call getFirebase() once at the top of the component to get the instance and status.
-    const { db, isFirebaseConfigured } = getFirebase();
+    // Call getFirebase() inside the component lifecycle and memoize the result.
+    const { db, isFirebaseConfigured } = useMemo(() => getFirebase(), []);
 
     useEffect(() => {
-        // Use the db and isFirebaseConfigured variables from the call above.
+        // Use the db and isFirebaseConfigured variables from the useMemo call.
         if (!isFirebaseConfigured || !db) {
             setIsLoading(false);
             return;
@@ -105,7 +105,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // The `db` instance is already available from the getFirebase() call.
+        // The `db` instance is available from the useMemo() call.
         if (!comment.trim() || rating === 0 || !db) return;
         
         setIsSubmitting(true);
@@ -164,7 +164,7 @@ service cloud.firestore {
         }
     };
 
-    // Use the `isFirebaseConfigured` variable from the top-level call.
+    // Use the `isFirebaseConfigured` variable from the component-level call.
     if (!isFirebaseConfigured) {
         return (
             <div className="p-4 sm:p-6 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300">

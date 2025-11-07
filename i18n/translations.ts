@@ -54,6 +54,11 @@ export const translations = {
     en: 'Open Speech Settings',
     fr: 'Ouvrir les Paramètres Vocaux',
   },
+  closeButton: {
+    ar: 'إغلاق',
+    en: 'Close',
+    fr: 'Fermer',
+  },
   voiceLabel: {
     ar: 'الصوت',
     en: 'Voice',
@@ -100,29 +105,29 @@ export const translations = {
     fr: 'Cette fonctionnalité est exclusive aux voix Gemini HD',
   },
   voiceMale1: {
-    ar: 'صوت عربي ١ (رجل)',
-    en: 'Arabic Voice 1 (Male)',
-    fr: 'Voix Arabe 1 (Homme)',
+    ar: 'Puck (رجل)',
+    en: 'Puck (Male)',
+    fr: 'Puck (Homme)',
   },
   voiceFemale1: {
-    ar: 'صوت عربي ١ (أنثى)',
-    en: 'Arabic Voice 1 (Female)',
-    fr: 'Voix Arabe 1 (Femme)',
+    ar: 'Kore (أنثى)',
+    en: 'Kore (Female)',
+    fr: 'Kore (Femme)',
   },
   voiceMale2: {
-    ar: 'صوت عربي ٢ (رجل)',
-    en: 'Arabic Voice 2 (Male)',
-    fr: 'Voix Arabe 2 (Homme)',
+    ar: 'Charon (رجل)',
+    en: 'Charon (Male)',
+    fr: 'Charon (Homme)',
   },
   voiceFemale2: {
-    ar: 'صوت عربي ٢ (أنثى)',
-    en: 'Arabic Voice 2 (Female)',
-    fr: 'Voix Arabe 2 (Femme)',
+    ar: 'Zephyr (أنثى)',
+    en: 'Zephyr (Female)',
+    fr: 'Zephyr (Femme)',
   },
   voiceMale3: {
-    ar: 'صوت عربي ٣ (رجل)',
-    en: 'Arabic Voice 3 (Male)',
-    fr: 'Voix Arabe 3 (Homme)',
+    ar: 'Fenrir (رجل)',
+    en: 'Fenrir (Male)',
+    fr: 'Fenrir (Homme)',
   },
   previewVoiceTooltip: {
     ar: 'معاينة هذا الصوت',
@@ -139,10 +144,15 @@ export const translations = {
     en: 'Sawtli sounds sweeter with you.',
     fr: 'Sawtli sonne plus doux avec vous.',
   },
-  speechEmotion: {
-    ar: 'نبرة الصوت',
-    en: 'Speech Emotion',
-    fr: 'Émotion de la parole',
+  emotionLabel: {
+    ar: 'النبرة العامة',
+    en: 'Overall Tone',
+    fr: 'Ton Général',
+  },
+  emotionLabelInfo: {
+      ar: 'يضبط نبرة الصوت العامة. يمكنك أيضًا استخدام علامات مضمنة مثل "(بحزن)" لتغيير النبرة لجزء معين من النص.',
+      en: 'Sets the general tone of the voice. You can also use inline tags like "(sadly)" to change the tone for a specific part of the text.',
+      fr: 'Définit le ton général de la voix. Vous pouvez également utiliser des balises en ligne comme "(tristement)" pour changer le ton d\'une partie spécifique du texte.',
   },
   emotionDefault: {
     ar: 'افتراضي',
@@ -152,7 +162,7 @@ export const translations = {
   emotionHappy: {
     ar: 'سعيد',
     en: 'Happy',
-    fr: 'Heureux',
+    fr: 'Joyeux',
   },
   emotionSad: {
     ar: 'حزين',
@@ -344,6 +354,86 @@ export const translations = {
     en: 'Share Link',
     fr: 'Partager le lien',
   },
+  audioStudio: {
+    ar: 'استوديو الصوت',
+    en: 'Audio Studio',
+    fr: 'Studio Audio',
+  },
+    audioEnhancementStudio: {
+    ar: 'استوديو تحسين الصوت',
+    en: 'Audio Enhancement Studio',
+    fr: 'Studio d\'Amélioration Audio',
+  },
+  audioStudioPreview: {
+    ar: 'معاينة استوديو الصوت',
+    en: 'Audio Studio Preview',
+    fr: 'Aperçu du Studio Audio',
+  },
+  previewNotice: {
+    ar: 'عذراً، التحكم والتأثيرات الصوتية المتقدمة قيد التطوير حالياً!',
+    en: 'Sorry, advanced audio controls and effects are currently under development!',
+    fr: 'Désolé, les contrôles audio avancés et les effets sont actuellement en cours de développement !',
+  },
+  effects: {
+    ar: 'المؤثرات',
+    en: 'Effects',
+    fr: 'Effets',
+  },
+  reverb: {
+    ar: 'صدى',
+    en: 'Reverb',
+    fr: 'Réverbération',
+  },
+  delay: {
+    ar: 'تكرار',
+    en: 'Delay',
+    fr: 'Délai',
+  },
+  chorus: {
+    ar: 'جوقة',
+    en: 'Chorus',
+    fr: 'Chorus',
+  },
+  hdAudio: {
+    ar: 'صوت عالي الدقة (HD)',
+    en: 'HD Audio',
+    fr: 'Audio HD',
+  },
+  mainSection: {
+    ar: 'القسم الرئيسي',
+    en: 'Main Section',
+    fr: 'Section Principale',
+  },
+  mainVolume: {
+    ar: 'مستوى الصوت',
+    en: 'Volume',
+    fr: 'Volume',
+  },
+  stereoWidth: {
+    ar: 'اتساع ستيريو',
+    en: 'Stereo Width',
+    fr: 'Largeur Stéréo',
+  },
+  equalizer: {
+    ar: 'موازن الصوت (EQ)',
+    en: 'Equalizer (EQ)',
+    fr: 'Égaliseur (EQ)',
+  },
+  dynamics: {
+    ar: 'الديناميكيات',
+    en: 'Dynamics',
+    fr: 'Dynamiques',
+  },
+  limiter: {
+    ar: 'محدد',
+    en: 'Limiter',
+    fr: 'Limiteur',
+  },
+  compressor: {
+    ar: 'ضاغط',
+    en: 'Compressor',
+    fr: 'Compresseur',
+  },
   shareSettingsTooltip: {
     ar: 'نسخ رابط مع الإعدادات الحالية',
     en: 'Copy a link with the current settings',
@@ -454,96 +544,6 @@ export const translations = {
     en: 'To',
     fr: 'À',
   },
-  audioControl: {
-    ar: 'استوديو الصوت',
-    en: 'Sound Studio',
-    fr: 'Studio Son',
-  },
-  audioControlTitle: {
-    ar: 'استوديو تحسين الصوت',
-    en: 'Audio Enhancement Studio',
-    fr: 'Studio d\'Amélioration Audio',
-  },
-  comingSoon: {
-    ar: 'معاينة استوديو الصوت',
-    en: 'Sound Studio Preview',
-    fr: 'Aperçu du Studio Son',
-  },
-  featureUnavailable: {
-    ar: 'عناصر التحكم التفاعلية والمؤثرات الصوتية قيد التطوير حالياً!',
-    en: 'Interactive controls and audio effects are currently under development!',
-    fr: 'Les commandes interactives et les effets audio sont en cours de développement !',
-  },
-  hdAudio: {
-    ar: 'صوت عالي الدقة (HD)',
-    en: 'HD Audio',
-    fr: 'Audio HD',
-  },
-  equalizer: {
-    ar: 'موازن الصوت (EQ)',
-    en: 'Equalizer (EQ)',
-    fr: 'Égaliseur (EQ)',
-  },
-  dynamics: {
-    ar: 'الديناميكيات',
-    en: 'Dynamics',
-    fr: 'Dynamiques',
-  },
-  compressor: {
-    ar: 'ضاغط',
-    en: 'Compressor',
-    fr: 'Compresseur',
-  },
-  limiter: {
-    ar: 'محدد',
-    en: 'Limiter',
-    fr: 'Limiteur',
-  },
-  effects: {
-    ar: 'المؤثرات',
-    en: 'Effects',
-    fr: 'Effets',
-  },
-  reverb: {
-    ar: 'صدى',
-    en: 'Reverb',
-    fr: 'Réverbération',
-  },
-  echo: {
-    ar: 'تكرار',
-    en: 'Echo',
-    fr: 'Écho',
-  },
-  masterSection: {
-    ar: 'القسم الرئيسي',
-    en: 'Master Section',
-    fr: 'Section Maître',
-  },
-  masterVolume: {
-    ar: 'مستوى الصوت الرئيسي',
-    en: 'Master Volume',
-    fr: 'Volume Principal',
-  },
-  stereoWidth: {
-    ar: 'اتساع ستيريو',
-    en: 'Stereo Width',
-    fr: 'Largeur Stéréo',
-  },
-  threshold: {
-    ar: 'عتبة',
-    en: 'Threshold',
-    fr: 'Seuil',
-  },
-  ratio: {
-    ar: 'نسبة',
-    en: 'Ratio',
-    fr: 'Ratio',
-  },
-  chorus: {
-    ar: 'كورال',
-    en: 'Chorus',
-    fr: 'Chorus',
-  },
   checkingServerConfig: {
     ar: 'جاري فحص إعدادات الخادم...',
     en: 'Checking server configuration...',
@@ -622,222 +622,222 @@ export const translations = {
   deleteAccount: {
     ar: 'حذف الحساب',
     en: 'Delete Account',
-    fr: 'Supprimer le Compte',
+    fr: 'Supprimer le compte',
   },
   deleteAccountInfo: {
-    ar: 'سيؤدي هذا إلى حذف حسابك وجميع بياناتك المرتبطة به بشكل دائم. لا يمكن التراجع عن هذا الإجراء.',
-    en: 'This will permanently delete your account and all associated data. This action cannot be undone.',
-    fr: 'Ceci supprimera définitivement votre compte et toutes les données associées. Cette action est irréversible.',
-  },
-  deleteConfirmation: {
-    ar: 'هل أنت متأكد؟',
-    en: 'Are you sure?',
-    fr: 'Êtes-vous sûr ?',
+      ar: 'سيؤدي هذا إلى حذف حسابك وجميع بياناتك المرتبطة به بشكل دائم. لا يمكن التراجع عن هذا الإجراء.',
+      en: 'This will permanently delete your account and all associated data. This action cannot be undone.',
+      fr: 'Ceci supprimera définitivement votre compte et toutes les données associées. Cette action est irréversible.',
   },
   deleteAccountConfirmationPrompt: {
-    ar: 'هل أنت متأكد أنك تريد حذف حسابك؟ سيتم مسح جميع بياناتك بشكل دائم.',
-    en: 'Are you sure you want to delete your account? All of your data will be permanently erased.',
-    fr: 'Êtes-vous sûr de vouloir supprimer votre compte ? Toutes vos données seront effacées de manière permanente.',
+      ar: 'هل أنت متأكد أنك تريد حذف حسابك؟ سيتم حذف جميع بياناتك بشكل دائم.',
+      en: 'Are you sure you want to delete your account? All your data will be permanently erased.',
+      fr: 'Êtes-vous sûr de vouloir supprimer votre compte ? Toutes vos données seront effacées de manière permanente.',
+  },
+  deleteConfirmation: {
+      ar: 'حذف',
+      en: 'Delete',
+      fr: 'Supprimer',
   },
   accountDeletedSuccess: {
-    ar: 'تم حذف حسابك بنجاح.',
-    en: 'Your account has been successfully deleted.',
-    fr: 'Votre compte a été supprimé avec succès.',
+    ar: 'تم حذف الحساب بنجاح.',
+    en: 'Account deleted successfully.',
+    fr: 'Compte supprimé avec succès.',
   },
   accountDeletionError: {
-    ar: 'حدث خطأ أثناء حذف الحساب. قد تحتاج إلى تسجيل الدخول مرة أخرى والمحاولة مرة أخرى.',
-    en: 'An error occurred while deleting the account. You may need to sign in again and retry.',
-    fr: 'Une erreur est survenue lors de la suppression du compte. Vous devrez peut-être vous reconnecter et réessayer.',
-  },
-  historyClearSuccess: {
-    ar: 'تم مسح سجل السحابة بنجاح.',
-    en: 'Cloud history cleared successfully.',
-    fr: 'L\'historique cloud a été effacé avec succès.',
-  },
-  historyClearError: {
-    ar: 'فشل مسح سجل السحابة.',
-    en: 'Failed to clear cloud history.',
-    fr: 'Échec de l\'effacement de l\'historique cloud.',
-  },
-  developerPowers: {
-    ar: 'صلاحيات المطور',
-    en: 'Developer Powers',
-    fr: 'Pouvoirs de développeur',
-  },
-  ownerUidInfo: {
-    ar: 'لتعريفك كمالك للتطبيق، قم بتعيين VITE_OWNER_UID في Vercel إلى المعرف الخاص بك.',
-    en: 'To identify you as the app owner, set VITE_OWNER_UID in Vercel to your ID.',
-    fr: 'Pour vous identifier comme propriétaire de l\'application, définissez VITE_OWNER_UID dans Vercel sur votre ID.',
+    ar: 'حدث خطأ أثناء حذف الحساب. قد تحتاج إلى تسجيل الخروج وتسجيل الدخول مرة أخرى قبل المحاولة مرة أخرى.',
+    en: 'An error occurred while deleting the account. You may need to sign out and sign back in before trying again.',
+    fr: 'Une erreur s\'est produite lors de la suppression du compte. Vous devrez peut-être vous déconnecter et vous reconnecter avant de réessayer.',
   },
   yourUserId: {
-    ar: 'معرف المستخدم الخاص بك',
-    en: 'Your User ID',
-    fr: 'Votre ID utilisateur',
+      ar: 'معرف المستخدم الخاص بك',
+      en: 'Your User ID',
+      fr: 'Votre ID Utilisateur',
   },
   copyIdTooltip: {
-    ar: 'نسخ المعرف',
-    en: 'Copy ID',
-    fr: 'Copier l\'ID',
+      ar: 'نسخ المعرف',
+      en: 'Copy ID',
+      fr: 'Copier l\'ID',
+  },
+  ownerUidInfo: {
+    ar: 'لتمكين صلاحيات المطور، قم بتعيين هذا المعرف كـ VITE_OWNER_UID في متغيرات البيئة الخاصة بك.',
+    en: 'To enable developer powers, set this ID as VITE_OWNER_UID in your environment variables.',
+    fr: 'Pour activer les pouvoirs de développeur, définissez cet ID comme VITE_OWNER_UID dans vos variables d\'environnement.',
+  },
+  developerPowers: {
+      ar: 'صلاحيات المطور',
+      en: 'Developer Powers',
+      fr: 'Pouvoirs du Développeur',
   },
   devModeActive: {
-    ar: 'وضع المطور مفعل',
-    en: 'Developer Mode is Active',
-    fr: 'Le mode développeur est actif',
+      ar: 'وضع المطور نشط!',
+      en: 'Developer Mode is Active!',
+      fr: 'Le Mode Développeur est Actif !',
   },
   devModeInactive: {
-    ar: 'وضع المطور معطل',
-    en: 'Developer Mode is Inactive',
-    fr: 'Le mode développeur est inactif',
+      ar: 'وضع المطور غير نشط',
+      en: 'Developer Mode is Inactive',
+      fr: 'Le Mode Développeur est Inactif',
   },
   devModeInfo: {
-    ar: 'عند التفعيل، سيتم تجاوز جميع حدود الاستخدام اليومية. يجب تعيين OWNER_SECRET_KEY في Vercel.',
-    en: 'When active, all daily usage limits will be bypassed. Requires OWNER_SECRET_KEY to be set in Vercel.',
-    fr: 'Lorsqu\'il est actif, toutes les limites d\'utilisation quotidiennes seront contournées. Nécessite que OWNER_SECRET_KEY soit défini dans Vercel.',
+      ar: 'يتجاوز هذا الوضع حدود الاستخدام العادية ويتطلب مفتاحًا سريًا للمالك يتم توفيره بشكل منفصل. مخصص للاختبار فقط.',
+      en: 'This mode bypasses normal usage limits and requires an owner secret key provided separately. For testing only.',
+      fr: 'Ce mode contourne les limites d\'utilisation normales et nécessite une clé secrète du propriétaire fournie séparément. Pour les tests uniquement.',
   },
   enterSecretKey: {
-    ar: 'أدخل مفتاح المطور السري',
-    en: 'Enter Developer Secret Key',
-    fr: 'Entrez la clé secrète du développeur',
+      ar: 'أدخل المفتاح السري...',
+      en: 'Enter secret key...',
+      fr: 'Entrez la clé secrète...',
   },
   activate: {
-    ar: 'تفعيل',
-    en: 'Activate',
-    fr: 'Activer',
+      ar: 'تفعيل',
+      en: 'Activate',
+      fr: 'Activer',
   },
   deactivate: {
-    ar: 'تعطيل',
-    en: 'Deactivate',
-    fr: 'Désactiver',
+      ar: 'إلغاء التفعيل',
+      en: 'Deactivate',
+      fr: 'Désactiver',
   },
   keySaved: {
-    ar: 'تم الحفظ! ستظل صلاحياتك فعالة لهذه الجلسة.',
-    en: 'Saved! Your powers are active for this session.',
-    fr: 'Enregistré ! Vos pouvoirs sont actifs pour cette session.',
+      ar: 'تم حفظ المفتاح لهذه الجلسة.',
+      en: 'Key saved for this session.',
+      fr: 'Clé enregistrée pour cette session.',
   },
   keyRemoved: {
-    ar: 'تم تعطيل وضع المطور.',
-    en: 'Developer mode deactivated.',
-    fr: 'Mode développeur désactivé.',
+      ar: 'تمت إزالة المفتاح. تم إلغاء تفعيل وضع المطور.',
+      en: 'Key removed. Developer mode deactivated.',
+      fr: 'Clé supprimée. Mode développeur désactivé.',
   },
-  errorApiKeyMissing: {
-      ar: 'وضع المطور: يرجى إدخال مفتاح Gemini API الخاص بك عند المطالبة لاستخدام هذه الميزة.',
-      en: 'Developer Mode: Please enter your Gemini API Key when prompted to use this feature.',
-      fr: 'Mode Développeur : Veuillez saisir votre clé API Gemini lorsque vous y êtes invité pour utiliser cette fonctionnalité.',
+  historyClearSuccess: {
+      ar: 'تم مسح السجل بنجاح.',
+      en: 'History cleared successfully.',
+      fr: 'Historique effacé avec succès.',
   },
-  errorApiNoAudio: {
-    ar: 'لم يتم استلام أي بيانات صوتية من الواجهة البرمجية.',
-    en: 'No audio data received from the API.',
-    fr: 'Aucune donnée audio reçue de l\'API.',
+  historyClearError: {
+      ar: 'حدث خطأ أثناء مسح السجل.',
+      en: 'Error clearing history.',
+      fr: 'Erreur lors de l\'effacement de l\'historique.',
   },
-  errorUnexpected: {
+   errorUnexpected: {
     ar: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
     en: 'An unexpected error occurred. Please try again.',
     fr: 'Une erreur inattendue est survenue. Veuillez réessayer.',
   },
-   errorRateLimit: {
-    ar: 'لقد وصلت إلى الحد الأقصى للاستخدام اليومي من الأحرف. يرجى المحاولة مرة أخرى غدًا.',
-    en: 'You have reached the daily character usage limit. Please try again tomorrow.',
-    fr: 'Vous avez atteint la limite quotidienne d\'utilisation des caractères. Veuillez réessayer demain.',
+  errorApiKeyMissing: {
+    ar: 'خطأ في الخادم: مفتاح API مفقود. يجب على مالك التطبيق تكوين متغيرات البيئة في Vercel.',
+    en: 'Server Error: API key is missing. The app owner must configure the environment variables on Vercel.',
+    fr: 'Erreur Serveur : Clé API manquante. Le propriétaire de l\'application doit configurer les variables d\'environnement sur Vercel.',
+  },
+  errorRateLimit: {
+    ar: 'لقد تجاوزت حد الاستخدام. يرجى المحاولة مرة أخرى لاحقًا.',
+    en: 'You have exceeded the usage limit. Please try again later.',
+    fr: 'Vous avez dépassé la limite d\'utilisation. Veuillez réessayer plus tard.',
   },
   errorRequestTimeout: {
-    ar: 'استغرق الطلب وقتاً طويلاً جداً. قد يحدث هذا مع النصوص الطويلة. يرجى المحاولة بنص أقصر أو التحقق من اتصالك بالإنترنت.',
-    en: 'The request took too long. This can happen with long texts. Please try with a shorter text or check your internet connection.',
-    fr: 'La requête a pris trop de temps. Cela peut arriver avec des textes longs. Veuillez essayer avec un texte plus court ou vérifier votre connexion.',
-  },
-  errorSpeechGeneration: {
-    ar: 'فشل في توليد الصوت. قد تكون هناك مشكلة في الخدمة. يرجى المحاولة مرة أخرى لاحقاً.',
-    en: 'Failed to generate speech. There may be an issue with the service. Please try again later.',
-    fr: 'Échec de la génération de la parole. Il y a peut-être un problème avec le service. Veuillez réessayer plus tard.',
+    ar: 'انتهت مهلة الطلب. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.',
+    en: 'The request timed out. Please check your internet connection and try again.',
+    fr: 'La demande a expiré. Veuillez vérifier votre connexion Internet et réessayer.',
   },
   errorTranslate: {
-    ar: 'فشلت عملية الترجمة. يرجى التحقق من النص والمحاولة مرة أخرى.',
-    en: 'Translation failed. Please check your text and try again.',
+    ar: 'فشل في الترجمة. يرجى التحقق من النص والمحاولة مرة أخرى.',
+    en: 'Failed to translate. Please check your text and try again.',
     fr: 'La traduction a échoué. Veuillez vérifier votre texte et réessayer.',
   },
+  errorSpeechGeneration: {
+    ar: 'فشل في توليد الكلام. قد لا يدعم الصوت المحدد هذه اللغة.',
+    en: 'Failed to generate speech. The selected voice may not support this language.',
+    fr: 'La génération de la parole a échoué. La voix sélectionnée peut ne pas prendre en charge cette langue.',
+  },
+  errorDownloadSystemVoice: {
+    ar: 'لا يمكن تحميل الأصوات من نظام التشغيل مباشرة. يرجى اختيار صوت Gemini HD للتحميل.',
+    en: 'Cannot download system voices directly. Please select a Gemini HD voice to download.',
+    fr: 'Impossible de télécharger directement les voix du système. Veuillez sélectionner une voix Gemini HD pour télécharger.',
+  },
+  errorApiNoAudio: {
+    ar: 'لم تتمكن الواجهة البرمجية من إرجاع بيانات صوتية. قد تكون هناك مشكلة في الخدمة.',
+    en: 'The API did not return audio data. There might be an issue with the service.',
+    fr: 'L\'API n\'a pas retourné de données audio. Il pourrait y avoir un problème avec le service.',
+  },
   errorMp3Encoding: {
-    ar: 'فشل تحويل الملف إلى MP3. يرجى محاولة التحميل بصيغة WAV.',
-    en: 'Failed to encode to MP3. Please try downloading as WAV.',
-    fr: 'Échec de l\'encodage en MP3. Veuillez essayer de télécharger en WAV.',
-  },
-   errorDownloadSystemVoice: {
-    ar: 'لا يمكن تحميل الأصوات من النظام. يرجى اختيار أحد أصوات Gemini HD لتفعيل التحميل.',
-    en: 'System voices cannot be downloaded. Please select a Gemini HD voice to enable downloading.',
-    fr: 'Les voix du système ne peuvent pas être téléchargées. Veuillez sélectionner une voix Gemini HD pour activer le téléchargement.',
-  },
-  errorMicPermission: {
-    ar: 'تم رفض إذن الوصول إلى الميكروفون. يرجى تفعيل الإذن من إعدادات المتصفح.',
-    en: 'Microphone permission was denied. Please enable it in your browser settings.',
-    fr: 'L\'autorisation du microphone a été refusée. Veuillez l\'activer dans les paramètres de votre navigateur.',
+    ar: 'حدث خطأ أثناء تحويل الصوت إلى MP3.',
+    en: 'An error occurred during MP3 encoding.',
+    fr: 'Une erreur s\'est produite lors de l\'encodage MP3.',
   },
   errorMicNotSupported: {
-    ar: 'ميزة التعرف على الكلام غير مدعومة في متصفحك.',
-    en: 'Speech recognition is not supported by your browser.',
-    fr: 'La reconnaissance vocale n\'est pas prise en charge par votre navigateur.',
+    ar: 'التعرف على الكلام غير مدعوم في هذا المتصفح.',
+    en: 'Speech recognition is not supported on this browser.',
+    fr: 'La reconnaissance vocale n\'est pas prise en charge sur ce navigateur.',
   },
-  feedbackTitle: {
-    ar: 'آراء المستخدمين',
-    en: 'User Feedback',
-    fr: 'Avis des Utilisateurs',
+  errorMicPermission: {
+    ar: 'تم رفض إذن استخدام الميكروفون. يرجى تمكينه في إعدادات المتصفح.',
+    en: 'Microphone permission denied. Please enable it in your browser settings.',
+    fr: 'Autorisation du microphone refusée. Veuillez l\'activer dans les paramètres de votre navigateur.',
+  },
+   feedbackTitle: {
+    ar: 'شاركنا رأيك!',
+    en: 'Share Your Feedback!',
+    fr: 'Partagez Vos Commentaires !',
   },
   feedbackSubtitle: {
-    ar: 'شاهد ما يقوله الآخرون أو شاركنا رأيك!',
-    en: 'See what others are saying or share your own feedback!',
-    fr: 'Voyez ce que les autres en disent ou partagez votre avis !',
+    ar: 'ساعدنا في تحسين Sawtli. ما الذي أعجبك؟ ما الذي يمكن أن يكون أفضل؟',
+    en: 'Help us improve Sawtli. What did you like? What could be better?',
+    fr: 'Aidez-nous à améliorer Sawtli. Qu\'avez-vous aimé ? Qu\'est-ce qui pourrait être amélioré ?',
   },
   yourName: {
     ar: 'اسمك (اختياري)',
     en: 'Your Name (Optional)',
     fr: 'Votre Nom (Facultatif)',
   },
-  yourComment: {
-    ar: 'تعليقك...',
-    en: 'Your comment...',
-    fr: 'Votre commentaire...',
-  },
   yourRating: {
     ar: 'تقييمك:',
     en: 'Your Rating:',
     fr: 'Votre Évaluation :',
   },
+  yourComment: {
+    ar: 'تعليقك...',
+    en: 'Your comment...',
+    fr: 'Votre commentaire...',
+  },
   submitFeedback: {
-    ar: 'إرسال الرأي',
+    ar: 'إرسال التقييم',
     en: 'Submit Feedback',
-    fr: 'Envoyer l\'avis',
+    fr: 'Envoyer les Commentaires',
   },
   submittingFeedback: {
     ar: 'جاري الإرسال...',
     en: 'Submitting...',
     fr: 'Envoi en cours...',
   },
-  noFeedbackYet: {
-    ar: 'لا توجد آراء بعد. كن أول من يشاركنا رأيه!',
-    en: 'No feedback yet. Be the first to share your thoughts!',
-    fr: 'Aucun avis pour le moment. Soyez le premier à partager votre opinion !',
-  },
   feedbackSuccess: {
-    ar: 'شكراً لك على مشاركتنا رأيك!',
-    en: 'Thank you for your feedback!',
-    fr: 'Merci pour votre commentaire !',
+    ar: 'شكرًا لك! تم استلام تقييمك بنجاح.',
+    en: 'Thank you! Your feedback has been received.',
+    fr: 'Merci ! Vos commentaires ont été reçus.',
   },
   feedbackError: {
-    ar: 'فشل إرسال الرأي. الرجاء المحاولة مرة أخرى.',
-    en: 'Failed to submit feedback. Please try again.',
-    fr: 'Échec de l\'envoi de l\'avis. Veuillez réessayer.',
+    ar: 'حدث خطأ أثناء إرسال تقييمك. يرجى المحاولة مرة أخرى.',
+    en: 'An error occurred while submitting your feedback. Please try again.',
+    fr: 'Une erreur s\'est produite lors de l\'envoi de vos commentaires. Veuillez réessayer.',
+  },
+  noFeedbackYet: {
+    ar: 'لا توجد تقييمات حتى الآن. كن أول من يشاركنا رأيه!',
+    en: 'No feedback yet. Be the first to share your thoughts!',
+    fr: 'Aucun commentaire pour le moment. Soyez le premier à partager votre avis !',
   },
   feedbackConfigNeededTitle: {
-      ar: 'مطلوب إعداد Firebase',
-      en: 'Firebase Configuration Required',
-      fr: 'Configuration Firebase Requise',
+      ar: 'ميزة التقييمات معطلة',
+      en: 'Feedback Feature Disabled',
+      fr: 'Fonctionnalité de Commentaires Désactivée',
   },
   feedbackConfigNeededBody: {
-      ar: 'ميزة التعليقات معطلة. لتفعيلها، قم بإنشاء مشروع Firebase خاص بك وأضف قيم الإعداد التالية كمتغيرات بيئة (Environment Variables) في منصة النشر الخاصة بك:',
-      en: 'The feedback feature is disabled. To enable it, create your own Firebase project and add the following configuration values as Environment Variables in your deployment platform:',
-      fr: 'La fonctionnalité de commentaires est désactivée. Pour l\'activer, créez votre propre projet Firebase et ajoutez les valeurs de configuration suivantes en tant que variables d\'environnement sur votre plateforme de déploiement :',
+      ar: 'يا صاحب التطبيق! لعرض التقييمات والسماح للمستخدمين بإرسالها، تحتاج إلى إعداد Firebase Firestore. يرجى اتباع الدليل.',
+      en: 'Hey App Owner! To display and submit feedback, you need to set up Firebase Firestore. Please follow the guide.',
+      fr: 'Salut propriétaire de l\'application ! Pour afficher et soumettre des commentaires, vous devez configurer Firebase Firestore. Veuillez suivre le guide.',
   },
   firebaseSetupGuideTitle: {
-      ar: 'عرض دليل الإعداد المفصل',
-      en: 'Show Detailed Setup Guide',
-      fr: 'Afficher le guide d\'installation détaillé',
+      ar: 'دليل إعداد Firebase (لصاحب التطبيق)',
+      en: 'Firebase Setup Guide (For App Owner)',
+      fr: 'Guide de Configuration Firebase (Pour le Propriétaire)',
   },
   firebaseSetupStep1Title: {
       ar: 'الخطوة 1: إنشاء مشروع Firebase',
@@ -845,34 +845,54 @@ export const translations = {
       fr: 'Étape 1 : Créer un projet Firebase',
   },
   firebaseSetupStep1Body: {
-      ar: 'اذهب إلى منصة Firebase وأنشئ مشروعًا جديدًا. العملية سريعة ومجانية.',
-      en: 'Go to the Firebase Console and create a new project. It\'s fast and free.',
-      fr: 'Allez sur la console Firebase et créez un nouveau projet. C\'est rapide et gratuit.',
+      ar: 'اذهب إلى وحدة تحكم Firebase، وأنشئ مشروعًا جديدًا، وأضف تطبيق ويب إليه.',
+      en: 'Go to the Firebase Console, create a new project, and add a web app to it.',
+      fr: 'Allez sur la console Firebase, créez un nouveau projet et ajoutez-y une application web.',
   },
   firebaseSetupStep1Button: {
-      ar: 'الذهاب إلى منصة Firebase',
+      ar: 'الذهاب إلى Firebase Console',
       en: 'Go to Firebase Console',
-      fr: 'Aller à la console Firebase',
+      fr: 'Aller à la Console Firebase',
   },
   firebaseSetupStep2Title: {
-      ar: 'الخطوة 2: الحصول على مفاتيح الإعداد',
-      en: 'Step 2: Get Your Config Keys',
-      fr: 'Étape 2 : Obtenez vos clés de configuration',
+      ar: 'الخطوة 2: تفعيل Firestore',
+      en: 'Step 2: Enable Firestore',
+      fr: 'Étape 2 : Activer Firestore',
   },
   firebaseSetupStep2Body: {
-      ar: 'في إعدادات مشروعك، أضف \'تطبيق ويب\' جديد. ستمنحك Firebase كائن `firebaseConfig` يحتوي على مفاتيحك. احتفظ بها للخطوة التالية.',
-      en: 'In your project settings, add a new \'Web App\'. Firebase will give you a `firebaseConfig` object containing your keys. Keep them for the next step.',
-      fr: 'Dans les paramètres de votre projet, ajoutez une nouvelle \'application Web\'. Firebase vous donnera un objet `firebaseConfig` contenant vos clés. Gardez-les pour la prochaine étape.',
+      ar: 'في مشروعك، انتقل إلى قسم Firestore Database وأنشئ قاعدة بيانات في وضع الإنتاج.',
+      en: 'In your project, go to the Firestore Database section and create a database in production mode.',
+      fr: 'Dans votre projet, allez à la section Firestore Database et créez une base de données en mode production.',
   },
   firebaseSetupStep3Title: {
       ar: 'الخطوة 3: إضافة متغيرات البيئة',
       en: 'Step 3: Add Environment Variables',
-      fr: 'Étape 3 : Ajouter des variables d\'environnement',
+      fr: 'Étape 3 : Ajouter les variables d\'environnement',
   },
   firebaseSetupStep3Body: {
-      ar: 'اذهب إلى منصة النشر الخاصة بك (Vercel, Netlify, etc.) وأضف المفاتيح التي نسختها كـ \'متغيرات بيئة\'. استخدم هذه الأسماء بالضبط:',
-      en: 'Go to your deployment platform (Vercel, Netlify, etc.) and add the keys you copied as \'Environment Variables\'. Use these exact names:',
-      fr: 'Allez sur votre plateforme de déploiement (Vercel, Netlify, etc.) et ajoutez les clés que vous avez copiées en tant que \'Variables d\'environnement\'. Utilisez ces noms exacts :',
+      ar: 'انسخ بيانات تهيئة Firebase لتطبيق الويب الخاص بك وأضفها كمتغيرات بيئة في لوحة تحكم Vercel.',
+      en: 'Copy your Firebase web app configuration credentials and add them as environment variables in your Vercel dashboard.',
+      fr: 'Copiez les informations de configuration de votre application web Firebase et ajoutez-les comme variables d\'environnement dans votre tableau de bord Vercel.',
+  },
+  firebaseSetupStep4Title: {
+      ar: 'الخطوة 4: تعيين قواعد Firestore',
+      en: 'Step 4: Set Firestore Rules',
+      fr: 'Étape 4 : Définir les règles Firestore',
+  },
+  firebaseSetupStep4Body: {
+      ar: 'اذهب إلى علامة التبويب "Rules" في Firestore واستبدل القواعد الافتراضية بالقواعد التالية للسماح للمستخدمين بكتابة التقييمات ولكن ليس تعديلها أو حذفها.',
+      en: 'Go to the "Rules" tab in Firestore and replace the default rules with the following to allow users to write feedback but not modify or delete it.',
+      fr: 'Allez dans l\'onglet "Rules" de Firestore et remplacez les règles par défaut par les suivantes pour permettre aux utilisateurs d\'écrire des commentaires mais pas de les modifier ou de les supprimer.',
+  },
+  firebaseSetupStep5Title: {
+      ar: 'الخطوة 5: إعادة نشر التطبيق',
+      en: 'Step 5: Redeploy Application',
+      fr: 'Étape 5 : Redéployer l\'application',
+  },
+  firebaseSetupStep5Body: {
+      ar: 'بعد حفظ متغيرات البيئة والقواعد، قم بإعادة نشر تطبيقك على Vercel لتصبح التغييرات سارية المفعول.',
+      en: 'After saving the environment variables and rules, redeploy your application on Vercel for the changes to take effect.',
+      fr: 'Après avoir enregistré les variables d\'environnement et les règles, redéployez votre application sur Vercel pour que les changements prennent effet.',
   },
   firebaseSetupCopyButton: {
       ar: 'نسخ',
@@ -884,29 +904,9 @@ export const translations = {
       en: 'Copied!',
       fr: 'Copié !',
   },
-  firebaseSetupStep4Title: {
-      ar: 'الخطوة 4: تفعيل وتأمين قاعدة البيانات',
-      en: 'Step 4: Enable & Secure Firestore',
-      fr: 'Étape 4 : Activer et sécuriser Firestore',
-  },
-  firebaseSetupStep4Body: {
-      ar: 'من لوحة تحكم Firebase، اذهب إلى Firestore Database وأنشئ قاعدة بيانات في \'وضع الإنتاج\'. بعد ذلك، اذهب إلى تبويب \'القواعد\' (Rules) والصق القاعدة الآمنة أدناه. هذه القاعدة تسمح لأي شخص بقراءة وإضافة التعليقات، ولكنها تمنع أي شخص من تعديل أو حذف تعليقات الآخرين.',
-      en: 'From the Firebase dashboard, go to to Firestore Database and create a database in \'production mode\'. Then, go to the \'Rules\' tab and paste the secure rule below. This rule allows anyone to read and create feedback, but prevents anyone from updating or deleting others\' posts.',
-      fr: 'Depuis le tableau de bord Firebase, accédez à la base de données Firestore et créez une base de données en \'mode production\'. Ensuite, allez dans l\'onglet \'Règles\' et collez la règle sécurisée ci-dessous. Cette règle permet à quiconque de lire et de créer des commentaires, mais empêche quiconque de mettre à jour ou de supprimer les messages des autres.',
-  },
-  firebaseSetupStep5Title: {
-      ar: 'الخطوة 5: إعادة النشر',
-      en: 'Step 5: Redeploy',
-      fr: 'Étape 5 : Redéployer',
-  },
-  firebaseSetupStep5Body: {
-      ar: 'بعد إضافة المتغيرات، قم بإعادة نشر تطبيقك. سيتم تفعيل ميزة التعليقات تلقائيًا.',
-      en: 'After adding the variables, redeploy your application. The feedback feature will be enabled automatically.',
-      fr: 'Après avoir ajouté les variables, redéployez votre application. La fonctionnalité de commentaires sera activée automatiquement.',
-  },
 };
 
-export const languageOptions: { value: Language; label: string; dir: Direction }[] = [
+export const languageOptions: { value: Language, label: string, dir: Direction }[] = [
     { value: 'ar', label: 'العربية', dir: 'rtl' },
     { value: 'en', label: 'English', dir: 'ltr' },
     { value: 'fr', label: 'Français', dir: 'ltr' },
@@ -914,39 +914,20 @@ export const languageOptions: { value: Language; label: string; dir: Direction }
 
 export const translationLanguages: LanguageListItem[] = [
     { code: 'ar', name: 'Arabic', speechCode: 'ar-SA' },
-    { code: 'bn', name: 'Bengali', speechCode: 'bn-BD' },
-    { code: 'zh', name: 'Chinese', speechCode: 'zh-CN' },
     { code: 'en', name: 'English', speechCode: 'en-US' },
     { code: 'fr', name: 'French', speechCode: 'fr-FR' },
+    { code: 'es', name: 'Spanish', speechCode: 'es-ES' },
     { code: 'de', name: 'German', speechCode: 'de-DE' },
-    { code: 'hi', name: 'Hindi', speechCode: 'hi-IN' },
-    { code: 'id', name: 'Indonesian', speechCode: 'id-ID' },
     { code: 'it', name: 'Italian', speechCode: 'it-IT' },
     { code: 'ja', name: 'Japanese', speechCode: 'ja-JP' },
     { code: 'ko', name: 'Korean', speechCode: 'ko-KR' },
-    { code: 'ms', name: 'Malay', speechCode: 'ms-MY' },
     { code: 'pt', name: 'Portuguese', speechCode: 'pt-BR' },
     { code: 'ru', name: 'Russian', speechCode: 'ru-RU' },
-    { code: 'es', name: 'Spanish', speechCode: 'es-ES' },
+    { code: 'zh', name: 'Chinese', speechCode: 'zh-CN' },
+    { code: 'hi', name: 'Hindi', speechCode: 'hi-IN' },
     { code: 'tr', name: 'Turkish', speechCode: 'tr-TR' },
-    { code: 'vi', name: 'Vietnamese', speechCode: 'vi-VN' },
 ];
 
-
-/**
- * Gets a translated string for a given key and language.
- * Falls back to English if the key is not found for the given language.
- * This is now a hoisted function declaration to prevent module initialization errors.
- * It also includes a defensive check to prevent crashes if a key is missing entirely.
- * @param key The key of the translation string.
- * @param lang The target language.
- * @returns The translated string.
- */
 export function t(key: keyof typeof translations, lang: Language): string {
-  const entry = translations[key];
-  if (!entry) {
-    console.error(`Translation key "${key}" not found.`);
-    return key; // Return the key itself as a fallback to prevent crashing.
-  }
-  return entry[lang] || entry['en'];
+    return translations[key][lang] || translations[key]['en'];
 }

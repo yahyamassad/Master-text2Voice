@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, laz
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, SoundEnhanceIcon, UserIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
 import { History } from './components/History';
@@ -14,6 +14,7 @@ import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocu
 
 const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
+const AudioStudioModal = lazy(() => import('./components/AudioStudioModal'));
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -33,11 +34,6 @@ interface SettingsModalProps {
   systemVoices: SpeechSynthesisVoice[];
   sourceLang: string;
   targetLang: string;
-}
-
-interface AudioControlModalProps {
-    onClose: () => void;
-    uiLanguage: Language;
 }
 
 const soundEffects = [
@@ -80,8 +76,8 @@ const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
   const [isEffectsOpen, setIsEffectsOpen] = useState<boolean>(false);
-  const [isAudioControlOpen, setIsAudioControlOpen] = useState<boolean>(false);
   const [isAccountOpen, setIsAccountOpen] = useState<boolean>(false);
+  const [isAudioStudioOpen, setIsAudioStudioOpen] = useState<boolean>(false);
   const [copiedSource, setCopiedSource] = useState<boolean>(false);
   const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
@@ -206,7 +202,7 @@ const App: React.FC = () => {
       stopAll();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceText, translatedText, voice, emotion, pauseDuration, multiSpeaker, speakerA, speakerB]);
+  }, [sourceText, translatedText, voice, pauseDuration, multiSpeaker, speakerA, speakerB, emotion]);
 
 
   // Server configuration check
@@ -339,10 +335,8 @@ const App: React.FC = () => {
                 const pcmData = await generateSpeech(
                     text,
                     voice,
-                    1.0, // speed
-                    langName,
-                    pauseDuration,
                     emotion,
+                    pauseDuration,
                     speakersConfig,
                     signal,
                     idToken
@@ -433,6 +427,18 @@ const App: React.FC = () => {
           if (!signal.aborted) {
               const fullTranslation = result.translatedText;
               setTranslatedText(fullTranslation);
+              
+              // --- UI RESPONSIVENESS FIX ---
+              // The primary task (translation) is done. Reset loading state
+              // immediately so the UI is responsive, while history saving
+              // proceeds in the background.
+              setIsLoading(false);
+              setLoadingTask('');
+              if (apiAbortControllerRef.current?.signal === signal) {
+                  apiAbortControllerRef.current = null;
+              }
+              // --- END FIX ---
+
               const newHistoryItem: HistoryItem = {
                   id: new Date().toISOString(),
                   sourceText,
@@ -443,12 +449,10 @@ const App: React.FC = () => {
               };
 
               if (user) {
-                // Save to Firestore (don't need id or timestamp, Firestore adds its own)
-                const { id, timestamp, ...itemToSave } = newHistoryItem;
-                await addHistoryItem(user.uid, itemToSave);
+                  const { id, timestamp, ...itemToSave } = newHistoryItem;
+                  addHistoryItem(user.uid, itemToSave).catch(e => console.error("Failed to save history:", e));
               } else {
-                // Save to local state and update localStorage via useEffect
-                setHistory(prev => [newHistoryItem, ...prev.slice(0, 49)]);
+                  setHistory(prev => [newHistoryItem, ...prev.slice(0, 49)]);
               }
           }
 
@@ -464,10 +468,14 @@ const App: React.FC = () => {
               setError(err.message || t('errorTranslate', uiLanguage));
           }
       } finally {
-          setIsLoading(false);
-          setLoadingTask('');
-          if(apiAbortControllerRef.current?.signal === signal) {
-            apiAbortControllerRef.current = null;
+          // This block now serves as a safeguard. If an error occurred during the
+          // API call itself, `isLoading` will still be true here, and we must reset it.
+          if (isLoading) {
+              setIsLoading(false);
+              setLoadingTask('');
+              if(apiAbortControllerRef.current?.signal === signal) {
+                apiAbortControllerRef.current = null;
+              }
           }
       }
   };
@@ -582,18 +590,14 @@ const App: React.FC = () => {
     let blob = null;
 
     try {
-        const langCode = translatedText ? targetLang : sourceLang;
-        const langName = translationLanguages.find(l => l.code === langCode)?.name || 'English';
         const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
         const idToken = user ? await user.getIdToken() : undefined;
 
         const pcmData = await generateSpeech(
             text,
             voice,
-            1.0, // speed
-            langName,
-            pauseDuration,
             emotion,
+            pauseDuration,
             speakersConfig,
             signal,
             idToken
@@ -627,7 +631,7 @@ const App: React.FC = () => {
         }
     }
     return blob;
-  }, [voice, multiSpeaker, speakerA, speakerB, pauseDuration, emotion, uiLanguage, stopAll, translatedText, sourceLang, targetLang, user]);
+  }, [voice, emotion, multiSpeaker, speakerA, speakerB, pauseDuration, uiLanguage, stopAll, user]);
 
   const handleDownload = async (format: 'wav' | 'mp3') => {
     const textToProcess = translatedText || sourceText;
@@ -803,7 +807,7 @@ const App: React.FC = () => {
               placeholder={t('placeholder', uiLanguage)}
               maxLength={MAX_CHARS_PER_REQUEST}
               dir={isSourceRtl ? 'rtl' : 'ltr'}
-              className={`w-full h-48 p-3 pr-10 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors ${isSourceRtl ? 'text-right' : 'text-left'}`}
+              className={`w-full h-48 p-3 pb-6 pr-10 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors ${isSourceRtl ? 'text-right' : 'text-left'}`}
           />
           <div className="absolute top-2 right-2">
               <button onClick={() => handleCopy(sourceText, 'source')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-white bg-slate-700/50 rounded-md">
@@ -870,7 +874,7 @@ const App: React.FC = () => {
                   readOnly
                   placeholder={t('translationPlaceholder', uiLanguage)}
                   dir={isTargetRtl ? 'rtl' : 'ltr'}
-                  className={`w-full h-48 p-3 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none ${isTargetRtl ? 'pr-10 text-right' : 'pl-10 text-left'}`}
+                  className={`w-full h-48 p-3 pb-6 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none ${isTargetRtl ? 'pr-10 text-right' : 'pl-10 text-left'}`}
               />
                <div className={`absolute top-2 ${isTargetRtl ? 'right-2' : 'left-2'}`}>
                   <button onClick={() => handleCopy(translatedText, 'target')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-white bg-slate-700/50 rounded-md">
@@ -982,9 +986,8 @@ const App: React.FC = () => {
             </div>
 
             {/* Action Buttons Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
                 <ActionCard icon={<GearIcon />} label={t('speechSettings', uiLanguage)} onClick={() => setIsSettingsOpen(true)} />
-                <ActionCard icon={<SoundEnhanceIcon />} label={t('audioControl', uiLanguage)} onClick={() => setIsAudioControlOpen(true)} />
                 <ActionCard icon={<HistoryIcon />} label={t('historyButton', uiLanguage)} onClick={() => setIsHistoryOpen(true)} />
                 <ActionCard 
                     icon={linkCopied ? <CheckIcon className="text-green-400"/> : <LinkIcon />} 
@@ -992,19 +995,13 @@ const App: React.FC = () => {
                     onClick={handleShareLink} 
                 />
                 <ActionCard icon={<DownloadIcon />} label={t('downloadButton', uiLanguage)} onClick={() => setIsDownloadOpen(true)} disabled={isLoading || !isServerReady || isUsingSystemVoice} />
-                <ActionCard 
-                    icon={isSharingAudio ? <LoaderIcon /> : <ShareIcon />}
-                    label={isSharingAudio ? t('sharingAudio', uiLanguage) : t('shareAudio', uiLanguage)} 
-                    onClick={handleShareAudio} 
-                    disabled={isSharingAudio || isLoading || !isServerReady || isUsingSystemVoice}
-                />
+                <ActionCard icon={<SoundEnhanceIcon />} label={t('audioStudio', uiLanguage)} onClick={() => setIsAudioStudioOpen(true)} disabled={isUsingSystemVoice} />
             </div>
             
             {/* Modals & Panels */}
             {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices}} />}
             {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
             {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} />}
-            {isAudioControlOpen && <AudioControlModal onClose={() => setIsAudioControlOpen(false)} uiLanguage={uiLanguage} />}
             
             {/* Suspended Modals */}
              <Suspense fallback={<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"><LoaderIcon /></div>}>
@@ -1019,6 +1016,7 @@ const App: React.FC = () => {
                     onClearHistory={handleClearHistory}
                     onDeleteAccount={handleDeleteAccount}
                 />}
+                {isAudioStudioOpen && <AudioStudioModal onClose={() => setIsAudioStudioOpen(false)} uiLanguage={uiLanguage} />}
                 <Feedback language={uiLanguage} />
             </Suspense>
         </main>
@@ -1097,114 +1095,100 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
         { id: 'Zephyr', labelKey: 'voiceFemale2' },
         { id: 'Fenrir', labelKey: 'voiceMale3' }
     ];
+    const emotionOptions = [
+        { id: 'Default', labelKey: 'emotionDefault' },
+        { id: 'Happy', labelKey: 'emotionHappy' },
+        { id: 'Sad', labelKey: 'emotionSad' },
+        { id: 'Formal', labelKey: 'emotionFormal' },
+    ];
     const isGeminiVoiceSelected = geminiVoices.includes(voice);
 
-    const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
-    const [isSystemSpeaking, setIsSystemSpeaking] = useState(false);
+    const [currentlyPreviewing, setCurrentlyPreviewing] = useState<string | null>(null);
     const previewAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const previewAbortControllerRef = useRef<AbortController | null>(null);
 
     const stopPreview = useCallback(() => {
         previewAbortControllerRef.current?.abort();
         previewAbortControllerRef.current = null;
-        previewAudioSourceRef.current?.stop();
-        previewAudioSourceRef.current = null;
+        if (previewAudioSourceRef.current) {
+            try { previewAudioSourceRef.current.stop(); } catch(e) {/* Ignore error */}
+            previewAudioSourceRef.current = null;
+        }
         window.speechSynthesis.cancel();
-        setPreviewingVoice(null);
-        setIsSystemSpeaking(false);
+        setCurrentlyPreviewing(null);
     }, []);
 
     useEffect(() => {
-      // Cleanup function to stop any preview when the modal is closed
-      return () => {
-          stopPreview();
-      };
+      // Cleanup on unmount
+      return () => { stopPreview(); };
     }, [stopPreview]);
     
-    // Stop preview if the main voice selection changes
     useEffect(() => {
+        // Stop any preview if the main selected voice changes
         stopPreview();
     }, [voice, stopPreview]);
 
 
-    const handleGeminiPreview = async (voiceId: string) => {
-        if (previewingVoice === voiceId) {
+    const handlePreview = async (voiceToPreview: string) => {
+        if (currentlyPreviewing === voiceToPreview) {
             stopPreview();
             return;
         }
-        stopPreview();
-        setPreviewingVoice(voiceId);
-        previewAbortControllerRef.current = new AbortController();
+        stopPreview(); // Stop any other preview first
+        if (!voiceToPreview) return;
 
-        try {
-            const pcmData = await previewVoice(voiceId, t('voicePreviewText', uiLanguage), previewAbortControllerRef.current.signal);
-            if (previewAbortControllerRef.current.signal.aborted) return;
+        setCurrentlyPreviewing(voiceToPreview);
+        const isGemini = geminiVoices.includes(voiceToPreview);
 
-            if (pcmData) {
-                previewAudioSourceRef.current = await playAudio(pcmData, () => {
-                    setPreviewingVoice(null);
-                    previewAudioSourceRef.current = null;
-                });
-            } else {
-                setPreviewingVoice(null);
+        if (isGemini) {
+            previewAbortControllerRef.current = new AbortController();
+            try {
+                const pcmData = await previewVoice(voiceToPreview, t('voicePreviewText', uiLanguage), emotion, previewAbortControllerRef.current.signal);
+                if (previewAbortControllerRef.current.signal.aborted) return;
+
+                if (pcmData) {
+                    previewAudioSourceRef.current = await playAudio(pcmData, () => {
+                        setCurrentlyPreviewing(null);
+                        previewAudioSourceRef.current = null;
+                    });
+                } else {
+                    setCurrentlyPreviewing(null);
+                }
+            } catch (err: any) {
+                if (err.name !== 'AbortError') console.error("Preview failed:", err);
+                setCurrentlyPreviewing(null);
             }
-        } catch (err: any) {
-            if (err.name !== 'AbortError') {
-                console.error("Preview failed:", err);
-                // Optionally show a user-facing error
+        } else { // System Voice
+            const selectedSystemVoice = systemVoices.find(v => v.name === voiceToPreview);
+            if (!selectedSystemVoice) {
+                setCurrentlyPreviewing(null);
+                return;
             }
-            setPreviewingVoice(null);
+            const utterance = new SpeechSynthesisUtterance(t('voicePreviewText', uiLanguage));
+            utterance.voice = selectedSystemVoice;
+            utterance.lang = selectedSystemVoice.lang;
+            utterance.onend = () => setCurrentlyPreviewing(null);
+            utterance.onerror = () => setCurrentlyPreviewing(null);
+            window.speechSynthesis.speak(utterance);
         }
     };
-    
-    const handleSystemPreview = () => {
-        if (isSystemSpeaking) {
-            stopPreview();
-            return;
-        }
-        stopPreview();
-
-        const selectedSystemVoice = systemVoices.find(v => v.name === voice);
-        if (!selectedSystemVoice) return;
-        
-        const utterance = new SpeechSynthesisUtterance(t('voicePreviewText', uiLanguage));
-        utterance.voice = selectedSystemVoice;
-        utterance.lang = selectedSystemVoice.lang;
-        utterance.onstart = () => setIsSystemSpeaking(true);
-        utterance.onend = () => setIsSystemSpeaking(false);
-        utterance.onerror = () => setIsSystemSpeaking(false);
-        
-        window.speechSynthesis.speak(utterance);
-    };
-
 
     const relevantSystemVoices = useMemo(() => {
-        if (!systemVoices || systemVoices.length === 0) {
-            return { suggested: [], other: [] };
-        }
-
+        if (!systemVoices || systemVoices.length === 0) return { suggested: [], other: [] };
         const sourceLangCode = sourceLang.split('-')[0];
         const targetLangCode = targetLang.split('-')[0];
-        const suggestedLangs = new Set([sourceLangCode, targetLangCode, 'ar']); // Also suggest arabic voices
-
-        const uniqueVoices = Array.from(new Map(systemVoices.map(v => [v.name, v])).values()) as SpeechSynthesisVoice[];
-        
+        const suggestedLangs = new Set([sourceLangCode, targetLangCode, 'ar', 'en', 'fr']); // Widened defaults
+        const uniqueVoices = Array.from(new Map(systemVoices.map(v => [v.name, v])).values());
         const suggested: SpeechSynthesisVoice[] = [];
         const other: SpeechSynthesisVoice[] = [];
-
         uniqueVoices.forEach(v => {
             const voiceLangCode = (v.lang || '').split('-')[0];
-            if (suggestedLangs.has(voiceLangCode)) {
-                suggested.push(v);
-            } else {
-                other.push(v);
-            }
+            if (suggestedLangs.has(voiceLangCode)) suggested.push(v);
+            else other.push(v);
         });
-        
         const sorter = (a: SpeechSynthesisVoice, b: SpeechSynthesisVoice) => a.name.localeCompare(b.name);
         suggested.sort(sorter);
         other.sort(sorter);
-
         return { suggested, other };
     }, [systemVoices, sourceLang, targetLang]);
 
@@ -1218,133 +1202,109 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                     </button>
                 </div>
 
-                <div className="flex-grow overflow-y-auto pr-2 space-y-6">
-                    {/* Voice Selection */}
-                     <div className="space-y-3">
+                <div className="flex-grow overflow-y-auto pr-2 space-y-5">
+                    {/* UNIFIED Voice Selection */}
+                    <div className="space-y-3">
                         <label className="block text-sm font-bold text-slate-300">{t('voiceLabel', uiLanguage)}</label>
-                        
-                        {/* Gemini Voices */}
-                        <div>
-                            <p className="text-cyan-400 font-semibold mb-2">{t('geminiHdVoices', uiLanguage)}</p>
-                             <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                               {voiceOptions.map((opt, index) => (
-                                    <button 
-                                        key={opt.id} 
-                                        onClick={() => setVoice(opt.id)}
-                                        className={`p-3 rounded-lg text-left transition-all border-2 sm:col-span-2 ${
-                                            index === voiceOptions.length - 1 && voiceOptions.length % 2 !== 0 ? 'sm:col-start-2' : ''
-                                        } ${
-                                            voice === opt.id 
-                                                ? 'bg-cyan-500/20 border-cyan-500' 
-                                                : 'bg-slate-700 border-slate-600 hover:bg-slate-600/50'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-semibold">{t(opt.labelKey as any, uiLanguage)}</span>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleGeminiPreview(opt.id); }} 
-                                                title={t('previewVoiceTooltip', uiLanguage)}
-                                                className={`p-1 rounded-full ${previewingVoice === opt.id ? 'bg-red-500 text-white' : 'hover:bg-slate-500/50'}`}
-                                            >
-                                                {previewingVoice === opt.id ? <StopIcon /> : <PlayCircleIcon />}
-                                            </button>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                             <p className="text-xs text-slate-500 mt-2">{t('geminiVoicesNote', uiLanguage)}</p>
-                        </div>
-                        
-                        {/* System Voices */}
-                        <div>
-                            <p className="text-cyan-400 font-semibold mb-2">{t('systemVoices', uiLanguage)}</p>
-                             <div className="relative">
-                                <select 
-                                    value={voice} 
+                        <div className="flex items-center gap-2">
+                            <div className="relative flex-grow">
+                                <select
+                                    value={voice}
                                     onChange={e => setVoice(e.target.value)}
-                                    className="h-12 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-base w-full appearance-none pr-10"
+                                    className="h-11 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm w-full appearance-none"
                                 >
-                                    <option value="" disabled>{t('selectVoice', uiLanguage)}</option>
-                                    <optgroup label={t('suggestedVoices', uiLanguage)}>
-                                        {relevantSystemVoices.suggested.map(v => (
-                                            <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
+                                    <optgroup label={t('geminiHdVoices', uiLanguage)}>
+                                        {voiceOptions.map(opt => (
+                                            <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>
                                         ))}
                                     </optgroup>
-                                    <optgroup label={t('otherSystemVoices', uiLanguage)}>
-                                         {relevantSystemVoices.other.map(v => (
-                                            <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
-                                        ))}
-                                    </optgroup>
+                                    {relevantSystemVoices.suggested.length > 0 && (
+                                        <optgroup label={t('suggestedVoices', uiLanguage)}>
+                                            {relevantSystemVoices.suggested.map(v => (
+                                                <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    {relevantSystemVoices.other.length > 0 && (
+                                        <optgroup label={t('otherSystemVoices', uiLanguage)}>
+                                            {relevantSystemVoices.other.map(v => (
+                                                <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
                                 </select>
                                 <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                                    <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                    <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                                 </div>
                             </div>
-                             {!isGeminiVoiceSelected && (
-                                <button
-                                    onClick={handleSystemPreview}
-                                    className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded-md transition-colors"
-                                >
-                                    {isSystemSpeaking ? <StopIcon /> : <PlayCircleIcon />}
-                                    {t('previewSystemVoice', uiLanguage)}
-                                </button>
-                             )}
+                            <button
+                                onClick={() => handlePreview(voice)}
+                                title={t('previewVoiceTooltip', uiLanguage)}
+                                className={`w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-md transition-colors ${currentlyPreviewing === voice ? 'bg-red-500 text-white' : 'bg-slate-600 hover:bg-slate-500 text-white'}`}
+                            >
+                                {currentlyPreviewing === voice ? <StopIcon /> : <PlayCircleIcon />}
+                            </button>
                         </div>
-
+                        <p className="text-xs text-slate-500 mt-2">{t('geminiVoicesNote', uiLanguage)}</p>
                     </div>
 
-                    {/* Emotion & Pause */}
-                     <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
-                        <div>
-                            <label htmlFor="emotion" className="block text-sm font-bold text-slate-300 mb-2">{t('speechEmotion', uiLanguage)}</label>
-                            <select 
-                                id="emotion"
-                                value={emotion}
-                                onChange={e => setEmotion(e.target.value)}
+                     {/* Emotion/Tone */}
+                    <div className={`${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
+                        <label htmlFor="emotion" className="block text-sm font-bold text-slate-300 mb-2">{t('emotionLabel', uiLanguage)}</label>
+                         <select
+                            id="emotion"
+                            value={emotion}
+                            onChange={e => setEmotion(e.target.value)}
+                            disabled={!isGeminiVoiceSelected}
+                            title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
+                            className="h-11 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm w-full disabled:cursor-not-allowed"
+                        >
+                            {emotionOptions.map(opt => (
+                                <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>
+                            ))}
+                        </select>
+                         <p className="text-xs text-slate-500 mt-2">{t('emotionLabelInfo', uiLanguage)}</p>
+                    </div>
+
+                    {/* Pause */}
+                    <div className={`${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
+                        <label htmlFor="pause" className="block text-sm font-bold text-slate-300 mb-2">{t('pauseLabel', uiLanguage)}</label>
+                            <div className="flex items-center gap-2">
+                            <input
+                                id="pause"
+                                type="range"
+                                min="0"
+                                max="5"
+                                step="0.1"
+                                value={pauseDuration}
+                                onChange={e => setPauseDuration(parseFloat(e.target.value))}
                                 disabled={!isGeminiVoiceSelected}
                                 title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
-                                className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-base w-full disabled:cursor-not-allowed"
-                            >
-                                <option value="Default">{t('emotionDefault', uiLanguage)}</option>
-                                <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
-                                <option value="Sad">{t('emotionSad', uiLanguage)}</option>
-                                <option value="Formal">{t('emotionFormal', uiLanguage)}</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="pause" className="block text-sm font-bold text-slate-300 mb-2">{t('pauseLabel', uiLanguage)}</label>
-                             <div className="flex items-center gap-2">
-                                <input
-                                    id="pause"
-                                    type="range"
-                                    min="0"
-                                    max="5"
-                                    step="0.1"
-                                    value={pauseDuration}
-                                    onChange={e => setPauseDuration(parseFloat(e.target.value))}
-                                    disabled={!isGeminiVoiceSelected}
-                                    title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
-                                    className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed"
-                                />
-                                <span className="text-sm text-slate-400 w-12 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
-                            </div>
+                                className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed"
+                            />
+                            <span className="text-sm text-slate-400 w-12 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
                         </div>
                     </div>
                     
                     {/* Multi-speaker */}
                     <div className={`p-4 bg-slate-900/50 rounded-lg ${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
-                        <h4 className="text-md font-bold text-slate-300 mb-2">{t('multiSpeakerSettings', uiLanguage)}</h4>
-                        <label className="flex items-center gap-3 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={multiSpeaker}
-                                onChange={e => setMultiSpeaker(e.target.checked)}
-                                disabled={!isGeminiVoiceSelected}
-                                title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
-                                className="h-5 w-5 rounded bg-slate-600 border-slate-500 text-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed"
-                            />
-                            <span className="text-slate-200">{t('enableMultiSpeaker', uiLanguage)}</span>
-                        </label>
+                         <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-300">{t('multiSpeakerSettings', uiLanguage)}</h4>
+                                <p className="text-slate-300 text-xs">{t('enableMultiSpeaker', uiLanguage)}</p>
+                            </div>
+                            <div
+                                onClick={() => isGeminiVoiceSelected && setMultiSpeaker(!multiSpeaker)}
+                                role="switch"
+                                aria-checked={multiSpeaker}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full p-0.5 border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-slate-800 ${isGeminiVoiceSelected ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} ${multiSpeaker ? 'bg-cyan-500' : 'bg-slate-600'}`}
+                            >
+                                <span
+                                    aria-hidden="true"
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${multiSpeaker ? 'translate-x-5' : 'translate-x-0'}`}
+                                />
+                            </div>
+                        </div>
                         <p className="text-xs text-slate-500 mt-2">{t('enableMultiSpeakerInfo', uiLanguage)}</p>
                         
                         {multiSpeaker && (
@@ -1355,12 +1315,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                                         value={speakerA.name} 
                                         onChange={e => setSpeakerA({...speakerA, name: e.target.value})}
                                         placeholder={t('speaker1', uiLanguage)}
-                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500" 
+                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm" 
                                     />
                                     <select 
                                         value={speakerA.voice} 
                                         onChange={e => setSpeakerA({...speakerA, voice: e.target.value})}
-                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500"
+                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
                                     >
                                         {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>)}
                                     </select>
@@ -1371,12 +1331,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                                         value={speakerB.name} 
                                         onChange={e => setSpeakerB({...speakerB, name: e.target.value})}
                                         placeholder={t('speaker2', uiLanguage)}
-                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500" 
+                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm" 
                                     />
                                     <select 
                                         value={speakerB.voice} 
                                         onChange={e => setSpeakerB({...speakerB, voice: e.target.value})}
-                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500"
+                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
                                     >
                                         {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>)}
                                     </select>
@@ -1389,7 +1349,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
 
                 <div className="mt-4 border-t border-slate-700 pt-4">
                      <button onClick={onClose} className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition-colors">
-                        Close
+                        {t('closeButton', uiLanguage)}
                     </button>
                 </div>
             </div>
@@ -1412,6 +1372,7 @@ const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' |
                     <LoaderIcon />
                     <p className="text-slate-400">{t('encoding', uiLanguage)}</p>
                     <button onClick={onCancel} className="mt-2 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm">Cancel</button>
+
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -1426,29 +1387,6 @@ const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' |
         </div>
      </div>
 );
-
-const AudioControlModal: React.FC<AudioControlModalProps> = ({ onClose, uiLanguage }) => {
-    // This is a placeholder component for future development.
-    return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
-            <div className="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-semibold text-cyan-400">{t('audioControlTitle', uiLanguage)}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close audio controls">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-                
-                <div className="text-center py-10 opacity-50">
-                    <SoundEnhanceIcon />
-                    <h4 className="text-2xl font-bold mt-4">{t('comingSoon', uiLanguage)}</h4>
-                    <p className="text-slate-400 mt-2">{t('featureUnavailable', uiLanguage)}</p>
-                </div>
-                
-            </div>
-        </div>
-    );
-};
 
 
 export default App;
