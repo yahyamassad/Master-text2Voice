@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyRateLimiting } from './_lib/rate-limiter';
 
@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         let promptText: string;
         const config: any = {
-            responseModalities: ['AUDIO'],
+            responseModalities: [Modality.AUDIO], // FIX: Use Modality enum
         };
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
         
@@ -80,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const result = await ai.models.generateContent({
             model,
-            contents: promptText, // RADICAL CHANGE: Use a simple string instead of the structured Content[] array.
+            contents: [{ parts: [{ text: promptText }] }], // CRITICAL FIX: Revert to the structured Content[] format.
             config,
         });
 
