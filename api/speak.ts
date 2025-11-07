@@ -34,27 +34,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = "gemini-2.5-flash-preview-tts";
         
-        // --- NEW: Simplified Natural Language Prompt ---
-        // Instead of building complex SSML, we construct a simple, direct instruction
-        // for the model, letting it handle tones and effects naturally.
-        let prompt = `Generate audio for the following text.`;
-        if (emotion && emotion !== 'Default') {
-            prompt += ` Read it in a ${emotion.toLowerCase()} tone.`;
+        let promptText = text;
+
+        // --- CORRECTED PROMPT LOGIC ---
+        // For single-speaker mode, prefix the text with a direct instruction for emotion.
+        // The model is trained to understand this specific format.
+        // For multi-speaker mode, the text is passed as-is, as the model uses the
+        // speaker names in the text (e.g., "Yazan: ...") to differentiate voices.
+        const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
+        if (!isMultiSpeaker && emotion && emotion !== 'Default') {
+            promptText = `Say it in a ${emotion} tone: ${text}`;
         }
-        if (pauseDuration > 0) {
-            // The model is smart enough to understand this instruction for paragraph breaks.
-            prompt += ` Pause for approximately ${pauseDuration} second(s) between paragraphs.`;
-        }
-        prompt += ` The text is: "${text}"`;
-        // --- END NEW ---
+        // The `pauseDuration` is intentionally ignored here, as the model handles paragraph
+        // breaks (double newlines) automatically with a natural pause. Forcing it via text
+        // proved to be unreliable and caused errors.
+        // --- END CORRECTION ---
 
         const config: any = {
             responseModalities: [Modality.AUDIO],
         };
 
-        if (speakers && speakers.speakerA && speakers.speakerB) {
-            // Multi-speaker config remains the same. The model will assign voices
-            // based on speaker names found in the text (e.g., "Yazan: ...").
+        if (isMultiSpeaker) {
+            // Multi-speaker config.
             config.speechConfig = {
                 multiSpeakerVoiceConfig: {
                     speakerVoiceConfigs: [
@@ -72,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const result = await ai.models.generateContent({
             model,
-            contents: [{ parts: [{ text: prompt }] }], // Use the new natural language prompt
+            contents: [{ parts: [{ text: promptText }] }], // Use the correctly formatted prompt
             config,
         });
 
@@ -82,7 +83,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const finishReason = result.candidates?.[0]?.finishReason;
             const finishMessage = result.candidates?.[0]?.finishMessage || 'No specific message.';
             console.error(`Audio generation failed. Reason: ${finishReason}, Message: ${finishMessage}`);
-            throw new Error(`Could not generate audio. Model finished with reason: ${finishReason}.`);
+            // Provide a more specific error if the model refused to generate audio.
+            if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
+                 throw new Error(`Could not generate audio due to content policy: ${finishReason}.`);
+            }
+            throw new Error(`Could not generate audio. Model finished with reason: ${finishReason || 'UNKNOWN'}.`);
         }
 
         res.setHeader('Content-Type', 'application/json');
