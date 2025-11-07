@@ -100,6 +100,10 @@ const App: React.FC = () => {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [micError, setMicError] = useState<string | null>(null);
 
+  // Diagnostic Tool State
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [isDebugging, setIsDebugging] = useState<boolean>(false);
+
   // Refs
   const apiAbortControllerRef = useRef<AbortController | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -147,9 +151,9 @@ const App: React.FC = () => {
   
   // Firebase Authentication State Observer & Firestore History Sync
   useEffect(() => {
-    const { isFirebaseConfigured } = getFirebase();
-    if (isFirebaseConfigured) {
-        const auth = getAuth();
+    const { app, isFirebaseConfigured } = getFirebase();
+    if (isFirebaseConfigured && app) {
+        const auth = getAuth(app);
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setIsAuthLoading(false);
@@ -201,8 +205,7 @@ const App: React.FC = () => {
     if (activePlayer && (audioSourceRef.current || window.speechSynthesis.speaking)) {
       stopAll();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceText, translatedText, voice, pauseDuration, multiSpeaker, speakerA, speakerB, emotion]);
+  }, [sourceText, translatedText, voice, pauseDuration, multiSpeaker, speakerA, speakerB, emotion, stopAll, activePlayer]);
 
 
   // Server configuration check
@@ -542,13 +545,13 @@ const App: React.FC = () => {
     setTranslatedText(sourceText);
   };
   
-  const handleHistoryLoad = (item: HistoryItem) => {
+  const handleHistoryLoad = useCallback((item: HistoryItem) => {
     setSourceText(item.sourceText);
     setTranslatedText(item.translatedText);
     setSourceLang(item.sourceLang);
     setTargetLang(item.targetLang);
     setIsHistoryOpen(false);
-  };
+  }, []);
   
   const handleCopy = (text: string, type: 'source' | 'target') => {
       if (!text) return;
@@ -633,7 +636,7 @@ const App: React.FC = () => {
     return blob;
   }, [voice, emotion, multiSpeaker, speakerA, speakerB, pauseDuration, uiLanguage, stopAll, user]);
 
-  const handleDownload = async (format: 'wav' | 'mp3') => {
+  const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
     const textToProcess = translatedText || sourceText;
     const blob = await generateAudioBlob(textToProcess, format);
     if (blob) {
@@ -647,7 +650,7 @@ const App: React.FC = () => {
         URL.revokeObjectURL(url);
     }
     setIsDownloadOpen(false);
-  };
+  }, [translatedText, sourceText, generateAudioBlob]);
   
   const handleShareAudio = async () => {
     const textToProcess = translatedText || sourceText;
@@ -721,12 +724,12 @@ const App: React.FC = () => {
   };
 
   const handleSignIn = () => {
-      const { isFirebaseConfigured } = getFirebase();
-      if (!isFirebaseConfigured) {
+      const { app, isFirebaseConfigured } = getFirebase();
+      if (!isFirebaseConfigured || !app) {
           alert('Firebase is not configured. Sign-in is disabled.');
           return;
       }
-      const auth = getAuth();
+      const auth = getAuth(app);
       const provider = new GoogleAuthProvider();
       signInWithPopup(auth, provider).catch(error => {
           console.error("Sign-in error:", error);
@@ -734,17 +737,17 @@ const App: React.FC = () => {
       });
   };
 
-  const handleSignOut = () => {
-      const { isFirebaseConfigured } = getFirebase();
-      if (!isFirebaseConfigured) return;
+  const handleSignOut = useCallback(() => {
+      const { app, isFirebaseConfigured } = getFirebase();
+      if (!isFirebaseConfigured || !app) return;
       
-      const auth = getAuth();
+      const auth = getAuth(app);
       signOut(auth).catch(error => {
           console.error("Sign-out error:", error);
       });
-  };
+  }, []);
 
-  const handleClearHistory = async () => {
+  const handleClearHistory = useCallback(async () => {
     if (user) {
         // Cloud history
         if(window.confirm(t('clearCloudHistoryInfo', uiLanguage))) {
@@ -761,9 +764,9 @@ const App: React.FC = () => {
         setHistory([]);
         localStorage.removeItem('sawtli_history');
     }
-  };
+  }, [user, uiLanguage]);
 
-  const handleDeleteAccount = async () => {
+  const handleDeleteAccount = useCallback(async () => {
     if (!user) return;
     if (window.confirm(t('deleteAccountConfirmationPrompt', uiLanguage))) {
         setIsLoading(true);
@@ -784,6 +787,29 @@ const App: React.FC = () => {
             setIsLoading(false);
             setLoadingTask('');
         }
+    }
+  }, [user, uiLanguage]);
+
+  const handleSignOutAndClose = useCallback(() => {
+    handleSignOut();
+    setIsAccountOpen(false);
+  }, [handleSignOut]);
+
+  const handleDebugTest = async () => {
+    setIsDebugging(true);
+    setDebugInfo(null);
+    try {
+        const response = await fetch('/api/speak-debug');
+        const data = await response.json();
+        setDebugInfo(data);
+    } catch (err: any) {
+        setDebugInfo({
+            status: 'Fetch Error',
+            error: 'Failed to connect to the debug endpoint.',
+            details: err.message
+        });
+    } finally {
+        setIsDebugging(false);
     }
   };
 
@@ -948,6 +974,33 @@ const App: React.FC = () => {
             </div>
            
         </header>
+        
+        {/* --- START OF DEBUG UI --- */}
+        <div className="w-full bg-slate-700/50 border-2 border-amber-500/50 rounded-lg p-4 my-4 text-sm">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h3 className="font-bold text-amber-300">أداة التشخيص المؤقتة</h3>
+                    <p className="text-xs text-slate-400">اضغط على الزر لتشغيل اختبار بسيط ومباشر لواجهة برمجة تطبيقات تحويل النص إلى كلام.</p>
+                </div>
+                <button
+                    onClick={handleDebugTest}
+                    disabled={isDebugging}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-600 text-white font-bold rounded-lg transition-colors flex items-center gap-2"
+                >
+                    {isDebugging ? <LoaderIcon /> : '⚙️'}
+                    <span>{isDebugging ? 'جاري الاختبار...' : 'تشغيل الاختبار'}</span>
+                </button>
+            </div>
+            {debugInfo && (
+                <div className="mt-4 p-3 bg-slate-900 rounded-md">
+                    <h4 className="font-semibold text-slate-300 mb-2">نتائج الاختبار:</h4>
+                    <pre className="text-xs text-cyan-300 whitespace-pre-wrap break-all font-mono">
+                        {JSON.stringify(debugInfo, null, 2)}
+                    </pre>
+                </div>
+            )}
+        </div>
+        {/* --- END OF DEBUG UI --- */}
 
         <main className="w-full space-y-6">
             {/* Main Translator UI */}
@@ -1009,10 +1062,7 @@ const App: React.FC = () => {
                     onClose={() => setIsAccountOpen(false)} 
                     uiLanguage={uiLanguage}
                     user={user}
-                    onSignOut={() => {
-                        handleSignOut();
-                        setIsAccountOpen(false);
-                    }}
+                    onSignOut={handleSignOutAndClose}
                     onClearHistory={handleClearHistory}
                     onDeleteAccount={handleDeleteAccount}
                 />}
