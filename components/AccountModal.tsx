@@ -7,13 +7,12 @@ interface AccountModalProps {
     onClose: () => void;
     uiLanguage: Language;
     user: User | null;
-    dailyUsage: { used: number; limit: number } | null;
     onSignOut: () => void;
     onClearHistory: () => void;
     onDeleteAccount: () => void;
 }
 
-const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, dailyUsage, onSignOut, onClearHistory, onDeleteAccount }) => {
+const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, onSignOut, onClearHistory, onDeleteAccount }) => {
     if (!user) return null;
 
     const [secretKeyInput, setSecretKeyInput] = useState('');
@@ -58,8 +57,6 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
         ? new Date(user.metadata.creationTime).toLocaleDateString(uiLanguage, { year: 'numeric', month: 'long', day: 'numeric' })
         : 'N/A';
     
-    const usagePercent = dailyUsage ? (dailyUsage.used / dailyUsage.limit) * 100 : 0;
-
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
             <div className="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -80,17 +77,6 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                             <p className="text-xs text-slate-500 mt-1">{t('joinedDate', uiLanguage)}: {creationDate}</p>
                         </div>
                     </div>
-
-                    {/* Usage Stats */}
-                    {dailyUsage && (
-                        <div>
-                            <label className="block text-sm font-bold text-slate-300 mb-2">{t('dailyUsageLabel', uiLanguage)}</label>
-                            <div className="w-full bg-slate-700 rounded-full h-2.5">
-                                <div className="bg-cyan-500 h-2.5 rounded-full" style={{ width: `${usagePercent}%` }}></div>
-                            </div>
-                            <p className="text-xs text-slate-400 text-right mt-1">{dailyUsage.used.toLocaleString()} / {dailyUsage.limit.toLocaleString()}</p>
-                        </div>
-                    )}
                     
                     {/* Data Management */}
                     <div>

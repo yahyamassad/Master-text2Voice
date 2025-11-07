@@ -4,21 +4,10 @@ import { decode, generateSilence, concatenateUint8Arrays } from '../utils/audioU
 
 
 export type SpeechSpeed = number;
-type DailyUsage = { used: number; limit: number };
 
 interface TranslationData {
     translatedText: string;
     speakerMapping: Record<string, string>;
-}
-
-interface TranslationResult {
-    data: TranslationData;
-    usage: DailyUsage | null;
-}
-
-interface SpeechResult {
-    pcmData: Uint8Array | null;
-    usage: DailyUsage | null;
 }
 
 
@@ -148,7 +137,7 @@ export async function translateText(
     speakerBName: string, 
     signal: AbortSignal,
     idToken?: string
-): Promise<TranslationResult> {
+): Promise<TranslationData> {
     if (signal.aborted) {
         throw new DOMException('Aborted', 'AbortError');
     }
@@ -212,11 +201,8 @@ ${text}
             }
         
             return {
-                data: {
-                    translatedText: parsedResult.translatedText,
-                    speakerMapping: speakerMappingRecord
-                },
-                usage: null // No usage tracking in dev mode
+                translatedText: parsedResult.translatedText,
+                speakerMapping: speakerMappingRecord
             };
 
         } catch (error) {
@@ -245,12 +231,8 @@ ${text}
                 throw new Error(errorData.error || `Request failed with status ${response.status}`);
             }
 
-            const used = response.headers.get('x-ratelimit-used');
-            const limit = response.headers.get('x-ratelimit-limit');
-            const usage: DailyUsage | null = used && limit ? { used: parseInt(used, 10), limit: parseInt(limit, 10) } : null;
-
             const result: TranslationData = await response.json();
-            return { data: result, usage };
+            return result;
 
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') throw error;
@@ -272,7 +254,7 @@ export async function generateSpeech(
     speakers: { speakerA: SpeakerConfig, speakerB: SpeakerConfig } | undefined,
     signal: AbortSignal,
     idToken?: string
-): Promise<SpeechResult> {
+): Promise<Uint8Array | null> {
     if (signal.aborted) {
         throw new DOMException('Aborted', 'AbortError');
     }
@@ -338,7 +320,7 @@ export async function generateSpeech(
                  finalPcmData = await singleSpeechRequestDev(ai, promptText, speechConfig, signal);
             }
             
-            return { pcmData: finalPcmData, usage: null };
+            return finalPcmData;
 
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') throw error;
@@ -365,14 +347,10 @@ export async function generateSpeech(
                 }
                 throw new Error(errorData.error || `Request failed with status ${response.status}`);
             }
-            
-            const used = response.headers.get('x-ratelimit-used');
-            const limit = response.headers.get('x-ratelimit-limit');
-            const usage: DailyUsage | null = used && limit ? { used: parseInt(used, 10), limit: parseInt(limit, 10) } : null;
 
             const audioData = await response.arrayBuffer();
-            if (audioData.byteLength === 0) return { pcmData: null, usage };
-            return { pcmData: new Uint8Array(audioData), usage };
+            if (audioData.byteLength === 0) return null;
+            return new Uint8Array(audioData);
 
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') throw error;
@@ -383,7 +361,7 @@ export async function generateSpeech(
     }
 }
 
-export async function previewVoice(voice: string, sampleText: string, signal: AbortSignal): Promise<SpeechResult> {
+export async function previewVoice(voice: string, sampleText: string, signal: AbortSignal): Promise<Uint8Array | null> {
     // This function makes a controlled, minimal call to generateSpeech for a high-quality preview.
     // We use default parameters for a consistent preview experience.
     return generateSpeech(

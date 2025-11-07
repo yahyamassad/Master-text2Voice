@@ -72,10 +72,6 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-
-  // Daily Usage State
-  const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number } | null>(null);
-
   // Server Health Check State
   const [serverConfig, setServerConfig] = useState<{ status: 'checking' | 'configured' | 'unconfigured', error: string | null }>({ status: 'checking', error: null });
 
@@ -218,6 +214,9 @@ const App: React.FC = () => {
     const checkServerConfig = async () => {
       try {
         const response = await fetch('/api/health');
+        if (!response.ok) { // Check for non-2xx responses which indicate a server error or non-deployment
+            throw new Error(`Server responded with status: ${response.status}`);
+        }
         const data = await response.json();
         if (data.configured) {
           setServerConfig({ status: 'configured', error: null });
@@ -226,7 +225,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error("Health check failed:", err);
-        setServerConfig({ status: 'unconfigured', error: 'Could not connect to the server to verify configuration. Please check your network or deployment status.' });
+        setServerConfig({ status: 'unconfigured', error: 'Could not connect to the server. This may be due to a deployment error. Please check the deployment logs.' });
       }
     };
     checkServerConfig();
@@ -340,7 +339,7 @@ const App: React.FC = () => {
                 
                 const idToken = user ? await user.getIdToken() : undefined;
 
-                const { pcmData, usage } = await generateSpeech(
+                const pcmData = await generateSpeech(
                     text,
                     voice,
                     1.0, // speed
@@ -352,7 +351,6 @@ const App: React.FC = () => {
                     idToken
                 );
                 
-                if (usage) setDailyUsage(usage);
                 setIsLoading(false); 
                 setLoadingTask('');
 
@@ -435,10 +433,8 @@ const App: React.FC = () => {
               idToken
           );
           
-          if (result.usage) setDailyUsage(result.usage);
-
           if (!signal.aborted) {
-              const fullTranslation = result.data.translatedText;
+              const fullTranslation = result.translatedText;
               setTranslatedText(fullTranslation);
               const newHistoryItem: HistoryItem = {
                   id: new Date().toISOString(),
@@ -594,7 +590,7 @@ const App: React.FC = () => {
         const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
         const idToken = user ? await user.getIdToken() : undefined;
 
-        const { pcmData, usage } = await generateSpeech(
+        const pcmData = await generateSpeech(
             text,
             voice,
             1.0, // speed
@@ -605,8 +601,6 @@ const App: React.FC = () => {
             signal,
             idToken
         );
-        
-        if(usage) setDailyUsage(usage);
 
       if (!pcmData) {
           throw new Error(t('errorApiNoAudio', uiLanguage));
@@ -971,7 +965,7 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                <div className={`relative flex flex-col md:flex-row gap-4 ${serverConfig.status === 'unconfigured' ? 'opacity-20 pointer-events-none' : ''}`}>
+                <div className={`relative flex flex-col md:flex-row gap-4 ${serverConfig.status !== 'configured' ? 'opacity-20 pointer-events-none' : ''}`}>
                     {sourceTextArea}
                     {swapButton}
                     {translatedTextArea}
@@ -988,12 +982,6 @@ const App: React.FC = () => {
                             : t('translateButton', uiLanguage)}
                     </span>
                 </button>
-                 {isServerReady && dailyUsage && (
-                    <div className="text-xs text-center text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
-                       <span>{t('dailyUsageLabel', uiLanguage)}: </span>
-                       <span className="font-mono">{dailyUsage.used.toLocaleString()} / {dailyUsage.limit.toLocaleString()}</span>
-                    </div>
-                )}
             </div>
 
             {/* Action Buttons Row */}
@@ -1027,7 +1015,6 @@ const App: React.FC = () => {
                     onClose={() => setIsAccountOpen(false)} 
                     uiLanguage={uiLanguage}
                     user={user}
-                    dailyUsage={dailyUsage}
                     onSignOut={() => {
                         handleSignOut();
                         setIsAccountOpen(false);
@@ -1153,7 +1140,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
         previewAbortControllerRef.current = new AbortController();
 
         try {
-            const { pcmData } = await previewVoice(voiceId, t('voicePreviewText', uiLanguage), previewAbortControllerRef.current.signal);
+            const pcmData = await previewVoice(voiceId, t('voicePreviewText', uiLanguage), previewAbortControllerRef.current.signal);
             if (previewAbortControllerRef.current.signal.aborted) return;
 
             if (pcmData) {
@@ -1242,13 +1229,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                         {/* Gemini Voices */}
                         <div>
                             <p className="text-cyan-400 font-semibold mb-2">{t('geminiHdVoices', uiLanguage)}</p>
-                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                             <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                                {voiceOptions.map((opt, index) => (
                                     <button 
                                         key={opt.id} 
                                         onClick={() => setVoice(opt.id)}
-                                        className={`p-3 rounded-lg text-left transition-all border-2 ${
-                                            index === 4 ? 'sm:col-span-2 sm:w-[calc(50%-0.25rem)] sm:mx-auto' : ''
+                                        className={`p-3 rounded-lg text-left transition-all border-2 sm:col-span-2 ${
+                                            index === voiceOptions.length - 1 && voiceOptions.length % 2 !== 0 ? 'sm:col-start-2' : ''
                                         } ${
                                             voice === opt.id 
                                                 ? 'bg-cyan-500/20 border-cyan-500' 
