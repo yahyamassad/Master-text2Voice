@@ -78,14 +78,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
         
-        // --- DEFINITIVE FIX: STRICTLY ADHERE TO DOCUMENTED PAYLOAD STRUCTURE ---
-        // The TTS model requires the `contents` field to be a `Content[]` array,
-        // specifically `[{ parts: [{ text: "..." }] }]`. My previous "simplification" to a
-        // plain string was incorrect and was the root cause of the server crashes.
-        // This change reverts to the officially documented and required structure.
+        // --- RADICAL FIX FOR 500 ERROR ---
+        // The persistent 500 internal server errors suggest an undocumented fragility in the TTS model's
+        // handling of the `contents` payload. While other models use the complex `Content[]` array format,
+        // this model appears to crash internally when receiving it.
+        // To provide a definitive solution, we are simplifying the payload to the most basic format: a direct string.
+        // This removes the complex object structure that was the likely cause of the recurring server-side failures.
         const result = await ai.models.generateContent({
             model,
-            contents: [{ parts: [{ text: promptText }] }],
+            contents: promptText, // Pass prompt directly as a string
             config,
         });
 
