@@ -213,19 +213,16 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkServerConfig = async () => {
       try {
-        const response = await fetch('/api/health');
-        if (!response.ok) { // Check for non-2xx responses which indicate a server error or non-deployment
-            throw new Error(`Server responded with status: ${response.status}`);
-        }
+        const response = await fetch('/api/check-config');
         const data = await response.json();
         if (data.configured) {
           setServerConfig({ status: 'configured', error: null });
         } else {
-          setServerConfig({ status: 'unconfigured', error: data.message });
+          setServerConfig({ status: 'unconfigured', error: data.message || 'API_KEY is missing or invalid.' });
         }
       } catch (err) {
-        console.error("Health check failed:", err);
-        setServerConfig({ status: 'unconfigured', error: 'Could not connect to the server. This may be due to a deployment error. Please check the deployment logs.' });
+        console.error("Config check failed:", err);
+        setServerConfig({ status: 'unconfigured', error: 'Could not connect to the server. This may be a deployment error. Please check the deployment logs.' });
       }
     };
     checkServerConfig();
@@ -952,7 +949,7 @@ const App: React.FC = () => {
             {/* Main Translator UI */}
             <div className="bg-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 relative glow-container">
                 
-                {serverConfig.status === 'unconfigured' && <ConfigErrorOverlay uiLanguage={uiLanguage} errorMessage={serverConfig.error || ''} />}
+                {serverConfig.status === 'unconfigured' && <ConfigErrorOverlay uiLanguage={uiLanguage} />}
                 
                 {error && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{error}</p></div>}
                 {micError && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{micError}</p></div>}
@@ -1033,9 +1030,9 @@ const App: React.FC = () => {
 
 // --- SUB-COMPONENTS ---
 
-const ConfigErrorOverlay: React.FC<{uiLanguage: Language, errorMessage: string}> = ({ uiLanguage, errorMessage }) => {
+const ConfigErrorOverlay: React.FC<{uiLanguage: Language}> = ({ uiLanguage }) => {
   const vercelLink = "https://vercel.com/dashboard";
-  const variableName = errorMessage.includes('API_KEY') ? 'API_KEY' : 'Environment Variable';
+  const variableName = 'API_KEY'; // Always API_KEY now for clarity
 
   return (
     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-20 flex items-center justify-center p-4 rounded-2xl">
