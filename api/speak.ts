@@ -45,8 +45,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         let promptText: string;
         const config: any = {
-            // STABILITY FIX: Use a string literal instead of the Modality enum
-            // to prevent potential issues in the serverless environment.
             responseModalities: ['AUDIO'],
         };
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
@@ -58,12 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 
         // --- FINAL PROMPT ENGINEERING STRATEGY ---
-        // This logic now strictly adheres to the official Gemini documentation examples
-        // to ensure the model receives a request it can process reliably.
-
         if (isMultiSpeaker) {
-            // For multi-speaker, provide a clear, instructive prefix.
-            // This is crucial for the model to correctly interpret the multiSpeakerVoiceConfig.
             promptText = `TTS the following conversation between ${speakers.speakerA.name} and ${speakers.speakerB.name}:\n${text}`;
             config.speechConfig = {
                 multiSpeakerVoiceConfig: {
@@ -74,25 +67,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             };
         } else {
-            // For single-speaker, the configuration is simpler.
             config.speechConfig = {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             };
-
-            // Apply an adverb prefix *only if* an emotion is specified.
             const adverb = emotion && emotion !== 'Default' ? emotionAdverbMap[emotion] : null;
             if (adverb) {
-                // This "Say [adverb]:" format is directly from the documentation.
                 promptText = `Say ${adverb}: ${text}`;
             } else {
-                // If no emotion, send the plain text.
                 promptText = text;
             }
         }
         
+        // --- RADICAL FIX: SIMPLIFY PAYLOAD STRUCTURE ---
+        // Instead of sending a complex Content[] object, send the prompt directly as a string.
+        // This is a more robust approach for this text-only model and avoids potential
+        // fragility in how the API handles the complex object structure.
         const result = await ai.models.generateContent({
             model,
-            contents: [{ parts: [{ text: promptText }] }],
+            contents: promptText,
             config,
         });
 
@@ -112,9 +104,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ audioContent: base64Audio });
         
     } catch (error: any) {
-        // --- STABILITY FIX: Use safe logging ---
-        // Directly log the error object instead of using JSON.stringify, which can fail on
-        // complex objects with circular references from the SDK, causing the catch block itself to crash.
         console.error("Full error in /api/speak:", error);
 
         let errorMessage = 'An unknown server error occurred.';
