@@ -99,30 +99,30 @@ export const translations = {
     en: 'This feature is exclusive to Gemini HD voices',
     fr: 'Cette fonctionnalité est exclusive aux voix Gemini HD',
   },
-  voicePuck: {
+  voiceMale1: {
     ar: 'صوت عربي ١ (رجل)',
-    en: 'Puck (Male)',
-    fr: 'Puck (Masculin)',
+    en: 'Arabic Voice 1 (Male)',
+    fr: 'Voix Arabe 1 (Homme)',
   },
-  voiceKore: {
+  voiceFemale1: {
     ar: 'صوت عربي ١ (أنثى)',
-    en: 'Kore (Female)',
-    fr: 'Kore (Féminine)',
+    en: 'Arabic Voice 1 (Female)',
+    fr: 'Voix Arabe 1 (Femme)',
   },
-  voiceZephyr: {
-    ar: 'صوت عربي ٢ (أنثى)',
-    en: 'Zephyr (Female)',
-    fr: 'Zephyr (Féminin)',
-  },
-  voiceCharon: {
+  voiceMale2: {
     ar: 'صوت عربي ٢ (رجل)',
-    en: 'Charon (Male)',
-    fr: 'Charon (Masculin)',
+    en: 'Arabic Voice 2 (Male)',
+    fr: 'Voix Arabe 2 (Homme)',
   },
-  voiceFenrir: {
+  voiceFemale2: {
+    ar: 'صوت عربي ٢ (أنثى)',
+    en: 'Arabic Voice 2 (Female)',
+    fr: 'Voix Arabe 2 (Femme)',
+  },
+  voiceMale3: {
     ar: 'صوت عربي ٣ (رجل)',
-    en: 'Fenrir (Male)',
-    fr: 'Fenrir (Masculin)',
+    en: 'Arabic Voice 3 (Male)',
+    fr: 'Voix Arabe 3 (Homme)',
   },
   previewVoiceTooltip: {
     ar: 'معاينة هذا الصوت',

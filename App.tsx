@@ -52,7 +52,7 @@ const soundEffects = [
     { emoji: '😘', tag: '[kiss]', labelKey: 'addKiss' },
 ];
 
-const geminiVoices = ['Puck', 'Kore', 'Zephyr', 'Charon', 'Fenrir'];
+const geminiVoices = ['Puck', 'Kore', 'Charon', 'Zephyr', 'Fenrir'];
 
 // Main App Component
 const App: React.FC = () => {
@@ -1106,7 +1106,13 @@ const ActionCard: React.FC<{icon: React.ReactNode, label: string, onClick: () =>
 );
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices, sourceLang, targetLang }) => {
-    const voiceOptions = [ {id: 'Puck', label: t('voicePuck', uiLanguage)}, {id: 'Kore', label: t('voiceKore', uiLanguage)}, {id: 'Zephyr', label: t('voiceZephyr', uiLanguage)}, {id: 'Charon', label: t('voiceCharon', uiLanguage)}, {id: 'Fenrir', label: t('voiceFenrir', uiLanguage)} ];
+    const voiceOptions = [
+        { id: 'Puck', labelKey: 'voiceMale1' },
+        { id: 'Kore', labelKey: 'voiceFemale1' },
+        { id: 'Charon', labelKey: 'voiceMale2' },
+        { id: 'Zephyr', labelKey: 'voiceFemale2' },
+        { id: 'Fenrir', labelKey: 'voiceMale3' }
+    ];
     const isGeminiVoiceSelected = geminiVoices.includes(voice);
 
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
@@ -1236,15 +1242,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                         {/* Gemini Voices */}
                         <div>
                             <p className="text-cyan-400 font-semibold mb-2">{t('geminiHdVoices', uiLanguage)}</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                               {voiceOptions.map(opt => (
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                               {voiceOptions.map((opt, index) => (
                                     <button 
                                         key={opt.id} 
                                         onClick={() => setVoice(opt.id)}
-                                        className={`p-3 rounded-lg text-left transition-all border-2 ${voice === opt.id ? 'bg-cyan-500/20 border-cyan-500' : 'bg-slate-700 border-slate-600 hover:bg-slate-600/50'}`}
+                                        className={`p-3 rounded-lg text-left transition-all border-2 ${
+                                            index === 4 ? 'sm:col-span-2 sm:w-[calc(50%-0.25rem)] sm:mx-auto' : ''
+                                        } ${
+                                            voice === opt.id 
+                                                ? 'bg-cyan-500/20 border-cyan-500' 
+                                                : 'bg-slate-700 border-slate-600 hover:bg-slate-600/50'
+                                        }`}
                                     >
                                         <div className="flex items-center justify-between">
-                                            <span className="font-semibold">{opt.label}</span>
+                                            <span className="font-semibold">{t(opt.labelKey as any, uiLanguage)}</span>
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); handleGeminiPreview(opt.id); }} 
                                                 title={t('previewVoiceTooltip', uiLanguage)}
@@ -1366,7 +1378,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                                         onChange={e => setSpeakerA({...speakerA, voice: e.target.value})}
                                         className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500"
                                     >
-                                        {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                        {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>)}
                                     </select>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1382,7 +1394,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                                         onChange={e => setSpeakerB({...speakerB, voice: e.target.value})}
                                         className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500"
                                     >
-                                        {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                                        {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>)}
                                     </select>
                                 </div>
                                 <p className="text-xs text-slate-500 pt-1">{t('multiSpeakerInfo', uiLanguage)}</p>
