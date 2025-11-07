@@ -1,13 +1,13 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyRateLimiting } from './_lib/rate-limiter';
 
-// A map to convert UI emotion selection to a direct prompt adverb for the model,
-// aligning with documented examples for better reliability.
-const emotionAdverbMap: { [key: string]: string } = {
-  'Happy': 'cheerfully',
-  'Sad': 'sadly',
-  'Formal': 'formally'
+// REVERTING to the exact prompt phrasing from the previously working file.
+// This preview model appears to be extremely sensitive to the prompt structure.
+const emotionPromptMap: { [key: string]: string } = {
+  'Happy': 'Say cheerfully:',
+  'Sad': 'Read in a sad tone:',
+  'Formal': 'Read in a formal, professional voice:',
 };
 
 // =================================================================================
@@ -26,8 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(429).json({ error: error.message || 'Rate limit exceeded.' });
     }
 
-    // `pauseDuration` from the body is intentionally unused. The model's natural
-    // handling of paragraph breaks is more reliable than manual text manipulation.
     const { text, voice, emotion, speakers } = req.body;
 
     if (!voice) {
@@ -43,22 +41,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = "gemini-2.5-flash-preview-tts";
         
-        let promptText: string;
-        const config: any = {
-            responseModalities: [Modality.AUDIO], // FIX: Use Modality enum
-        };
-        const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
+        let promptText = text; // Default to original text
+        let speechConfig: any;
         
-        // SAFEGUARD: Add validation to prevent empty speaker names in multi-speaker mode.
-        if (isMultiSpeaker && (!speakers.speakerA.name || !speakers.speakerB.name || !speakers.speakerA.name.trim() || !speakers.speakerB.name.trim())) {
-            return res.status(400).json({ error: 'Speaker names cannot be empty in multi-speaker mode.' });
-        }
+        const isMultiSpeaker = speakers && speakers.speakerA?.name?.trim() && speakers.speakerB?.name?.trim();
 
-
-        // --- PROMPT ENGINEERING STRATEGY ---
         if (isMultiSpeaker) {
             promptText = `TTS the following conversation between ${speakers.speakerA.name} and ${speakers.speakerB.name}:\n${text}`;
-            config.speechConfig = {
+            speechConfig = {
                 multiSpeakerVoiceConfig: {
                     speakerVoiceConfigs: [
                         { speaker: speakers.speakerA.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } } },
@@ -67,21 +57,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             };
         } else {
-            config.speechConfig = {
+            speechConfig = {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             };
-            const adverb = emotion && emotion !== 'Default' ? emotionAdverbMap[emotion] : null;
-            if (adverb) {
-                promptText = `Say ${adverb}: ${text}`;
-            } else {
-                promptText = text;
+            
+            // Replicating the exact prompt construction from the working file
+            const instructionPrefix = (emotion && emotion !== 'Default' && emotionPromptMap[emotion])
+                ? emotionPromptMap[emotion]
+                : '';
+
+            if (instructionPrefix) {
+                // The newline character was present in the old working version.
+                promptText = `${instructionPrefix}\n${text}`;
             }
         }
         
         const result = await ai.models.generateContent({
             model,
-            contents: [{ parts: [{ text: promptText }] }], // CRITICAL FIX: Revert to the structured Content[] format.
-            config,
+            contents: [{ parts: [{ text: promptText }] }],
+            config: {
+                // DEFENSIVE CHANGE: Use the literal string for responseModalities to avoid any
+                // potential issues with enum bundling in the serverless environment.
+                responseModalities: ['AUDIO'],
+                speechConfig: speechConfig,
+            },
         });
 
         const base64Audio = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
