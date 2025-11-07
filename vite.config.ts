@@ -16,6 +16,8 @@ export default defineConfig({
     'process.env.VITE_FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(process.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
     'process.env.VITE_FIREBASE_APP_ID': JSON.stringify(process.env.VITE_FIREBASE_APP_ID),
     'process.env.VITE_FIREBASE_MEASUREMENT_ID': JSON.stringify(process.env.VITE_FIREBASE_MEASUREMENT_ID),
+    // Expose Owner UID to identify the app owner on the client-side for special privileges.
+    'process.env.VITE_OWNER_UID': JSON.stringify(process.env.VITE_OWNER_UID),
     // FIX: Expose Gemini API key for client-side features like Live Chat.
     'process.env.VITE_GEMINI_API_KEY': JSON.stringify(process.env.VITE_GEMINI_API_KEY),
   }
