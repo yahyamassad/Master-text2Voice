@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyRateLimiting } from './_lib/rate-limiter';
 
@@ -45,9 +45,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         let promptText: string;
         const config: any = {
-            responseModalities: [Modality.AUDIO],
+            // STABILITY FIX: Use a string literal instead of the Modality enum
+            // to prevent potential issues in the serverless environment.
+            responseModalities: ['AUDIO'],
         };
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
+        
+        // SAFEGUARD: Add validation to prevent empty speaker names in multi-speaker mode.
+        if (isMultiSpeaker && (!speakers.speakerA.name || !speakers.speakerB.name || !speakers.speakerA.name.trim() || !speakers.speakerB.name.trim())) {
+            return res.status(400).json({ error: 'Speaker names cannot be empty in multi-speaker mode.' });
+        }
+
 
         // --- FINAL PROMPT ENGINEERING STRATEGY ---
         // This logic now strictly adheres to the official Gemini documentation examples
