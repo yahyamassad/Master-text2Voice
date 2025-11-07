@@ -100,10 +100,6 @@ const App: React.FC = () => {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [micError, setMicError] = useState<string | null>(null);
 
-  // Diagnostic Tool State
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-  const [isDebugging, setIsDebugging] = useState<boolean>(false);
-
   // Refs
   const apiAbortControllerRef = useRef<AbortController | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -795,24 +791,6 @@ const App: React.FC = () => {
     setIsAccountOpen(false);
   }, [handleSignOut]);
 
-  const handleDebugTest = async () => {
-    setIsDebugging(true);
-    setDebugInfo(null);
-    try {
-        const response = await fetch('/api/speak-debug');
-        const data = await response.json();
-        setDebugInfo(data);
-    } catch (err: any) {
-        setDebugInfo({
-            status: 'Fetch Error',
-            error: 'Failed to connect to the debug endpoint.',
-            details: err.message
-        });
-    } finally {
-        setIsDebugging(false);
-    }
-  };
-
 
   // --- RENDER ---
   const sourceButtonState = getButtonState('source');
@@ -974,33 +952,6 @@ const App: React.FC = () => {
             </div>
            
         </header>
-        
-        {/* --- START OF DEBUG UI --- */}
-        <div className="w-full bg-slate-700/50 border-2 border-amber-500/50 rounded-lg p-4 my-4 text-sm">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h3 className="font-bold text-amber-300">أداة التشخيص المؤقتة</h3>
-                    <p className="text-xs text-slate-400">اضغط على الزر لتشغيل اختبار بسيط ومباشر لواجهة برمجة تطبيقات تحويل النص إلى كلام.</p>
-                </div>
-                <button
-                    onClick={handleDebugTest}
-                    disabled={isDebugging}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-600 text-white font-bold rounded-lg transition-colors flex items-center gap-2"
-                >
-                    {isDebugging ? <LoaderIcon /> : '⚙️'}
-                    <span>{isDebugging ? 'جاري الاختبار...' : 'تشغيل الاختبار'}</span>
-                </button>
-            </div>
-            {debugInfo && (
-                <div className="mt-4 p-3 bg-slate-900 rounded-md">
-                    <h4 className="font-semibold text-slate-300 mb-2">نتائج الاختبار:</h4>
-                    <pre className="text-xs text-cyan-300 whitespace-pre-wrap break-all font-mono">
-                        {JSON.stringify(debugInfo, null, 2)}
-                    </pre>
-                </div>
-            )}
-        </div>
-        {/* --- END OF DEBUG UI --- */}
 
         <main className="w-full space-y-6">
             {/* Main Translator UI */}
