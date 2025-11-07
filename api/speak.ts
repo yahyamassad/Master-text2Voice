@@ -45,7 +45,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         let promptText: string;
         const config: any = {
-            // Use string literal to strictly match documentation examples.
             responseModalities: ['AUDIO'],
         };
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
@@ -79,13 +78,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
         
-        // --- CORRECTED PAYLOAD STRUCTURE ---
-        // The previous attempt to send the prompt as a simple string was incorrect for the TTS model.
-        // The official documentation requires a structured `Content[]` array. This change adheres
-        // strictly to that format to resolve the persistent 500 internal server errors.
         const result = await ai.models.generateContent({
             model,
-            contents: [{ parts: [{ text: promptText }] }], // Use the documented structure
+            contents: [{ parts: [{ text: promptText }] }],
             config,
         });
 
@@ -104,12 +99,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.setHeader('Content-Type', 'application/json');
         return res.status(200).json({ audioContent: base64Audio });
         
-    } catch (error: any) {
-        console.error("Full error in /api/speak:", error);
+    } catch (error: unknown) {
+        console.error("--- ERROR IN /api/speak ---");
+        let errorMessage = "An unknown server error occurred during speech generation.";
 
-        let errorMessage = 'An unknown server error occurred.';
-        if (error.message) {
+        // Safely extract error message to prevent the handler from crashing.
+        if (error instanceof Error) {
             errorMessage = error.message;
+            console.error("Error Message:", error.message);
+        } else {
+            try {
+                const errorString = JSON.stringify(error);
+                errorMessage = `An unexpected error object was thrown: ${errorString}`;
+                console.error("Caught non-Error object:", errorString);
+            } catch (e) {
+                errorMessage = "An unexpected and non-serializable error object was thrown.";
+                console.error("Caught non-serializable, non-Error object.");
+            }
         }
 
         const lowerCaseError = errorMessage.toLowerCase();
@@ -122,7 +128,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } else if (lowerCaseError.includes('rate limit')) {
              errorMessage = 'You have reached the daily character usage limit. Please try again tomorrow.';
         }
-
-        return res.status(500).json({ error: errorMessage });
+        
+        // Ensure a response is always sent, preventing the function from timing out or crashing.
+        if (!res.headersSent) {
+            return res.status(500).json({ error: errorMessage });
+        }
     }
 }
