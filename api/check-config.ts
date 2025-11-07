@@ -2,20 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from "@google/genai";
 
 /**
- * A helper function to validate the API key by attempting to instantiate the GenAI client.
- * This isolates the validation logic and ensures there are no unused variables.
- * @param key The API key string to validate.
- * @returns An object indicating if the key is valid and an error message if it's not.
+ * A serverless function to verify that the necessary server-side configuration (API_KEY) is present and valid.
  */
-function validateApiKey(key: string): { valid: boolean; error: string | null } {
-    try {
-        new GoogleGenAI({ apiKey: key });
-        return { valid: true, error: null };
-    } catch (error: any) {
-        return { valid: false, error: error.message };
-    }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
@@ -24,22 +12,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const apiKey = process.env.API_KEY;
 
-  if (!apiKey) {
+  // STABILITY FIX: Explicitly check for a missing or empty API key.
+  if (!apiKey || apiKey.trim() === '') {
     return res.status(200).json({ 
       configured: false, 
-      message: 'The API_KEY environment variable is not set in Vercel.' 
+      message: 'The API_KEY environment variable is not set or is empty in Vercel.' 
     });
   }
   
-  const validation = validateApiKey(apiKey);
-  
-  if (validation.valid) {
-      return res.status(200).json({ configured: true });
-  } else {
-      console.error("Config check validation failed:", validation.error);
+  // STABILITY FIX: Wrap the client instantiation in a top-level try/catch block
+  // to ensure any error is caught and formatted into a valid JSON response,
+  // preventing malformed stream responses that cause client-side parsing errors.
+  try {
+    // The act of instantiating the client can throw an error if the key format is syntactically wrong.
+    new GoogleGenAI({ apiKey: apiKey });
+    
+    // If instantiation succeeds, the key format is valid.
+    // We can't fully validate permissions without making a call, but this is a crucial first step.
+    return res.status(200).json({ configured: true });
+
+  } catch (error: any) {
+      let errorMessage = 'An unknown error occurred during API key validation.';
+      if (error && error.message) {
+          errorMessage = error.message;
+      }
+      
+      console.error("Config check validation failed:", errorMessage);
+
+      // Provide more user-friendly error messages for common issues.
+      const lowerCaseError = errorMessage.toLowerCase();
+      if (lowerCaseError.includes('api key not valid')) {
+          errorMessage = 'Gemini API Error: The API key provided in Vercel has an invalid format. Please check the `API_KEY` environment variable.';
+      }
+      
       return res.status(200).json({ 
           configured: false, 
-          message: `API key is present, but validation failed: ${validation.error}`
+          message: `API key validation failed: ${errorMessage}`
       });
   }
 }
