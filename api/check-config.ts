@@ -12,7 +12,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const apiKey = process.env.API_KEY;
 
-  // STABILITY FIX: Explicitly check for a missing or empty API key.
   if (!apiKey || apiKey.trim() === '') {
     return res.status(200).json({ 
       configured: false, 
@@ -20,30 +19,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
   
-  // STABILITY FIX: Wrap the client instantiation in a top-level try/catch block
-  // to ensure any error is caught and formatted into a valid JSON response,
-  // preventing malformed stream responses that cause client-side parsing errors.
   try {
-    // The act of instantiating the client can throw an error if the key format is syntactically wrong.
+    // Attempting to instantiate the client will throw an error for a malformed key.
+    // This is a good first-pass validation before making an actual API call.
     new GoogleGenAI({ apiKey: apiKey });
     
-    // If instantiation succeeds, the key format is valid.
-    // We can't fully validate permissions without making a call, but this is a crucial first step.
+    // If we reach here, the key format is syntactically valid.
     return res.status(200).json({ configured: true });
 
   } catch (error: any) {
       let errorMessage = 'An unknown error occurred during API key validation.';
       if (error && error.message) {
-          errorMessage = error.message;
+          // Extract a cleaner error message if available
+          const match = error.message.match(/\[GoogleGenerativeAI Error\]:\s*(.*)/);
+          errorMessage = match ? match[1] : error.message;
       }
       
       console.error("Config check validation failed:", errorMessage);
-
-      // Provide more user-friendly error messages for common issues.
-      const lowerCaseError = errorMessage.toLowerCase();
-      if (lowerCaseError.includes('api key not valid')) {
-          errorMessage = 'Gemini API Error: The API key provided in Vercel has an invalid format. Please check the `API_KEY` environment variable.';
-      }
       
       return res.status(200).json({ 
           configured: false, 
