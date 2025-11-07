@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, laz
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
 import { History } from './components/History';
@@ -67,6 +67,8 @@ const App: React.FC = () => {
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const { isFirebaseConfigured } = useMemo(() => getFirebase(), []);
+
 
   // Server Health Check State
   const [serverConfig, setServerConfig] = useState<{ status: 'checking' | 'configured' | 'unconfigured', error: string | null }>({ status: 'checking', error: null });
@@ -147,7 +149,7 @@ const App: React.FC = () => {
   
   // Firebase Authentication State Observer & Firestore History Sync
   useEffect(() => {
-    const { app, isFirebaseConfigured } = getFirebase();
+    const { app } = getFirebase();
     if (isFirebaseConfigured && app) {
         const auth = getAuth(app);
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -191,7 +193,7 @@ const App: React.FC = () => {
             if (savedHistory) setHistory(JSON.parse(savedHistory));
         } catch (e) { console.error("Failed to load history from localStorage", e); }
     }
-  }, []);
+  }, [isFirebaseConfigured]);
 
 
   // Stop any active audio if the text or settings that would affect it are changed.
@@ -305,6 +307,20 @@ const App: React.FC = () => {
         document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // UI STABILITY: Prevent body scroll when a modal is open to avoid "jiggle"
+  useEffect(() => {
+    const isAnyModalOpen = isSettingsOpen || isHistoryOpen || isDownloadOpen || isAccountOpen || isAudioStudioOpen;
+    if (isAnyModalOpen) {
+        document.body.classList.add('overflow-hidden');
+    } else {
+        document.body.classList.remove('overflow-hidden');
+    }
+    // Cleanup function to ensure the class is removed on component unmount
+    return () => {
+        document.body.classList.remove('overflow-hidden');
+    };
+  }, [isSettingsOpen, isHistoryOpen, isDownloadOpen, isAccountOpen, isAudioStudioOpen]);
   
   const handleSpeak = async (text: string, target: 'source' | 'target') => {
       if (isLoading || activePlayer) {
@@ -720,9 +736,9 @@ const App: React.FC = () => {
   };
 
   const handleSignIn = () => {
-      const { app, isFirebaseConfigured } = getFirebase();
+      const { app } = getFirebase();
       if (!isFirebaseConfigured || !app) {
-          alert('Firebase is not configured. Sign-in is disabled.');
+          console.error('Firebase is not configured. Sign-in is disabled.');
           return;
       }
       const auth = getAuth(app);
@@ -734,14 +750,14 @@ const App: React.FC = () => {
   };
 
   const handleSignOut = useCallback(() => {
-      const { app, isFirebaseConfigured } = getFirebase();
+      const { app } = getFirebase();
       if (!isFirebaseConfigured || !app) return;
       
       const auth = getAuth(app);
       signOut(auth).catch(error => {
           console.error("Sign-out error:", error);
       });
-  }, []);
+  }, [isFirebaseConfigured]);
 
   const handleClearHistory = useCallback(async () => {
     if (user) {
@@ -943,17 +959,22 @@ const App: React.FC = () => {
                             <span className="text-sm font-semibold hidden sm:inline">{user.displayName}</span>
                         </button>
                     </div>
-                ) : (
-                    <button onClick={handleSignIn} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-full flex items-center gap-2">
+                ) : isFirebaseConfigured ? (
+                    <button 
+                        onClick={handleSignIn} 
+                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-full flex items-center gap-2"
+                    >
                         <UserIcon className="w-5 h-5" />
                         <span className="text-sm font-semibold">{t('signIn', uiLanguage)}</span>
                     </button>
-                )}
+                ) : null}
             </div>
            
         </header>
 
         <main className="w-full space-y-6">
+            {!isFirebaseConfigured && !isAuthLoading && <FirebaseConfigNeeded uiLanguage={uiLanguage}/>}
+
             {/* Main Translator UI */}
             <div className="bg-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 relative glow-container">
                 
@@ -1029,6 +1050,114 @@ const App: React.FC = () => {
 
 // --- SUB-COMPONENTS ---
 
+const FirebaseConfigNeeded: React.FC<{ uiLanguage: Language }> = ({ uiLanguage }) => {
+    const [isGuideOpen, setIsGuideOpen] = useState(true);
+    const [varsCopyButtonText, setVarsCopyButtonText] = useState(t('firebaseSetupCopyButton', uiLanguage));
+    const [rulesCopyButtonText, setRulesCopyButtonText] = useState(t('firebaseSetupCopyButton', uiLanguage));
+
+    useEffect(() => {
+      setVarsCopyButtonText(t('firebaseSetupCopyButton', uiLanguage));
+      setRulesCopyButtonText(t('firebaseSetupCopyButton', uiLanguage));
+    }, [uiLanguage]);
+
+    const firebaseEnvVars = [
+      'VITE_FIREBASE_API_KEY="your-api-key"',
+      'VITE_FIREBASE_AUTH_DOMAIN="your-project-id.firebaseapp.com"',
+      'VITE_FIREBASE_PROJECT_ID="your-project-id"',
+      'VITE_FIREBASE_STORAGE_BUCKET="your-project-id.appspot.com"',
+      'VITE_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"',
+      'VITE_FIREBASE_APP_ID="your-app-id"',
+    ].join('\n');
+    
+    const firestoreRules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read/write their own data
+    match /users/{userId}/{documents=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Allow anyone to read/create feedback, but not edit/delete
+    match /feedback/{feedbackId} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+  }
+}`;
+
+    const handleCopy = (textToCopy: string, buttonType: 'vars' | 'rules') => {
+        navigator.clipboard.writeText(textToCopy);
+        if(buttonType === 'vars') {
+            setVarsCopyButtonText(t('firebaseSetupCopiedButton', uiLanguage));
+            setTimeout(() => setVarsCopyButtonText(t('firebaseSetupCopyButton', uiLanguage)), 2000);
+        } else if (buttonType === 'rules') {
+            setRulesCopyButtonText(t('firebaseSetupCopiedButton', uiLanguage));
+            setTimeout(() => setRulesCopyButtonText(t('firebaseSetupCopyButton', uiLanguage)), 2000);
+        }
+    };
+    return (
+        <div className="p-4 sm:p-6 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300">
+            <div className="text-center">
+                <h3 className="text-xl font-bold text-amber-400">{t('feedbackConfigNeededTitle', uiLanguage)}</h3>
+                <p className="mt-2 text-slate-400">{t('feedbackConfigNeededBody', uiLanguage)}</p>
+            </div>
+            <div className="mt-4 border-t border-slate-600 pt-4">
+                 <button 
+                    onClick={() => setIsGuideOpen(!isGuideOpen)} 
+                    className="w-full flex justify-between items-center text-left p-3 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors"
+                >
+                    <span className="font-bold">{t('firebaseSetupGuideTitle', uiLanguage)}</span>
+                    <ChevronDownIcon className={`transform transition-transform duration-300 ${isGuideOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isGuideOpen && (
+                    <div className="mt-4 space-y-4 text-sm animate-fade-in-down">
+                        {/* Step 1 */}
+                        <div className="p-3 bg-slate-900/50 rounded-md">
+                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep1Title', uiLanguage)}</h4>
+                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep1Body', uiLanguage)}</p>
+                            <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="inline-block mt-2 px-3 py-1 bg-cyan-600 text-white rounded-md text-xs hover:bg-cyan-500 transition-colors">
+                                {t('firebaseSetupStep1Button', uiLanguage)} <ExternalLinkIcon />
+                            </a>
+                        </div>
+                        {/* Step 2 */}
+                         <div className="p-3 bg-slate-900/50 rounded-md">
+                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep2Title', uiLanguage)}</h4>
+                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep2Body', uiLanguage)}</p>
+                        </div>
+                        {/* Step 3 */}
+                        <div className="p-3 bg-slate-900/50 rounded-md">
+                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep3Title', uiLanguage)}</h4>
+                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep3Body', uiLanguage)}</p>
+                            <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left text-xs">
+                                <pre className="whitespace-pre-wrap"><code>{firebaseEnvVars}</code></pre>
+                                <button onClick={() => handleCopy(firebaseEnvVars, 'vars')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
+                                    <CopyIcon /> {varsCopyButtonText}
+                                </button>
+                            </div>
+                        </div>
+                         {/* Step 4 */}
+                        <div className="p-3 bg-slate-900/50 rounded-md">
+                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep4Title', uiLanguage)}</h4>
+                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep4Body', uiLanguage)}</p>
+                            <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-xs text-yellow-300 text-left">
+                                <pre className="whitespace-pre-wrap"><code>{firestoreRules}</code></pre>
+                                <button onClick={() => handleCopy(firestoreRules, 'rules')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
+                                  <CopyIcon /> {rulesCopyButtonText}
+                                </button>
+                            </div>
+                        </div>
+                        {/* Step 5 */}
+                         <div className="p-3 bg-slate-900/50 rounded-md">
+                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep5Title', uiLanguage)}</h4>
+                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep5Body', uiLanguage)}</p>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+
 const ConfigErrorOverlay: React.FC<{uiLanguage: Language}> = ({ uiLanguage }) => {
   const vercelLink = "https://vercel.com/dashboard";
   const variableName = 'API_KEY'; // Always API_KEY now for clarity
@@ -1043,7 +1172,7 @@ const ConfigErrorOverlay: React.FC<{uiLanguage: Language}> = ({ uiLanguage }) =>
         <p className="text-slate-400 text-sm">{t('configNeededBody_AppOwner', uiLanguage)}</p>
         <div dir="ltr" className="my-2 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left text-sm">
           <div><span className="text-slate-500">Name:</span> {variableName}</div>
-          <div><span className="text-slate-500">Value:</span> sk-YourGeminiApiKey...</div>
+          <div><span className="text-slate-500">Value:</span> Your-Gemini-API-Key...</div>
         </div>
         <a href={vercelLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 mt-2 px-4 py-2 bg-cyan-600 text-white font-bold rounded-md hover:bg-cyan-500 transition-colors">
           {t('goToVercelButton', uiLanguage)} <ExternalLinkIcon className="h-4 w-4" />
@@ -1169,7 +1298,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
             utterance.voice = selectedSystemVoice;
             utterance.lang = selectedSystemVoice.lang;
             utterance.onend = () => setCurrentlyPreviewing(null);
-            utterance.onerror = () => setCurrentlyPreviewing(null);
+            utterance.onerror = (e) => {
+                console.error("System voice preview error:", e);
+                setCurrentlyPreviewing(null);
+            };
             window.speechSynthesis.speak(utterance);
         }
     };
