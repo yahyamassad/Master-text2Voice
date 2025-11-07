@@ -43,29 +43,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = "gemini-2.5-flash-preview-tts";
         
-        let promptText = text;
-        const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
-
-        // --- REVISED PROMPT ENGINEERING ---
-        // For specialized models, less explicit instruction in the prompt can be better,
-        // letting the configuration guide the model.
-        if (!isMultiSpeaker && emotion && emotion !== 'Default') {
-            const adverb = emotionAdverbMap[emotion];
-            if (adverb) {
-                // For single-speaker, follow the documentation's instruction format.
-                promptText = `Say ${adverb}: ${text}`;
-            }
-        }
-        // For multi-speaker, we now rely *solely* on the multiSpeakerVoiceConfig
-        // and the `Speaker: text` format in the input, removing any conversational prefix
-        // to avoid potential conflicts or confusion for the model.
-        // --- END REVISION ---
-
+        let promptText: string;
         const config: any = {
             responseModalities: [Modality.AUDIO],
         };
+        const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB;
+
+        // --- FINAL PROMPT ENGINEERING STRATEGY ---
+        // This logic now strictly adheres to the official Gemini documentation examples
+        // to ensure the model receives a request it can process reliably.
 
         if (isMultiSpeaker) {
+            // For multi-speaker, provide a clear, instructive prefix.
+            // This is crucial for the model to correctly interpret the multiSpeakerVoiceConfig.
+            promptText = `TTS the following conversation between ${speakers.speakerA.name} and ${speakers.speakerB.name}:\n${text}`;
             config.speechConfig = {
                 multiSpeakerVoiceConfig: {
                     speakerVoiceConfigs: [
@@ -75,9 +66,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             };
         } else {
+            // For single-speaker, the configuration is simpler.
             config.speechConfig = {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             };
+
+            // Apply an adverb prefix *only if* an emotion is specified.
+            const adverb = emotion && emotion !== 'Default' ? emotionAdverbMap[emotion] : null;
+            if (adverb) {
+                // This "Say [adverb]:" format is directly from the documentation.
+                promptText = `Say ${adverb}: ${text}`;
+            } else {
+                // If no emotion, send the plain text.
+                promptText = text;
+            }
         }
         
         const result = await ai.models.generateContent({
