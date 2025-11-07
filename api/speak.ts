@@ -3,99 +3,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyRateLimiting } from './_lib/rate-limiter';
 
 // =================================================================================
-// SSML Processing Engine - The core of the new implementation
-// =================================================================================
-
-// Maps UI sound effect tags to SSML interjections.
-const soundEffectMap: { [key: string]: string } = {
-    '[laugh]': '<say-as interpret-as="interjection">laugh</say-as>',
-    '[laughter]': '<say-as interpret-as="interjection">laughter</say-as>',
-    '[sigh]': '<say-as interpret-as="interjection">sigh</say-as>',
-    '[sob]': '<say-as interpret-as="interjection">sob</say-as>',
-    '[gasp]': '<say-as interpret-as="interjection">gasp</say-as>',
-    '[cough]': '<say-as interpret-as="interjection">cough</say-as>',
-    '[hmm]': '<say-as interpret-as="interjection">hmm</say-as>',
-    '[cheer]': '<say-as interpret-as="interjection">cheer</say-as>',
-    '[kiss]': '<say-as interpret-as="interjection">kiss</say-as>',
-};
-
-// Maps UI emotion settings to SSML prosody attributes.
-const emotionProsodyMap: { [key: string]: { rate: string; pitch: string } } = {
-    'Default': { rate: 'medium', pitch: 'medium' },
-    'Happy': { rate: 'fast', pitch: 'high' },
-    'Sad': { rate: 'slow', pitch: 'low' },
-    'Formal': { rate: 'medium', pitch: 'medium' }, // Formality is more about diction, but we can keep prosody neutral.
-    // Inline emotions
-    'cheerfully': { rate: 'fast', pitch: 'high' },
-    'sadly': { rate: 'slow', pitch: 'low' },
-    'formally': { rate: 'medium', pitch: 'medium' },
-    'angrily': { rate: 'fast', pitch: 'medium' }, // Example of future extension
-    'softly': { rate: 'slow', pitch: 'low' }
-};
-
-// A simple utility to escape characters that are special in XML/SSML.
-function escapeXml(text: string): string {
-    return text.replace(/[<>&'"]/g, (char) => {
-        switch (char) {
-            case '<': return '&lt;';
-            case '>': return '&gt;';
-            case '&': return '&amp;';
-            case '\'': return '&apos;';
-            case '"': return '&quot;';
-            default: return char;
-        }
-    });
-}
-
-/**
- * Processes raw text with custom tags into a complete SSML string.
- * This function is the heart of the intelligent speech generation.
- * @param text The user's input text, e.g., "Hello [laugh] (sadly) I am not well."
- * @param overallEmotion The default emotion for the entire text.
- * @param pauseDuration The duration in seconds for paragraph breaks.
- * @returns A single, well-formed SSML string.
- */
-function processTextToSsml(text: string, overallEmotion: string, pauseDuration: number): string {
-    // Start with the default prosody based on the overall emotion setting.
-    let currentProsody = emotionProsodyMap[overallEmotion] || emotionProsodyMap['Default'];
-    let ssmlBody = '';
-    
-    // Regex to split the text by our custom tags `[...]` and `(...)`, keeping the delimiters.
-    const parts = text.split(/(\[.*?\]|\(.*?\))/g).filter(p => p);
-
-    for (const part of parts) {
-        if (part.startsWith('[') && part.endsWith(']')) {
-            // It's a sound effect tag, e.g., "[laugh]"
-            ssmlBody += soundEffectMap[part.toLowerCase()] || '';
-        } else if (part.startsWith('(') && part.endsWith(')')) {
-            // It's an inline emotional cue, e.g., "(sadly)"
-            const cue = part.slice(1, -1).trim().toLowerCase();
-            const newProsody = emotionProsodyMap[cue];
-            if (newProsody) {
-                currentProsody = newProsody;
-            }
-            // Note: The cue itself is not spoken, it only changes the style for the next part.
-        } else {
-            // It's a regular piece of text.
-            const cleanedPart = part.trim();
-            if (cleanedPart) {
-                // Wrap the text in the currently active prosody settings.
-                ssmlBody += `<prosody rate="${currentProsody.rate}" pitch="${currentProsody.pitch}">${escapeXml(cleanedPart)}</prosody> `;
-            }
-            // After speaking this part, revert to the overall emotion's prosody.
-            currentProsody = emotionProsodyMap[overallEmotion] || emotionProsodyMap['Default'];
-        }
-    }
-    
-    // Replace newlines with SSML break tags for natural pauses between paragraphs.
-    const finalBodyWithPauses = ssmlBody.trim().replace(/\n+/g, `<break time="${pauseDuration}s"/>`);
-
-    // Wrap everything in the root <speak> tag.
-    return `<speak>${finalBodyWithPauses}</speak>`;
-}
-
-
-// =================================================================================
 // Vercel Serverless Function Handler
 // =================================================================================
 
@@ -127,17 +34,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = "gemini-2.5-flash-preview-tts";
         
-        // The core logic is now simplified to one SSML generation step.
-        const ssmlText = processTextToSsml(text, emotion, pauseDuration);
-        
-        // The API configuration is now simpler.
+        // --- NEW: Simplified Natural Language Prompt ---
+        // Instead of building complex SSML, we construct a simple, direct instruction
+        // for the model, letting it handle tones and effects naturally.
+        let prompt = `Generate audio for the following text.`;
+        if (emotion && emotion !== 'Default') {
+            prompt += ` Read it in a ${emotion.toLowerCase()} tone.`;
+        }
+        if (pauseDuration > 0) {
+            // The model is smart enough to understand this instruction for paragraph breaks.
+            prompt += ` Pause for approximately ${pauseDuration} second(s) between paragraphs.`;
+        }
+        prompt += ` The text is: "${text}"`;
+        // --- END NEW ---
+
         const config: any = {
             responseModalities: [Modality.AUDIO],
         };
 
         if (speakers && speakers.speakerA && speakers.speakerB) {
-            // Multi-speaker mode still works by passing speaker names.
-            // The model will use SSML for tone and this config for voice assignment.
+            // Multi-speaker config remains the same. The model will assign voices
+            // based on speaker names found in the text (e.g., "Yazan: ...").
             config.speechConfig = {
                 multiSpeakerVoiceConfig: {
                     speakerVoiceConfigs: [
@@ -153,17 +70,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
         }
         
-        // A single, efficient API call with the complete SSML payload.
         const result = await ai.models.generateContent({
             model,
-            contents: [{ parts: [{ text: ssmlText }] }],
+            contents: [{ parts: [{ text: prompt }] }], // Use the new natural language prompt
             config,
         });
 
         const base64Audio = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         
         if (!base64Audio) {
-            // Check for specific finish reasons from the model for better debugging.
             const finishReason = result.candidates?.[0]?.finishReason;
             const finishMessage = result.candidates?.[0]?.finishMessage || 'No specific message.';
             console.error(`Audio generation failed. Reason: ${finishReason}, Message: ${finishMessage}`);
@@ -181,7 +96,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             errorMessage = error.message;
         }
 
-        // Provide more user-friendly error messages for common API issues
         const lowerCaseError = errorMessage.toLowerCase();
         if (lowerCaseError.includes('api key not valid')) {
             errorMessage = 'Gemini API Error: The API key provided in Vercel is not valid. Please check the `API_KEY` environment variable.';
