@@ -7,11 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "postinstall": "node ./node_modules/patch-package/bin.js"
+    "postinstall": "npx patch-package"
   },
   "dependencies": {
     "@google/genai": "^1.28.0",
-    "@vercel/kv": "^2.0.0",
+    "@vercel/kv": "^3.0.0",
     "firebase": "^12.4.0",
     "patch-package": "^8.0.0",
     "react": "^18.3.1",
@@ -20,7 +20,7 @@
   "devDependencies": {
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@vercel/node": "^3.2.0",
+    "@vercel/node": "^5.5.4",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.4.5",
     "vite": "^5.2.13"
