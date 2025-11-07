@@ -1172,25 +1172,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
             window.speechSynthesis.speak(utterance);
         }
     };
+    
+    // BUG FIX: Simplified system voice grouping to prevent overlap.
+    const uniqueSortedSystemVoices = useMemo(() => {
+        if (!systemVoices || systemVoices.length === 0) return [];
+        // Ensure unique names, then sort alphabetically.
+        return Array.from(new Map(systemVoices.map(v => [v.name, v])).values())
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [systemVoices]);
 
-    const relevantSystemVoices = useMemo(() => {
-        if (!systemVoices || systemVoices.length === 0) return { suggested: [], other: [] };
-        const sourceLangCode = sourceLang.split('-')[0];
-        const targetLangCode = targetLang.split('-')[0];
-        const suggestedLangs = new Set([sourceLangCode, targetLangCode, 'ar', 'en', 'fr']); // Widened defaults
-        const uniqueVoices = Array.from(new Map(systemVoices.map(v => [v.name, v])).values());
-        const suggested: SpeechSynthesisVoice[] = [];
-        const other: SpeechSynthesisVoice[] = [];
-        uniqueVoices.forEach(v => {
-            const voiceLangCode = (v.lang || '').split('-')[0];
-            if (suggestedLangs.has(voiceLangCode)) suggested.push(v);
-            else other.push(v);
-        });
-        const sorter = (a: SpeechSynthesisVoice, b: SpeechSynthesisVoice) => a.name.localeCompare(b.name);
-        suggested.sort(sorter);
-        other.sort(sorter);
-        return { suggested, other };
-    }, [systemVoices, sourceLang, targetLang]);
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
@@ -1218,16 +1208,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voic
                                             <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>
                                         ))}
                                     </optgroup>
-                                    {relevantSystemVoices.suggested.length > 0 && (
-                                        <optgroup label={t('suggestedVoices', uiLanguage)}>
-                                            {relevantSystemVoices.suggested.map(v => (
-                                                <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
-                                            ))}
-                                        </optgroup>
-                                    )}
-                                    {relevantSystemVoices.other.length > 0 && (
-                                        <optgroup label={t('otherSystemVoices', uiLanguage)}>
-                                            {relevantSystemVoices.other.map(v => (
+                                    {uniqueSortedSystemVoices.length > 0 && (
+                                        <optgroup label={t('systemVoices', uiLanguage)}>
+                                            {uniqueSortedSystemVoices.map(v => (
                                                 <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
                                             ))}
                                         </optgroup>
