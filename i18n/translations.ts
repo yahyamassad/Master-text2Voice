@@ -189,6 +189,16 @@ export const translations = {
     en: 'Multi-Speaker Settings',
     fr: 'Paramètres multi-locuteurs',
   },
+  multiSpeakerExclusive: {
+    ar: 'هذه الميزة تعتمد على أصوات Gemini عالية الجودة فقط.',
+    en: 'This feature relies on Gemini HD voices only.',
+    fr: 'Cette fonctionnalité repose uniquement sur les voix Gemini HD.',
+  },
+  multiSpeakerTooltip: {
+    ar: 'للحصول على نتيجة أفضل، نسّق النص على شكل \'اسم المتحدث: النص المطلوب!\' في كل سطر.',
+    en: 'For best results, format your text like \'Speaker Name: Your text!\' on each line.',
+    fr: 'Pour de meilleurs résultats, formatez votre texte comme \'Nom du locuteur : Votre texte !\' sur chaque ligne.',
+  },
   enableMultiSpeaker: {
     ar: 'تفعيل وضع تعدد المتحدثين',
     en: 'Enable Multi-Speaker Mode',
