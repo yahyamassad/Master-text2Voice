@@ -1,18 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { getFirebase } from '../firebaseConfig';
 import { t, Language } from '../i18n/translations';
 import { StarIcon, LoaderIcon, CopyIcon, ExternalLinkIcon, ChevronDownIcon } from './icons';
-// MODERNIZATION: Switched to Firebase v9 modular imports for better performance and to fix runtime loading errors.
-import {
-    collection,
-    query,
-    orderBy,
-    onSnapshot,
-    addDoc,
-    serverTimestamp,
-    Timestamp
-} from 'firebase/firestore';
-
 
 interface FeedbackProps {
     language: Language;
@@ -23,13 +11,12 @@ interface FeedbackItem {
     name: string;
     comment: string;
     rating: number;
-    // STABILITY FIX: Use v9 modular Timestamp type.
-    createdAt: Timestamp; 
+    createdAt: number | null; // Represents milliseconds from epoch
 }
 
-const formatTimestamp = (timestamp: Timestamp | null, lang: string): string => {
-    if (!timestamp || typeof timestamp.toDate !== 'function') return '';
-    const date = timestamp.toDate();
+const formatTimestamp = (timestamp: number | null, lang: string): string => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
@@ -47,16 +34,15 @@ const formatTimestamp = (timestamp: Timestamp | null, lang: string): string => {
         if (interval > 1) return rtf.format(-Math.floor(interval), 'minute');
         return rtf.format(-Math.floor(seconds), 'second');
     } catch (e) {
-        // Fallback for older browsers or environments
         return date.toLocaleDateString(lang);
     }
 };
-
 
 const Feedback: React.FC<FeedbackProps> = ({ language }) => {
     const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [isFeedbackConfigured, setIsFeedbackConfigured] = useState(true); // Assume configured until checked
 
     const [name, setName] = useState('');
     const [comment, setComment] = useState('');
@@ -68,42 +54,35 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
     const [varsCopyButtonText, setVarsCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
     const [rulesCopyButtonText, setRulesCopyButtonText] = useState(t('firebaseSetupCopyButton', language));
 
-    // Call getFirebase() inside the component lifecycle and memoize the result.
-    const { db, isFirebaseConfigured } = useMemo(() => getFirebase(), []);
-
     useEffect(() => {
-        // Use the db and isFirebaseConfigured variables from the useMemo call.
-        if (!isFirebaseConfigured || !db) {
-            setIsLoading(false);
-            return;
-        }
-        
-        // Use v9 modular functions for Firestore
-        const feedbackCollectionRef = collection(db, 'feedback');
-        // FIX: Remove orderBy from query to make it less strict. This prevents documents
-        // without a `createdAt` field from being excluded from the results.
-        const q = query(feedbackCollectionRef);
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const feedbackData: FeedbackItem[] = [];
-            querySnapshot.forEach((doc) => {
-                feedbackData.push({ id: doc.id, ...doc.data() } as FeedbackItem);
+        setIsLoading(true);
+        fetch('/api/feedback')
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`Server responded with status: ${res.status}`);
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (data.configured === false) {
+                    setIsFeedbackConfigured(false);
+                } else {
+                    setIsFeedbackConfigured(true);
+                    setFeedbacks(data.feedbacks || []);
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching feedback:", err);
+                setError(t('feedbackError', language));
+                // If fetching fails, we can assume it's either not configured or a server error.
+                // Displaying the setup guide is a reasonable fallback for the app owner.
+                setIsFeedbackConfigured(false);
+            })
+            .finally(() => {
+                setIsLoading(false);
             });
+    }, [language]);
 
-            // FIX: Sort the results on the client-side to maintain chronological order.
-            // This is a robust way to handle potentially missing timestamp fields in older documents.
-            feedbackData.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-
-            setFeedbacks(feedbackData);
-            setIsLoading(false);
-        }, (err) => {
-            console.error("Error fetching feedback:", err);
-            setError(t('feedbackError', language));
-            setIsLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [language, db, isFirebaseConfigured]); // Add db and isFirebaseConfigured to dependency array.
 
     useEffect(() => {
       setVarsCopyButtonText(t('firebaseSetupCopyButton', language));
@@ -112,47 +91,62 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // The `db` instance is available from the useMemo() call.
-        if (!comment.trim() || rating === 0 || !db) return;
+        if (!comment.trim() || rating === 0) return;
         
         setIsSubmitting(true);
         setSubmitStatus(null);
         
         try {
-            // Use v9 modular functions for Firestore
-            const feedbackCollectionRef = collection(db, 'feedback');
-            await addDoc(feedbackCollectionRef, {
+            const response = await fetch('/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim(), comment: comment.trim(), rating }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Server responded with an error');
+            }
+
+            // Optimistically add the new feedback to the top of the list for a better UX.
+            const newFeedback: FeedbackItem = {
+                id: new Date().toISOString(), // Temporary client-side ID
                 name: name.trim() || 'Anonymous',
                 comment: comment.trim(),
-                rating: rating,
-                createdAt: serverTimestamp()
-            });
+                rating,
+                createdAt: Date.now()
+            };
+            setFeedbacks(prev => [newFeedback, ...prev]);
+
             setName('');
             setComment('');
             setRating(0);
             setSubmitStatus({ type: 'success', message: t('feedbackSuccess', language) });
-        } catch (err) {
+
+        } catch (err: any) {
             console.error("Error submitting feedback:", err);
-            setSubmitStatus({ type: 'error', message: t('feedbackError', language) });
+            setSubmitStatus({ type: 'error', message: err.message || t('feedbackError', language) });
         } finally {
             setIsSubmitting(false);
              setTimeout(() => setSubmitStatus(null), 4000);
         }
     };
-
-    const firebaseEnvVars = [
-      'VITE_FIREBASE_API_KEY',
-      'VITE_FIREBASE_AUTH_DOMAIN',
-      'VITE_FIREBASE_PROJECT_ID',
-      'VITE_FIREBASE_STORAGE_BUCKET',
-      'VITE_FIREBASE_MESSAGING_SENDER_ID',
-      'VITE_FIREBASE_APP_ID',
-      'VITE_FIREBASE_MEASUREMENT_ID',
-    ];
     
+    // Updated environment variables for the dedicated feedback project
+    const firebaseEnvVars = [
+      'FEEDBACK_FIREBASE_API_KEY="your-api-key-from-Coment-text2Voice"',
+      'FEEDBACK_FIREBASE_AUTH_DOMAIN="coment-text2voice.firebaseapp.com"',
+      'FEEDBACK_FIREBASE_PROJECT_ID="coment-text2voice"',
+      'FEEDBACK_FIREBASE_STORAGE_BUCKET="coment-text2voice.appspot.com"',
+      'FEEDBACK_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"',
+      'FEEDBACK_FIREBASE_APP_ID="your-web-app-id"',
+    ].join('\n');
+    
+    // Updated Firestore rules specific to the feedback collection
     const firestoreRules = `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Allow anyone to read and create feedback, but not edit or delete.
     match /feedback/{feedbackId} {
       allow read, create: if true;
       allow update, delete: if false;
@@ -171,12 +165,11 @@ service cloud.firestore {
         }
     };
 
-    // Use the `isFirebaseConfigured` variable from the component-level call.
-    if (!isFirebaseConfigured) {
+    if (!isFeedbackConfigured) {
         return (
             <div className="p-4 sm:p-6 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300">
                 <div className="text-center">
-                    <h3 className="text-xl font-bold text-cyan-400">{t('feedbackConfigNeededTitle', language)}</h3>
+                    <h3 className="text-xl font-bold text-amber-400">{t('feedbackConfigNeededTitle', language)}</h3>
                     <p className="mt-2 text-slate-400">{t('feedbackConfigNeededBody', language)}</p>
                 </div>
                 <div className="mt-4 border-t border-slate-600 pt-4">
@@ -189,34 +182,27 @@ service cloud.firestore {
                     </button>
                     {isGuideOpen && (
                         <div className="mt-4 space-y-4 animate-fade-in text-sm">
-                            {/* Step 1 */}
                             <div className="p-3 bg-slate-900/50 rounded-md">
                                 <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep1Title', language)}</h4>
-                                <p className="mt-1 text-slate-400">{t('firebaseSetupStep1Body', language)}</p>
-                                <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="inline-block mt-2 px-3 py-1 bg-cyan-600 text-white rounded-md text-xs hover:bg-cyan-500 transition-colors">
-                                    {t('firebaseSetupStep1Button', language)} <ExternalLinkIcon />
-                                </a>
+                                <p className="mt-1 text-slate-400">{'Create a separate Firebase project (e.g., "Coment-text2Voice") specifically for feedback.'}</p>
                             </div>
-                            {/* Step 2 */}
                              <div className="p-3 bg-slate-900/50 rounded-md">
                                 <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep2Title', language)}</h4>
-                                <p className="mt-1 text-slate-400">{t('firebaseSetupStep2Body', language)}</p>
+                                <p className="mt-1 text-slate-400">{'In this new project, create a "Firestore Database" in production mode.'}</p>
                             </div>
-                            {/* Step 3 */}
                             <div className="p-3 bg-slate-900/50 rounded-md">
                                 <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep3Title', language)}</h4>
-                                <p className="mt-1 text-slate-400">{t('firebaseSetupStep3Body', language)}</p>
-                                <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left">
-                                    <pre className="whitespace-pre-wrap"><code>{firebaseEnvVars.join('\n')}</code></pre>
-                                    <button onClick={() => handleCopy(firebaseEnvVars.join('\n'), 'vars')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
+                                <p className="mt-1 text-slate-400">{'In your Vercel project settings, add the following environment variables using the credentials from your new feedback project.'}</p>
+                                <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-xs text-cyan-300 text-left">
+                                    <pre className="whitespace-pre-wrap"><code>{firebaseEnvVars}</code></pre>
+                                    <button onClick={() => handleCopy(firebaseEnvVars, 'vars')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
                                         <CopyIcon /> {varsCopyButtonText}
                                     </button>
                                 </div>
                             </div>
-                             {/* Step 4 */}
                             <div className="p-3 bg-slate-900/50 rounded-md">
                                 <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep4Title', language)}</h4>
-                                <p className="mt-1 text-slate-400">{t('firebaseSetupStep4Body', language)}</p>
+                                <p className="mt-1 text-slate-400">{'In your feedback project\'s Firestore, go to the "Rules" tab and replace the default rules with the following code.'}</p>
                                 <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-xs text-yellow-300 text-left">
                                     <pre className="whitespace-pre-wrap"><code>{firestoreRules}</code></pre>
                                     <button onClick={() => handleCopy(firestoreRules, 'rules')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
@@ -224,7 +210,6 @@ service cloud.firestore {
                                     </button>
                                 </div>
                             </div>
-                            {/* Step 5 */}
                              <div className="p-3 bg-slate-900/50 rounded-md">
                                 <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep5Title', language)}</h4>
                                 <p className="mt-1 text-slate-400">{t('firebaseSetupStep5Body', language)}</p>
