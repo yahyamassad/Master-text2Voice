@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
   SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon
 } from './components/icons';
-import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
+import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig } from './types';
 import { getAuth, onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
@@ -311,14 +312,24 @@ const App: React.FC = () => {
   // UI STABILITY: Prevent body scroll when a modal is open to avoid "jiggle"
   useEffect(() => {
     const isAnyModalOpen = isSettingsOpen || isHistoryOpen || isDownloadOpen || isAccountOpen || isAudioStudioOpen;
+    
     if (isAnyModalOpen) {
-        document.body.classList.add('overflow-hidden');
+        // Get the scrollbar width
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+        // Prevent scrolling on the body
+        document.body.style.overflow = 'hidden';
+        // Add padding to the body to avoid the content shifting
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
     } else {
-        document.body.classList.remove('overflow-hidden');
+        // Restore default behavior
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
     }
-    // Cleanup function to ensure the class is removed on component unmount
+    
+    // Cleanup function to restore defaults when the component unmounts
     return () => {
-        document.body.classList.remove('overflow-hidden');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
     };
   }, [isSettingsOpen, isHistoryOpen, isDownloadOpen, isAccountOpen, isAudioStudioOpen]);
   
@@ -385,30 +396,41 @@ const App: React.FC = () => {
             }
       } else {
         // Use Native Browser Speech Synthesis
-        const utterance = new SpeechSynthesisUtterance(text);
-        const selectedVoice = systemVoices.find(v => v.name === voice);
-        if (selectedVoice) {
-            utterance.voice = selectedVoice;
-        }
-        utterance.lang = selectedVoice?.lang || (target === 'source' ? sourceLang : targetLang);
-        
-        nativeUtteranceRef.current = utterance;
-        
-        utterance.onstart = () => {
-            setActivePlayer(target);
-        };
-        utterance.onend = () => {
-            setActivePlayer(null);
-            nativeUtteranceRef.current = null;
-        };
-        utterance.onerror = (e) => {
-            console.error("SpeechSynthesis Error:", e);
+        try {
+            const utterance = new SpeechSynthesisUtterance(text);
+            const selectedVoice = systemVoices.find(v => v.name === voice);
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+            // FIX: Set the utterance language to match the text's actual language.
+            // This is crucial for compatibility, as a voice may support multiple languages,
+            // or the browser might reject a mismatch between the lang tag and content.
+            const textLangCode = target === 'source' ? sourceLang : targetLang;
+            const speechLangCode = translationLanguages.find(l => l.code === textLangCode)?.speechCode || textLangCode;
+            utterance.lang = speechLangCode;
+
+            nativeUtteranceRef.current = utterance;
+            
+            utterance.onstart = () => {
+                setActivePlayer(target);
+            };
+            utterance.onend = () => {
+                setActivePlayer(null);
+                nativeUtteranceRef.current = null;
+            };
+            utterance.onerror = (e) => {
+                console.error("SpeechSynthesis Error:", e);
+                setError(t('errorSpeechGeneration', uiLanguage));
+                setActivePlayer(null);
+                nativeUtteranceRef.current = null;
+            };
+            
+            window.speechSynthesis.speak(utterance);
+        } catch (e) {
+            console.error("Failed to initiate speech synthesis:", e);
             setError(t('errorSpeechGeneration', uiLanguage));
             setActivePlayer(null);
-            nativeUtteranceRef.current = null;
-        };
-        
-        window.speechSynthesis.speak(utterance);
+        }
       }
   };
   
@@ -815,6 +837,7 @@ const App: React.FC = () => {
   const isSourceRtl = translationLanguages.find(l => l.code === sourceLang)?.code === 'ar';
   const isTargetRtl = translationLanguages.find(l => l.code === targetLang)?.code === 'ar';
   const isUsingSystemVoice = !geminiVoices.includes(voice);
+  const isUiRtl = uiLanguage === 'ar';
 
   const sourceTextArea = (
     <div className="flex flex-col space-y-3 md:w-1/2">
@@ -827,43 +850,42 @@ const App: React.FC = () => {
               placeholder={t('placeholder', uiLanguage)}
               maxLength={MAX_CHARS_PER_REQUEST}
               dir={isSourceRtl ? 'rtl' : 'ltr'}
-              className={`w-full h-48 p-3 pb-6 pr-10 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors ${isSourceRtl ? 'text-right' : 'text-left'}`}
+              className={`w-full h-48 p-3 pb-8 pr-10 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors ${isSourceRtl ? 'text-right' : 'text-left'}`}
           />
           <div className="absolute top-2 right-2">
               <button onClick={() => handleCopy(sourceText, 'source')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-white bg-slate-700/50 rounded-md">
                   {copiedSource ? <CheckIcon className="h-5 w-5 text-green-400"/> : <CopyIcon />}
               </button>
           </div>
-          <div className={`absolute bottom-2 text-xs text-slate-500 ${isSourceRtl ? 'left-2' : 'right-2'}`}>{sourceText.length} / {MAX_CHARS_PER_REQUEST}</div>
+          <div className={`absolute bottom-3 text-xs text-slate-500 ${isUiRtl ? 'left-3' : 'right-3'}`}>{sourceText.length} / {MAX_CHARS_PER_REQUEST}</div>
       </div>
-       <div className={`flex items-center gap-2 flex-wrap bg-slate-900/50 p-2 rounded-lg ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
-          <span className="text-xs font-bold text-slate-400">{t('soundEffects', uiLanguage)}:</span>
-            <div className="relative" ref={effectsDropdownRef}>
-                <button
-                    onClick={() => setIsEffectsOpen(!isEffectsOpen)}
-                    disabled={isUsingSystemVoice}
-                    className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors text-sm disabled:cursor-not-allowed"
-                    title={isUsingSystemVoice ? t('geminiExclusiveFeature', uiLanguage) : t('addEffect', uiLanguage)}
-                >
-                    {t('addEffect', uiLanguage)}
-                </button>
-                {isEffectsOpen && (
-                    <div className="absolute bottom-full mb-2 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-20 w-48 animate-fade-in-down max-h-60 overflow-y-auto">
-                        {soundEffects.map(effect => (
-                          <button
-                            key={effect.tag}
-                            onClick={() => handleInsertTag(effect.tag)}
-                            title={t(effect.labelKey as any, uiLanguage)}
-                            className="w-full flex items-center gap-3 text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-600 transition-colors"
-                          >
-                            <span className="text-xl leading-none">{effect.emoji}</span>
-                            <span>{t(effect.labelKey as any, uiLanguage)}</span>
-                          </button>
-                        ))}
-                    </div>
-                )}
-            </div>
-        </div>
+       <div className={`flex items-center ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
+          <div className="relative" ref={effectsDropdownRef}>
+              <button
+                  onClick={() => setIsEffectsOpen(!isEffectsOpen)}
+                  disabled={isUsingSystemVoice}
+                  className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors text-sm disabled:cursor-not-allowed"
+                  title={isUsingSystemVoice ? t('geminiExclusiveFeature', uiLanguage) : t('soundEffects', uiLanguage)}
+              >
+                  {t('soundEffects', uiLanguage)}
+              </button>
+              {isEffectsOpen && (
+                  <div className="absolute bottom-full mb-2 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-20 w-48 animate-fade-in-down max-h-60 overflow-y-auto">
+                      {soundEffects.map(effect => (
+                        <button
+                          key={effect.tag}
+                          onClick={() => handleInsertTag(effect.tag)}
+                          title={t(effect.labelKey as any, uiLanguage)}
+                          className="w-full flex items-center gap-3 text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-600 transition-colors"
+                        >
+                          <span className="text-xl leading-none">{effect.emoji}</span>
+                          <span>{t(effect.labelKey as any, uiLanguage)}</span>
+                        </button>
+                      ))}
+                  </div>
+              )}
+          </div>
+      </div>
        <div className="flex items-stretch gap-3">
           <ActionButton
             icon={sourceButtonState.icon}
@@ -894,14 +916,14 @@ const App: React.FC = () => {
                   readOnly
                   placeholder={t('translationPlaceholder', uiLanguage)}
                   dir={isTargetRtl ? 'rtl' : 'ltr'}
-                  className={`w-full h-48 p-3 pb-6 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none ${isTargetRtl ? 'pr-10 text-right' : 'pl-10 text-left'}`}
+                  className={`w-full h-48 p-3 pb-8 bg-slate-900/50 border-2 border-slate-700 rounded-lg resize-none ${isTargetRtl ? 'pr-10 text-right' : 'pl-10 text-left'}`}
               />
                <div className={`absolute top-2 ${isTargetRtl ? 'right-2' : 'left-2'}`}>
                   <button onClick={() => handleCopy(translatedText, 'target')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-white bg-slate-700/50 rounded-md">
                       {copiedTarget ? <CheckIcon className="h-5 w-5 text-green-400"/> : <CopyIcon />}
                   </button>
               </div>
-              <div className={`absolute bottom-2 text-xs text-slate-500 ${isTargetRtl ? 'left-2' : 'right-2'}`}>{translatedText.length} / {MAX_CHARS_PER_REQUEST}</div>
+              <div className={`absolute bottom-3 text-xs text-slate-500 ${isUiRtl ? 'left-3' : 'right-3'}`}>{translatedText.length} / {MAX_CHARS_PER_REQUEST}</div>
            </div>
            <div className="flex items-stretch gap-3">
                <ActionButton
@@ -1050,7 +1072,303 @@ const App: React.FC = () => {
 
 // --- SUB-COMPONENTS ---
 
+// Added LanguageSelect component
+const LanguageSelect: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+}> = ({ value, onChange }) => {
+    return (
+        <div className="flex items-center gap-2 bg-slate-700 p-2 rounded-md">
+            <GlobeIcon className="w-5 h-5 text-slate-400" />
+            <select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="w-full bg-transparent text-white focus:outline-none"
+            >
+                {translationLanguages.map(lang => (
+                    <option key={lang.code} value={lang.code} className="bg-slate-700">{lang.name}</option>
+                ))}
+            </select>
+        </div>
+    );
+};
+
+// Added ActionButton component
+const ActionButton: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+    className?: string;
+}> = ({ icon, label, onClick, disabled, className }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`h-11 px-4 flex items-center justify-center gap-3 text-white font-semibold rounded-lg transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed shadow-lg text-base ${className}`}
+    >
+        {icon}
+        <span>{label}</span>
+    </button>
+);
+
+// Added ConfigErrorOverlay component
+const ConfigErrorOverlay: React.FC<{ uiLanguage: Language }> = ({ uiLanguage }) => (
+    <div className="absolute inset-0 bg-slate-800/95 z-20 flex flex-col items-center justify-center p-6 text-center">
+        <WarningIcon className="w-16 h-16 text-amber-400 mb-4" />
+        <h3 className="text-xl font-bold text-amber-400 mb-2">{t('configNeededTitle', uiLanguage)}</h3>
+        <p className="text-slate-300 mb-4">{t('configNeededBody_AppOwner', uiLanguage)}</p>
+        <div dir="ltr" className="my-3 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left text-sm">
+            <pre className="whitespace-pre-wrap"><code>{`# In your Vercel project settings > Environment Variables:
+API_KEY="your-gemini-api-key"`}</code></pre>
+        </div>
+        <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition-colors">
+            {t('goToVercelButton', uiLanguage)} <ExternalLinkIcon />
+        </a>
+        <p className="text-xs text-slate-500 mt-6">{t('configNeededNote_Users', uiLanguage)}</p>
+    </div>
+);
+
+// Added ActionCard component
+const ActionCard: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+}> = ({ icon, label, onClick, disabled }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-800 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700"
+    >
+        <div className="text-cyan-400">{icon}</div>
+        <span className="text-sm font-semibold text-slate-300">{label}</span>
+    </button>
+);
+
+// Added SettingsModal component
+const SettingsModal: React.FC<SettingsModalProps> = ({
+    onClose, uiLanguage, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration,
+    multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices, sourceLang, targetLang
+}) => {
+    const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+    const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+    const handlePreview = async (voiceName: string) => {
+        if (previewingVoice) { // Stop any ongoing preview
+            if (audioSourceRef.current) {
+                try { audioSourceRef.current.stop(); } catch (e) { /* ignore */ }
+                audioSourceRef.current = null;
+            }
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+            setPreviewingVoice(null);
+            if (previewingVoice === voiceName) return; // If it was a stop request, just stop.
+        }
+
+        setPreviewingVoice(voiceName);
+        const previewText = t('voicePreviewText', uiLanguage);
+
+        if (geminiVoices.includes(voiceName)) {
+            try {
+                const pcmData = await previewVoice(voiceName, previewText, 'Default');
+                if (pcmData) {
+                    audioSourceRef.current = await playAudio(pcmData, () => {
+                        setPreviewingVoice(null);
+                        audioSourceRef.current = null;
+                    });
+                } else {
+                    setPreviewingVoice(null);
+                }
+            } catch (error) {
+                console.error("Failed to preview Gemini voice:", error);
+                setPreviewingVoice(null);
+            }
+        } else {
+            // System voice preview
+            try {
+                const utterance = new SpeechSynthesisUtterance(previewText);
+                const selectedVoice = systemVoices.find(v => v.name === voiceName);
+                if (selectedVoice) {
+                    utterance.voice = selectedVoice;
+                    utterance.lang = selectedVoice.lang;
+                }
+                nativeUtteranceRef.current = utterance;
+                utterance.onend = () => {
+                    setPreviewingVoice(null);
+                    nativeUtteranceRef.current = null;
+                };
+                utterance.onerror = (e) => {
+                    console.error("System voice preview failed:", e);
+                    setPreviewingVoice(null);
+                };
+                window.speechSynthesis.speak(utterance);
+            } catch (e) {
+                console.error("Failed to initiate system voice preview:", e);
+                setPreviewingVoice(null);
+            }
+        }
+    };
+
+    const relevantSystemVoices = useMemo(() => {
+        const sourceSpeechCode = translationLanguages.find(l => l.code === sourceLang)?.speechCode.split('-')[0];
+        const targetSpeechCode = translationLanguages.find(l => l.code === targetLang)?.speechCode.split('-')[0];
+        return systemVoices.filter(v => v.lang.startsWith(sourceSpeechCode || 'xx') || v.lang.startsWith(targetSpeechCode || 'xx'));
+    }, [systemVoices, sourceLang, targetLang]);
+
+    const otherSystemVoices = useMemo(() => {
+        return systemVoices.filter(v => !relevantSystemVoices.includes(v));
+    }, [systemVoices, relevantSystemVoices]);
+
+    const isUsingSystemVoice = !geminiVoices.includes(voice);
+
+    const voiceNameMap: Record<string, keyof typeof translations> = {
+        'Puck': 'voiceMale1',
+        'Kore': 'voiceFemale1',
+        'Charon': 'voiceMale2',
+        'Zephyr': 'voiceFemale2',
+        'Fenrir': 'voiceMale3',
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
+            <div className="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-6 flex-shrink-0">
+                    <h3 className="text-xl font-semibold text-cyan-400">{t('speechSettings', uiLanguage)}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label={t('closeButton', uiLanguage)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                <div className="overflow-y-auto pr-2 space-y-6">
+                    <div className="space-y-3">
+                        <label className="text-lg font-bold text-slate-200">{t('voiceLabel', uiLanguage)}</label>
+                        <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                             <h4 className="font-semibold text-cyan-400 mb-2">{t('geminiHdVoices', uiLanguage)}</h4>
+                             <p className="text-xs text-slate-400 mb-3">{t('geminiVoicesNote', uiLanguage)}</p>
+                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {geminiVoices.map(vName => (
+                                     <button key={vName} onClick={() => setVoice(vName)} className={`p-3 rounded-lg text-left transition-colors ${voice === vName ? 'bg-cyan-600 text-white shadow-lg' : 'bg-slate-700 hover:bg-slate-600'}`}>
+                                         <div className="flex justify-between items-center">
+                                            <span className="font-semibold">{t(voiceNameMap[vName], uiLanguage)}</span>
+                                            <button onClick={(e) => { e.stopPropagation(); handlePreview(vName); }} title={t('previewVoiceTooltip', uiLanguage)} className="text-slate-300 hover:text-white">
+                                                {previewingVoice === vName ? <LoaderIcon /> : <PlayCircleIcon />}
+                                            </button>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                         <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                             <h4 className="font-semibold text-slate-300 mb-3">{t('systemVoices', uiLanguage)}</h4>
+                             <select value={voice} onChange={e => setVoice(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md">
+                                 <option value="" disabled>{t('selectVoice', uiLanguage)}</option>
+                                 {relevantSystemVoices.length > 0 && <optgroup label={t('suggestedVoices', uiLanguage)}>
+                                    {relevantSystemVoices.map(v => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
+                                 </optgroup>}
+                                 {otherSystemVoices.length > 0 && <optgroup label={t('otherSystemVoices', uiLanguage)}>
+                                    {otherSystemVoices.map(v => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
+                                 </optgroup>}
+                                  {systemVoices.length === 0 && <option disabled>{t('noRelevantSystemVoices', uiLanguage)}</option>}
+                             </select>
+                         </div>
+                    </div>
+
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
+                         <h4 className={`font-semibold ${isUsingSystemVoice ? 'text-slate-400' : 'text-slate-200'}`}>{t('geminiExclusiveFeature', uiLanguage)}</h4>
+                         <div>
+                            <label htmlFor="emotion-select" className="block text-sm font-medium text-slate-300 mb-1">{t('emotionLabel', uiLanguage)}</label>
+                             <select id="emotion-select" value={emotion} onChange={e => setEmotion(e.target.value)} disabled={isUsingSystemVoice} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md disabled:cursor-not-allowed">
+                                 <option value="Default">{t('emotionDefault', uiLanguage)}</option>
+                                 <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
+                                 <option value="Sad">{t('emotionSad', uiLanguage)}</option>
+                                 <option value="Formal">{t('emotionFormal', uiLanguage)}</option>
+                             </select>
+                         </div>
+                        <div>
+                            <label htmlFor="pause-duration" className="block text-sm font-medium text-slate-300 mb-1">{t('pauseLabel', uiLanguage)}</label>
+                            <div className="flex items-center gap-3">
+                                 <input id="pause-duration" type="range" min="0" max="5" step="0.1" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} disabled={isUsingSystemVoice} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed" />
+                                 <span className="text-cyan-400 font-mono">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
+                         <div className="flex items-center justify-between">
+                             <h4 className="text-lg font-bold text-slate-200">{t('multiSpeakerSettings', uiLanguage)}</h4>
+                             <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={isUsingSystemVoice} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
+                         </div>
+                        <p className="text-xs text-slate-400">{t('multiSpeakerInfo', uiLanguage)}</p>
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker || isUsingSystemVoice ? 'opacity-50 pointer-events-none' : ''}`}>
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 1</label>
+                                 <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} placeholder={t('speaker1', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md" />
+                                 <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 1</label>
+                                 <select value={speakerA.voice} onChange={e => setSpeakerA({...speakerA, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md">
+                                     {geminiVoices.map(v => <option key={v} value={v}>{v}</option>)}
+                                 </select>
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 2</label>
+                                 <input type="text" value={speakerB.name} onChange={e => setSpeakerB({...speakerB, name: e.target.value})} placeholder={t('speaker2', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md" />
+                                 <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 2</label>
+                                 <select value={speakerB.voice} onChange={e => setSpeakerB({...speakerB, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md">
+                                    {geminiVoices.map(v => <option key={v} value={v}>{v}</option>)}
+                                 </select>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Added DownloadModal component
+const DownloadModal: React.FC<{
+    onClose: () => void;
+    onDownload: (format: 'wav' | 'mp3') => void;
+    uiLanguage: Language;
+    isLoading: boolean;
+    onCancel: () => void;
+}> = ({ onClose, onDownload, uiLanguage, isLoading, onCancel }) => {
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
+            <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-semibold text-cyan-400">{t('downloadPanelTitle', uiLanguage)}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label={t('closeButton', uiLanguage)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                {isLoading ? (
+                    <div className="text-center py-8">
+                        <LoaderIcon />
+                        <p className="mt-2 text-slate-300">{t('encoding', uiLanguage)}</p>
+                        <button onClick={onCancel} className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg text-sm">
+                            {t('stopSpeaking', uiLanguage)}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                         <p className="text-sm text-slate-400">{t('downloadFormat', uiLanguage)}</p>
+                        <button onClick={() => onDownload('mp3')} className="w-full p-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg transition-colors">
+                            MP3 (Recommended)
+                        </button>
+                        <button onClick={() => onDownload('wav')} className="w-full p-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors">
+                            WAV (Uncompressed)
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const FirebaseConfigNeeded: React.FC<{ uiLanguage: Language }> = ({ uiLanguage }) => {
+    // FIX: Correctly destructure useState
     const [isGuideOpen, setIsGuideOpen] = useState(true);
     const [varsCopyButtonText, setVarsCopyButtonText] = useState(t('firebaseSetupCopyButton', uiLanguage));
     const [rulesCopyButtonText, setRulesCopyButtonText] = useState(t('firebaseSetupCopyButton', uiLanguage));
@@ -1107,9 +1425,9 @@ service cloud.firestore {
                 >
                     <span className="font-bold">{t('firebaseSetupGuideTitle', uiLanguage)}</span>
                     <ChevronDownIcon className={`transform transition-transform duration-300 ${isGuideOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isGuideOpen && (
-                    <div className="mt-4 space-y-4 text-sm animate-fade-in-down">
+                 </button>
+                  {isGuideOpen && (
+                    <div className="mt-4 space-y-4 animate-fade-in text-sm">
                         {/* Step 1 */}
                         <div className="p-3 bg-slate-900/50 rounded-md">
                             <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep1Title', uiLanguage)}</h4>
@@ -1127,7 +1445,7 @@ service cloud.firestore {
                         <div className="p-3 bg-slate-900/50 rounded-md">
                             <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep3Title', uiLanguage)}</h4>
                             <p className="mt-1 text-slate-400">{t('firebaseSetupStep3Body', uiLanguage)}</p>
-                            <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left text-xs">
+                            <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-xs text-cyan-300 text-left">
                                 <pre className="whitespace-pre-wrap"><code>{firebaseEnvVars}</code></pre>
                                 <button onClick={() => handleCopy(firebaseEnvVars, 'vars')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
                                     <CopyIcon /> {varsCopyButtonText}
@@ -1155,354 +1473,7 @@ service cloud.firestore {
             </div>
         </div>
     );
-}
-
-
-const ConfigErrorOverlay: React.FC<{uiLanguage: Language}> = ({ uiLanguage }) => {
-  const vercelLink = "https://vercel.com/dashboard";
-  const variableName = 'API_KEY'; // Always API_KEY now for clarity
-
-  return (
-    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-20 flex items-center justify-center p-4 rounded-2xl">
-      <div className="bg-slate-800 border-2 border-red-500/50 rounded-2xl shadow-2xl p-6 max-w-lg w-full text-center space-y-4 animate-fade-in-down">
-        <div className="w-14 h-14 mx-auto bg-red-500/20 rounded-full flex items-center justify-center border-2 border-red-500/30">
-          <WarningIcon className="w-8 h-8 text-red-400" />
-        </div>
-        <h3 className="text-xl font-bold text-red-300">{t('configNeededTitle', uiLanguage)}</h3>
-        <p className="text-slate-400 text-sm">{t('configNeededBody_AppOwner', uiLanguage)}</p>
-        <div dir="ltr" className="my-2 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left text-sm">
-          <div><span className="text-slate-500">Name:</span> {variableName}</div>
-          <div><span className="text-slate-500">Value:</span> Your-Gemini-API-Key...</div>
-        </div>
-        <a href={vercelLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 mt-2 px-4 py-2 bg-cyan-600 text-white font-bold rounded-md hover:bg-cyan-500 transition-colors">
-          {t('goToVercelButton', uiLanguage)} <ExternalLinkIcon className="h-4 w-4" />
-        </a>
-        <p className="text-xs text-slate-500 pt-2">{t('configNeededNote_Users', uiLanguage)}</p>
-      </div>
-    </div>
-  );
 };
 
-
-const LanguageSelect: React.FC<{ value: string, onChange: (value: string) => void }> = ({ value, onChange }) => (
-    <select 
-        value={value} 
-        onChange={e => onChange(e.target.value)}
-        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-base w-full"
-    >
-        {translationLanguages.map(lang => (
-            <option key={lang.code} value={lang.code}>{lang.name}</option>
-        ))}
-    </select>
-);
-
-const ActionButton: React.FC<{
-    icon: React.ReactNode, onClick: () => void, label: string, disabled: boolean, className?: string,
-}> = ({ icon, onClick, label, disabled, className = "" }) => (
-     <button onClick={onClick} disabled={disabled} title={label} className={`h-11 px-4 flex items-center justify-center gap-2 text-white font-bold rounded-lg transition-all transform active:scale-95 disabled:bg-slate-700 disabled:cursor-not-allowed ${className}`}>
-        {icon}
-        <span className="hidden sm:inline">{label}</span>
-        <span className="sm:hidden">{label}</span>
-    </button>
-);
-
-const ActionCard: React.FC<{icon: React.ReactNode, label: string, onClick: () => void, disabled?: boolean}> = ({icon, label, onClick, disabled}) => (
-    <button 
-        onClick={onClick} 
-        disabled={disabled}
-        className="bg-slate-800 p-4 rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-slate-700/80 transition-all transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-        <div className="text-cyan-400">{icon}</div>
-        <span className="text-sm font-semibold text-slate-300">{label}</span>
-    </button>
-);
-
-const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, uiLanguage, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices, sourceLang, targetLang }) => {
-    const voiceOptions = [
-        { id: 'Puck', labelKey: 'voiceMale1' },
-        { id: 'Kore', labelKey: 'voiceFemale1' },
-        { id: 'Charon', labelKey: 'voiceMale2' },
-        { id: 'Zephyr', labelKey: 'voiceFemale2' },
-        { id: 'Fenrir', labelKey: 'voiceMale3' }
-    ];
-    const emotionOptions = [
-        { id: 'Default', labelKey: 'emotionDefault' },
-        { id: 'Happy', labelKey: 'emotionHappy' },
-        { id: 'Sad', labelKey: 'emotionSad' },
-        { id: 'Formal', labelKey: 'emotionFormal' },
-    ];
-    const isGeminiVoiceSelected = geminiVoices.includes(voice);
-
-    const [currentlyPreviewing, setCurrentlyPreviewing] = useState<string | null>(null);
-    const previewAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const previewAbortControllerRef = useRef<AbortController | null>(null);
-
-    const stopPreview = useCallback(() => {
-        previewAbortControllerRef.current?.abort();
-        previewAbortControllerRef.current = null;
-        if (previewAudioSourceRef.current) {
-            try { previewAudioSourceRef.current.stop(); } catch(e) {/* Ignore error */}
-            previewAudioSourceRef.current = null;
-        }
-        window.speechSynthesis.cancel();
-        setCurrentlyPreviewing(null);
-    }, []);
-
-    useEffect(() => {
-      // Cleanup on unmount
-      return () => { stopPreview(); };
-    }, [stopPreview]);
-    
-    useEffect(() => {
-        // Stop any preview if the main selected voice changes
-        stopPreview();
-    }, [voice, stopPreview]);
-
-
-    const handlePreview = async (voiceToPreview: string) => {
-        if (currentlyPreviewing === voiceToPreview) {
-            stopPreview();
-            return;
-        }
-        stopPreview(); // Stop any other preview first
-        if (!voiceToPreview) return;
-
-        setCurrentlyPreviewing(voiceToPreview);
-        const isGemini = geminiVoices.includes(voiceToPreview);
-
-        if (isGemini) {
-            previewAbortControllerRef.current = new AbortController();
-            try {
-                const pcmData = await previewVoice(voiceToPreview, t('voicePreviewText', uiLanguage), emotion, previewAbortControllerRef.current.signal);
-                if (previewAbortControllerRef.current.signal.aborted) return;
-
-                if (pcmData) {
-                    previewAudioSourceRef.current = await playAudio(pcmData, () => {
-                        setCurrentlyPreviewing(null);
-                        previewAudioSourceRef.current = null;
-                    });
-                } else {
-                    setCurrentlyPreviewing(null);
-                }
-            } catch (err: any) {
-                if (err.name !== 'AbortError') console.error("Preview failed:", err);
-                setCurrentlyPreviewing(null);
-            }
-        } else { // System Voice
-            const selectedSystemVoice = systemVoices.find(v => v.name === voiceToPreview);
-            if (!selectedSystemVoice) {
-                setCurrentlyPreviewing(null);
-                return;
-            }
-            const utterance = new SpeechSynthesisUtterance(t('voicePreviewText', uiLanguage));
-            utterance.voice = selectedSystemVoice;
-            utterance.lang = selectedSystemVoice.lang;
-            utterance.onend = () => setCurrentlyPreviewing(null);
-            utterance.onerror = (e) => {
-                console.error("System voice preview error:", e);
-                setCurrentlyPreviewing(null);
-            };
-            window.speechSynthesis.speak(utterance);
-        }
-    };
-    
-    // BUG FIX: Simplified system voice grouping to prevent overlap.
-    const uniqueSortedSystemVoices = useMemo(() => {
-        if (!systemVoices || systemVoices.length === 0) return [];
-        // Ensure unique names, then sort alphabetically.
-        return Array.from(new Map(systemVoices.map(v => [v.name, v])).values())
-            .sort((a, b) => a.name.localeCompare(b.name));
-    }, [systemVoices]);
-
-
-    return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
-            <div className="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-6 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-semibold text-cyan-400">{t('speechSettings', uiLanguage)}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close settings">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-
-                <div className="flex-grow overflow-y-auto pr-2 space-y-5">
-                    {/* UNIFIED Voice Selection */}
-                    <div className="space-y-3">
-                        <label className="block text-sm font-bold text-slate-300">{t('voiceLabel', uiLanguage)}</label>
-                        <div className="flex items-center gap-2">
-                            <div className="relative flex-grow">
-                                <select
-                                    value={voice}
-                                    onChange={e => setVoice(e.target.value)}
-                                    className="h-11 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm w-full appearance-none"
-                                >
-                                    <optgroup label={t('geminiHdVoices', uiLanguage)}>
-                                        {voiceOptions.map(opt => (
-                                            <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>
-                                        ))}
-                                    </optgroup>
-                                    {uniqueSortedSystemVoices.length > 0 && (
-                                        <optgroup label={t('systemVoices', uiLanguage)}>
-                                            {uniqueSortedSystemVoices.map(v => (
-                                                <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
-                                            ))}
-                                        </optgroup>
-                                    )}
-                                </select>
-                                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                                    <svg className="w-4 h-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => handlePreview(voice)}
-                                title={t('previewVoiceTooltip', uiLanguage)}
-                                className={`w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-md transition-colors ${currentlyPreviewing === voice ? 'bg-red-500 text-white' : 'bg-slate-600 hover:bg-slate-500 text-white'}`}
-                            >
-                                {currentlyPreviewing === voice ? <StopIcon /> : <PlayCircleIcon />}
-                            </button>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-2">{t('geminiVoicesNote', uiLanguage)}</p>
-                    </div>
-
-                     {/* Emotion/Tone */}
-                    <div className={`${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
-                        <label htmlFor="emotion" className="block text-sm font-bold text-slate-300 mb-2">{t('emotionLabel', uiLanguage)}</label>
-                         <select
-                            id="emotion"
-                            value={emotion}
-                            onChange={e => setEmotion(e.target.value)}
-                            disabled={!isGeminiVoiceSelected}
-                            title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
-                            className="h-11 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm w-full disabled:cursor-not-allowed"
-                        >
-                            {emotionOptions.map(opt => (
-                                <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>
-                            ))}
-                        </select>
-                         <p className="text-xs text-slate-500 mt-2">{t('emotionLabelInfo', uiLanguage)}</p>
-                    </div>
-
-                    {/* Pause */}
-                    <div className={`${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
-                        <label htmlFor="pause" className="block text-sm font-bold text-slate-300 mb-2">{t('pauseLabel', uiLanguage)}</label>
-                            <div className="flex items-center gap-2">
-                            <input
-                                id="pause"
-                                type="range"
-                                min="0"
-                                max="5"
-                                step="0.1"
-                                value={pauseDuration}
-                                onChange={e => setPauseDuration(parseFloat(e.target.value))}
-                                disabled={!isGeminiVoiceSelected}
-                                title={!isGeminiVoiceSelected ? t('geminiExclusiveFeature', uiLanguage) : ''}
-                                className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed"
-                            />
-                            <span className="text-sm text-slate-400 w-12 text-center">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
-                        </div>
-                    </div>
-                    
-                    {/* Multi-speaker */}
-                    <div className={`p-4 bg-slate-900/50 rounded-lg ${!isGeminiVoiceSelected ? 'opacity-50' : ''}`}>
-                         <div className="flex items-center justify-between">
-                            <div>
-                                <h4 className="text-sm font-bold text-slate-300">{t('multiSpeakerSettings', uiLanguage)}</h4>
-                                <p className="text-slate-300 text-xs">{t('enableMultiSpeaker', uiLanguage)}</p>
-                            </div>
-                            <div
-                                onClick={() => isGeminiVoiceSelected && setMultiSpeaker(!multiSpeaker)}
-                                role="switch"
-                                aria-checked={multiSpeaker}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full p-0.5 border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-slate-800 ${isGeminiVoiceSelected ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} ${multiSpeaker ? 'bg-cyan-500' : 'bg-slate-600'}`}
-                            >
-                                <span
-                                    aria-hidden="true"
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${multiSpeaker ? 'translate-x-5' : 'translate-x-0'}`}
-                                />
-                            </div>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-2">{t('enableMultiSpeakerInfo', uiLanguage)}</p>
-                        
-                        {multiSpeaker && (
-                            <div className="mt-4 space-y-3 border-t border-slate-700 pt-3">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <input 
-                                        type="text" 
-                                        value={speakerA.name} 
-                                        onChange={e => setSpeakerA({...speakerA, name: e.target.value})}
-                                        placeholder={t('speaker1', uiLanguage)}
-                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm" 
-                                    />
-                                    <select 
-                                        value={speakerA.voice} 
-                                        onChange={e => setSpeakerA({...speakerA, voice: e.target.value})}
-                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
-                                    >
-                                        {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>)}
-                                    </select>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <input 
-                                        type="text" 
-                                        value={speakerB.name} 
-                                        onChange={e => setSpeakerB({...speakerB, name: e.target.value})}
-                                        placeholder={t('speaker2', uiLanguage)}
-                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm" 
-                                    />
-                                    <select 
-                                        value={speakerB.voice} 
-                                        onChange={e => setSpeakerB({...speakerB, voice: e.target.value})}
-                                        className="h-10 px-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 text-sm"
-                                    >
-                                        {voiceOptions.map(opt => <option key={opt.id} value={opt.id}>{t(opt.labelKey as any, uiLanguage)}</option>)}
-                                    </select>
-                                </div>
-                                <p className="text-xs text-slate-500 pt-1">{t('multiSpeakerInfo', uiLanguage)}</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="mt-4 border-t border-slate-700 pt-4">
-                     <button onClick={onClose} className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition-colors">
-                        {t('closeButton', uiLanguage)}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-const DownloadModal: React.FC<{onClose: () => void, onDownload: (format: 'wav' | 'mp3') => void, uiLanguage: Language, isLoading: boolean, onCancel: () => void}> = ({onClose, onDownload, uiLanguage, isLoading, onCancel}) => (
-     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
-        <div className="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-cyan-400">{t('downloadPanelTitle', uiLanguage)}</h3>
-                <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label="Close download options">
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-            </div>
-            {isLoading ? (
-                <div className="flex flex-col items-center justify-center gap-4 py-8">
-                    <LoaderIcon />
-                    <p className="text-slate-400">{t('encoding', uiLanguage)}</p>
-                    <button onClick={onCancel} className="mt-2 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm">Cancel</button>
-
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    <button onClick={() => onDownload('mp3')} className="w-full h-12 px-4 flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg transition-colors">
-                        Download as MP3
-                    </button>
-                    <button onClick={() => onDownload('wav')} className="w-full h-12 px-4 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors">
-                        Download as WAV
-                    </button>
-                </div>
-            )}
-        </div>
-     </div>
-);
-
-
+// Add default export for App component
 export default App;
