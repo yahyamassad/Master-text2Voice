@@ -2,28 +2,29 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Configuration for the feedback-specific Firebase project, read from server-side environment variables.
-const feedbackFirebaseConfig = {
-    apiKey: process.env.FEEDBACK_FIREBASE_API_KEY,
-    authDomain: process.env.FEEDBACK_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.FEEDBACK_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FEEDBACK_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FEEDBACK_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FEEDBACK_FIREBASE_APP_ID,
+// UNIFIED CONFIG: This now uses the same VITE_FIREBASE variables as the main app.
+// This simplifies setup for the app owner to a single set of environment variables.
+const mainFirebaseConfig = {
+    apiKey: process.env.VITE_FIREBASE_API_KEY,
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.VITE_FIREBASE_APP_ID,
 };
 
-// Check if the feedback system is configured by verifying the presence of essential variables.
-const isConfigured = feedbackFirebaseConfig.apiKey && feedbackFirebaseConfig.projectId;
+// Check if the system is configured by verifying the presence of essential variables.
+const isConfigured = mainFirebaseConfig.apiKey && mainFirebaseConfig.projectId;
 
-let feedbackApp: FirebaseApp;
+let mainApp: FirebaseApp;
 
-// Initialize the feedback Firebase app (if configured and not already initialized).
-// A unique app name is used to avoid conflicts with the main Firebase app instance.
+// Initialize the main Firebase app (if configured and not already initialized).
+// We can reuse the main app instance since the configs are now the same.
 if (isConfigured) {
-    if (!getApps().some(app => app.name === 'feedbackApp')) {
-        feedbackApp = initializeApp(feedbackFirebaseConfig, 'feedbackApp');
+    if (!getApps().length) {
+        mainApp = initializeApp(mainFirebaseConfig);
     } else {
-        feedbackApp = getApp('feedbackApp');
+        mainApp = getApps()[0]; // Use the already initialized main app
     }
 }
 
@@ -32,11 +33,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!isConfigured) {
         return res.status(200).json({ 
             configured: false, 
-            message: 'Feedback system is not configured. Please set FEEDBACK_FIREBASE_* environment variables in Vercel.' 
+            message: 'Firebase system is not configured. Please set VITE_FIREBASE_* environment variables in Vercel.' 
         });
     }
 
-    const db = getFirestore(feedbackApp);
+    const db = getFirestore(mainApp);
 
     if (req.method === 'GET') {
         try {
