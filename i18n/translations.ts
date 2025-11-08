@@ -90,9 +90,9 @@ export const translations = {
     fr: 'Autres Voix du Système',
   },
   noRelevantSystemVoices: {
-    ar: 'لا توجد أصوات نظام ذات صلة',
-    en: 'No relevant system voices found',
-    fr: 'Aucune voix système pertinente trouvée',
+    ar: 'لا توجد أصوات نظام ذات صلة للغات المحددة.',
+    en: 'No relevant system voices found for the selected languages.',
+    fr: 'Aucune voix système pertinente trouvée pour les langues sélectionnées.',
   },
   selectVoice: {
     ar: 'اختر صوتاً...',
@@ -103,6 +103,11 @@ export const translations = {
     ar: 'ميزة حصرية لأصوات Gemini HD',
     en: 'This feature is exclusive to Gemini HD voices',
     fr: 'Cette fonctionnalité est exclusive aux voix Gemini HD',
+  },
+  geminiVoiceSettings: {
+    ar: 'إعدادات أصوات Gemini',
+    en: 'Gemini Voice Settings',
+    fr: 'Paramètres Voix Gemini',
   },
   voiceMale1: {
     ar: 'Puck (رجل)',
@@ -760,9 +765,14 @@ export const translations = {
     fr: 'La traduction a échoué. Veuillez vérifier votre texte et réessayer.',
   },
   errorSpeechGeneration: {
-    ar: 'فشل في توليد الكلام. قد لا يدعم الصوت المحدد هذه اللغة.',
-    en: 'Failed to generate speech. The selected voice may not support this language.',
-    fr: 'La génération de la parole a échoué. La voix sélectionnée peut ne pas prendre en charge cette langue.',
+    ar: 'فشل في توليد الكلام.',
+    en: 'Failed to generate speech.',
+    fr: 'La génération de la parole a échoué.',
+  },
+  errorSpeechGenerationSystem: {
+    ar: 'فشل تشغيل صوت النظام {voiceName}. قد لا يكون مدعومًا بالكامل في متصفحك. جرب صوتًا آخر أو استخدم أصوات Gemini HD لضمان التوافق.',
+    en: 'System voice {voiceName} failed to play. It may not be fully supported by your browser. Try another voice or use Gemini HD voices for guaranteed compatibility.',
+    fr: 'La voix système {voiceName} n\'a pas pu être lue. Elle n\'est peut-être pas entièrement prise en charge par votre navigateur. Essayez une autre voix ou utilisez les voix Gemini HD pour une compatibilité garantie.',
   },
   errorDownloadSystemVoice: {
     ar: 'لا يمكن تحميل الأصوات من نظام التشغيل مباشرة. يرجى اختيار صوت Gemini HD للتحميل.',
@@ -839,6 +849,16 @@ export const translations = {
     en: 'No feedback yet. Be the first to share your thoughts!',
     fr: 'Aucun commentaire pour le moment. Soyez le premier à partager votre avis !',
   },
+  appOwnerNoticeTitle: {
+    ar: 'إشعارات مالك التطبيق',
+    en: 'App Owner Notices',
+    fr: 'Avis au propriétaire de l\'application',
+  },
+  appOwnerNoticeBody: {
+    ar: 'ميزة واحدة أو أكثر تتطلب إعدادًا إضافيًا. هذا الإشعار مرئي لك فقط.',
+    en: 'One or more features require additional setup. This notice is only visible to you.',
+    fr: 'Une ou plusieurs fonctionnalités nécessitent une configuration supplémentaire. Cet avis n\'est visible que pour vous.',
+  },
   feedbackConfigNeededTitle: {
       ar: 'ميزة تسجيل الدخول والتقييمات معطلة',
       en: 'Login & Feedback Features Disabled',
@@ -904,18 +924,7 @@ export const translations = {
       en: 'Step 5: Redeploy Application',
       fr: 'Étape 5 : Redéployer l\'application',
   },
-  firebaseSetupStep5Body: {
-      ar: 'بعد حفظ متغيرات البيئة والقواعد، قم بإعادة نشر تطبيقك على Vercel لتصبح التغييرات سارية المفعول.',
-      en: 'After saving the environment variables and rules, redeploy your application on Vercel for the changes to take effect.',
-      fr: 'Après avoir enregistré les variables d\'environnement et les règles, redéployez votre application sur Vercel pour que les changements prennent effet.',
-  },
-  firebaseSetupCopyButton: {
-      ar: 'نسخ',
-      en: 'Copy',
-      fr: 'Copier',
-  },
-  firebaseSetupCopiedButton: {
-      ar: 'تم النسخ!',
+  firebaseSetupSش',
       en: 'Copied!',
       fr: 'Copié !',
   },
