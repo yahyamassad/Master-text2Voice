@@ -1096,11 +1096,13 @@ const App: React.FC = () => {
             </Suspense>
         </main>
         <footer className="w-full mt-auto pt-8">
-            <OwnerSetupGuide 
-                uiLanguage={uiLanguage} 
-                isApiConfigured={isServerReady}
-                isFirebaseConfigured={isFirebaseConfigured}
-            />
+             {!(isServerReady && isFirebaseConfigured) && (
+                <OwnerSetupGuide 
+                    uiLanguage={uiLanguage} 
+                    isApiConfigured={isServerReady}
+                    isFirebaseConfigured={isFirebaseConfigured}
+                />
+            )}
         </footer>
       </div>
     </div>

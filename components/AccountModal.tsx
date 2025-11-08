@@ -26,8 +26,8 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
         setIsDevMode(!!key);
 
         // Check if the current user is the owner by comparing UIDs
-        if (user && process.env.VITE_OWNER_UID) {
-            setIsOwner(user.uid === process.env.VITE_OWNER_UID);
+        if (user && import.meta.env.VITE_OWNER_UID) {
+            setIsOwner(user.uid === import.meta.env.VITE_OWNER_UID);
         }
     }, [user]);
 
@@ -143,7 +143,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                             {user.uid}
                         </span>
                         {uidCopied && <CheckIcon className="inline-block ml-1 h-4 w-4 text-green-400" />}
-                        {!process.env.VITE_OWNER_UID && <p className="mt-1">{t('ownerUidInfo', uiLanguage)}</p>}
+                        {!import.meta.env.VITE_OWNER_UID && <p className="mt-1">{t('ownerUidInfo', uiLanguage)}</p>}
                     </div>
                     <button onClick={onSignOut} className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-semibold transition-colors flex-shrink-0">
                         {t('signOut', uiLanguage)}

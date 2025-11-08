@@ -2,8 +2,15 @@ import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
 // =================================================================================
-// قراءة إعدادات Firebase من متغيرات البيئة الآمنة بدلاً من كتابتها هنا مباشرة
-// يجب إضافة هذه المتغيرات في منصة النشر الخاصة بك
+// CLIENT-SIDE FIREBASE CONFIGURATION (for the Browser)
+// =================================================================================
+// This file configures Firebase for the user's browser (the client).
+// It MUST use environment variables prefixed with `VITE_` (e.g., `VITE_FIREBASE_PROJECT_ID`).
+// These variables are made available by the Vite build tool.
+//
+// IMPORTANT: These variables MUST point to the SAME Firebase project as the
+// server-side configuration in `api/feedback.ts` to ensure that authentication,
+// user history, and feedback all work together seamlessly.
 // =================================================================================
 
 let app: FirebaseApp | null = null;
@@ -23,11 +30,9 @@ function getFirebase() {
         
         try {
             // Vite exposes env variables via import.meta.env on the client.
-            // This check is crucial. If import.meta.env is undefined, it means we're in an
-            // unexpected environment or the build is broken. We must handle this gracefully.
+            // This check is crucial. If the VITE_ prefixed variables are missing,
+            // it means Firebase is not configured for the client-side.
             if (typeof import.meta.env === 'undefined' || !import.meta.env.VITE_FIREBASE_PROJECT_ID) {
-                // If the env variables are not available, it means Firebase is not configured.
-                // We return the unconfigured state. The UI will then show the setup guide.
                 isFirebaseConfigured = false;
                 app = null;
                 db = null;
@@ -44,7 +49,7 @@ function getFirebase() {
                 measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
             };
 
-            // A projectId is a good indicator that the config is present.
+            // A projectId and apiKey are the minimum required for initialization.
             const hasSufficientConfig = firebaseConfig.projectId && firebaseConfig.apiKey;
 
             if (hasSufficientConfig) {
@@ -55,9 +60,11 @@ function getFirebase() {
                 }
                 db = getFirestore(app);
                 isFirebaseConfigured = true;
+            } else {
+                 isFirebaseConfigured = false;
             }
         } catch (error) {
-            console.error("Could not read Firebase environment variables or initialize Firebase:", error);
+            console.error("Could not read client-side Firebase environment variables or initialize Firebase:", error);
             // Ensure state is clean on failure
             app = null;
             db = null;

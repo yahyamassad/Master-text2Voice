@@ -1,42 +1,55 @@
-import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getFirestore, collection, query, orderBy, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+// FIX: The Firebase Admin SDK exports the app type as 'App', not 'FirebaseApp'. Using an alias for compatibility.
+import { initializeApp, getApps, App as FirebaseApp, cert, ServiceAccount } from 'firebase-admin/app';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// SERVER-SIDE CONFIG: This must use environment variables WITHOUT the VITE_ prefix.
-// The user needs to set these in their Vercel project settings. They will be available
-// to the serverless functions, but not to the client-side code.
-const serverFirebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID,
-};
-
-// Check if the system is configured by verifying the presence of essential variables.
-const isConfigured = serverFirebaseConfig.apiKey && serverFirebaseConfig.projectId;
+// =================================================================================
+// SERVER-SIDE FIREBASE CONFIGURATION (for Vercel Functions)
+// =================================================================================
+// This file configures Firebase for the backend serverless function.
+// It MUST use environment variables WITHOUT the `VITE_` prefix (e.g., `FIREBASE_PROJECT_ID`).
+// These are standard server-side variables set in your Vercel project settings.
+//
+// IMPORTANT: These variables MUST point to the SAME Firebase project as the
+// client-side configuration in `firebaseConfig.ts` to ensure that authentication,
+// user history, and feedback all work together seamlessly.
+// =================================================================================
 
 let firebaseApp: FirebaseApp;
+let isConfigured = false;
 
-// Initialize the Firebase app for the serverless function environment.
-if (isConfigured) {
-    // Use a unique name to avoid conflicts in serverless environments
-    const appName = 'Sawtli-Feedback-API';
-    const existingApp = getApps().find(app => app.name === appName);
-    if (existingApp) {
-        firebaseApp = existingApp;
-    } else {
-        firebaseApp = initializeApp(serverFirebaseConfig, appName);
+try {
+    const serviceAccount: ServiceAccount = {
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        // The private key is often stored with escaped newlines. We need to replace them
+        // back to actual newlines for the SDK to parse it correctly.
+        privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    };
+    
+    // Check if the essential parts of the service account are configured.
+    if (serviceAccount.projectId && serviceAccount.clientEmail && serviceAccount.privateKey) {
+        const appName = 'Sawtli-Feedback-API-Admin';
+        const existingApp = getApps().find(app => app.name === appName);
+        if (existingApp) {
+            firebaseApp = existingApp;
+        } else {
+            firebaseApp = initializeApp({ credential: cert(serviceAccount) }, appName);
+        }
+        isConfigured = true;
     }
+} catch (e) {
+    console.error("Failed to initialize Firebase Admin SDK:", e);
+    isConfigured = false;
 }
+
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // If the server-side environment variables are missing, inform the client.
     if (!isConfigured) {
         return res.status(200).json({ 
             configured: false, 
-            message: 'Firebase system is not configured for the API. Please set FIREBASE_* environment variables in Vercel.' 
+            error: 'Firebase Admin SDK is not configured for the API. Please set the required FIREBASE_* environment variables for the service account in Vercel.' 
         });
     }
 
@@ -44,9 +57,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'GET') {
         try {
-            const feedbackCollectionRef = collection(db, 'feedback');
-            const q = query(feedbackCollectionRef, orderBy('createdAt', 'desc'));
-            const querySnapshot = await getDocs(q);
+            // FIX: Use Firebase Admin SDK's chained method calls instead of client-side functional API.
+            const feedbackCollectionRef = db.collection('feedback');
+            const q = feedbackCollectionRef.orderBy('createdAt', 'desc');
+            const querySnapshot = await q.get();
 
             const feedbacks = querySnapshot.docs.map(doc => {
                 const data = doc.data();
@@ -78,12 +92,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(400).json({ error: 'Comment and rating are required.' });
             }
 
-            const feedbackCollectionRef = collection(db, 'feedback');
-            await addDoc(feedbackCollectionRef, {
+            // FIX: Use Firebase Admin SDK's chained method calls instead of client-side functional API.
+            const feedbackCollectionRef = db.collection('feedback');
+            await feedbackCollectionRef.add({
                 name: name || 'Anonymous',
                 comment,
                 rating,
-                createdAt: serverTimestamp(),
+                createdAt: Timestamp.now(),
             });
 
             return res.status(201).json({ success: true });
