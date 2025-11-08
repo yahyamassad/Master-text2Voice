@@ -80,13 +80,20 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
         
         // Use v9 modular functions for Firestore
         const feedbackCollectionRef = collection(db, 'feedback');
-        const q = query(feedbackCollectionRef, orderBy('createdAt', 'desc'));
+        // FIX: Remove orderBy from query to make it less strict. This prevents documents
+        // without a `createdAt` field from being excluded from the results.
+        const q = query(feedbackCollectionRef);
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const feedbackData: FeedbackItem[] = [];
             querySnapshot.forEach((doc) => {
                 feedbackData.push({ id: doc.id, ...doc.data() } as FeedbackItem);
             });
+
+            // FIX: Sort the results on the client-side to maintain chronological order.
+            // This is a robust way to handle potentially missing timestamp fields in older documents.
+            feedbackData.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+
             setFeedbacks(feedbackData);
             setIsLoading(false);
         }, (err) => {
