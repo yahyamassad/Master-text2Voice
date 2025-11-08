@@ -401,11 +401,12 @@ const App: React.FC = () => {
             
             if (selectedVoice) {
                 utterance.voice = selectedVoice;
-                // CRITICAL FIX: Set the utterance language to the language of the VOICE object,
-                // not the language of the text area. This ensures compatibility.
+                // CRITICAL BUG FIX: The utterance language MUST match the language of the
+                // voice object itself, not the language of the text area. This dramatically
+                // increases the reliability of system voices across browsers and platforms.
                 utterance.lang = selectedVoice.lang;
             } else {
-                 // Fallback if the voice isn't found for some reason.
+                 // Fallback if the voice isn't found (e.g., loaded from localStorage but no longer available).
                 const textLangCode = target === 'source' ? sourceLang : targetLang;
                 const speechLangCode = translationLanguages.find(l => l.code === textLangCode)?.speechCode || textLangCode;
                 utterance.lang = speechLangCode;
@@ -1196,7 +1197,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 const selectedVoice = systemVoices.find(v => v.name === voiceName);
                 if (selectedVoice) {
                     utterance.voice = selectedVoice;
-                    utterance.lang = selectedVoice.lang;
+                    utterance.lang = selectedVoice.lang; // Use the voice's specific lang for max compatibility
                 }
                 nativeUtteranceRef.current = utterance;
                 utterance.onend = () => {
@@ -1235,6 +1236,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         'Fenrir': 'voiceMale3',
     };
 
+    const VoiceListItem: React.FC<{ voiceName: string; label: string; sublabel?: string }> = ({ voiceName, label, sublabel }) => (
+        <button
+            onClick={() => setVoice(voiceName)}
+            className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${voice === voiceName ? 'bg-cyan-600 text-white shadow-lg' : 'bg-slate-700 hover:bg-slate-600'}`}
+        >
+            <div>
+                <span className="font-semibold">{label}</span>
+                {sublabel && <span className="text-xs text-slate-300 block">{sublabel}</span>}
+            </div>
+            <button
+                onClick={(e) => { e.stopPropagation(); handlePreview(voiceName); }}
+                title={t('previewVoiceTooltip', uiLanguage)}
+                className="p-1 rounded-full text-slate-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            >
+                {previewingVoice === voiceName ? <LoaderIcon /> : <PlayCircleIcon />}
+            </button>
+        </button>
+    );
+
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
             <div className="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -1246,37 +1266,39 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 <div className="overflow-y-auto pr-2 space-y-6">
-                    <div className="space-y-3">
+                     <div className="space-y-3">
                         <label className="text-lg font-bold text-slate-200">{t('voiceLabel', uiLanguage)}</label>
-                        <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                             <h4 className="font-semibold text-cyan-400 mb-2">{t('geminiHdVoices', uiLanguage)}</h4>
-                             <p className="text-xs text-slate-400 mb-3">{t('geminiVoicesNote', uiLanguage)}</p>
-                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                {geminiVoices.map(vName => (
-                                     <button key={vName} onClick={() => setVoice(vName)} className={`p-3 rounded-lg text-left transition-colors ${voice === vName ? 'bg-cyan-600 text-white shadow-lg' : 'bg-slate-700 hover:bg-slate-600'}`}>
-                                         <div className="flex justify-between items-center">
-                                            <span className="font-semibold">{t(voiceNameMap[vName], uiLanguage)}</span>
-                                            <button onClick={(e) => { e.stopPropagation(); handlePreview(vName); }} title={t('previewVoiceTooltip', uiLanguage)} className="text-slate-300 hover:text-white">
-                                                {previewingVoice === vName ? <LoaderIcon /> : <PlayCircleIcon />}
-                                            </button>
-                                        </div>
-                                    </button>
-                                ))}
+                        <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700 space-y-4">
+                             <div>
+                                <h4 className="font-semibold text-cyan-400 mb-2">{t('geminiHdVoices', uiLanguage)}</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {geminiVoices.map(vName => (
+                                        <VoiceListItem key={vName} voiceName={vName} label={t(voiceNameMap[vName], uiLanguage)} />
+                                    ))}
+                                </div>
                             </div>
+                            {relevantSystemVoices.length > 0 && (
+                                <div>
+                                    <h4 className="font-semibold text-slate-300 mb-2">{t('suggestedVoices', uiLanguage)}</h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {relevantSystemVoices.map(v => (
+                                            <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {otherSystemVoices.length > 0 && (
+                                <div>
+                                    <h4 className="font-semibold text-slate-300 mb-2">{t('otherSystemVoices', uiLanguage)}</h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {otherSystemVoices.map(v => (
+                                            <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                             {systemVoices.length === 0 && <p className="text-sm text-slate-500">{t('noRelevantSystemVoices', uiLanguage)}</p>}
                         </div>
-                         <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                             <h4 className="font-semibold text-slate-300 mb-3">{t('systemVoices', uiLanguage)}</h4>
-                             <select value={voice} onChange={e => setVoice(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md">
-                                 <option value="" disabled>{t('selectVoice', uiLanguage)}</option>
-                                 {relevantSystemVoices.length > 0 && <optgroup label={t('suggestedVoices', uiLanguage)}>
-                                    {relevantSystemVoices.map(v => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
-                                 </optgroup>}
-                                 {otherSystemVoices.length > 0 && <optgroup label={t('otherSystemVoices', uiLanguage)}>
-                                    {otherSystemVoices.map(v => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
-                                 </optgroup>}
-                                  {systemVoices.length === 0 && <option disabled>{t('noRelevantSystemVoices', uiLanguage)}</option>}
-                             </select>
-                         </div>
                     </div>
 
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
