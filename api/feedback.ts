@@ -1,30 +1,33 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getFirestore, collection, query, orderBy, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// UNIFIED CONFIG: This now uses the same VITE_FIREBASE variables as the main app.
-// This simplifies setup for the app owner to a single set of environment variables.
-const mainFirebaseConfig = {
-    apiKey: process.env.VITE_FIREBASE_API_KEY,
-    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.VITE_FIREBASE_APP_ID,
+// SERVER-SIDE CONFIG: This must use environment variables WITHOUT the VITE_ prefix.
+// The user needs to set these in their Vercel project settings. They will be available
+// to the serverless functions, but not to the client-side code.
+const serverFirebaseConfig = {
+    apiKey: process.env.FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID,
 };
 
 // Check if the system is configured by verifying the presence of essential variables.
-const isConfigured = mainFirebaseConfig.apiKey && mainFirebaseConfig.projectId;
+const isConfigured = serverFirebaseConfig.apiKey && serverFirebaseConfig.projectId;
 
-let mainApp: FirebaseApp;
+let firebaseApp: FirebaseApp;
 
-// Initialize the main Firebase app (if configured and not already initialized).
-// We can reuse the main app instance since the configs are now the same.
+// Initialize the Firebase app for the serverless function environment.
 if (isConfigured) {
-    if (!getApps().length) {
-        mainApp = initializeApp(mainFirebaseConfig);
+    // Use a unique name to avoid conflicts in serverless environments
+    const appName = 'Sawtli-Feedback-API';
+    const existingApp = getApps().find(app => app.name === appName);
+    if (existingApp) {
+        firebaseApp = existingApp;
     } else {
-        mainApp = getApps()[0]; // Use the already initialized main app
+        firebaseApp = initializeApp(serverFirebaseConfig, appName);
     }
 }
 
@@ -33,11 +36,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!isConfigured) {
         return res.status(200).json({ 
             configured: false, 
-            message: 'Firebase system is not configured. Please set VITE_FIREBASE_* environment variables in Vercel.' 
+            message: 'Firebase system is not configured for the API. Please set FIREBASE_* environment variables in Vercel.' 
         });
     }
 
-    const db = getFirestore(mainApp);
+    const db = getFirestore(firebaseApp);
 
     if (req.method === 'GET') {
         try {
