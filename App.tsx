@@ -4,7 +4,7 @@ import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
   SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon
 } from './components/icons';
-import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
+import { t, Language, languageOptions, translationLanguages, translations } from './i1n/translations';
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig } from './types';
 import { getAuth, onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
@@ -254,7 +254,7 @@ const App: React.FC = () => {
   }, []);
 
 
-  // Load system voices and warm up the engine
+  // Load system voices, warm up the engine, and keep it alive.
   useEffect(() => {
     const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
@@ -263,19 +263,31 @@ const App: React.FC = () => {
         }
     };
     
-    // Warm-up Speech Synthesis Engine on component mount
     if ('speechSynthesis' in window) {
+        // Warm-up Speech Synthesis Engine on component mount with a silent utterance
         const utterance = new SpeechSynthesisUtterance('');
         window.speechSynthesis.speak(utterance);
-        // The utterance is silent and short, acting as an initializer for the engine.
     }
     
     loadVoices();
-    // Voices list can be loaded asynchronously.
+    // Voices list can be loaded asynchronously, so we need to listen for the event.
     window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    // Keep-alive for Speech Synthesis engine. Some browsers (especially on mobile)
+    // suspend the speech engine after a period of inactivity. This interval
+    // "wakes it up" periodically to ensure it's responsive when needed.
+    const keepAliveInterval = setInterval(() => {
+        if (window.speechSynthesis && !window.speechSynthesis.speaking) {
+            window.speechSynthesis.resume();
+        }
+    }, 5000); // Check every 5 seconds
 
     return () => {
         window.speechSynthesis.onvoiceschanged = null;
+        clearInterval(keepAliveInterval); // Important: clean up the interval
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel(); // Clean up any lingering speech on unmount
+        }
     };
   }, []);
 
@@ -1080,7 +1092,7 @@ const App: React.FC = () => {
                     onDeleteAccount={handleDeleteAccount}
                 />}
                 {isAudioStudioOpen && <AudioStudioModal onClose={() => setIsAudioStudioOpen(false)} uiLanguage={uiLanguage} />}
-                {isFirebaseConfigured && <Feedback language={uiLanguage} />}
+                <Feedback language={uiLanguage} />
             </Suspense>
         </main>
         <footer className="w-full mt-auto pt-8">
