@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
@@ -399,15 +398,18 @@ const App: React.FC = () => {
         try {
             const utterance = new SpeechSynthesisUtterance(text);
             const selectedVoice = systemVoices.find(v => v.name === voice);
+            
             if (selectedVoice) {
                 utterance.voice = selectedVoice;
+                // CRITICAL FIX: Set the utterance language to the language of the VOICE object,
+                // not the language of the text area. This ensures compatibility.
+                utterance.lang = selectedVoice.lang;
+            } else {
+                 // Fallback if the voice isn't found for some reason.
+                const textLangCode = target === 'source' ? sourceLang : targetLang;
+                const speechLangCode = translationLanguages.find(l => l.code === textLangCode)?.speechCode || textLangCode;
+                utterance.lang = speechLangCode;
             }
-            // FIX: Set the utterance language to match the text's actual language.
-            // This is crucial for compatibility, as a voice may support multiple languages,
-            // or the browser might reject a mismatch between the lang tag and content.
-            const textLangCode = target === 'source' ? sourceLang : targetLang;
-            const speechLangCode = translationLanguages.find(l => l.code === textLangCode)?.speechCode || textLangCode;
-            utterance.lang = speechLangCode;
 
             nativeUtteranceRef.current = utterance;
             
@@ -859,7 +861,7 @@ const App: React.FC = () => {
           </div>
           <div className={`absolute bottom-3 text-xs text-slate-500 ${isUiRtl ? 'left-3' : 'right-3'}`}>{sourceText.length} / {MAX_CHARS_PER_REQUEST}</div>
       </div>
-       <div className={`flex items-center ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
+       <div className={`flex items-center min-h-[44px] ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
           <div className="relative" ref={effectsDropdownRef}>
               <button
                   onClick={() => setIsEffectsOpen(!isEffectsOpen)}
@@ -925,6 +927,8 @@ const App: React.FC = () => {
               </div>
               <div className={`absolute bottom-3 text-xs text-slate-500 ${isUiRtl ? 'left-3' : 'right-3'}`}>{translatedText.length} / {MAX_CHARS_PER_REQUEST}</div>
            </div>
+           {/* Placeholder for alignment with source text area controls */}
+           <div className="min-h-[44px]"></div>
            <div className="flex items-stretch gap-3">
                <ActionButton
                     icon={targetButtonState.icon}
@@ -1298,9 +1302,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
                          <div className="flex items-center justify-between">
                              <h4 className="text-lg font-bold text-slate-200">{t('multiSpeakerSettings', uiLanguage)}</h4>
-                             <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={isUsingSystemVoice} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
+                             <div className="flex items-center gap-2">
+                                <div className="relative group">
+                                    <InfoIcon className="h-5 w-5 text-slate-400 cursor-help" />
+                                    <div className="absolute bottom-full right-0 mb-2 w-60 p-2 bg-slate-900 text-slate-300 text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                                        {t('multiSpeakerTooltip', uiLanguage)}
+                                    </div>
+                                </div>
+                                <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={isUsingSystemVoice} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
+                             </div>
                          </div>
-                        <p className="text-xs text-slate-400">{t('multiSpeakerInfo', uiLanguage)}</p>
+                        <p className="text-xs text-slate-400">{t('multiSpeakerExclusive', uiLanguage)}</p>
                         <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker || isUsingSystemVoice ? 'opacity-50 pointer-events-none' : ''}`}>
                              <div>
                                  <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 1</label>
