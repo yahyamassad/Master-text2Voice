@@ -42,7 +42,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
     const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-    const [isFeedbackConfigured, setIsFeedbackConfigured] = useState(true); // Assume configured until checked
+    const [isSubmissionEnabled, setIsSubmissionEnabled] = useState<boolean>(false);
 
     const [name, setName] = useState('');
     const [comment, setComment] = useState('');
@@ -53,6 +53,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
 
     const fetchFeedbacks = useCallback(() => {
         setIsLoading(true);
+        setError(null);
         fetch('/api/feedback')
             .then(res => {
                 if (!res.ok) {
@@ -62,16 +63,17 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
             })
             .then(data => {
                 if (data.configured === false) {
-                    setIsFeedbackConfigured(false);
+                    setIsSubmissionEnabled(false);
+                    setFeedbacks([]);
                 } else {
-                    setIsFeedbackConfigured(true);
+                    setIsSubmissionEnabled(true);
                     setFeedbacks(data.feedbacks || []);
                 }
             })
             .catch(err => {
                 console.error("Error fetching feedback:", err);
                 setError(t('feedbackError', language));
-                setIsFeedbackConfigured(false);
+                setIsSubmissionEnabled(false);
             })
             .finally(() => {
                 setIsLoading(false);
@@ -84,7 +86,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!comment.trim() || rating === 0) return;
+        if (!comment.trim() || rating === 0 || !isSubmissionEnabled) return;
         
         setIsSubmitting(true);
         setSubmitStatus(null);
@@ -101,7 +103,6 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                 throw new Error(errorData.error || 'Server responded with an error');
             }
 
-            // After successful submission, fetch the latest feedbacks to get the server-confirmed list
             fetchFeedbacks();
 
             setName('');
@@ -117,21 +118,6 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
              setTimeout(() => setSubmitStatus(null), 4000);
         }
     };
-    
-    if (!isFeedbackConfigured) {
-        return (
-            <div className="space-y-6">
-                <div className="text-center">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-cyan-400">{t('feedbackTitle', language)}</h2>
-                    <p className="text-slate-400 mt-1">{t('feedbackSubtitle', language)}</p>
-                </div>
-                <div className="bg-slate-700/50 p-6 rounded-lg text-center opacity-60">
-                    <p className="font-semibold text-amber-400 text-lg">{t('feedbackConfigNeededTitle', language)}</p>
-                    <p className="text-sm text-slate-300 mt-2">{t('feedbackConfigNeededBody', language)}</p>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6">
@@ -141,7 +127,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
             </div>
 
             {/* Feedback Form */}
-            <div className="bg-slate-700/50 p-6 rounded-lg">
+            <div className={`bg-slate-700/50 p-6 rounded-lg transition-opacity ${!isSubmissionEnabled ? 'opacity-60' : ''}`}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input
@@ -150,7 +136,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                             onChange={(e) => setName(e.target.value)}
                             placeholder={t('yourName', language)}
                             className="w-full p-3 bg-slate-900/50 border-2 border-slate-600 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors placeholder-slate-500"
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || !isSubmissionEnabled}
                         />
                          <div className="flex items-center justify-center md:justify-start gap-3 text-slate-300">
                             <span className="font-bold">{t('yourRating', language)}</span>
@@ -164,7 +150,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                                         onMouseLeave={() => setHoverRating(0)}
                                         className="focus:outline-none"
                                         aria-label={`Rate ${star} stars`}
-                                        disabled={isSubmitting}
+                                        disabled={isSubmitting || !isSubmissionEnabled}
                                     >
                                         <StarIcon className={`cursor-pointer transition-colors ${(hoverRating || rating) >= star ? 'text-yellow-400' : 'text-slate-500'}`} />
                                     </button>
@@ -178,11 +164,11 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                         placeholder={t('yourComment', language)}
                         required
                         className="w-full h-24 p-3 bg-slate-900/50 border-2 border-slate-600 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors placeholder-slate-500"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || !isSubmissionEnabled}
                     />
                     <button
                         type="submit"
-                        disabled={isSubmitting || !comment.trim() || rating === 0}
+                        disabled={isSubmitting || !isSubmissionEnabled || !comment.trim() || rating === 0}
                         className="w-full flex items-center justify-center gap-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 transform active:scale-95"
                     >
                         {isSubmitting ? <LoaderIcon /> : null}
@@ -192,6 +178,9 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                         <div className={`mt-3 text-center p-2 rounded-lg text-sm ${submitStatus.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
                             {submitStatus.message}
                         </div>
+                    )}
+                     {!isSubmissionEnabled && !isLoading && !error && (
+                        <p className="text-xs text-center text-slate-400 pt-2">{t('feedbackSubmissionDisabled', language)}</p>
                     )}
                 </form>
             </div>
