@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
@@ -51,11 +52,33 @@ const soundEffects = [
 
 const geminiVoices = ['Puck', 'Kore', 'Charon', 'Zephyr', 'Fenrir'];
 
+
+const getInitialLanguage = (): Language => {
+    try {
+        const savedSettings = localStorage.getItem('sawtli_settings');
+        if (savedSettings) {
+            const settings = JSON.parse(savedSettings);
+            if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
+                return settings.uiLanguage;
+            }
+        }
+        
+        const browserLang = navigator.language.split('-')[0];
+        if (browserLang === 'ar') return 'ar';
+        if (browserLang === 'fr') return 'fr';
+        
+    } catch (e) {
+        // Ignore errors and fall back to default
+    }
+    return 'en'; // Default to English
+};
+
+
 // Main App Component
 const App: React.FC = () => {
   const MAX_CHARS_PER_REQUEST = 5000;
   // --- STATE MANAGEMENT ---
-  const [uiLanguage, setUiLanguage] = useState<Language>('ar');
+  const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
   const [sourceLang, setSourceLang] = useState<string>('ar');
@@ -227,7 +250,7 @@ const App: React.FC = () => {
   }, []);
 
 
-  // Load system voices
+  // Load system voices and warm up the engine
   useEffect(() => {
     const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
@@ -235,6 +258,14 @@ const App: React.FC = () => {
             setSystemVoices(voices);
         }
     };
+    
+    // Warm-up Speech Synthesis Engine on component mount
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance('');
+        window.speechSynthesis.speak(utterance);
+        // The utterance is silent and short, acting as an initializer for the engine.
+    }
+    
     loadVoices();
     // Voices list can be loaded asynchronously.
     window.speechSynthesis.onvoiceschanged = loadVoices;
@@ -248,33 +279,49 @@ const App: React.FC = () => {
   // Load state from localStorage on initial render (settings only now)
   useEffect(() => {
     try {
-      const savedSettings = localStorage.getItem('sawtli_settings');
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings');
+      const urlParams = new URLSearchParams(window.location.search);
+      
+      const urlSourceText = urlParams.get('sourceText');
+      const urlSourceLang = urlParams.get('sourceLang');
+      const urlTargetLang = urlParams.get('targetLang');
+      
+      let sourceLangSet = false;
+
+      if (savedSettingsRaw) {
+        const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
         if (settings.emotion) setEmotion(settings.emotion);
         if (settings.pauseDuration) setPauseDuration(settings.pauseDuration);
         if (settings.multiSpeaker) setMultiSpeaker(settings.multiSpeaker);
         if (settings.speakerA) setSpeakerA(settings.speakerA);
         if (settings.speakerB) setSpeakerB(settings.speakerB);
-        if (settings.sourceLang) setSourceLang(settings.sourceLang);
+        if (settings.sourceLang) {
+            setSourceLang(settings.sourceLang);
+            sourceLangSet = true;
+        }
         if (settings.targetLang) setTargetLang(settings.targetLang);
-        if (settings.uiLanguage) setUiLanguage(settings.uiLanguage);
+        // uiLanguage is set on initialization now, so we don't need to load it here
       }
       
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlSourceText = urlParams.get('sourceText');
-      const urlSourceLang = urlParams.get('sourceLang');
-      const urlTargetLang = urlParams.get('targetLang');
       if(urlSourceText) setSourceText(decodeURIComponent(urlSourceText));
-      if(urlSourceLang) setSourceLang(urlSourceLang);
+      if(urlSourceLang) {
+          setSourceLang(urlSourceLang);
+          sourceLangSet = true;
+      }
       if(urlTargetLang) setTargetLang(urlTargetLang);
 
+      // If sourceLang was not set by localStorage or URL, default it to the UI language
+      if (!sourceLangSet) {
+          setSourceLang(uiLanguage);
+      }
 
     } catch (e) {
       console.error("Failed to load state from localStorage or URL", e);
+      // Fallback: set source language to UI language if everything fails
+      setSourceLang(uiLanguage);
     }
-  }, []);
+  }, [uiLanguage]); // Depend on uiLanguage to set sourceLang on first load correctly
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -1127,6 +1174,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
+// Fix: Moved relevantSystemVoices declaration before its use in useEffect.
+    const relevantSystemVoices = useMemo(() => {
+        const sourceSpeechCode = translationLanguages.find(l => l.code === sourceLang)?.speechCode.split('-')[0];
+        const targetSpeechCode = translationLanguages.find(l => l.code === targetLang)?.speechCode.split('-')[0];
+        if (!sourceSpeechCode && !targetSpeechCode) return [];
+        return systemVoices.filter(v => 
+            (sourceSpeechCode && v.lang.startsWith(sourceSpeechCode)) || 
+            (targetSpeechCode && v.lang.startsWith(targetSpeechCode))
+        );
+    }, [systemVoices, sourceLang, targetLang]);
+
     // When switching modes, select the first voice from the new list if the current one doesn't belong.
     useEffect(() => {
         if (voiceMode === 'gemini' && !geminiVoices.includes(voice)) {
@@ -1138,7 +1196,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                  setVoice(systemVoices[0].name);
             }
         }
-    }, [voiceMode]);
+    }, [voiceMode, voice, setVoice, systemVoices, relevantSystemVoices]);
 
 
     const handlePreview = async (voiceName: string) => {
@@ -1197,16 +1255,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             }
         }
     };
-
-    const relevantSystemVoices = useMemo(() => {
-        const sourceSpeechCode = translationLanguages.find(l => l.code === sourceLang)?.speechCode.split('-')[0];
-        const targetSpeechCode = translationLanguages.find(l => l.code === targetLang)?.speechCode.split('-')[0];
-        if (!sourceSpeechCode && !targetSpeechCode) return [];
-        return systemVoices.filter(v => 
-            (sourceSpeechCode && v.lang.startsWith(sourceSpeechCode)) || 
-            (targetSpeechCode && v.lang.startsWith(targetSpeechCode))
-        );
-    }, [systemVoices, sourceLang, targetLang]);
     
     const voiceNameMap: Record<string, keyof typeof translations> = {
         'Puck': 'voiceMale1', 'Kore': 'voiceFemale1', 'Charon': 'voiceMale2', 'Zephyr': 'voiceFemale2', 'Fenrir': 'voiceMale3',
@@ -1289,7 +1337,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              <div className="flex items-center gap-2">
                                 <div className="relative group">
                                     <InfoIcon className="h-5 w-5 text-slate-400 cursor-help" />
-                                    <div className="absolute bottom-full right-0 mb-2 w-60 p-2 bg-slate-900 text-slate-300 text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-900 text-slate-300 text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
                                         {t('multiSpeakerTooltip', uiLanguage)}
                                     </div>
                                 </div>
