@@ -844,6 +844,11 @@ export const translations = {
     en: 'An error occurred while submitting your feedback. Please try again.',
     fr: 'Une erreur s\'est produite lors de l\'envoi de vos commentaires. Veuillez réessayer.',
   },
+  feedbackSubmissionDisabled: {
+    ar: 'إرسال التقييمات الجديدة غير متاح حاليًا.',
+    en: 'Submitting new feedback is currently unavailable.',
+    fr: 'La soumission de nouveaux commentaires est actuellement indisponible.',
+  },
   noFeedbackYet: {
     ar: 'لا توجد تقييمات حتى الآن. كن أول من يشاركنا رأيه!',
     en: 'No feedback yet. Be the first to share your thoughts!',
