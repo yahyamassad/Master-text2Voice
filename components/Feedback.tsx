@@ -55,9 +55,11 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
         setIsLoading(true);
         setError(null);
         fetch('/api/feedback')
-            .then(res => {
+            .then(async res => {
                 if (!res.ok) {
-                    throw new Error(`Server responded with status: ${res.status}`);
+                     // Try to parse the specific error message from the backend
+                    const errorData = await res.json().catch(() => ({ error: `Server responded with status: ${res.status}` }));
+                    throw new Error(errorData.error || `An unknown error occurred while fetching feedback.`);
                 }
                 return res.json();
             })
@@ -72,7 +74,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
             })
             .catch(err => {
                 console.error("Error fetching feedback:", err);
-                setError(t('feedbackError', language));
+                setError(err.message || t('feedbackError', language));
                 setIsSubmissionEnabled(false);
             })
             .finally(() => {
