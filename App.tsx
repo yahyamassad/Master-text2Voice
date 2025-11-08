@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
@@ -81,8 +80,8 @@ const App: React.FC = () => {
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
-  const [sourceLang, setSourceLang] = useState<string>('ar');
-  const [targetLang, setTargetLang] = useState<string>('en');
+  const [sourceLang, setSourceLang] = useState<string>(uiLanguage);
+  const [targetLang, setTargetLang] = useState<string>(uiLanguage === 'ar' ? 'en' : 'ar');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingTask, setLoadingTask] = useState<string>('');
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
@@ -222,12 +221,10 @@ const App: React.FC = () => {
 
   // Stop any active audio if the text or settings that would affect it are changed.
   useEffect(() => {
-    // Only stop if something is actively playing.
-    // This prevents stopping a 'generate' task before it has a chance to play.
     if (activePlayer && (audioSourceRef.current || window.speechSynthesis.speaking)) {
       stopAll();
     }
-  }, [sourceText, translatedText, voice, pauseDuration, multiSpeaker, speakerA, speakerB, emotion, stopAll, activePlayer]);
+  }, [sourceText, translatedText, voice, pauseDuration, multiSpeaker, speakerA, speakerB, emotion, stopAll]);
 
 
   // Server configuration check
@@ -276,18 +273,10 @@ const App: React.FC = () => {
   }, []);
 
 
-  // Load state from localStorage on initial render (settings only now)
+  // Load state from localStorage or URL on initial mount
   useEffect(() => {
     try {
       const savedSettingsRaw = localStorage.getItem('sawtli_settings');
-      const urlParams = new URLSearchParams(window.location.search);
-      
-      const urlSourceText = urlParams.get('sourceText');
-      const urlSourceLang = urlParams.get('sourceLang');
-      const urlTargetLang = urlParams.get('targetLang');
-      
-      let sourceLangSet = false;
-
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -296,32 +285,24 @@ const App: React.FC = () => {
         if (settings.multiSpeaker) setMultiSpeaker(settings.multiSpeaker);
         if (settings.speakerA) setSpeakerA(settings.speakerA);
         if (settings.speakerB) setSpeakerB(settings.speakerB);
-        if (settings.sourceLang) {
-            setSourceLang(settings.sourceLang);
-            sourceLangSet = true;
-        }
+        if (settings.sourceLang) setSourceLang(settings.sourceLang);
         if (settings.targetLang) setTargetLang(settings.targetLang);
-        // uiLanguage is set on initialization now, so we don't need to load it here
+        // uiLanguage is set on initialization and saved, but not loaded here to prevent loops
       }
       
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlSourceText = urlParams.get('sourceText');
+      const urlSourceLang = urlParams.get('sourceLang');
+      const urlTargetLang = urlParams.get('targetLang');
+      
       if(urlSourceText) setSourceText(decodeURIComponent(urlSourceText));
-      if(urlSourceLang) {
-          setSourceLang(urlSourceLang);
-          sourceLangSet = true;
-      }
+      if(urlSourceLang) setSourceLang(urlSourceLang);
       if(urlTargetLang) setTargetLang(urlTargetLang);
-
-      // If sourceLang was not set by localStorage or URL, default it to the UI language
-      if (!sourceLangSet) {
-          setSourceLang(uiLanguage);
-      }
 
     } catch (e) {
       console.error("Failed to load state from localStorage or URL", e);
-      // Fallback: set source language to UI language if everything fails
-      setSourceLang(uiLanguage);
     }
-  }, [uiLanguage]); // Depend on uiLanguage to set sourceLang on first load correctly
+  }, []); // Empty dependency array means this runs only once on mount
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -444,6 +425,9 @@ const App: React.FC = () => {
       } else {
         // Use Native Browser Speech Synthesis
         try {
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel(); // Defensive cancel
+            }
             const utterance = new SpeechSynthesisUtterance(text);
             const selectedVoice = systemVoices.find(v => v.name === voice);
             
@@ -1089,7 +1073,7 @@ const App: React.FC = () => {
                     onDeleteAccount={handleDeleteAccount}
                 />}
                 {isAudioStudioOpen && <AudioStudioModal onClose={() => setIsAudioStudioOpen(false)} uiLanguage={uiLanguage} />}
-                <Feedback language={uiLanguage} />
+                {isFirebaseConfigured && <Feedback language={uiLanguage} />}
             </Suspense>
         </main>
         <footer className="w-full mt-auto pt-8">
@@ -1173,8 +1157,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+    const voicePreviewCache = useRef(new Map<string, Uint8Array>());
 
-// Fix: Moved relevantSystemVoices declaration before its use in useEffect.
+
     const relevantSystemVoices = useMemo(() => {
         const sourceSpeechCode = translationLanguages.find(l => l.code === sourceLang)?.speechCode.split('-')[0];
         const targetSpeechCode = translationLanguages.find(l => l.code === targetLang)?.speechCode.split('-')[0];
@@ -1216,9 +1201,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         const previewText = t('voicePreviewText', uiLanguage);
 
         if (geminiVoices.includes(voiceName)) {
+            const cacheKey = `${voiceName}-${uiLanguage}`;
+            if (voicePreviewCache.current.has(cacheKey)) {
+                const pcmData = voicePreviewCache.current.get(cacheKey)!;
+                audioSourceRef.current = await playAudio(pcmData, () => {
+                    setPreviewingVoice(null);
+                    audioSourceRef.current = null;
+                });
+                return;
+            }
+
             try {
                 const pcmData = await previewVoice(voiceName, previewText, 'Default');
                 if (pcmData) {
+                    voicePreviewCache.current.set(cacheKey, pcmData); // Cache the result
                     audioSourceRef.current = await playAudio(pcmData, () => {
                         setPreviewingVoice(null);
                         audioSourceRef.current = null;
@@ -1333,16 +1329,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${voiceMode === 'system' ? 'opacity-40 pointer-events-none' : ''}`}>
                          <div className="flex items-center justify-between">
-                             <h4 className="text-lg font-bold text-slate-200">{t('multiSpeakerSettings', uiLanguage)}</h4>
-                             <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
+                                <h4 className="text-lg font-bold text-slate-200">{t('multiSpeakerSettings', uiLanguage)}</h4>
                                 <div className="relative group">
                                     <InfoIcon className="h-5 w-5 text-slate-400 cursor-help" />
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2 bg-slate-900 text-slate-300 text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
                                         {t('multiSpeakerTooltip', uiLanguage)}
                                     </div>
                                 </div>
-                                <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={voiceMode === 'system'} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
-                             </div>
+                            </div>
+                            <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={voiceMode === 'system'} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
                          </div>
                         <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker || voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}`}>
                              <div>
