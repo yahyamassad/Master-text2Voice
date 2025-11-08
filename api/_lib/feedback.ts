@@ -56,9 +56,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
             
             return res.status(200).json({ configured: true, feedbacks });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching feedback:', error);
-            return res.status(500).json({ error: 'Failed to fetch feedback.' });
+            let userMessage = 'Failed to fetch feedback. Please check server logs for details.';
+            if (error.code === 'permission-denied') {
+                userMessage = 'Failed to fetch feedback due to a permission error. Please verify that your Firestore security rules (Step 4) allow read access to the "feedback" collection.';
+            } else if (error.code === 'failed-precondition' || (error.message && error.message.toLowerCase().includes('database'))) {
+                userMessage = 'Failed to connect to the database to fetch feedback. Please ensure you have created a Firestore Database in your Firebase project (Step 2 of the setup guide).';
+            }
+            return res.status(500).json({ error: userMessage });
         }
     }
 
@@ -78,9 +84,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             return res.status(201).json({ success: true });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error submitting feedback:', error);
-            return res.status(500).json({ error: 'Failed to submit feedback.' });
+            let userMessage = 'Failed to submit feedback. Please check server logs for details.';
+
+            // Check for specific Firebase error codes that are common during setup
+            if (error.code === 'permission-denied') {
+                userMessage = 'Failed to submit feedback due to a permission error. Please verify that your Firestore security rules (Step 4) are correctly published and allow write access to the "feedback" collection.';
+            } else if (error.code === 'failed-precondition' || (error.message && error.message.toLowerCase().includes('database'))) {
+                // This error often indicates the database hasn't been created or initialized yet.
+                userMessage = 'Failed to connect to the database. Please ensure you have created a Firestore Database in your Firebase project (Step 2 of the setup guide).';
+            }
+            
+            return res.status(500).json({ error: userMessage });
         }
     }
 
