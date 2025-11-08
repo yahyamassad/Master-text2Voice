@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Cairo', sans-serif;
+}
+
+/* Custom animation for dropdown */
+@keyframes fade-in-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down 0.2s ease-out;
+}
+
+/* New glow effect for main container */
+.glow-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem; /* match rounded-2xl */
+  padding: 2px; /* border width */
+  background: conic-gradient(from 180deg at 50% 50%, #22d3ee 0deg, #3b82f6 180deg, #8b5cf6 360deg);
+  -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.3;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.glow-container:hover::before {
+  opacity: 0.8;
+}

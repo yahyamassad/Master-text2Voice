@@ -122,8 +122,35 @@ const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiLanguage
     return (
         <>
             <style>{`
-                .eq-slider { -webkit-appearance: slider-vertical; writing-mode: bt-lr; width: 8px; height: 100%; background: #1e293b; border-radius: 9999px; }
-                .eq-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; background: #ffffff; border-radius: 50%; cursor: pointer; border: 4px solid #0891b2; }
+                .eq-slider {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    writing-mode: vertical-lr;
+                    direction: rtl;
+                    width: 8px;
+                    height: 100%;
+                    background: #1e293b;
+                    border-radius: 9999px;
+                    cursor: pointer;
+                }
+                .eq-slider::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    width: 22px;
+                    height: 22px;
+                    background: #ffffff;
+                    border-radius: 50%;
+                    cursor: pointer;
+                    border: 4px solid #0891b2;
+                }
+                .eq-slider::-moz-range-thumb {
+                    width: 22px;
+                    height: 22px;
+                    background: #ffffff;
+                    border-radius: 50%;
+                    cursor: pointer;
+                    border: 4px solid #0891b2;
+                }
             `}</style>
             <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
                 <div
