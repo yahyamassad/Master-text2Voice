@@ -924,7 +924,18 @@ export const translations = {
       en: 'Step 5: Redeploy Application',
       fr: 'Étape 5 : Redéployer l\'application',
   },
-  firebaseSetupSش',
+  firebaseSetupStep5Body: {
+      ar: 'بعد إضافة متغيرات البيئة، يجب عليك إعادة نشر مشروع Vercel الخاص بك حتى تدخل التغييرات حيز التنفيذ.',
+      en: 'After adding the environment variables, you must redeploy your Vercel project for the changes to take effect.',
+      fr: 'Après avoir ajouté les variables d\'environnement, vous devez redéployer votre projet Vercel pour que les modifications prennent effet.',
+  },
+  firebaseSetupCopyButton: {
+      ar: 'نسخ',
+      en: 'Copy',
+      fr: 'Copier',
+  },
+  firebaseSetupCopiedButton: {
+      ar: 'تم النسخ!',
       en: 'Copied!',
       fr: 'Copié !',
   },
