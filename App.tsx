@@ -10,6 +10,7 @@ import { HistoryItem, SpeakerConfig } from './types';
 import { getAuth, onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirebase } from './firebaseConfig';
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument } from './services/firestoreService';
+import OwnerSetupGuide from './components/OwnerSetupGuide';
 
 
 const Feedback = lazy(() => import('./components/Feedback'));
@@ -401,12 +402,8 @@ const App: React.FC = () => {
             
             if (selectedVoice) {
                 utterance.voice = selectedVoice;
-                // CRITICAL BUG FIX: The utterance language MUST match the language of the
-                // voice object itself, not the language of the text area. This dramatically
-                // increases the reliability of system voices across browsers and platforms.
                 utterance.lang = selectedVoice.lang;
             } else {
-                 // Fallback if the voice isn't found (e.g., loaded from localStorage but no longer available).
                 const textLangCode = target === 'source' ? sourceLang : targetLang;
                 const speechLangCode = translationLanguages.find(l => l.code === textLangCode)?.speechCode || textLangCode;
                 utterance.lang = speechLangCode;
@@ -423,7 +420,8 @@ const App: React.FC = () => {
             };
             utterance.onerror = (e) => {
                 console.error("SpeechSynthesis Error:", e);
-                setError(t('errorSpeechGeneration', uiLanguage));
+                const specificError = t('errorSpeechGenerationSystem', uiLanguage).replace('{voiceName}', `"${voice}"`);
+                setError(specificError);
                 setActivePlayer(null);
                 nativeUtteranceRef.current = null;
             };
@@ -468,16 +466,11 @@ const App: React.FC = () => {
               const fullTranslation = result.translatedText;
               setTranslatedText(fullTranslation);
               
-              // --- UI RESPONSIVENESS FIX ---
-              // The primary task (translation) is done. Reset loading state
-              // immediately so the UI is responsive, while history saving
-              // proceeds in the background.
               setIsLoading(false);
               setLoadingTask('');
               if (apiAbortControllerRef.current?.signal === signal) {
                   apiAbortControllerRef.current = null;
               }
-              // --- END FIX ---
 
               const newHistoryItem: HistoryItem = {
                   id: new Date().toISOString(),
@@ -508,8 +501,6 @@ const App: React.FC = () => {
               setError(err.message || t('errorTranslate', uiLanguage));
           }
       } finally {
-          // This block now serves as a safeguard. If an error occurred during the
-          // API call itself, `isLoading` will still be true here, and we must reset it.
           if (isLoading) {
               setIsLoading(false);
               setLoadingTask('');
@@ -809,11 +800,8 @@ const App: React.FC = () => {
         setIsLoading(true);
         setLoadingTask('Deleting account...');
         try {
-            // 1. Delete Firestore data (history, etc.)
             await clearHistoryForUser(user.uid);
-            // 2. Delete the root user document
             await deleteUserDocument(user.uid);
-            // 3. Delete the auth user
             await user.delete();
             alert(t('accountDeletedSuccess', uiLanguage));
             setIsAccountOpen(false);
@@ -952,7 +940,7 @@ const App: React.FC = () => {
 
   return (
     <div className="bg-slate-900 text-white min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-4xl mx-auto">
+      <div className="w-full max-w-4xl mx-auto flex flex-col min-h-[calc(100vh-2rem)]">
 
         {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between items-center w-full mb-6">
@@ -999,26 +987,14 @@ const App: React.FC = () => {
            
         </header>
 
-        <main className="w-full space-y-6">
-            {!isFirebaseConfigured && !isAuthLoading && <FirebaseConfigNeeded uiLanguage={uiLanguage}/>}
-
+        <main className="w-full space-y-6 flex-grow">
             {/* Main Translator UI */}
-            <div className="bg-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 relative glow-container">
-                
-                {serverConfig.status === 'unconfigured' && <ConfigErrorOverlay uiLanguage={uiLanguage} />}
+            <div className={`bg-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 relative glow-container transition-opacity duration-300 ${!isServerReady ? 'opacity-50 pointer-events-none' : ''}`}>
                 
                 {error && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{error}</p></div>}
                 {micError && <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded-lg text-sm mb-4"><p>{micError}</p></div>}
                 
-                {serverConfig.status === 'checking' && (
-                    <div className="bg-slate-700/50 p-4 rounded-lg text-center mb-4">
-                        <p className="flex items-center justify-center gap-2">
-                            <LoaderIcon /> {t('checkingServerConfig', uiLanguage)}
-                        </p>
-                    </div>
-                )}
-
-                <div className={`relative flex flex-col md:flex-row gap-4 ${serverConfig.status !== 'configured' ? 'opacity-20 pointer-events-none' : ''}`}>
+                <div className="relative flex flex-col md:flex-row gap-4">
                     {sourceTextArea}
                     {swapButton}
                     {translatedTextArea}
@@ -1069,6 +1045,13 @@ const App: React.FC = () => {
                 <Feedback language={uiLanguage} />
             </Suspense>
         </main>
+        <footer className="w-full mt-auto pt-8">
+            <OwnerSetupGuide 
+                uiLanguage={uiLanguage} 
+                isApiConfigured={isServerReady}
+                isFirebaseConfigured={isFirebaseConfigured}
+            />
+        </footer>
       </div>
     </div>
   );
@@ -1116,23 +1099,6 @@ const ActionButton: React.FC<{
     </button>
 );
 
-// Added ConfigErrorOverlay component
-const ConfigErrorOverlay: React.FC<{ uiLanguage: Language }> = ({ uiLanguage }) => (
-    <div className="absolute inset-0 bg-slate-800/95 z-20 flex flex-col items-center justify-center p-6 text-center">
-        <WarningIcon className="w-16 h-16 text-amber-400 mb-4" />
-        <h3 className="text-xl font-bold text-amber-400 mb-2">{t('configNeededTitle', uiLanguage)}</h3>
-        <p className="text-slate-300 mb-4">{t('configNeededBody_AppOwner', uiLanguage)}</p>
-        <div dir="ltr" className="my-3 p-3 bg-slate-900 rounded-md font-mono text-cyan-300 text-left text-sm">
-            <pre className="whitespace-pre-wrap"><code>{`# In your Vercel project settings > Environment Variables:
-API_KEY="your-gemini-api-key"`}</code></pre>
-        </div>
-        <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition-colors">
-            {t('goToVercelButton', uiLanguage)} <ExternalLinkIcon />
-        </a>
-        <p className="text-xs text-slate-500 mt-6">{t('configNeededNote_Users', uiLanguage)}</p>
-    </div>
-);
-
 // Added ActionCard component
 const ActionCard: React.FC<{
     icon: React.ReactNode;
@@ -1155,9 +1121,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, uiLanguage, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration,
     multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices, sourceLang, targetLang
 }) => {
+    const isGeminiVoiceSelected = geminiVoices.includes(voice);
+    const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+    // When switching modes, select the first voice from the new list if the current one doesn't belong.
+    useEffect(() => {
+        if (voiceMode === 'gemini' && !geminiVoices.includes(voice)) {
+            setVoice(geminiVoices[0]);
+        } else if (voiceMode === 'system' && geminiVoices.includes(voice)) {
+            if (relevantSystemVoices.length > 0) {
+                setVoice(relevantSystemVoices[0].name);
+            } else if(systemVoices.length > 0) {
+                 setVoice(systemVoices[0].name);
+            }
+        }
+    }, [voiceMode]);
+
 
     const handlePreview = async (voiceName: string) => {
         if (previewingVoice) { // Stop any ongoing preview
@@ -1219,27 +1201,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const relevantSystemVoices = useMemo(() => {
         const sourceSpeechCode = translationLanguages.find(l => l.code === sourceLang)?.speechCode.split('-')[0];
         const targetSpeechCode = translationLanguages.find(l => l.code === targetLang)?.speechCode.split('-')[0];
-        return systemVoices.filter(v => v.lang.startsWith(sourceSpeechCode || 'xx') || v.lang.startsWith(targetSpeechCode || 'xx'));
+        if (!sourceSpeechCode && !targetSpeechCode) return [];
+        return systemVoices.filter(v => 
+            (sourceSpeechCode && v.lang.startsWith(sourceSpeechCode)) || 
+            (targetSpeechCode && v.lang.startsWith(targetSpeechCode))
+        );
     }, [systemVoices, sourceLang, targetLang]);
-
-    const otherSystemVoices = useMemo(() => {
-        return systemVoices.filter(v => !relevantSystemVoices.includes(v));
-    }, [systemVoices, relevantSystemVoices]);
-
-    const isUsingSystemVoice = !geminiVoices.includes(voice);
-
+    
     const voiceNameMap: Record<string, keyof typeof translations> = {
-        'Puck': 'voiceMale1',
-        'Kore': 'voiceFemale1',
-        'Charon': 'voiceMale2',
-        'Zephyr': 'voiceFemale2',
-        'Fenrir': 'voiceMale3',
+        'Puck': 'voiceMale1', 'Kore': 'voiceFemale1', 'Charon': 'voiceMale2', 'Zephyr': 'voiceFemale2', 'Fenrir': 'voiceMale3',
     };
 
     const VoiceListItem: React.FC<{ voiceName: string; label: string; sublabel?: string }> = ({ voiceName, label, sublabel }) => (
-        <button
+        <div
             onClick={() => setVoice(voiceName)}
-            className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${voice === voiceName ? 'bg-cyan-600 text-white shadow-lg' : 'bg-slate-700 hover:bg-slate-600'}`}
+            className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors cursor-pointer ${voice === voiceName ? 'bg-cyan-600 text-white shadow-lg' : 'bg-slate-700 hover:bg-slate-600'}`}
         >
             <div>
                 <span className="font-semibold">{label}</span>
@@ -1252,7 +1228,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             >
                 {previewingVoice === voiceName ? <LoaderIcon /> : <PlayCircleIcon />}
             </button>
-        </button>
+        </div>
     );
 
     return (
@@ -1268,44 +1244,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="overflow-y-auto pr-2 space-y-6">
                      <div className="space-y-3">
                         <label className="text-lg font-bold text-slate-200">{t('voiceLabel', uiLanguage)}</label>
-                        <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700 space-y-4">
-                             <div>
-                                <h4 className="font-semibold text-cyan-400 mb-2">{t('geminiHdVoices', uiLanguage)}</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {geminiVoices.map(vName => (
-                                        <VoiceListItem key={vName} voiceName={vName} label={t(voiceNameMap[vName], uiLanguage)} />
-                                    ))}
-                                </div>
-                            </div>
-                            {relevantSystemVoices.length > 0 && (
-                                <div>
-                                    <h4 className="font-semibold text-slate-300 mb-2">{t('suggestedVoices', uiLanguage)}</h4>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {relevantSystemVoices.map(v => (
-                                            <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            {otherSystemVoices.length > 0 && (
-                                <div>
-                                    <h4 className="font-semibold text-slate-300 mb-2">{t('otherSystemVoices', uiLanguage)}</h4>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {otherSystemVoices.map(v => (
-                                            <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                             {systemVoices.length === 0 && <p className="text-sm text-slate-500">{t('noRelevantSystemVoices', uiLanguage)}</p>}
+                        <div className="flex p-1 bg-slate-900/50 rounded-lg border border-slate-700">
+                             <button onClick={() => setVoiceMode('gemini')} className={`flex-1 p-2 rounded-md font-semibold transition-colors ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700'}`}>{t('geminiHdVoices', uiLanguage)}</button>
+                             <button onClick={() => setVoiceMode('system')} className={`flex-1 p-2 rounded-md font-semibold transition-colors ${voiceMode === 'system' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700'}`}>{t('systemVoices', uiLanguage)}</button>
                         </div>
+                        {voiceMode === 'gemini' ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {geminiVoices.map(vName => <VoiceListItem key={vName} voiceName={vName} label={t(voiceNameMap[vName], uiLanguage)} />)}
+                            </div>
+                        ) : (
+                             <div className="space-y-2">
+                                {relevantSystemVoices.length > 0 ? (
+                                    relevantSystemVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />)
+                                ) : (
+                                    <p className="text-sm text-slate-500 p-4 text-center">{t('noRelevantSystemVoices', uiLanguage)}</p>
+                                )}
+                            </div>
+                        )}
                     </div>
-
-                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
-                         <h4 className={`font-semibold ${isUsingSystemVoice ? 'text-slate-400' : 'text-slate-200'}`}>{t('geminiExclusiveFeature', uiLanguage)}</h4>
+                    
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${voiceMode === 'system' ? 'opacity-40 pointer-events-none' : ''}`}>
+                         <h4 className="font-semibold text-slate-200">{t('geminiVoiceSettings', uiLanguage)}</h4>
                          <div>
                             <label htmlFor="emotion-select" className="block text-sm font-medium text-slate-300 mb-1">{t('emotionLabel', uiLanguage)}</label>
-                             <select id="emotion-select" value={emotion} onChange={e => setEmotion(e.target.value)} disabled={isUsingSystemVoice} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md disabled:cursor-not-allowed">
+                             <select id="emotion-select" value={emotion} onChange={e => setEmotion(e.target.value)} disabled={voiceMode === 'system'} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md disabled:cursor-not-allowed">
                                  <option value="Default">{t('emotionDefault', uiLanguage)}</option>
                                  <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
                                  <option value="Sad">{t('emotionSad', uiLanguage)}</option>
@@ -1315,13 +1277,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         <div>
                             <label htmlFor="pause-duration" className="block text-sm font-medium text-slate-300 mb-1">{t('pauseLabel', uiLanguage)}</label>
                             <div className="flex items-center gap-3">
-                                 <input id="pause-duration" type="range" min="0" max="5" step="0.1" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} disabled={isUsingSystemVoice} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed" />
+                                 <input id="pause-duration" type="range" min="0" max="5" step="0.1" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} disabled={voiceMode === 'system'} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed" />
                                  <span className="text-cyan-400 font-mono">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${isUsingSystemVoice ? 'opacity-50' : ''}`}>
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity ${voiceMode === 'system' ? 'opacity-40 pointer-events-none' : ''}`}>
                          <div className="flex items-center justify-between">
                              <h4 className="text-lg font-bold text-slate-200">{t('multiSpeakerSettings', uiLanguage)}</h4>
                              <div className="flex items-center gap-2">
@@ -1331,11 +1293,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         {t('multiSpeakerTooltip', uiLanguage)}
                                     </div>
                                 </div>
-                                <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={isUsingSystemVoice} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
+                                <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={voiceMode === 'system'} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
                              </div>
                          </div>
-                        <p className="text-xs text-slate-400">{t('multiSpeakerExclusive', uiLanguage)}</p>
-                        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker || isUsingSystemVoice ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker || voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}`}>
                              <div>
                                  <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 1</label>
                                  <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} placeholder={t('speaker1', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md" />
@@ -1394,114 +1355,6 @@ const DownloadModal: React.FC<{
                         <button onClick={() => onDownload('wav')} className="w-full p-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors">
                             WAV (Uncompressed)
                         </button>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const FirebaseConfigNeeded: React.FC<{ uiLanguage: Language }> = ({ uiLanguage }) => {
-    // FIX: Correctly destructure useState
-    const [isGuideOpen, setIsGuideOpen] = useState(true);
-    const [varsCopyButtonText, setVarsCopyButtonText] = useState(t('firebaseSetupCopyButton', uiLanguage));
-    const [rulesCopyButtonText, setRulesCopyButtonText] = useState(t('firebaseSetupCopyButton', uiLanguage));
-
-    useEffect(() => {
-      setVarsCopyButtonText(t('firebaseSetupCopyButton', uiLanguage));
-      setRulesCopyButtonText(t('firebaseSetupCopyButton', uiLanguage));
-    }, [uiLanguage]);
-
-    const firebaseEnvVars = [
-      'VITE_FIREBASE_API_KEY="your-api-key"',
-      'VITE_FIREBASE_AUTH_DOMAIN="your-project-id.firebaseapp.com"',
-      'VITE_FIREBASE_PROJECT_ID="your-project-id"',
-      'VITE_FIREBASE_STORAGE_BUCKET="your-project-id.appspot.com"',
-      'VITE_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"',
-      'VITE_FIREBASE_APP_ID="your-app-id"',
-    ].join('\n');
-    
-    const firestoreRules = `rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Allow users to read/write their own data
-    match /users/{userId}/{documents=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    // Allow anyone to read/create feedback, but not edit/delete
-    match /feedback/{feedbackId} {
-      allow read, create: if true;
-      allow update, delete: if false;
-    }
-  }
-}`;
-
-    const handleCopy = (textToCopy: string, buttonType: 'vars' | 'rules') => {
-        navigator.clipboard.writeText(textToCopy);
-        if(buttonType === 'vars') {
-            setVarsCopyButtonText(t('firebaseSetupCopiedButton', uiLanguage));
-            setTimeout(() => setVarsCopyButtonText(t('firebaseSetupCopyButton', uiLanguage)), 2000);
-        } else if (buttonType === 'rules') {
-            setRulesCopyButtonText(t('firebaseSetupCopiedButton', uiLanguage));
-            setTimeout(() => setRulesCopyButtonText(t('firebaseSetupCopyButton', uiLanguage)), 2000);
-        }
-    };
-    return (
-        <div className="p-4 sm:p-6 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300">
-            <div className="text-center">
-                <h3 className="text-xl font-bold text-amber-400">{t('feedbackConfigNeededTitle', uiLanguage)}</h3>
-                <p className="mt-2 text-slate-400">{t('feedbackConfigNeededBody', uiLanguage)}</p>
-            </div>
-            <div className="mt-4 border-t border-slate-600 pt-4">
-                 <button 
-                    onClick={() => setIsGuideOpen(!isGuideOpen)} 
-                    className="w-full flex justify-between items-center text-left p-3 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors"
-                >
-                    <span className="font-bold">{t('firebaseSetupGuideTitle', uiLanguage)}</span>
-                    <ChevronDownIcon className={`transform transition-transform duration-300 ${isGuideOpen ? 'rotate-180' : ''}`} />
-                 </button>
-                  {isGuideOpen && (
-                    <div className="mt-4 space-y-4 animate-fade-in text-sm">
-                        {/* Step 1 */}
-                        <div className="p-3 bg-slate-900/50 rounded-md">
-                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep1Title', uiLanguage)}</h4>
-                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep1Body', uiLanguage)}</p>
-                            <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="inline-block mt-2 px-3 py-1 bg-cyan-600 text-white rounded-md text-xs hover:bg-cyan-500 transition-colors">
-                                {t('firebaseSetupStep1Button', uiLanguage)} <ExternalLinkIcon />
-                            </a>
-                        </div>
-                        {/* Step 2 */}
-                         <div className="p-3 bg-slate-900/50 rounded-md">
-                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep2Title', uiLanguage)}</h4>
-                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep2Body', uiLanguage)}</p>
-                        </div>
-                        {/* Step 3 */}
-                        <div className="p-3 bg-slate-900/50 rounded-md">
-                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep3Title', uiLanguage)}</h4>
-                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep3Body', uiLanguage)}</p>
-                            <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-xs text-cyan-300 text-left">
-                                <pre className="whitespace-pre-wrap"><code>{firebaseEnvVars}</code></pre>
-                                <button onClick={() => handleCopy(firebaseEnvVars, 'vars')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
-                                    <CopyIcon /> {varsCopyButtonText}
-                                </button>
-                            </div>
-                        </div>
-                         {/* Step 4 */}
-                        <div className="p-3 bg-slate-900/50 rounded-md">
-                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep4Title', uiLanguage)}</h4>
-                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep4Body', uiLanguage)}</p>
-                            <div dir="ltr" className="relative my-3 p-3 bg-slate-900 rounded-md font-mono text-xs text-yellow-300 text-left">
-                                <pre className="whitespace-pre-wrap"><code>{firestoreRules}</code></pre>
-                                <button onClick={() => handleCopy(firestoreRules, 'rules')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
-                                  <CopyIcon /> {rulesCopyButtonText}
-                                </button>
-                            </div>
-                        </div>
-                        {/* Step 5 */}
-                         <div className="p-3 bg-slate-900/50 rounded-md">
-                            <h4 className="font-bold text-cyan-400">{t('firebaseSetupStep5Title', uiLanguage)}</h4>
-                            <p className="mt-1 text-slate-400">{t('firebaseSetupStep5Body', uiLanguage)}</p>
-                        </div>
                     </div>
                 )}
             </div>
