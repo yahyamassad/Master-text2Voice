@@ -4,7 +4,7 @@ import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
   SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon
 } from './components/icons';
-import { t, Language, languageOptions, translationLanguages, translations } from './i1n/translations';
+import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig } from './types';
 import { getAuth, onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
