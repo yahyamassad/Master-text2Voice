@@ -118,10 +118,19 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
         }
     };
     
-    // The setup guide has been moved to a global, non-intrusive component.
-    // This component will now just show a disabled state.
     if (!isFeedbackConfigured) {
-        return null; // Don't render the feedback section at all if not configured.
+        return (
+            <div className="space-y-6">
+                <div className="text-center">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-cyan-400">{t('feedbackTitle', language)}</h2>
+                    <p className="text-slate-400 mt-1">{t('feedbackSubtitle', language)}</p>
+                </div>
+                <div className="bg-slate-700/50 p-6 rounded-lg text-center opacity-60">
+                    <p className="font-semibold text-amber-400 text-lg">{t('feedbackConfigNeededTitle', language)}</p>
+                    <p className="text-sm text-slate-300 mt-2">{t('feedbackConfigNeededBody', language)}</p>
+                </div>
+            </div>
+        );
     }
 
     return (
