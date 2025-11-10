@@ -43,12 +43,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const model = "gemini-2.5-flash-preview-tts";
         
         let speechConfig: any;
-        let processedText = text;
+        let processedText: string;
 
         const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB && speakers.speakerA.name && speakers.speakerB.name;
 
+        // Step 1: Determine Speech Config (multi-speaker or single)
         if (isMultiSpeaker) {
-            // Use the native multi-speaker configuration for better accuracy.
             speechConfig = {
                 multiSpeakerVoiceConfig: {
                     speakerVoiceConfigs: [
@@ -57,34 +57,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ]
                 }
             };
-            // For multi-speaker, emotion is handled as a general instruction in the prompt.
-            if (emotion && emotion !== 'Default') {
-                processedText = `(Overall tone for this dialogue is ${emotion.toLowerCase()}) \n${text}`;
-            }
         } else {
-            // Standard single-speaker configuration.
             speechConfig = {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             };
-            
-            // --- UNIFIED LOGIC FOR TONE AND PAUSES ---
-            let tempText = text;
+        }
 
-            // 1. Prepend the tone instruction if one is selected.
-            if (emotion && emotion !== 'Default') {
-                tempText = `(say in a ${emotion.toLowerCase()} tone) ${tempText}`;
-            }
-
-            // 2. If a pause is needed, wrap the entire text (with tone instruction) in SSML.
-            if (pauseDuration > 0) {
-                let ssmlBody = escapeSsml(tempText);
-                // A double newline is considered a paragraph break.
-                ssmlBody = ssmlBody.replace(/\n\s*\n/g, `\n<break time="${pauseDuration.toFixed(1)}s"/>\n`);
-                processedText = `<speak>${ssmlBody}</speak>`;
+        // Step 2: Determine the instructional prefix for emotion/tone.
+        let instruction = '';
+        if (emotion && emotion !== 'Default') {
+            if (isMultiSpeaker) {
+                // For dialogue, it's a general instruction.
+                instruction = `(Overall tone for this dialogue is ${emotion.toLowerCase()}) `;
             } else {
-                // If no pause, use the text with the potential tone instruction.
-                processedText = tempText;
+                // For monologue, it's a direct command.
+                instruction = `(say in a ${emotion.toLowerCase()} tone) `;
             }
+        }
+
+        // Step 3: Construct the final text payload, applying SSML for pauses if needed.
+        if (pauseDuration > 0) {
+            // Using SSML for pauses.
+            const escapedText = escapeSsml(text);
+            let textWithBreaks: string;
+
+            if (isMultiSpeaker) {
+                // For multi-speaker, each line is a turn. A single newline is the separator.
+                const lines = escapedText.split('\n');
+                textWithBreaks = lines.join(`\n<break time="${pauseDuration.toFixed(1)}s"/>\n`);
+            } else {
+                // For single-speaker, a paragraph is separated by a double newline.
+                textWithBreaks = escapedText.replace(/\n\s*\n/g, `\n<break time="${pauseDuration.toFixed(1)}s"/>\n`);
+            }
+            
+            // The instruction is placed inside the <speak> tag, before the main content.
+            // The instruction itself should NOT be escaped.
+            processedText = `<speak>${instruction}${textWithBreaks}</speak>`;
+        } else {
+            // Not using SSML. Just prepend the instruction to the plain text.
+            processedText = `${instruction}${text}`;
         }
 
         const requestPayload = {
