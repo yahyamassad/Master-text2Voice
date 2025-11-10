@@ -4,8 +4,6 @@ import type { SpeakerConfig } from '../types';
 
 /**
  * Escapes special characters in a string to be safely used within an SSML document.
- * @param text The text to escape.
- * @returns The escaped text.
  */
 function escapeSsml(text: string): string {
     return text
@@ -15,6 +13,69 @@ function escapeSsml(text: string): string {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&apos;');
 }
+
+/**
+ * A robust function to process text and build a complete SSML string for the TTS model.
+ * This ensures consistency and enables advanced features like sound effects and pauses.
+ */
+function preprocessAndBuildSsml(
+    text: string, 
+    emotion: string, 
+    pauseDuration: number, 
+    isMultiSpeaker: boolean
+): string {
+    // 1. Define mappings for bracketed cues to SSML sound effect tags.
+    const soundEffectMap: { [key: string]: string } = {
+        '[laugh]': '<say-as interpret-as="laugh"></say-as>',
+        '[laughter]': '<say-as interpret-as="laughter"></say-as>',
+        '[sigh]': '<say-as interpret-as="sigh"></say-as>',
+        '[sob]': '<say-as interpret-as="sob"></say-as>',
+        '[gasp]': '<say-as interpret-as="gasp"></say-as>',
+        '[cough]': '<say-as interpret-as="cough"></say-as>',
+        '[hmm]': '<say-as interpret-as="hmm"></say-as>',
+        '[cheer]': '<say-as interpret-as="cheer"></say-as>',
+        '[kiss]': '<say-as interpret-as="kiss"></say-as>',
+    };
+
+    // 2. Escape basic SSML characters first.
+    let processedText = escapeSsml(text);
+
+    // 3. Replace all bracketed cues with their corresponding SSML tags.
+    for (const key in soundEffectMap) {
+        const regex = new RegExp(key.replace(/\[/g, '\\[').replace(/\]/g, '\\]'), 'gi');
+        processedText = processedText.replace(regex, soundEffectMap[key]);
+    }
+
+    // 4. Insert SSML break tags for pauses if specified.
+    if (pauseDuration > 0) {
+        const breakTag = `<break time="${pauseDuration.toFixed(1)}s"/>`;
+        if (isMultiSpeaker) {
+            // In multi-speaker, every newline indicates a speaker change.
+            processedText = processedText.split('\n').join(`\n${breakTag}\n`);
+        } else {
+            // In single-speaker, a double newline indicates a paragraph break.
+            processedText = processedText.replace(/\n\s*\n/g, `\n${breakTag}\n`);
+        }
+    }
+    
+    // 5. Construct vocal instructions (for tone/emotion).
+    let instruction = '';
+    if (emotion && emotion !== 'Default') {
+        instruction = isMultiSpeaker 
+            ? `(The overall tone is ${emotion.toLowerCase()}) ` 
+            : `(say in a ${emotion.toLowerCase()} tone) `;
+    }
+
+    // 6. Add a critical instruction for multi-speaker mode to prevent reading names.
+    const scriptInstruction = isMultiSpeaker 
+        ? "This is a dialogue script. The names before the colons are speaker labels and must not be spoken. " 
+        : "";
+
+    // 7. Assemble the final SSML payload, wrapping in <speak> and <prosody> for control.
+    // <prosody rate="medium"> ensures a consistent, normal speaking speed.
+    return `<speak><prosody rate="medium">${instruction}${scriptInstruction}${processedText}</prosody></speak>`;
+}
+
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -42,61 +103,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = "gemini-2.5-flash-preview-tts";
         
-        let speechConfig: any;
-        let processedText: string;
-
-        const isMultiSpeaker = speakers && speakers.speakerA && speakers.speakerB && speakers.speakerA.name && speakers.speakerB.name;
-
-        // Step 1: Determine Speech Config (multi-speaker or single)
-        if (isMultiSpeaker) {
-            speechConfig = {
-                multiSpeakerVoiceConfig: {
-                    speakerVoiceConfigs: [
-                        { speaker: speakers.speakerA.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } } },
-                        { speaker: speakers.speakerB.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } } }
-                    ]
-                }
-            };
-        } else {
-            speechConfig = {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
-            };
-        }
-
-        // Step 2: Determine the instructional prefix for emotion/tone.
-        let instruction = '';
-        if (emotion && emotion !== 'Default') {
-            if (isMultiSpeaker) {
-                // For dialogue, it's a general instruction.
-                instruction = `(Overall tone for this dialogue is ${emotion.toLowerCase()}) `;
-            } else {
-                // For monologue, it's a direct command.
-                instruction = `(say in a ${emotion.toLowerCase()} tone) `;
+        const isMultiSpeaker = !!(speakers && speakers.speakerA?.name && speakers.speakerB?.name);
+        
+        // Determine the speech configuration based on single or multi-speaker mode.
+        const speechConfig = isMultiSpeaker ? {
+            multiSpeakerVoiceConfig: {
+                speakerVoiceConfigs: [
+                    { speaker: speakers.speakerA.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } } },
+                    { speaker: speakers.speakerB.name, voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } } }
+                ]
             }
-        }
+        } : {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
+        };
 
-        // Step 3: Construct the final text payload, applying SSML for pauses if needed.
-        if (pauseDuration > 0) {
-            // Using SSML for pauses.
-            const escapedText = escapeSsml(text);
-            let textWithBreaks: string;
-
-            if (isMultiSpeaker) {
-                // For multi-speaker, each line is a turn. A single newline is the separator.
-                const lines = escapedText.split('\n');
-                textWithBreaks = lines.join(`\n<break time="${pauseDuration.toFixed(1)}s"/>\n`);
-            } else {
-                // For single-speaker, a paragraph is separated by a double newline.
-                textWithBreaks = escapedText.replace(/\n\s*\n/g, `\n<break time="${pauseDuration.toFixed(1)}s"/>\n`);
-            }
-            
-            // The instruction is placed inside the <speak> tag, before the main content.
-            // The instruction itself should NOT be escaped.
-            processedText = `<speak>${instruction}${textWithBreaks}</speak>`;
-        } else {
-            // Not using SSML. Just prepend the instruction to the plain text.
-            processedText = `${instruction}${text}`;
-        }
+        // Process the text and build the final, robust SSML payload.
+        const processedText = preprocessAndBuildSsml(text, emotion, pauseDuration, isMultiSpeaker);
 
         const requestPayload = {
             model,
@@ -113,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!base64Audio) {
             const finishReason = result.candidates?.[0]?.finishReason;
             const finishMessage = result.candidates?.[0]?.finishMessage;
-            console.error(`Audio generation failed. Reason: ${finishReason}, Message: ${finishMessage}`);
+            console.error(`Audio generation failed. Reason: ${finishReason}, Message: ${finishMessage}, Payload: ${JSON.stringify(requestPayload)}`);
             throw new Error(`Could not generate audio. Model finished with reason: ${finishReason || 'UNKNOWN'}. ${finishMessage || ''}`);
         }
 
@@ -124,8 +146,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error("--- ERROR IN /api/speak ---", error);
         
         let errorMessage = error.message || "An unknown server error occurred during speech generation.";
-
         const lowerCaseError = errorMessage.toLowerCase();
+
         if (lowerCaseError.includes('api key not valid')) {
             errorMessage = 'Gemini API Error: The API key is not valid.';
         } else if (lowerCaseError.includes('billing')) {
