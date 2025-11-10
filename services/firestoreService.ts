@@ -1,8 +1,18 @@
-import { db } from '../firebaseConfig';
-// Fix: Use Firebase v8 imports and types to match project dependencies.
-// FIX: Use compat libraries for Firebase v9 with v8 syntax.
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
+import { getFirebase } from '../firebaseConfig';
+import {
+    collection,
+    query,
+    orderBy,
+    getDocs,
+    addDoc,
+    writeBatch,
+    doc,
+    deleteDoc,
+    serverTimestamp,
+    onSnapshot,
+    limit,
+    Timestamp,
+} from 'firebase/firestore';
 import type { HistoryItem } from '../types';
 
 /**
@@ -12,24 +22,23 @@ import type { HistoryItem } from '../types';
  * @returns An unsubscribe function to detach the listener.
  */
 export function subscribeToHistory(userId: string, callback: (items: HistoryItem[]) => void): () => void {
+    const { db } = getFirebase();
     if (!db) {
         console.error("Firestore is not initialized. Cannot subscribe to history.");
         return () => {}; // Return a no-op unsubscribe function
     }
 
-    // Fix: Use Firebase v8 chained method syntax.
-    const historyCollectionRef = db.collection(`users/${userId}/history`);
-    const q = historyCollectionRef.orderBy('timestamp', 'desc').limit(50);
+    const historyCollectionRef = collection(db, `users/${userId}/history`);
+    const q = query(historyCollectionRef, orderBy('timestamp', 'desc'), limit(50));
 
-    const unsubscribe = q.onSnapshot((querySnapshot) => {
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const historyData: HistoryItem[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             historyData.push({
                 ...data,
                 id: doc.id,
-                // Fix: Use namespaced Timestamp type from v8 SDK.
-                timestamp: (data.timestamp as firebase.firestore.Timestamp)?.toMillis() || Date.now()
+                timestamp: (data.timestamp as Timestamp)?.toMillis() || Date.now()
             } as HistoryItem);
         });
         callback(historyData);
@@ -47,13 +56,13 @@ export function subscribeToHistory(userId: string, callback: (items: HistoryItem
  * @param item The history item to add (without id and timestamp).
  */
 export async function addHistoryItem(userId: string, item: Omit<HistoryItem, 'id' | 'timestamp'>) {
+    const { db } = getFirebase();
     if (!db) throw new Error("Firestore is not initialized.");
 
-    // Fix: Use Firebase v8 collection.add() method and FieldValue.serverTimestamp().
-    const historyCollectionRef = db.collection(`users/${userId}/history`);
-    await historyCollectionRef.add({
+    const historyCollectionRef = collection(db, `users/${userId}/history`);
+    await addDoc(historyCollectionRef, {
         ...item,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        timestamp: serverTimestamp()
     });
 }
 
@@ -62,11 +71,11 @@ export async function addHistoryItem(userId: string, item: Omit<HistoryItem, 'id
  * @param userId The UID of the user whose history should be cleared.
  */
 export async function clearHistoryForUser(userId: string) {
+    const { db } = getFirebase();
     if (!db) throw new Error("Firestore is not initialized.");
 
-    // Fix: Use Firebase v8 collection.get() method.
-    const historyCollectionRef = db.collection(`users/${userId}/history`);
-    const querySnapshot = await historyCollectionRef.get();
+    const historyCollectionRef = collection(db, `users/${userId}/history`);
+    const querySnapshot = await getDocs(historyCollectionRef);
 
     if (querySnapshot.empty) {
         return; // Nothing to delete
@@ -74,8 +83,7 @@ export async function clearHistoryForUser(userId: string) {
 
     // Firestore allows batch writes of up to 500 operations.
     // This will handle up to 500 history items at a time.
-    // Fix: Use Firebase v8 db.batch() method.
-    const batch = db.batch();
+    const batch = writeBatch(db);
     querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
     });
@@ -89,9 +97,9 @@ export async function clearHistoryForUser(userId: string) {
  * @param userId The UID of the user.
  */
 export async function deleteUserDocument(userId: string) {
+    const { db } = getFirebase();
     if (!db) throw new Error("Firestore is not initialized.");
 
-    // Fix: Use Firebase v8 doc().delete() method.
-    const userDocRef = db.collection('users').doc(userId);
-    await userDocRef.delete();
+    const userDocRef = doc(db, 'users', userId);
+    await deleteDoc(userDocRef);
 }
