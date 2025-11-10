@@ -17,12 +17,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = 'gemini-2.5-flash';
 
-        const prompt = `Translate the following text from ${sourceLang} to ${targetLang}.
-IMPORTANT: You MUST preserve the original formatting exactly, including all line breaks and any empty lines between paragraphs.
-Preserve any speaker notations (like 'Speaker A:') and any special sound effect tags (like '[laugh]' or '[sigh]').
+        const example = `
+Here is an example of a correct translation from English to French:
 
-Source Text:
+--- English Source ---
+Yazan: Hello world! [laugh]
+Lana: How are you today?
+--- Correct JSON Output ---
+{
+  "translatedText": "Yazan: Bonjour le monde ! [laugh]\\nLana: Comment ça va aujourd'hui ?"
+}
 ---
+
+The rules from this example are:
+1. The speaker names ("Yazan:", "Lana:") are preserved exactly. THEY ARE NOT TRANSLATED.
+2. The dialogue for each speaker is translated accurately.
+3. Special tags like "[laugh]" are preserved exactly and are not translated.
+4. Line breaks (\\n) are perfectly maintained to separate speakers.
+`;
+
+        const prompt = `You are an expert multilingual translator. Your task is to translate the text from ${sourceLang} to ${targetLang}.
+You must follow these critical rules:
+- Translate ONLY the dialogue spoken by the characters.
+- PRESERVE the speaker names (e.g., 'Speaker Name:') and any special sound tags (e.g., '[sigh]', '[laugh]') exactly as they appear in the source text. DO NOT TRANSLATE THEM.
+- Maintain the original formatting, including all line breaks. Each speaker's line must remain on its own line.
+- Return the result as a single JSON object matching the provided schema. The 'translatedText' field must be a single string containing the full translated script, using '\\n' for line breaks.
+
+${example}
+
+Now, translate the following text from ${sourceLang} to ${targetLang}:
+
+--- Source Text ---
 ${text}
 ---
 `;
@@ -32,22 +57,14 @@ ${text}
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                temperature: 0.2,
+                temperature: 0.1, // Lower temperature for more deterministic translations
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                        translatedText: { type: Type.STRING },
-                        speakerMapping: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    original: { type: Type.STRING },
-                                    translated: { type: Type.STRING }
-                                },
-                                required: ["original", "translated"]
-                            }
-                        }
+                        translatedText: { 
+                            type: Type.STRING, 
+                            description: "The full translated text, with speaker names and tags preserved, and line breaks represented as \\n." 
+                        },
                     },
                     required: ["translatedText"]
                 }
@@ -59,43 +76,24 @@ ${text}
             throw new Error('API returned an empty response.');
         }
         
+        // The response is already expected to be a valid JSON string due to responseSchema.
         const parsedResult = JSON.parse(geminiResponseText);
-        
-        const speakerMappingRecord: Record<string, string> = {};
-        if (parsedResult.speakerMapping) {
-            for (const mapping of parsedResult.speakerMapping) {
-                speakerMappingRecord[mapping.original] = mapping.translated;
-            }
-        }
     
-        const responseData = {
-            translatedText: parsedResult.translatedText,
-            speakerMapping: speakerMappingRecord
-        };
-
         res.setHeader('Content-Type', 'application/json');
-        return res.status(200).json(responseData);
+        return res.status(200).json(parsedResult);
 
     } catch (error: any) {
-        // Log the full error structure for debugging in Vercel logs
         console.error("Full error in /api/translate:", JSON.stringify(error, null, 2));
 
-        // Construct a more detailed error message for the frontend
-        let errorMessage = 'An unknown server error occurred.';
-        if (error.message) {
-            errorMessage = error.message;
-        }
-
-        // Check for common, user-fixable issues in the message from Google's API
+        let errorMessage = error.message || 'An unknown server error occurred.';
         const lowerCaseError = errorMessage.toLowerCase();
+        
         if (lowerCaseError.includes('api key not valid')) {
             errorMessage = 'Gemini API Error: The API key provided in Vercel is not valid. Please check the `API_KEY` environment variable.';
-        } else if (lowerCaseError.includes('billing') || lowerCaseError.includes('project has not enabled billing')) {
-            errorMessage = 'Gemini API Error: Billing is not enabled for the Google Cloud project associated with the API key. Please enable billing to use this feature.';
+        } else if (lowerCaseError.includes('billing')) {
+            errorMessage = 'Gemini API Error: Billing is not enabled for the Google Cloud project. Please enable billing.';
         } else if (lowerCaseError.includes('permission_denied') || lowerCaseError.includes('api not enabled')) {
-             errorMessage = 'Gemini API Error: The "Generative Language API" or "Vertex AI API" is not enabled in your Google Cloud project. Please visit your Google Cloud Console and enable it.';
-        } else if (lowerCaseError.includes('not found')) {
-            errorMessage = `Gemini API Error: The requested resource was not found. This can sometimes indicate an issue with the API key's project association.`;
+             errorMessage = 'Gemini API Error: The required API is not enabled in your Google Cloud project.';
         }
 
         return res.status(500).json({ error: errorMessage });
