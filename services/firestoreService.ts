@@ -1,5 +1,3 @@
-
-
 import { db } from '../firebaseConfig';
 // Fix: Use Firebase v8 imports and types to match project dependencies.
 // FIX: Use compat libraries for Firebase v9 with v8 syntax.
