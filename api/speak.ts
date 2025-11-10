@@ -66,14 +66,12 @@ function preprocessAndBuildSsml(
             : `(say in a ${emotion.toLowerCase()} tone) `;
     }
 
-    // 6. Add a critical instruction for multi-speaker mode to prevent reading names.
-    const scriptInstruction = isMultiSpeaker 
-        ? "This is a dialogue script. The names before the colons are speaker labels and must not be spoken. " 
-        : "";
+    // REMOVED: The hardcoded script instruction was causing prompt leakage, especially with non-English text.
+    // We now rely on the API's native multi-speaker parsing capabilities.
 
     // 7. Assemble the final SSML payload, wrapping in <speak> and <prosody> for control.
     // <prosody rate="medium"> ensures a consistent, normal speaking speed.
-    return `<speak><prosody rate="medium">${instruction}${scriptInstruction}${processedText}</prosody></speak>`;
+    return `<speak><prosody rate="medium">${instruction}${processedText}</prosody></speak>`;
 }
 
 
