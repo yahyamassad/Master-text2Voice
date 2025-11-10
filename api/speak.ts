@@ -67,24 +67,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
             };
             
-            let textToSpeak = text;
-            
-            // Handle emotion with a prompt-based approach.
+            // --- UNIFIED LOGIC FOR TONE AND PAUSES ---
+            let tempText = text;
+
+            // 1. Prepend the tone instruction if one is selected.
             if (emotion && emotion !== 'Default') {
-                 // The API prefers instructions like this for tone.
-                textToSpeak = `(say in a ${emotion.toLowerCase()} tone) ${escapeSsml(textToSpeak)}`;
-            } else {
-                textToSpeak = escapeSsml(textToSpeak);
-            }
-            
-            // Handle paragraph pauses using SSML <break> tags for explicit control.
-            // A double newline is considered a paragraph break.
-            if (pauseDuration > 0) {
-                textToSpeak = textToSpeak.replace(/\n\s*\n/g, `\n<break time="${pauseDuration.toFixed(1)}s"/>\n`);
+                tempText = `(say in a ${emotion.toLowerCase()} tone) ${tempText}`;
             }
 
-            // Wrap the final text in <speak> tags to enable SSML processing.
-            processedText = `<speak>${textToSpeak}</speak>`;
+            // 2. If a pause is needed, wrap the entire text (with tone instruction) in SSML.
+            if (pauseDuration > 0) {
+                let ssmlBody = escapeSsml(tempText);
+                // A double newline is considered a paragraph break.
+                ssmlBody = ssmlBody.replace(/\n\s*\n/g, `\n<break time="${pauseDuration.toFixed(1)}s"/>\n`);
+                processedText = `<speak>${ssmlBody}</speak>`;
+            } else {
+                // If no pause, use the text with the potential tone instruction.
+                processedText = tempText;
+            }
         }
 
         const requestPayload = {
