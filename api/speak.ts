@@ -24,7 +24,6 @@ function preprocessAndBuildSsml(
     pauseDuration: number, 
     isMultiSpeaker: boolean
 ): string {
-    // 1. Define mappings for bracketed cues to SSML sound effect tags.
     const soundEffectMap: { [key: string]: string } = {
         '[laugh]': '<say-as interpret-as="laugh"></say-as>',
         '[laughter]': '<say-as interpret-as="laughter"></say-as>',
@@ -37,39 +36,47 @@ function preprocessAndBuildSsml(
         '[kiss]': '<say-as interpret-as="kiss"></say-as>',
     };
 
-    // 2. Escape basic SSML characters first.
-    let processedText = escapeSsml(text);
+    let processedText: string;
+    let instruction = ''; // Keep instruction separate
 
-    // 3. Replace all bracketed cues with their corresponding SSML tags.
-    for (const key in soundEffectMap) {
-        const regex = new RegExp(key.replace(/\[/g, '\\[').replace(/\]/g, '\\]'), 'gi');
-        processedText = processedText.replace(regex, soundEffectMap[key]);
-    }
+    // A helper to process a single line of text for sound effects and escaping.
+    const processLine = (line: string): string => {
+        let processed = escapeSsml(line);
+        for (const key in soundEffectMap) {
+            const regex = new RegExp(key.replace(/\[/g, '\\[').replace(/\]/g, '\\]'), 'gi');
+            processed = processed.replace(regex, soundEffectMap[key]);
+        }
+        return processed;
+    };
 
-    // 4. Insert SSML break tags for pauses if specified.
-    if (pauseDuration > 0) {
-        const breakTag = `<break time="${pauseDuration.toFixed(1)}s"/>`;
-        if (isMultiSpeaker) {
-            // In multi-speaker, every newline indicates a speaker change.
-            processedText = processedText.split('\n').join(`\n${breakTag}\n`);
-        } else {
-            // In single-speaker, a double newline indicates a paragraph break.
+    if (isMultiSpeaker) {
+        // For multi-speaker, join lines with a break tag. NO <p> tags and NO prepended instructions.
+        // The model expects a clean 'Speaker: Dialogue' format on each line.
+        const breakTag = pauseDuration > 0 ? `<break time="${pauseDuration.toFixed(1)}s"/>` : '';
+        processedText = text
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map(processLine)
+            .join(breakTag);
+    } else {
+        // For single speaker, we can safely add instructions and paragraph breaks.
+        processedText = processLine(text);
+        
+        // Insert SSML break tags for paragraph pauses.
+        if (pauseDuration > 0) {
+            const breakTag = `<break time="${pauseDuration.toFixed(1)}s"/>`;
+            // A more robust replacement for newlines, adding breaks for double newlines (paragraphs).
             processedText = processedText.replace(/\n\s*\n/g, `\n${breakTag}\n`);
+        }
+
+        // Add emotion instruction for single speaker mode only, as it confuses the multi-speaker parser.
+        if (emotion && emotion !== 'Default') {
+            instruction = `(say in a ${emotion.toLowerCase()} tone) `;
         }
     }
     
-    // 5. Construct vocal instructions (for tone/emotion).
-    let instruction = '';
-    if (emotion && emotion !== 'Default') {
-        instruction = isMultiSpeaker 
-            ? `(The overall tone is ${emotion.toLowerCase()}) ` 
-            : `(say in a ${emotion.toLowerCase()} tone) `;
-    }
-
-    // REMOVED: The hardcoded script instruction was causing prompt leakage, especially with non-English text.
-    // We now rely on the API's native multi-speaker parsing capabilities.
-
-    // 7. Assemble the final SSML payload, wrapping in <speak> and <prosody> for control.
+    // Assemble the final SSML payload, wrapping in <speak> and <prosody> for control.
     // <prosody rate="medium"> ensures a consistent, normal speaking speed.
     return `<speak><prosody rate="medium">${instruction}${processedText}</prosody></speak>`;
 }
