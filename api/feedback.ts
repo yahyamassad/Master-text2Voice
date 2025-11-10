@@ -76,10 +76,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (error: any) {
             console.error('Error fetching feedback:', error);
             let userMessage = 'Failed to fetch feedback. Please check server logs for details.';
+            const errorMessageLower = (error.message || '').toLowerCase();
+
             if (error.code === 'permission-denied') {
                 userMessage = 'Failed to fetch feedback due to a permission error. Please verify that your Firestore security rules (Step 4) allow read access to the "feedback" collection.';
-            } else if (error.code === 'failed-precondition' || (error.message && error.message.toLowerCase().includes('database'))) {
+            } else if (error.code === 'failed-precondition' || (error.message && errorMessageLower.includes('database'))) {
                 userMessage = 'Failed to connect to the database to fetch feedback. Please ensure you have created a Firestore Database in your Firebase project (Step 2 of the setup guide).';
+            } else if (errorMessageLower.includes('credential') || errorMessageLower.includes('service account')) {
+                userMessage = 'Authentication with Firebase failed. Please double-check that your server-side environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) in Vercel are correct and match your Firebase service account credentials.';
             }
             return res.status(500).json({ error: userMessage });
         }
@@ -105,13 +109,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (error: any) {
             console.error('Error submitting feedback:', error);
             let userMessage = 'Failed to submit feedback. Please check server logs for details.';
-
-            // Check for specific Firebase error codes that are common during setup
+            const errorMessageLower = (error.message || '').toLowerCase();
+            
             if (error.code === 'permission-denied') {
                 userMessage = 'Failed to submit feedback due to a permission error. Please verify that your Firestore security rules (Step 4) are correctly published and allow write access to the "feedback" collection.';
-            } else if (error.code === 'failed-precondition' || (error.message && error.message.toLowerCase().includes('database'))) {
-                // This error often indicates the database hasn't been created or initialized yet.
+            } else if (error.code === 'failed-precondition' || (error.message && errorMessageLower.includes('database'))) {
                 userMessage = 'Failed to connect to the database. Please ensure you have created a Firestore Database in your Firebase project (Step 2 of the setup guide).';
+            } else if (errorMessageLower.includes('credential') || errorMessageLower.includes('service account')) {
+                userMessage = 'Authentication with Firebase failed when trying to submit feedback. Please double-check that your server-side environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) in Vercel are correct.';
             }
             
             return res.status(500).json({ error: userMessage });
