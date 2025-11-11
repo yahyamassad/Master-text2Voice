@@ -1,5 +1,5 @@
 // =================================================================================
-// Firebase Configuration - Vite Compatible Version
+// Firebase Configuration - Final Stable Version (Vite + Rollup + Vercel Compatible)
 // =================================================================================
 
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
@@ -7,7 +7,7 @@ import { getFirestore, Firestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 // -----------------------------------------------------
-// متغيرات عامة على مستوى الموديول (ليست داخل دوال)
+// Global module-level variables
 // -----------------------------------------------------
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
@@ -16,11 +16,12 @@ let isFirebaseConfigured = false;
 let initializationAttempted = false;
 
 // -----------------------------------------------------
-// دالة التهيئة الآمنة
+// Safe initialization function
 // -----------------------------------------------------
-function getFirebase() {
+export function getFirebase() {
   if (!initializationAttempted) {
     initializationAttempted = true;
+
     try {
       if (
         typeof import.meta.env === "undefined" ||
@@ -60,10 +61,11 @@ function getFirebase() {
       db = null;
     }
   }
+
   return { app, db, auth, isFirebaseConfigured };
 }
 
 // -----------------------------------------------------
-// ✅ التصديرات المطلوبة لـ App.tsx
+// ✅ Export constants for App.tsx
 // -----------------------------------------------------
-export { getFirebase, app, db, auth, isFirebaseConfigured };
+export { app, db, auth, isFirebaseConfigured };
