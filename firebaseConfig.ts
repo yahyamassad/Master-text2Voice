@@ -7,6 +7,12 @@ let db: Firestore | null = null;
 let auth: any = null;
 let isFirebaseConfigured = false;
 
+console.log("🔥 Sawtli Firebase ENV Check:", {
+  API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
+  PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN
+});
+
 function getFirebase() {
   try {
     // تأكد من وجود إعدادات Firebase من بيئة Vite
