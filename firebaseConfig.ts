@@ -78,20 +78,23 @@ function getFirebase() {
 export { getFirebase };
 
 // =====================================================
-// 🔧 Compatibility Export (for App.tsx and Firebase Auth)
+// ✅ Unified Exports for App.tsx and Firebase services
 // =====================================================
-import { getAuth } from 'firebase/auth';
+import { getAuth } from "firebase/auth";
 
+// نضمن أن المتغيرات العامة معرّفة مسبقاً
+declare let isFirebaseConfigured: boolean;
+
+// دالة الحصول على Auth بشكل آمن
 let auth: any = null;
 try {
-    const { app } = getFirebase();
-    if (app) {
-        auth = getAuth(app);
-    }
-} catch (e) {
-    auth = null;
+  const { app } = getFirebase();
+  if (app) {
+    auth = getAuth(app);
+  }
+} catch {
+  auth = null;
 }
 
-// تصدير المتغير العام مباشرة بدلًا من تفريعه من دالة
-export { isFirebaseConfigured, auth };
-
+// ✅ نصدر كل ما يحتاجه التطبيق في وقت البناء
+export { getFirebase, auth, isFirebaseConfigured };
