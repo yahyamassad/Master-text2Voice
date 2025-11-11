@@ -77,5 +77,21 @@ function getFirebase() {
 // Export the function instead of the direct variables
 export { getFirebase };
 
-// Export the function instead of the direct variables
-export { getFirebase };
+// =====================================================
+// 🔧 Compatibility Export (for App.tsx and Firebase Auth)
+// =====================================================
+import { getAuth } from 'firebase/auth';
+
+let auth: any = null;
+try {
+    const { app } = getFirebase();
+    if (app) {
+        auth = getAuth(app);
+    }
+} catch (e) {
+    auth = null;
+}
+
+// تصدير المتغير العام مباشرة بدلًا من تفريعه من دالة
+export { isFirebaseConfigured, auth };
+
