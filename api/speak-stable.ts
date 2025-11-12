@@ -53,6 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     res.status(405).json({ error: "Method Not Allowed" });
+    return;
   }
 
   const { text, voice, emotion, pauseDuration } = req.body as {
@@ -63,15 +64,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   if (!text || !text.trim()) {
-    return res.status(400).json({ error: "Input text cannot be empty." });
+    res.status(400).json({ error: "Input text cannot be empty." });
+    return;
   }
 
   try {
     /** Pick the provider (only Google active for now) */
     if (PROVIDER !== "google") {
-      return res
-        .status(501)
-        .json({ error: `Provider ${PROVIDER} not yet implemented.` });
+      res.status(501).json({ error: `Provider ${PROVIDER} not yet implemented.` });
+      return;
     }
 
     /** Check cache */
@@ -79,7 +80,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const cached = await kv.get<string>(cacheKey);
     if (cached) {
       console.log(`🟢 Cache hit for key: ${cacheKey}`);
-      return res.status(200).json({ audioContent: cached, cached: true });
+      res.status(200).json({ audioContent: cached, cached: true });
+      return;
     }
 
     /** Enqueue to prevent overlap */
@@ -136,7 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`🟡 Cached new key: ${cacheKey}`);
 
       res.setHeader("Content-Type", "application/json");
-      return res.status(200).json({ audioContent: base64Audio });
+      res.status(200).json({ audioContent: base64Audio });
     });
   } catch (error: any) {
     console.error("❌ Error in speak-stable:", error);
@@ -148,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     else if (msg.includes("permission")) message = "Google API permission denied.";
 
     if (!res.headersSent) {
-      return res.status(500).json({ error: message });
+      res.status(500).json({ error: message });
     }
   }
 }
