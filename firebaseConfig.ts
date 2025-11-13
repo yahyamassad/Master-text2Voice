@@ -6,22 +6,19 @@ let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let auth: any = null;
 let isFirebaseConfigured = false;
+let initializationAttempted = false; // ✅ مفقود سابقًا
 
-console.log("🔥 Sawtli Firebase ENV Check:", {
-  API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
-  PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN
-});
-
-// ✅ Initialize Firebase safely
+// ✅ Initialize Firebase safely (once only)
 function getFirebase() {
   if (!initializationAttempted) {
     initializationAttempted = true;
     try {
+      // تأكد من توفر متغيرات البيئة الخاصة بـ Vite
       if (
         typeof import.meta.env === "undefined" ||
         !import.meta.env.VITE_FIREBASE_PROJECT_ID
       ) {
+        console.warn("⚠️ Firebase environment variables missing.");
         isFirebaseConfigured = false;
         app = null;
         db = null;
@@ -29,6 +26,7 @@ function getFirebase() {
         return { app, db, auth, isFirebaseConfigured };
       }
 
+      // إعدادات Firebase من متغيرات البيئة
       const firebaseConfig = {
         apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
         authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -39,6 +37,7 @@ function getFirebase() {
         measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
       };
 
+      // تهيئة Firebase مرة واحدة فقط
       if (!getApps().length) {
         app = initializeApp(firebaseConfig);
       } else {
@@ -48,8 +47,10 @@ function getFirebase() {
       db = getFirestore(app);
       auth = getAuth(app);
       isFirebaseConfigured = true;
+      console.log("✅ Firebase initialized successfully.");
+
     } catch (error) {
-      console.error("Firebase initialization failed:", error);
+      console.error("❌ Firebase initialization failed:", error);
       app = null;
       db = null;
       auth = null;
@@ -60,6 +61,5 @@ function getFirebase() {
   return { app, db, auth, isFirebaseConfigured };
 }
 
-// ✅ Export clean references
-const { app, db, auth, isFirebaseConfigured } = getFirebase();
-export { getFirebase, app, db, auth, isFirebaseConfigured };
+// ✅ Export only the function — safer and cleaner
+export { getFirebase };
