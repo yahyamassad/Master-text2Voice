@@ -16,7 +16,11 @@ import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument } from './services/firestoreService';
 import { t, Language, languageOptions, translationLanguages, LanguageListItem } from './i18n/translations';
 import { getFirebase } from './firebaseConfig';
-const { isFirebaseConfigured, auth } = getFirebase();
+
+const firebaseState = getFirebase();
+const auth = firebaseState.auth;
+const isFirebaseConfigured = firebaseState.isFirebaseConfigured;
+
 // Fix: Use Firebase v8 imports and types to match project dependencies
 // FIX: Use compat libraries for Firebase v9 with v8 syntax.
 import firebase from 'firebase/compat/app';
