@@ -355,36 +355,40 @@ const App: React.FC = () => {
   }, [isFirebaseConfigured]);
 
   // --- ROBUST SYSTEM VOICE LOADING ---
-  useEffect(() => {
-    const loadVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-             setSystemVoices(voices);
-             
-             // If current voice is invalid or default, try to set a better one based on language
-             if (!voice || (!GEMINI_VOICES.includes(voice) && !voices.some(v => v.name === voice))) {
-                 // Try to find an English voice first
-                 const defaultVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-                 if (defaultVoice && !GEMINI_VOICES.includes(voice)) {
-                     setVoice(defaultVoice.name);
-                 }
-             }
-        }
-    };
+  // Helper to refresh voices and update state if changed
+  const refreshVoices = useCallback(() => {
+      const voices = window.speechSynthesis.getVoices();
+      // Only update if the list has actually changed in length or was empty and now has something
+      // This prevents infinite loops if we just depend on [systemVoices] without check
+      setSystemVoices(prev => {
+          if (voices.length !== prev.length && voices.length > 0) {
+              return voices;
+          }
+          // If lengths match but content differs (unlikely but possible), deep check could go here
+          // For now, length check + non-empty check is usually enough for the "disappearing" bug
+          return prev.length === 0 && voices.length > 0 ? voices : prev;
+      });
+      
+      // If current voice is invalid or default, try to set a better one based on language
+      // We do this inside the effect usually, but triggering it here helps too
+      if (!voice || (!GEMINI_VOICES.includes(voice) && !voices.some(v => v.name === voice))) {
+           const defaultVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+           if (defaultVoice && !GEMINI_VOICES.includes(voice)) {
+               setVoice(defaultVoice.name);
+           }
+      }
+  }, [voice]);
 
+  useEffect(() => {
     // Initial attempt
-    loadVoices();
+    refreshVoices();
 
     // Event listener for Chrome/Edge async loading
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+    window.speechSynthesis.onvoiceschanged = refreshVoices;
 
     // Periodic check fallback (sometimes onvoiceschanged doesn't fire on mobile)
-    const intervalId = setInterval(() => {
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0 && systemVoices.length === 0) {
-            loadVoices();
-        }
-    }, 1000);
+    // We check if the count CHANGED, not just if it was zero.
+    const intervalId = setInterval(refreshVoices, 2000);
 
     // Keep-alive for SpeechSynthesis (Chrome bug workaround)
     const keepAliveInterval = setInterval(() => {
@@ -401,7 +405,7 @@ const App: React.FC = () => {
         if (window.speechSynthesis) window.speechSynthesis.cancel();
          if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
     };
-  }, [systemVoices.length]); // Depend on length to stop polling once loaded
+  }, [refreshVoices]); 
 
   useEffect(() => {
     try {
@@ -1481,7 +1485,7 @@ const App: React.FC = () => {
       {/* --- MODALS RENDERED HERE AT ROOT LEVEL --- */}
       {/* This prevents stacking context issues with the header/main wrapper */}
       
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} />}
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} onRefreshVoices={() => window.speechSynthesis.getVoices()} />}
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
       {isAudioStudioOpen && <AudioStudioModal 
