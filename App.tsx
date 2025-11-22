@@ -85,6 +85,9 @@ const App: React.FC = () => {
   // Use the secret key 'sawtli-master' in Account > Developer Powers to activate.
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
+  // Guide Visibility State
+  const [showSetupGuide, setShowSetupGuide] = useState(true);
+
   // User Statistics for Quotas & Gamification
   // Initialized with safe defaults, updated from storage on load
   const [userStats, setUserStats] = useState<UserStats>({
@@ -299,6 +302,11 @@ const App: React.FC = () => {
   }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
 
   useEffect(() => {
+    // Check dismissal state first
+    if (localStorage.getItem('sawtli_hide_setup_guide') === 'true') {
+        setShowSetupGuide(false);
+    }
+
     // Check if API Key is configured on server
     fetch('/api/check-config')
         .then(res => res.json())
@@ -346,35 +354,54 @@ const App: React.FC = () => {
     }
   }, [isFirebaseConfigured]);
 
+  // --- ROBUST SYSTEM VOICE LOADING ---
   useEffect(() => {
     const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
-        if(voices.length > 0) {
+        if (voices.length > 0) {
              setSystemVoices(voices);
+             
+             // If current voice is invalid or default, try to set a better one based on language
              if (!voice || (!GEMINI_VOICES.includes(voice) && !voices.some(v => v.name === voice))) {
+                 // Try to find an English voice first
                  const defaultVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-                 if(defaultVoice && !GEMINI_VOICES.includes(voice)) setVoice(defaultVoice.name);
+                 if (defaultVoice && !GEMINI_VOICES.includes(voice)) {
+                     setVoice(defaultVoice.name);
+                 }
              }
         }
     };
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance('');
-        window.speechSynthesis.speak(utterance);
-    }
+
+    // Initial attempt
     loadVoices();
+
+    // Event listener for Chrome/Edge async loading
     window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    // Periodic check fallback (sometimes onvoiceschanged doesn't fire on mobile)
+    const intervalId = setInterval(() => {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0 && systemVoices.length === 0) {
+            loadVoices();
+        }
+    }, 1000);
+
+    // Keep-alive for SpeechSynthesis (Chrome bug workaround)
     const keepAliveInterval = setInterval(() => {
-        if (window.speechSynthesis && !window.speechSynthesis.speaking) {
+        if (window.speechSynthesis && window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+            window.speechSynthesis.pause();
             window.speechSynthesis.resume();
         }
-    }, 5000);
+    }, 14000); // Every 14 seconds
+
     return () => {
         window.speechSynthesis.onvoiceschanged = null;
+        clearInterval(intervalId);
         clearInterval(keepAliveInterval);
         if (window.speechSynthesis) window.speechSynthesis.cancel();
          if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
     };
-  }, []);
+  }, [systemVoices.length]); // Depend on length to stop polling once loaded
 
   useEffect(() => {
     try {
@@ -457,11 +484,7 @@ const App: React.FC = () => {
       // Visitor: strict 100 chars.
       if (userTier === 'visitor') {
           if (text.length > planConfig.maxCharsPerRequest) {
-              // Show tease message: "This is a sample..." handled by truncation logic usually, 
-              // but here we force upgrade modal for clean UI flow.
-              // OR we act as the "Sip" strategy: allow generation but only send 100 chars.
-              // Let's implement "The Sip":
-              // DO NOT RETURN HERE. Code below handles truncation.
+              // "The Sip" Strategy: We truncate later
           }
       } else {
           // Member Logic
@@ -664,7 +687,10 @@ const App: React.FC = () => {
                 if (!selectedVoice) {
                     const targetLangCode = target === 'source' ? sourceLang : targetLang;
                     const targetSpeechCode = translationLanguages.find(l => l.code === targetLangCode)?.speechCode || 'en-US';
-                    selectedVoice = systemVoices.find(v => v.lang === targetSpeechCode) || systemVoices.find(v => v.lang.startsWith(targetLangCode));
+                    // Broader search if strict match fails
+                    selectedVoice = systemVoices.find(v => v.lang === targetSpeechCode) 
+                                 || systemVoices.find(v => v.lang.startsWith(targetLangCode))
+                                 || systemVoices[0];
                 }
 
                 if (selectedVoice) {
@@ -1343,8 +1369,8 @@ const App: React.FC = () => {
         </header>
 
         <main className="w-full space-y-6 flex-grow">
-            {/* Owner Setup Guide - Visible only if config is missing (but now dismissible) */}
-            {(!isApiConfigured || !isFirebaseConfigured) && (
+            {/* Owner Setup Guide - Visible only if config is missing (but now dismissible persistently) */}
+            {(!isApiConfigured || !isFirebaseConfigured) && showSetupGuide && (
                 <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 mb-6 z-50 relative">
                     <OwnerSetupGuide 
                         uiLanguage={uiLanguage} 
@@ -1458,7 +1484,14 @@ const App: React.FC = () => {
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} />}
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
-      {isAudioStudioOpen && <AudioStudioModal onClose={() => setIsAudioStudioOpen(false)} uiLanguage={uiLanguage} voice={voice} sourceAudioPCM={lastGeneratedPCM} />}
+      {isAudioStudioOpen && <AudioStudioModal 
+          onClose={() => setIsAudioStudioOpen(false)} 
+          uiLanguage={uiLanguage} 
+          voice={voice} 
+          sourceAudioPCM={lastGeneratedPCM}
+          allowDownloads={planConfig.allowDownloads} // Pass explicit permission
+          onUpgrade={() => setIsUpgradeOpen(true)} // Pass upgrade handler
+      />}
       {isTutorialOpen && <TutorialModal onClose={() => setIsTutorialOpen(false)} uiLanguage={uiLanguage} />}
       {isUpgradeOpen && <UpgradeModal onClose={() => setIsUpgradeOpen(false)} uiLanguage={uiLanguage} currentTier={userTier} onUpgrade={handleUpgrade} onSignIn={() => { setIsUpgradeOpen(false); handleSignIn(); }} />}
       {isGamificationOpen && <GamificationModal onClose={() => setIsGamificationOpen(false)} uiLanguage={uiLanguage} userStats={userStats} onBoost={handleBoost} />}
