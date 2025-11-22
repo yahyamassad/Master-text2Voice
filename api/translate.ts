@@ -9,7 +9,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     
     let body = req.body;
-    // Safely parse body if it comes as a string (edge case in some environments)
     if (typeof body === 'string') {
         try {
             body = JSON.parse(body);
@@ -31,7 +30,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const systemInstruction = `You are a professional translator. Translate user input from ${sourceLang} to ${targetLang}. Output ONLY the translated text.`;
 
-        // Increased timeout to 30 seconds to handle cold starts or network latency
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
         
         const apiPromise = ai.models.generateContent({
@@ -43,21 +41,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             config: {
                 systemInstruction: systemInstruction,
                 temperature: 0.3,
-                safetySettings: [
-                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-                ],
+                // Removed explicit safety settings to resolve TypeScript Enum errors on build.
             }
         });
 
         const result: any = await Promise.race([apiPromise, timeoutPromise]);
 
-        // Safely extract text, handling various SDK response shapes
         let translatedText = result.text;
         
-        // Fallback extraction if the direct property is missing
         if (!translatedText && result.candidates?.[0]?.content?.parts?.[0]?.text) {
             translatedText = result.candidates[0].content.parts[0].text;
         }
@@ -69,7 +60,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             throw new Error("Translation returned empty response.");
         }
 
-        // Strip markdown code blocks if present
         let cleanText = translatedText.trim();
         cleanText = cleanText.replace(/^```(json)?/i, '').replace(/```$/, '');
 

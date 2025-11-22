@@ -1,13 +1,13 @@
 
-import { GoogleGenAI } from "@google/genai";
 import { SpeakerConfig } from '../types';
 import { decode } from '../utils/audioUtils';
 
-// Initialize the client directly with the provided API key.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// NOTE: We now call the Vercel Serverless Functions (/api/speak, /api/translate)
+// instead of using the GoogleGenAI SDK directly in the browser.
+// This secures the API Key and prevents 'process is not defined' errors in Vite.
 
 /**
- * Helper function to call Gemini TTS for a single chunk of text.
+ * Helper function to call the backend TTS API for a single chunk of text.
  */
 async function generateAudioChunk(
     text: string,
@@ -18,83 +18,50 @@ async function generateAudioChunk(
     seed?: number
 ): Promise<Uint8Array | null> {
     
-    // Simplified instructions to avoid confusing the model
+    // Simplified instructions logic handling moved to backend or kept here for prompt construction
     let promptText = text;
     if (emotion && emotion !== 'Default') {
-        // Prepend emotion as a simple instruction
         promptText = `(Emotion: ${emotion}) ${text}`;
     }
 
-    // Ensure we are using the exact strings required by the API
-    // The model expects exact casing
-    const validVoices = ['Puck', 'Kore', 'Charon', 'Zephyr', 'Fenrir'];
-    const selectedVoice = validVoices.find(v => v.toLowerCase() === voice.toLowerCase()) || 'Puck';
-
-    const config: any = {
-            responseModalities: ['AUDIO'],
-            speechConfig: {},
-    };
-
-    if (seed !== undefined && seed !== null) {
-        // config.seed = seed; // Currently causing issues with audio stability on some endpoints, disabling for now
-    }
-
-    if (speakers) {
-        config.speechConfig.multiSpeakerVoiceConfig = {
-            speakerVoiceConfigs: [
-                {
-                    speaker: speakers.speakerA.name,
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } }
-                },
-                {
-                    speaker: speakers.speakerB.name,
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } }
-                }
-            ]
-        };
-    } else {
-        config.speechConfig.voiceConfig = {
-            prebuiltVoiceConfig: { voiceName: selectedVoice }
-        };
-    }
-
-    if (signal?.aborted) throw new Error('Aborted');
-
     try {
-        const responsePromise = ai.models.generateContent({
-            model: "gemini-2.5-flash-preview-tts",
-            contents: {
-                role: 'user',
-                parts: [{ text: promptText }]
-            },
-            config: config
+        const response = await fetch('/api/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: promptText,
+                voice: voice,
+                speakers: speakers, // Pass speakers config to backend
+                seed: seed // Pass seed if supported by backend
+            }),
+            signal: signal
         });
 
-        const response: any = await Promise.race([
-            responsePromise,
-            new Promise((_, reject) => {
-                if (signal) {
-                    signal.addEventListener('abort', () => reject(new Error('Aborted')));
-                }
-            })
-        ]);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
 
-        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        const data = await response.json();
         
-        if (!base64Audio) {
-            console.warn(`Gemini returned no audio for voice: ${voice}. Finish reason: ${response.candidates?.[0]?.finishReason}`);
+        if (!data.audioContent) {
+            console.warn("API returned no audio content.");
             return null;
         }
         
-        return decode(base64Audio);
-    } catch (e) {
+        return decode(data.audioContent);
+
+    } catch (e: any) {
+        if (e.name === 'AbortError') {
+            throw new Error('Aborted');
+        }
         console.error("Gemini Audio Chunk Error:", e);
         throw e;
     }
 }
 
 /**
- * Generates speech from text using Gemini API directly.
+ * Generates speech from text by calling the backend API.
  */
 export async function generateSpeech(
     text: string,
@@ -109,8 +76,7 @@ export async function generateSpeech(
 ): Promise<Uint8Array | null> {
     
     try {
-        // We simply send the text as one chunk if it's reasonable length to avoid join artifacts
-        // unless pauseDuration > 0 which requires explicit silence insertion
+        // We handle paragraph splitting here to manage pauses correctly
         const PARAGRAPH_DELIMITER = /\r?\n\s*\r?\n/;
 
         if (pauseDuration <= 0.1 || !PARAGRAPH_DELIMITER.test(text)) {
@@ -171,7 +137,7 @@ export async function generateSpeech(
 }
 
 /**
- * Translates text using Gemini API directly.
+ * Translates text using the backend API.
  */
 export async function translateText(
     text: string,
@@ -184,48 +150,28 @@ export async function translateText(
 ): Promise<{ translatedText: string, speakerMapping: Record<string, string> }> {
      
     try {
-        const systemInstruction = `You are a professional translator. Translate user input from ${sourceLang} to ${targetLang}. Output ONLY the translated text.`;
-        
-        if (signal?.aborted) throw new Error('Aborted');
-
-        const responsePromise = ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: {
-                role: 'user',
-                parts: [{ text: text }]
-            },
-            config: {
-                systemInstruction: systemInstruction,
-                temperature: 0.3,
-            }
+        const response = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text,
+                sourceLang,
+                targetLang
+            }),
+            signal: signal
         });
 
-        const response: any = await Promise.race([
-            responsePromise,
-            new Promise((_, reject) => {
-                if (signal) {
-                    signal.addEventListener('abort', () => reject(new Error('Aborted')));
-                }
-            })
-        ]);
-
-        let translatedText = response.text;
-        if (!translatedText && response.candidates?.[0]?.content?.parts?.[0]?.text) {
-            translatedText = response.candidates[0].content.parts[0].text;
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Translation server error: ${response.status}`);
         }
 
-        if (!translatedText) {
-            throw new Error("Translation returned empty response.");
-        }
-
-        let cleanText = translatedText.trim();
-        cleanText = cleanText.replace(/^```(json)?/i, '').replace(/```$/, '');
-
-        return { translatedText: cleanText, speakerMapping: {} };
+        const result = await response.json();
+        return result;
 
     } catch (error: any) {
-        if (error.message === 'Aborted' || error.name === 'AbortError') {
-             throw error;
+        if (error.name === 'AbortError') {
+             throw new Error('Aborted');
         }
         console.error("Gemini Service (translateText) failed:", error);
         throw error;
@@ -233,7 +179,7 @@ export async function translateText(
 }
 
 /**
- * Generates a voice preview using Gemini API directly.
+ * Generates a voice preview.
  */
 export async function previewVoice(
     voiceId: string,
@@ -241,14 +187,9 @@ export async function previewVoice(
     emotion: string,
     signal?: AbortSignal
 ): Promise<Uint8Array | null> {
-    
-    // Use the text provided (which is localized in SettingsModal)
-    // Removed hardcoded "Hello" check to verify actual generation works.
-    const textToSpeak = previewText || "Hello";
-
     try {
         return await generateAudioChunk(
-            textToSpeak, 
+            previewText || "Hello", 
             voiceId, 
             emotion, 
             undefined, 

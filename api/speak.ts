@@ -9,7 +9,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     let body = req.body;
-    // Safely parse body if it comes as a string
     if (typeof body === 'string') {
         try {
             body = JSON.parse(body);
@@ -19,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     }
 
-    const { text, voice } = body;
+    const { text, voice, speakers } = body;
 
     if (!text) {
         return res.status(400).json({ error: 'Text is required.' });
@@ -32,14 +31,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const model = "gemini-2.5-flash-preview-tts";
         
-        // Simplest possible config structure
-        const speechConfig = {
-            voiceConfig: { 
+        let speechConfig: any = {};
+
+        if (speakers) {
+            speechConfig.multiSpeakerVoiceConfig = {
+                speakerVoiceConfigs: [
+                    {
+                        speaker: speakers.speakerA.name,
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } }
+                    },
+                    {
+                        speaker: speakers.speakerB.name,
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } }
+                    }
+                ]
+            };
+        } else {
+            speechConfig.voiceConfig = { 
                 prebuiltVoiceConfig: { 
                     voiceName: safeVoice 
                 } 
-            },
-        };
+            };
+        }
 
         // Increased timeout to 30 seconds
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TTS Request timed out')), 30000));
@@ -53,12 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             config: {
                 responseModalities: ['AUDIO'], 
                 speechConfig: speechConfig,
-                safetySettings: [
-                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-                ],
+                // Removed safetySettings as they caused type errors and default behavior is usually sufficient for TTS
             },
         });
 
@@ -68,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         if (!base64Audio) {
             const reason = result.candidates?.[0]?.finishReason || 'Unknown';
-            console.error("Model finished without audio. Reason:", reason, JSON.stringify(result, null, 2));
+            console.error("Model finished without audio. Reason:", reason);
             throw new Error(`Model finished without audio. Reason: ${reason}`);
         }
 
