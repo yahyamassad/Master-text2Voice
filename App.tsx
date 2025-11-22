@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
@@ -15,6 +16,7 @@ import SettingsModal from './components/SettingsModal';
 import TutorialModal from './components/TutorialModal';
 import UpgradeModal from './components/UpgradeModal';
 import GamificationModal from './components/GamificationModal';
+import OwnerSetupGuide from './components/OwnerSetupGuide';
 
 const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
@@ -74,6 +76,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const { isFirebaseConfigured } = useMemo(() => getFirebase(), []);
+  const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); // Assume true initially to prevent flash
   
   // Subscription State (Mock for Demo)
   const [userSubscription, setUserSubscription] = useState<'free' | 'gold' | 'platinum'>('free');
@@ -296,6 +299,12 @@ const App: React.FC = () => {
   }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
 
   useEffect(() => {
+    // Check if API Key is configured on server
+    fetch('/api/check-config')
+        .then(res => res.json())
+        .then(data => setIsApiConfigured(!!data.configured))
+        .catch(() => setIsApiConfigured(false)); // If fetch fails, assume config issue or network
+
     const { app, auth, isFirebaseConfigured } = getFirebase();
     if (isFirebaseConfigured && app && auth) {
         const unsubscribeAuth = onAuthStateChanged(auth as any, (currentUser) => {
@@ -1323,6 +1332,17 @@ const App: React.FC = () => {
         </header>
 
         <main className="w-full space-y-6 flex-grow">
+            {/* Owner Setup Guide - Visible only if config is missing */}
+            {(!isApiConfigured || !isFirebaseConfigured) && (
+                <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 mb-6 z-50 relative">
+                    <OwnerSetupGuide 
+                        uiLanguage={uiLanguage} 
+                        isApiConfigured={isApiConfigured} 
+                        isFirebaseConfigured={isFirebaseConfigured} 
+                    />
+                </div>
+            )}
+
             {/* Main Interface Panel - Added Turquoise Stroke & Glow Here */}
             <div className="glass-panel rounded-3xl p-5 md:p-8 space-y-6 relative bg-[#1e293b]/80 backdrop-blur-sm shadow-[0_0_20px_rgba(34,211,238,0.15)] border-2 border-cyan-500/50">
                 
