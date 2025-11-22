@@ -49,13 +49,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 
     const relevantSystemVoices = useMemo(() => {
-        const sourceSpeechCode = translationLanguages.find(l => l.code === sourceLang)?.speechCode.split('-')[0];
-        const targetSpeechCode = translationLanguages.find(l => l.code === targetLang)?.speechCode.split('-')[0];
-        if (!sourceSpeechCode && !targetSpeechCode) return [];
-        return systemVoices.filter(v => 
-            (sourceSpeechCode && v.lang.startsWith(sourceSpeechCode)) || 
-            (targetSpeechCode && v.lang.startsWith(targetSpeechCode))
+        // 1. Try exact match first (e.g. 'ar' -> 'ar-SA')
+        const sourceSpeechCode = translationLanguages.find(l => l.code === sourceLang)?.speechCode;
+        const targetSpeechCode = translationLanguages.find(l => l.code === targetLang)?.speechCode;
+        
+        // 2. Try relaxed match (e.g. 'ar' -> starts with 'ar')
+        const sourceLangCode = sourceLang;
+        const targetLangCode = targetLang;
+
+        const filtered = systemVoices.filter(v => 
+            (sourceSpeechCode && v.lang === sourceSpeechCode) || 
+            (targetSpeechCode && v.lang === targetSpeechCode) ||
+            (sourceLangCode && v.lang.startsWith(sourceLangCode)) ||
+            (targetLangCode && v.lang.startsWith(targetLangCode))
         );
+
+        // 3. If no voices found for specific languages, return ALL voices to avoid empty list
+        return filtered.length > 0 ? filtered : systemVoices;
     }, [systemVoices, sourceLang, targetLang]);
 
     // When switching modes, select the first voice from the new list if the current one doesn't belong.
@@ -139,6 +149,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
             // System voice preview
             try {
+                window.speechSynthesis.cancel(); // Clear queue
+                
                 const utterance = new SpeechSynthesisUtterance(previewText);
                 const selectedVoice = systemVoices.find(v => v.name === voiceName);
                 if (selectedVoice) {
@@ -237,7 +249,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 {relevantSystemVoices.length > 0 ? (
                                     relevantSystemVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />)
                                 ) : (
-                                    <p className="text-sm text-slate-500 p-4 text-center">{t('noRelevantSystemVoices', uiLanguage)}</p>
+                                    <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30">
+                                        <p className="text-sm text-slate-400 mb-2">{t('noRelevantSystemVoices', uiLanguage)}</p>
+                                        <p className="text-xs text-slate-500">
+                                            {uiLanguage === 'ar' 
+                                            ? 'ملاحظة: بعض المتصفحات (مثل Chrome) تحتاج إلى وقت لتحميل القائمة. تأكد من تثبيت حزمة اللغة العربية في إعدادات جهازك.' 
+                                            : 'Note: Some browsers take time to load voices. Ensure language packs are installed in your OS settings.'}
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         )}
