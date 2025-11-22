@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
@@ -1038,19 +1039,26 @@ const App: React.FC = () => {
   };
 
   const handleSignIn = () => {
-      const { app, auth, isFirebaseConfigured } = getFirebase();
-      if (!isFirebaseConfigured || !app || !auth) {
-          // Show localized error message directing user to the Owner Guide
+      const { app, auth } = getFirebase();
+      // Attempt sign-in even if "isFirebaseConfigured" check was flaky.
+      // The actual sign-in call will fail with a proper error if config is truly missing.
+      if (!app || !auth) {
           const msg = uiLanguage === 'ar' 
-            ? "عذراً، لم يتم ربط التطبيق بقاعدة البيانات بعد.\n\nيرجى مراجعة 'دليل الإعداد' في أعلى الصفحة لإضافة مفاتيح Firebase في Vercel."
-            : "Setup Required: Firebase is not connected.\nPlease check the 'Owner Setup Guide' at the top of the page to add keys in Vercel.";
+            ? "عذراً، لم يتم تهيئة خدمة المصادقة.\nيرجى التأكد من إضافة المتغيرات في Vercel وعمل Redeploy."
+            : "Authentication service not initialized.\nPlease ensure Vercel variables are set and you have Triggered a Redeploy.";
           alert(msg);
           return;
       }
+      
       const provider = new GoogleAuthProvider();
       signInWithPopup(auth as any, provider).catch(error => {
           console.error("Sign-in error:", error);
-          setError(t('signInError', uiLanguage));
+          // Specific meaningful error
+          if (error.code === 'auth/configuration-not-found' || error.code === 'auth/api-key-not-valid') {
+               alert("Sign-in failed: Configuration Mismatch. Please Redeploy your Vercel project to update the keys.");
+          } else {
+               setError(t('signInError', uiLanguage));
+          }
       });
   };
 
@@ -1323,19 +1331,19 @@ const App: React.FC = () => {
                         <button onClick={() => setIsAccountOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg hover:border-cyan-400 hover:bg-slate-750 transition-all group">
                             <img src={user.photoURL || undefined} alt="User" className="w-8 h-8 rounded-full ring-1 ring-slate-500 group-hover:ring-cyan-400 transition-all" />
                         </button>
-                    ) : isFirebaseConfigured ? (
+                    ) : (
                         <button 
                             onClick={handleSignIn} 
                             className="border border-cyan-500/50 text-cyan-500 px-4 sm:px-6 py-2 rounded-lg hover:bg-cyan-950/30 hover:border-cyan-400 uppercase text-xs sm:text-sm font-bold tracking-widest transition-all"
                         >
                             {uiLanguage === 'ar' ? 'دخول' : 'SIGN IN'}
                         </button>
-                    ) : null}
+                    )}
                 </div>
         </header>
 
         <main className="w-full space-y-6 flex-grow">
-            {/* Owner Setup Guide - Visible only if config is missing */}
+            {/* Owner Setup Guide - Visible only if config is missing (but now dismissible) */}
             {(!isApiConfigured || !isFirebaseConfigured) && (
                 <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 mb-6 z-50 relative">
                     <OwnerSetupGuide 
