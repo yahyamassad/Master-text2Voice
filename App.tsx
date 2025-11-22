@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
@@ -79,9 +78,9 @@ const App: React.FC = () => {
   // Subscription State (Mock for Demo)
   const [userSubscription, setUserSubscription] = useState<'free' | 'gold' | 'platinum'>('free');
   
-  // Owner/Dev State override - ENABLED BY DEFAULT FOR DEPLOYMENT
-  // This gives full access immediately as requested.
-  const [isDevMode, setIsDevMode] = useState<boolean>(true);
+  // Owner/Dev State override - DISABLED BY DEFAULT FOR PRODUCTION
+  // Use the secret key 'sawtli-master' in Account > Developer Powers to activate.
+  const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
   // User Statistics for Quotas & Gamification
   // Initialized with safe defaults, updated from storage on load
