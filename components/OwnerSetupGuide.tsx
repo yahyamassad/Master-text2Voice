@@ -11,7 +11,8 @@ interface OwnerSetupGuideProps {
 
 const OwnerSetupGuide: React.FC<OwnerSetupGuideProps> = ({ uiLanguage, isApiConfigured, isFirebaseConfigured }) => {
     const [isGuideOpen, setIsGuideOpen] = useState(true);
-    const [showDebug, setShowDebug] = useState(false);
+    const [serverStatus, setServerStatus] = useState<any>(null);
+    const [checking, setChecking] = useState(false);
     
     const handlePermanentDismiss = () => {
         if (window.confirm(uiLanguage === 'ar' ? 'هل أنت متأكد؟ سيتم إخفاء هذا الدليل نهائياً.' : 'Are you sure? This will hide the guide permanently.')) {
@@ -20,11 +21,22 @@ const OwnerSetupGuide: React.FC<OwnerSetupGuideProps> = ({ uiLanguage, isApiConf
         }
     };
     
-    // Masking helper for debug
-    const mask = (val?: string) => val ? `${val.substring(0, 4)}...${val.substring(val.length - 4)}` : 'MISSING';
-    
-    // Access env safely for debug display
+    const checkServerConfig = async () => {
+        setChecking(true);
+        try {
+            const res = await fetch('/api/check-config');
+            const data = await res.json();
+            setServerStatus(data);
+        } catch (e) {
+            setServerStatus({ error: 'Failed to connect' });
+        } finally {
+            setChecking(false);
+        }
+    };
+
+    // Access env safely for debug display (Client Side)
     const env = (import.meta as any)?.env || {};
+    const mask = (val?: string) => val ? `${val.substring(0, 4)}...${val.substring(val.length - 4)}` : 'MISSING';
 
     if (!isGuideOpen) return null;
 
@@ -40,8 +52,8 @@ const OwnerSetupGuide: React.FC<OwnerSetupGuideProps> = ({ uiLanguage, isApiConf
                         <h3 className="font-bold text-amber-400 text-lg">{t('appOwnerNoticeTitle', uiLanguage)}</h3>
                         <p className="text-xs text-slate-400 mt-1 max-w-xl">
                             {uiLanguage === 'ar' 
-                                ? 'رسالة للمطور: التطبيق لا يرى مفاتيح API بعد.'
-                                : 'Dev Message: App cannot see API keys yet.'}
+                                ? 'رسالة للمطور: التطبيق يحتاج للتأكد من مفاتيح API.'
+                                : 'Dev Message: App needs to verify API keys.'}
                         </p>
                     </div>
                 </div>
@@ -61,46 +73,37 @@ const OwnerSetupGuide: React.FC<OwnerSetupGuideProps> = ({ uiLanguage, isApiConf
                 
                 {/* CRITICAL NOTICE - REDEPLOY */}
                 <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none">
-                        <CheckIcon className="w-32 h-32 text-blue-400" />
-                    </div>
                     <h4 className="font-bold text-blue-400 flex items-center gap-2 text-lg">
                         <InfoIcon className="w-5 h-5" />
-                        {uiLanguage === 'ar' ? 'هل أضفت المفاتيح في Vercel؟' : 'Did you add keys in Vercel?'}
+                        {uiLanguage === 'ar' ? 'الخطوة الأولى: تحقق من السيرفر' : 'Step 1: Verify Server'}
                     </h4>
-                    <p className="mt-2 text-slate-200 leading-relaxed text-sm">
+                    <p className="mt-2 text-slate-300 text-sm mb-3">
                         {uiLanguage === 'ar' 
-                            ? 'إذا كانت الإجابة نعم، فلا تقلق. Vercel لا يحدث الكود تلقائياً. يجب عليك عمل **Redeploy** يدوياً ليقوم النظام "بحرق" المفاتيح داخل التطبيق.'
-                            : 'If yes, Vercel needs a **Redeploy** to bake these variables into the app. The current running code is old.'}
+                            ? 'اضغط الزر أدناه لنسأل السيرفر: "ماذا ترى؟" سيظهر لك أجزاء من المفاتيح للتأكد.' 
+                            : 'Click below to ask the server "What do you see?".'}
                     </p>
-                    <div className="mt-3 inline-block text-xs font-mono bg-black/50 px-3 py-2 rounded text-blue-300 border border-blue-500/30">
-                        Vercel Dashboard &gt; Deployments &gt; (3 dots) &gt; Redeploy
-                    </div>
-                </div>
-
-                {/* Debug Toggle */}
-                <div>
-                    <button onClick={() => setShowDebug(!showDebug)} className="text-xs text-slate-500 hover:text-slate-300 underline mb-2 flex items-center gap-2">
-                        <ChevronDownIcon className={`w-4 h-4 transition-transform ${showDebug ? 'rotate-180' : ''}`} />
-                        {showDebug ? 'Hide Debug Info' : 'Show Debug Info (Verify what the app sees)'}
-                    </button>
                     
-                    {showDebug && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-black/40 p-4 rounded-lg font-mono text-xs border border-slate-700 animate-fade-in-down">
-                            <div>
-                                <p className="text-slate-500 mb-1 font-bold uppercase">Current Environment Variables:</p>
-                                <div className="space-y-1">
-                                    <div className="flex justify-between border-b border-slate-800 pb-1"><span>API_KEY (Gemini):</span> <span className={env.API_KEY ? 'text-green-400' : 'text-red-500'}>{mask(env.API_KEY)}</span></div>
-                                    <div className="flex justify-between border-b border-slate-800 pb-1"><span>FIREBASE_PROJECT_ID:</span> <span className={env.VITE_FIREBASE_PROJECT_ID ? 'text-green-400' : 'text-red-500'}>{mask(env.VITE_FIREBASE_PROJECT_ID)}</span></div>
-                                    <div className="flex justify-between"><span>FIREBASE_API_KEY:</span> <span className={env.VITE_FIREBASE_API_KEY ? 'text-green-400' : 'text-red-500'}>{mask(env.VITE_FIREBASE_API_KEY)}</span></div>
-                                </div>
+                    <button 
+                        onClick={checkServerConfig} 
+                        disabled={checking}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-md font-bold text-xs transition-colors"
+                    >
+                        {checking ? 'Checking...' : (uiLanguage === 'ar' ? 'تحقق الآن' : 'Check Live Config')}
+                    </button>
+
+                    {serverStatus && (
+                        <div className="mt-3 p-3 bg-black/50 rounded border border-slate-600 font-mono text-xs">
+                            <div className="flex justify-between border-b border-slate-700 pb-1 mb-1">
+                                <span>Gemini API Key:</span>
+                                <span className={serverStatus.details?.gemini?.includes('Present') ? 'text-green-400' : 'text-red-500'}>
+                                    {serverStatus.details?.gemini || 'Unknown'}
+                                </span>
                             </div>
-                            <div>
-                                <p className="text-slate-500 mb-1 font-bold uppercase">Logic Checks:</p>
-                                <div className="space-y-1">
-                                    <div className="flex justify-between border-b border-slate-800 pb-1"><span>Gemini Ready:</span> <span className={isApiConfigured ? 'text-green-400' : 'text-red-500'}>{isApiConfigured ? 'TRUE' : 'FALSE'}</span></div>
-                                    <div className="flex justify-between"><span>Firebase Ready:</span> <span className={isFirebaseConfigured ? 'text-green-400' : 'text-red-500'}>{isFirebaseConfigured ? 'TRUE' : 'FALSE'}</span></div>
-                                </div>
+                            <div className="flex justify-between">
+                                <span>Firebase Project:</span>
+                                <span className={serverStatus.details?.firebase?.includes('Present') ? 'text-green-400' : 'text-red-500'}>
+                                    {serverStatus.details?.firebase || 'Unknown'}
+                                </span>
                             </div>
                         </div>
                     )}
@@ -134,7 +137,7 @@ const FirebaseSetup: React.FC<{ uiLanguage: Language }> = ({ uiLanguage }) => {
 
     return (
         <div className="space-y-2">
-            <h5 className="font-bold text-slate-200">Missing Firebase Config</h5>
+            <h5 className="font-bold text-slate-200">Missing Firebase Client Config</h5>
             <div dir="ltr" className="relative p-3 bg-slate-900 rounded-md font-mono text-xs text-cyan-300 text-left border border-slate-700">
                 <pre className="whitespace-pre-wrap opacity-50"><code>{firebaseClientEnvVars}</code></pre>
                 <button onClick={() => handleCopy(firebaseClientEnvVars)} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
