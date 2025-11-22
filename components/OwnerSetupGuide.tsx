@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { t, Language } from '../i18n/translations';
 import { WarningIcon, ChevronDownIcon, CopyIcon, ExternalLinkIcon } from './icons';
@@ -162,6 +163,11 @@ service cloud.firestore {
              <div>
                 <h5 className="font-semibold">4. {t('firebaseSetupStep5Title', uiLanguage)}</h5>
                 <p className="mt-1 text-slate-400 text-xs">{t('firebaseSetupStep5Body', uiLanguage)}</p>
+            </div>
+            {/* Step 6 */}
+             <div>
+                <h5 className="font-semibold">5. {t('firebaseSetupStep6Title', uiLanguage)}</h5>
+                <p className="mt-1 text-slate-400 text-xs">{t('firebaseSetupStep6Body', uiLanguage)}</p>
             </div>
         </div>
     );
