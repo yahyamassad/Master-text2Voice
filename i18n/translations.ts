@@ -1674,6 +1674,20 @@ export const translations = {
       es: 'Redespliega el proyecto.',
       pt: 'Reimplante o projeto no Vercel.',
   },
+  firebaseSetupStep6Title: {
+      ar: 'الخطوة 6: إضافة النطاق المسموح به',
+      en: 'Step 6: Add Authorized Domain',
+      fr: 'Étape 6 : Ajouter un domaine autorisé',
+      es: 'Paso 6: Dominio autorizado',
+      pt: 'Passo 6: Adicionar domínio autorizado',
+  },
+  firebaseSetupStep6Body: {
+      ar: 'للسماح بتسجيل الدخول عبر Google من نطاقك الجديد، اذهب إلى Firebase Console > Authentication > Settings > Authorized Domains وأضف "sawtli.com".',
+      en: 'To allow Google Sign-In from your new domain, go to Firebase Console > Authentication > Settings > Authorized Domains and add "sawtli.com".',
+      fr: 'Pour autoriser la connexion Google, allez dans Firebase Console > Authentication > Settings > Authorized Domains et ajoutez "sawtli.com".',
+      es: 'Agrega tu dominio en Firebase Auth > Settings > Authorized Domains.',
+      pt: 'Adicione seu domínio em Firebase Auth > Settings > Authorized Domains.',
+  },
   firebaseSetupCopyButton: {
       ar: 'نسخ',
       en: 'Copy',
