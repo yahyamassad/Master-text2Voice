@@ -1,18 +1,8 @@
-import { getFirebase } from '../firebaseConfig';
-import {
-    collection,
-    query,
-    orderBy,
-    getDocs,
-    addDoc,
-    writeBatch,
-    doc,
-    deleteDoc,
-    serverTimestamp,
-    onSnapshot,
-    limit,
-    Timestamp,
-} from 'firebase/firestore';
+
+import { db } from '../firebaseConfig';
+// Use compat imports to match the initialized app in firebaseConfig.ts
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import type { HistoryItem } from '../types';
 
 /**
@@ -22,29 +12,30 @@ import type { HistoryItem } from '../types';
  * @returns An unsubscribe function to detach the listener.
  */
 export function subscribeToHistory(userId: string, callback: (items: HistoryItem[]) => void): () => void {
-    const { db } = getFirebase();
     if (!db) {
         console.error("Firestore is not initialized. Cannot subscribe to history.");
-        return () => {}; // Return a no-op unsubscribe function
+        return () => {};
     }
 
-    const historyCollectionRef = collection(db, `users/${userId}/history`);
-    const q = query(historyCollectionRef, orderBy('timestamp', 'desc'), limit(50));
+    // Use Compat syntax: db.collection(...)
+    const historyCollectionRef = db.collection(`users/${userId}/history`);
+    const q = historyCollectionRef.orderBy('timestamp', 'desc').limit(50);
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribe = q.onSnapshot((querySnapshot) => {
         const historyData: HistoryItem[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             historyData.push({
                 ...data,
                 id: doc.id,
-                timestamp: (data.timestamp as Timestamp)?.toMillis() || Date.now()
+                // Use Compat Timestamp
+                timestamp: (data.timestamp as firebase.firestore.Timestamp)?.toMillis() || Date.now()
             } as HistoryItem);
         });
         callback(historyData);
     }, (error) => {
         console.error("Error listening to history:", error);
-        callback([]); // On error, return an empty array
+        callback([]); 
     });
 
     return unsubscribe;
@@ -56,13 +47,13 @@ export function subscribeToHistory(userId: string, callback: (items: HistoryItem
  * @param item The history item to add (without id and timestamp).
  */
 export async function addHistoryItem(userId: string, item: Omit<HistoryItem, 'id' | 'timestamp'>) {
-    const { db } = getFirebase();
     if (!db) throw new Error("Firestore is not initialized.");
 
-    const historyCollectionRef = collection(db, `users/${userId}/history`);
-    await addDoc(historyCollectionRef, {
+    // Use Compat syntax: collection.add() and FieldValue
+    const historyCollectionRef = db.collection(`users/${userId}/history`);
+    await historyCollectionRef.add({
         ...item,
-        timestamp: serverTimestamp()
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 }
 
@@ -71,19 +62,16 @@ export async function addHistoryItem(userId: string, item: Omit<HistoryItem, 'id
  * @param userId The UID of the user whose history should be cleared.
  */
 export async function clearHistoryForUser(userId: string) {
-    const { db } = getFirebase();
     if (!db) throw new Error("Firestore is not initialized.");
 
-    const historyCollectionRef = collection(db, `users/${userId}/history`);
-    const querySnapshot = await getDocs(historyCollectionRef);
+    const historyCollectionRef = db.collection(`users/${userId}/history`);
+    const querySnapshot = await historyCollectionRef.get();
 
     if (querySnapshot.empty) {
-        return; // Nothing to delete
+        return;
     }
 
-    // Firestore allows batch writes of up to 500 operations.
-    // This will handle up to 500 history items at a time.
-    const batch = writeBatch(db);
+    const batch = db.batch();
     querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
     });
@@ -93,13 +81,11 @@ export async function clearHistoryForUser(userId: string) {
 
 /**
  * Deletes the root document for a user.
- * IMPORTANT: This does NOT delete subcollections. Subcollections must be cleared first.
  * @param userId The UID of the user.
  */
 export async function deleteUserDocument(userId: string) {
-    const { db } = getFirebase();
     if (!db) throw new Error("Firestore is not initialized.");
 
-    const userDocRef = doc(db, 'users', userId);
-    await deleteDoc(userDocRef);
+    const userDocRef = db.collection('users').doc(userId);
+    await userDocRef.delete();
 }

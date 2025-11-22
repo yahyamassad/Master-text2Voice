@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { t, Language } from '../i18n/translations';
-import { StarIcon, LoaderIcon, CopyIcon, ExternalLinkIcon, ChevronDownIcon } from './icons';
+import { StarIcon, LoaderIcon, CopyIcon, ExternalLinkIcon, ChevronDownIcon, ReportIcon } from './icons';
 
 interface FeedbackProps {
     language: Language;
+    onOpenReport: () => void;
 }
 
 interface FeedbackItem {
@@ -38,7 +40,7 @@ const formatTimestamp = (timestamp: number | null, lang: string): string => {
     }
 };
 
-const Feedback: React.FC<FeedbackProps> = ({ language }) => {
+const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
     const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -57,6 +59,11 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
         fetch('/api/feedback')
             .then(async res => {
                 if (!res.ok) {
+                     // If 404, it means the API is not deployed/running locally (Vite).
+                     // We treat this as "not configured" rather than an error.
+                     if (res.status === 404) {
+                         return { configured: false, feedbacks: [] };
+                     }
                      // Try to parse the specific error message from the backend
                     const errorData = await res.json().catch(() => ({ error: `Server responded with status: ${res.status}` }));
                     throw new Error(errorData.error || `An unknown error occurred while fetching feedback.`);
@@ -74,8 +81,13 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
             })
             .catch(err => {
                 console.error("Error fetching feedback:", err);
-                setError(err.message || t('feedbackError', language));
-                setIsSubmissionEnabled(false);
+                // Don't show error for local dev 404s, just disable submission
+                if (err.message && err.message.includes('404')) {
+                     setIsSubmissionEnabled(false);
+                } else {
+                    setError(err.message || t('feedbackError', language));
+                    setIsSubmissionEnabled(false);
+                }
             })
             .finally(() => {
                 setIsLoading(false);
@@ -129,7 +141,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
             </div>
 
             {/* Feedback Form */}
-            <div className={`bg-slate-700/50 p-6 rounded-lg transition-opacity ${!isSubmissionEnabled ? 'opacity-60' : ''}`}>
+            <div className={`bg-slate-700/50 p-6 rounded-lg transition-opacity`}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input
@@ -140,24 +152,36 @@ const Feedback: React.FC<FeedbackProps> = ({ language }) => {
                             className="w-full p-3 bg-slate-900/50 border-2 border-slate-600 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors placeholder-slate-500"
                             disabled={isSubmitting || !isSubmissionEnabled}
                         />
-                         <div className="flex items-center justify-center md:justify-start gap-3 text-slate-300">
-                            <span className="font-bold">{t('yourRating', language)}</span>
-                            <div className="flex">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                    <button
-                                        type="button"
-                                        key={star}
-                                        onClick={() => setRating(star)}
-                                        onMouseEnter={() => setHoverRating(star)}
-                                        onMouseLeave={() => setHoverRating(0)}
-                                        className="focus:outline-none"
-                                        aria-label={`Rate ${star} stars`}
-                                        disabled={isSubmitting || !isSubmissionEnabled}
-                                    >
-                                        <StarIcon className={`cursor-pointer transition-colors ${(hoverRating || rating) >= star ? 'text-yellow-400' : 'text-slate-500'}`} />
-                                    </button>
-                                ))}
+                         <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3 text-slate-300">
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold">{t('yourRating', language)}</span>
+                                <div className="flex">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            type="button"
+                                            key={star}
+                                            onClick={() => setRating(star)}
+                                            onMouseEnter={() => setHoverRating(star)}
+                                            onMouseLeave={() => setHoverRating(0)}
+                                            className="focus:outline-none"
+                                            aria-label={`Rate ${star} stars`}
+                                            disabled={isSubmitting || !isSubmissionEnabled}
+                                        >
+                                            <StarIcon className={`cursor-pointer transition-colors ${(hoverRating || rating) >= star ? 'text-yellow-400' : 'text-slate-500'}`} />
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
+                            
+                            {/* Integrated Report Button */}
+                             <button 
+                                type="button"
+                                onClick={onOpenReport}
+                                className="flex items-center gap-2 text-xs text-slate-400 hover:text-red-400 transition-colors ml-auto sm:ml-4 border border-slate-600 hover:border-red-400 rounded-full px-3 py-1"
+                             >
+                                 <ReportIcon className="w-3 h-3" />
+                                 <span>{t('reportProblem', language)}</span>
+                             </button>
                         </div>
                     </div>
                     <textarea

@@ -1,65 +1,61 @@
-import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-import { getFirestore, Firestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+
+// Fix: Use Firebase v8 'firebase/app' import for compatibility.
+// FIX: Use compat libraries for Firebase v9 with v8 syntax.
+import firebase from 'firebase/compat/app';
+// Fix: Import firestore and auth for their side-effects to initialize the services.
+import 'firebase/compat/firestore';
+import 'firebase/compat/auth';
+
+// Fix: Define types based on the Firebase v8 SDK.
+type FirebaseApp = firebase.app.App;
+type Firestore = firebase.firestore.Firestore;
+type Auth = firebase.auth.Auth;
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
-let auth: any = null;
-let isFirebaseConfigured = false;
-let initializationAttempted = false; // ✅ مفقود سابقًا
+let auth: Auth | null = null;
 
-// ✅ Initialize Firebase safely (once only)
-function getFirebase() {
-  if (!initializationAttempted) {
-    initializationAttempted = true;
+// Safely access environment variables. In some environments (like this preview),
+// `import.meta.env` might be undefined. This approach prevents a TypeError.
+const env = (import.meta as any)?.env || {};
+
+const firebaseConfig = {
+    apiKey: env.VITE_FIREBASE_API_KEY,
+    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: env.VITE_FIREBASE_APP_ID,
+};
+
+// Determine if the config values exist
+const hasConfigValues = !!(firebaseConfig.projectId && firebaseConfig.apiKey);
+
+// Initialize only if config values are present
+if (hasConfigValues) {
     try {
-      // تأكد من توفر متغيرات البيئة الخاصة بـ Vite
-      if (
-        typeof import.meta.env === "undefined" ||
-        !import.meta.env.VITE_FIREBASE_PROJECT_ID
-      ) {
-        console.warn("⚠️ Firebase environment variables missing.");
-        isFirebaseConfigured = false;
+        // Fix: Use Firebase v8 initialization syntax.
+        if (!firebase.apps.length) {
+            app = firebase.initializeApp(firebaseConfig);
+        } else {
+            app = firebase.app();
+        }
+        db = app.firestore();
+        auth = app.auth();
+    } catch (error) {
+        console.error("Firebase initialization failed:", error);
+        // Ensure state is clean on failure
         app = null;
         db = null;
         auth = null;
-        return { app, db, auth, isFirebaseConfigured };
-      }
-
-      // إعدادات Firebase من متغيرات البيئة
-      const firebaseConfig = {
-        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-        appId: import.meta.env.VITE_FIREBASE_APP_ID,
-        measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-      };
-
-      // تهيئة Firebase مرة واحدة فقط
-      if (!getApps().length) {
-        app = initializeApp(firebaseConfig);
-      } else {
-        app = getApps()[0];
-      }
-
-      db = getFirestore(app);
-      auth = getAuth(app);
-      isFirebaseConfigured = true;
-      console.log("✅ Firebase initialized successfully.");
-
-    } catch (error) {
-      console.error("❌ Firebase initialization failed:", error);
-      app = null;
-      db = null;
-      auth = null;
-      isFirebaseConfigured = false;
     }
-  }
-
-  return { app, db, auth, isFirebaseConfigured };
 }
 
-// ✅ Export only the function — safer and cleaner
-export { getFirebase };
+// The final status depends on whether the app object was successfully created.
+const isFirebaseConfigured = !!app;
+
+export const getFirebase = () => {
+  return { app, db, auth, isFirebaseConfigured };
+};
+
+export { app, db, auth, isFirebaseConfigured };
