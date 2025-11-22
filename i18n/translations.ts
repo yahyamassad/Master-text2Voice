@@ -1,5 +1,4 @@
 
-
 export type Language = 'ar' | 'en' | 'fr' | 'es' | 'pt';
 export type Direction = 'rtl' | 'ltr';
 export interface LanguageListItem {
@@ -223,11 +222,11 @@ export const translations = {
     pt: 'Pré-visualizar voz do sistema',
   },
   voicePreviewText: {
-    ar: 'مرحباً، هذا هو صوتي الرقمي الجديد. أنا جاهز لقراءة نصوصك وتجربة الإعدادات الحالية.',
-    en: 'Hello, this is my new digital voice. I am generating this audio to preview the current settings.',
-    fr: 'Bonjour, voici ma nouvelle voix numérique. Je génère cet audio pour prévisualiser les paramètres actuels.',
-    es: 'Hola, esta es mi nueva voz digital. Estoy generando este audio para previsualizar la configuración actual.',
-    pt: 'Olá, esta é minha nova voz digital. Estou gerando este áudio para pré-visualizar as configurações atuais.',
+    ar: 'مَرْحَبًا، أَنَا جَاهِز.',
+    en: 'Hello, I am ready.',
+    fr: 'Bonjour, je suis prêt.',
+    es: 'Hola, estoy listo.',
+    pt: 'Olá, estou pronto.',
   },
   emotionLabel: {
     ar: 'النبرة العامة',
