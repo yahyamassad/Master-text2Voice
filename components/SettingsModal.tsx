@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translationLanguages, translations } from '../i18n/translations';
 import { SpeakerConfig, GEMINI_VOICES } from '../types';
-import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon } from './icons';
+import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon, ReplayIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { playAudio } from '../utils/audioUtils';
 
@@ -28,15 +28,16 @@ interface SettingsModalProps {
   systemVoices: SpeechSynthesisVoice[];
   sourceLang: string;
   targetLang: string;
-  currentLimits: any; // Passing limits down
+  currentLimits: any; 
   onUpgrade: () => void;
+  onRefreshVoices?: () => void; // New prop
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, uiLanguage, voice, setVoice, emotion, setEmotion, 
     pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed,
     multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices, sourceLang, targetLang,
-    currentLimits, onUpgrade
+    currentLimits, onUpgrade, onRefreshVoices
 }) => {
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
     const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
@@ -47,22 +48,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     // Keep a reference to an AudioContext to reuse it and bypass autoplay blocks
     const audioContextRef = useRef<AudioContext | null>(null);
 
+    // Force refresh on mount to catch late-loading voices
+    useEffect(() => {
+        if (onRefreshVoices) {
+            onRefreshVoices();
+        }
+    }, []);
 
     const relevantSystemVoices = useMemo(() => {
-        // 1. Try exact match first (e.g. 'ar' -> 'ar-SA')
-        const sourceSpeechCode = translationLanguages.find(l => l.code === sourceLang)?.speechCode;
-        const targetSpeechCode = translationLanguages.find(l => l.code === targetLang)?.speechCode;
-        
-        // 2. Try relaxed match (e.g. 'ar' -> starts with 'ar')
-        const sourceLangCode = sourceLang;
-        const targetLangCode = targetLang;
+        const sourceLangCode = sourceLang.toLowerCase();
+        const targetLangCode = targetLang.toLowerCase();
 
-        const filtered = systemVoices.filter(v => 
-            (sourceSpeechCode && v.lang === sourceSpeechCode) || 
-            (targetSpeechCode && v.lang === targetSpeechCode) ||
-            (sourceLangCode && v.lang.startsWith(sourceLangCode)) ||
-            (targetLangCode && v.lang.startsWith(targetLangCode))
-        );
+        const filtered = systemVoices.filter(v => {
+            const vLang = v.lang.toLowerCase().replace('_', '-');
+            return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode);
+        });
 
         // 3. If no voices found for specific languages, return ALL voices to avoid empty list
         return filtered.length > 0 ? filtered : systemVoices;
@@ -268,13 +268,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 {relevantSystemVoices.length > 0 ? (
                                     relevantSystemVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />)
                                 ) : (
-                                    <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30">
-                                        <p className="text-sm text-slate-400 mb-2">{t('noRelevantSystemVoices', uiLanguage)}</p>
-                                        <p className="text-xs text-slate-500">
-                                            {uiLanguage === 'ar' 
-                                            ? 'ملاحظة: بعض المتصفحات (مثل Chrome) تحتاج إلى وقت لتحميل القائمة. تأكد من تثبيت حزمة اللغة العربية في إعدادات جهازك.' 
-                                            : 'Note: Some browsers take time to load voices. Ensure language packs are installed in your OS settings.'}
-                                        </p>
+                                    <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3">
+                                        <p className="text-sm text-slate-400">{t('noRelevantSystemVoices', uiLanguage)}</p>
+                                        {onRefreshVoices && (
+                                            <button 
+                                                onClick={onRefreshVoices}
+                                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-cyan-400 rounded-full text-xs font-bold flex items-center gap-2 transition-colors"
+                                            >
+                                                <ReplayIcon className="w-4 h-4" />
+                                                {uiLanguage === 'ar' ? 'تحديث القائمة' : 'Refresh Voices'}
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
