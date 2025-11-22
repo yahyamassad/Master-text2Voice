@@ -79,13 +79,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                  setVoice(systemVoices[0].name);
             }
         }
-        // Clean up context on unmount
+    }, [voiceMode, voice, setVoice, systemVoices, relevantSystemVoices]);
+
+    // Cleanup on unmount or close
+    useEffect(() => {
         return () => {
+             if (audioSourceRef.current) {
+                try { 
+                    audioSourceRef.current.stop(); 
+                    audioSourceRef.current.disconnect();
+                } catch (e) { /* ignore */ }
+            }
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
              if (audioContextRef.current) {
                 audioContextRef.current.close().catch(() => {});
             }
         };
-    }, [voiceMode, voice, setVoice, systemVoices, relevantSystemVoices]);
+    }, []);
 
 
     const handlePreview = async (voiceName: string) => {
@@ -149,13 +161,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
             // System voice preview
             try {
-                window.speechSynthesis.cancel(); // Clear queue
+                window.speechSynthesis.cancel(); // Clear queue explicitly
                 
                 const utterance = new SpeechSynthesisUtterance(previewText);
                 const selectedVoice = systemVoices.find(v => v.name === voiceName);
+                
                 if (selectedVoice) {
+                    // Explicitly set the voice object, not just name/lang
                     utterance.voice = selectedVoice;
-                    utterance.lang = selectedVoice.lang; // Use the voice's specific lang for max compatibility
+                    utterance.lang = selectedVoice.lang; 
                 }
                 // Apply speed to system preview too
                 utterance.rate = speed;
@@ -169,7 +183,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     console.error("System voice preview failed:", e);
                     setPreviewingVoice(null);
                 };
-                window.speechSynthesis.speak(utterance);
+                
+                // Short delay to ensure cancel takes effect in some browsers
+                setTimeout(() => {
+                    window.speechSynthesis.speak(utterance);
+                }, 10);
+                
             } catch (e) {
                 console.error("Failed to initiate system voice preview:", e);
                 setPreviewingVoice(null);
