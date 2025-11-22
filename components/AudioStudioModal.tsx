@@ -229,6 +229,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     
     // Ref to track if stop was manual (user clicked pause) or automatic (end of file)
     const isManualStopRef = useRef(false);
+    
+    // RACE CONDITION PREVENTION: Track the ID of the current processing request
+    const processingRequestRef = useRef(0);
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -245,7 +248,31 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
         }
     }, [activeTab, sourceAudioPCM, voice]);
 
+    const stopPlayback = useCallback(() => {
+        isManualStopRef.current = true; // Mark as manual stop
+        
+        // Cancel any ongoing animation frame immediately
+        if (playAnimationFrameRef.current) {
+            cancelAnimationFrame(playAnimationFrameRef.current);
+            playAnimationFrameRef.current = 0;
+        }
+
+        if (sourceNodeRef.current) {
+            try { 
+                sourceNodeRef.current.stop();
+                sourceNodeRef.current.disconnect(); // IMPORTANT: Disconnect to prevent ghost audio
+            } catch (e) {}
+            sourceNodeRef.current = null;
+        }
+        
+        setAnalyserNode(null);
+        setIsPlaying(false);
+    }, []);
+
     const applyPreset = (name: AudioPresetName) => {
+        // Stop playback immediately when switching presets to prevent layering
+        stopPlayback();
+        
         const preset = AUDIO_PRESETS.find(p => p.name === name);
         if (preset) {
             setPresetName(name);
@@ -255,12 +282,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     };
 
     const updateSetting = <K extends keyof AudioSettings>(key: K, value: AudioSettings[K]) => {
+        stopPlayback(); // Stop playback on setting change
         setSettings(prev => ({ ...prev, [key]: value }));
         setPresetName('Default');
         setProcessedBuffer(null);
     };
 
     const handleEqChange = (index: number, value: number) => {
+        // For EQ we might not want to stop completely, but for safety let's stop to avoid glitches
+        // Or debounce it. For now, stopping is safer.
+        stopPlayback();
         const newBands = [...settings.eqBands];
         newBands[index] = value;
         updateSetting('eqBands', newBands);
@@ -426,20 +457,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
         return micAudioBuffer; 
     };
 
-    const stopPlayback = useCallback(() => {
-        isManualStopRef.current = true; // Mark as manual stop
-        if (sourceNodeRef.current) {
-            try { sourceNodeRef.current.stop(); } catch (e) {}
-            // Note: we don't nullify sourceNodeRef immediately here to allow onended to fire if needed,
-            // but since we set isManualStopRef, onended will skip logic.
-        }
-        if (playAnimationFrameRef.current) {
-            cancelAnimationFrame(playAnimationFrameRef.current);
-        }
-        setAnalyserNode(null);
-        setIsPlaying(false);
-    }, []);
-
     const handleNaturalFinish = () => {
          playbackOffsetRef.current = 0;
          setCurrentTime(0);
@@ -449,6 +466,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     };
 
     const handlePlayPause = async () => {
+        // Generate a new request ID for this play attempt
+        const requestId = ++processingRequestRef.current;
+
         if (isPlaying) {
             const ctx = getAudioContext();
             if (ctx) {
@@ -475,11 +495,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             
             if (!buffer) {
                 buffer = await processAudio(source, settings);
+                
+                // CHECK ID: If user clicked play/preset again while processing, abort this one
+                if (requestId !== processingRequestRef.current) {
+                    return; 
+                }
+
                 setProcessedBuffer(buffer);
                 setFileDuration(buffer.duration); 
             }
             setIsProcessing(false);
             
+            // Explicitly stop previous if existing (double safety)
+            if (sourceNodeRef.current) {
+                try { sourceNodeRef.current.disconnect(); } catch(e){}
+            }
+
             isManualStopRef.current = false; // Reset manual stop flag
 
             const sourceNode = ctx.createBufferSource();
