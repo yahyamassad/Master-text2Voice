@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
-import { WarningIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, SawtliLogoIcon, TrashIcon, StopIcon, MicrophoneIcon } from './icons';
+import { WarningIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, SawtliLogoIcon, TrashIcon, StopIcon, MicrophoneIcon, LockIcon } from './icons';
 import { AudioSettings, AudioPresetName } from '../types';
 import { AUDIO_PRESETS, processAudio, createMp3Blob } from '../utils/audioUtils';
 
@@ -10,6 +10,8 @@ interface AudioStudioModalProps {
     uiLanguage: Language;
     voice: string;
     sourceAudioPCM?: Uint8Array | null;
+    allowDownloads?: boolean;
+    onUpgrade?: () => void;
 }
 
 // --- VISUALIZER COMPONENT ---
@@ -191,7 +193,7 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
 
 // --- MAIN COMPONENT ---
 
-export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiLanguage, voice, sourceAudioPCM }) => {
+export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, onUpgrade }) => {
     const [activeTab, setActiveTab] = useState<'ai' | 'mic' | 'upload'>('ai');
     const [presetName, setPresetName] = useState<AudioPresetName>('Default');
     const [settings, setSettings] = useState<AudioSettings>(AUDIO_PRESETS[0].settings);
@@ -554,6 +556,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     }, [monitorVolume]);
 
     const handleDownload = async () => {
+        // Security Check: If downloads not allowed, block action
+        if (!allowDownloads) {
+            if (onUpgrade) onUpgrade();
+            return;
+        }
+
         const source = getActiveSource();
         if (!source) return;
         try {
@@ -706,10 +714,19 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                 <button 
                                     onClick={handleDownload} 
                                     disabled={!hasAudioSource || isProcessing}
-                                    className="flex-1 h-16 rounded-lg flex flex-col items-center justify-center bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 hover:bg-slate-750 text-cyan-400 hover:text-cyan-300 transition-all disabled:opacity-50 disabled:grayscale shadow-lg"
+                                    className={`flex-1 h-16 rounded-lg flex flex-col items-center justify-center border transition-all shadow-lg ${!allowDownloads ? 'bg-slate-800 border-slate-600 text-amber-500 hover:bg-slate-700 hover:border-amber-400' : 'bg-slate-800 border-cyan-500/30 hover:border-cyan-400 hover:bg-slate-750 text-cyan-400 hover:text-cyan-300 disabled:opacity-50 disabled:grayscale'}`}
                                 >
-                                    {isProcessing ? <LoaderIcon className="w-5 h-5 mb-1"/> : <DownloadIcon className="w-5 h-5 mb-1" />}
-                                    <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider">{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span>
+                                    {!allowDownloads ? (
+                                        <>
+                                            <LockIcon className="w-5 h-5 mb-1 text-amber-500"/>
+                                            <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-amber-500">{uiLanguage === 'ar' ? 'مغلق' : 'Locked'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {isProcessing ? <LoaderIcon className="w-5 h-5 mb-1"/> : <DownloadIcon className="w-5 h-5 mb-1" />}
+                                            <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider">{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
