@@ -1,8 +1,10 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from "@google/genai";
 
 /**
- * A serverless function to verify that the necessary server-side configuration (API_KEY) is present and valid.
+ * A serverless function to verify server-side configuration.
+ * Returns status AND masked keys for owner verification.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -11,30 +13,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const apiKey = process.env.API_KEY;
+  const firebaseProject = process.env.VITE_FIREBASE_PROJECT_ID;
 
-  if (!apiKey || apiKey.trim() === '') {
-    return res.status(200).json({ 
-      configured: false, 
-      message: 'The API_KEY environment variable is not set or is empty in Vercel.' 
-    });
-  }
-  
-  try {
-    // This is a cheap, synchronous check for a syntactically valid key format.
-    // The constructor will throw an error if the key is malformed (e.g., contains invalid characters).
-    new GoogleGenAI({ apiKey });
-    
-    // If we reach here, the key format is syntactically valid.
-    return res.status(200).json({ configured: true });
+  const responseData: any = {
+      configured: false,
+      details: {
+          gemini: 'Missing',
+          firebase: 'Missing'
+      }
+  };
 
-  } catch (error: any) {
-      console.error("API key validation failed during instantiation:", error);
+  if (apiKey && apiKey.trim() !== '') {
+      const last4 = apiKey.slice(-4);
+      responseData.details.gemini = `Present (Ends in ...${last4})`;
       
-      // If the constructor throws, the key is likely malformed. Return a static, safe message
-      // to avoid sending a complex error object that could break client-side JSON parsing.
-      return res.status(200).json({ 
-          configured: false, 
-          message: 'API key validation failed: The key appears to be malformed or invalid.'
-      });
+      // Check validity
+      try {
+          new GoogleGenAI({ apiKey });
+          responseData.configured = true;
+      } catch (e) {
+          responseData.details.gemini = `Invalid Format`;
+      }
   }
+
+  if (firebaseProject) {
+      responseData.details.firebase = `Present (${firebaseProject})`;
+  }
+
+  return res.status(200).json(responseData);
 }
