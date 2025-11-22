@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
@@ -1041,7 +1040,11 @@ const App: React.FC = () => {
   const handleSignIn = () => {
       const { app, auth, isFirebaseConfigured } = getFirebase();
       if (!isFirebaseConfigured || !app || !auth) {
-          alert("Login service is not currently available (Firebase Config Missing).");
+          // Show localized error message directing user to the Owner Guide
+          const msg = uiLanguage === 'ar' 
+            ? "عذراً، لم يتم ربط التطبيق بقاعدة البيانات بعد.\n\nيرجى مراجعة 'دليل الإعداد' في أعلى الصفحة لإضافة مفاتيح Firebase في Vercel."
+            : "Setup Required: Firebase is not connected.\nPlease check the 'Owner Setup Guide' at the top of the page to add keys in Vercel.";
+          alert(msg);
           return;
       }
       const provider = new GoogleAuthProvider();
