@@ -123,16 +123,19 @@ service cloud.firestore {
             {/* Step 1 & 2 */}
             <div>
                 <h5 className="font-semibold">1. {t('firebaseSetupStep1Title', uiLanguage)} & {t('firebaseSetupStep2Title', uiLanguage)}</h5>
-                <p className="mt-1 text-slate-400 text-xs">{t('firebaseSetupStep1Body', uiLanguage)} {t('firebaseSetupStep2Body', uiLanguage)}</p>
-            </div>
-             {/* Step 3 */}
-            <div>
-                <h5 className="font-semibold">2. {t('firebaseSetupStep3Title', uiLanguage)}</h5>
                 <p className="mt-1 text-slate-400 text-xs">
-                    You need to add **two sets** of variables to Vercel: one for the client (browser) and one for the server (API).
+                    You have already done this! ✅ Your screenshots confirm the Project, Firestore, and Rules are ready.
+                </p>
+            </div>
+             {/* Step 3 - Enhanced Instructions */}
+            <div>
+                <h5 className="font-semibold text-amber-400 animate-pulse">2. {t('firebaseSetupStep3Title', uiLanguage)} (Required!)</h5>
+                <p className="mt-1 text-slate-300 text-sm font-bold bg-slate-800 p-2 rounded border border-slate-600">
+                    🛑 Go to Project Settings {'>'} General (scroll down) {'>'} Your apps. <br/>
+                    Click the `&lt;/&gt;` icon to register a Web App. Copy the `const firebaseConfig` values below.
                 </p>
                 
-                <p className="mt-2 font-medium text-sm text-slate-300">Client-Side (for Login & History):</p>
+                <p className="mt-2 font-medium text-sm text-slate-300">Client-Side (Add to Vercel Env Variables):</p>
                 <div dir="ltr" className="relative my-2 p-3 bg-slate-900 rounded-md font-mono text-xs text-cyan-300 text-left">
                     <pre className="whitespace-pre-wrap"><code>{firebaseClientEnvVars}</code></pre>
                     <button onClick={() => handleCopy(firebaseClientEnvVars, 'vars')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
@@ -140,7 +143,7 @@ service cloud.firestore {
                     </button>
                 </div>
                 
-                <p className="mt-2 font-medium text-sm text-slate-300">Server-Side (for Feedback API):</p>
+                <p className="mt-2 font-medium text-sm text-slate-300">Server-Side (Add to Vercel Env Variables):</p>
                 <div dir="ltr" className="relative my-2 p-3 bg-slate-900 rounded-md font-mono text-xs text-lime-300 text-left">
                     <pre className="whitespace-pre-wrap"><code>{firebaseServerEnvVars}</code></pre>
                      <button onClick={() => handleCopy(firebaseServerEnvVars, 'serviceAccount')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
@@ -151,13 +154,7 @@ service cloud.firestore {
             {/* Step 4 */}
             <div>
                 <h5 className="font-semibold">3. {t('firebaseSetupStep4Title', uiLanguage)}</h5>
-                <p className="mt-1 text-slate-400 text-xs">{t('firebaseSetupStep4Body', uiLanguage)}</p>
-                <div dir="ltr" className="relative my-2 p-3 bg-slate-900 rounded-md font-mono text-xs text-yellow-300 text-left">
-                    <pre className="whitespace-pre-wrap"><code>{firestoreRules}</code></pre>
-                    <button onClick={() => handleCopy(firestoreRules, 'rules')} className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1">
-                        <CopyIcon /> {rulesCopyButtonText}
-                    </button>
-                </div>
+                <p className="mt-1 text-slate-400 text-xs">You have already done this! ✅</p>
             </div>
              {/* Step 5 */}
              <div>
