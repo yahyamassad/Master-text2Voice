@@ -61,10 +61,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         const filtered = systemVoices.filter(v => {
             const vLang = v.lang.toLowerCase().replace('_', '-');
-            return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode);
+            return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode) || vLang.includes(sourceLangCode) || vLang.includes(targetLangCode);
         });
 
-        // 3. If no voices found for specific languages, return ALL voices to avoid empty list
+        // If no voices found for specific languages, return ALL voices to avoid empty list
         return filtered.length > 0 ? filtered : systemVoices;
     }, [systemVoices, sourceLang, targetLang]);
 
