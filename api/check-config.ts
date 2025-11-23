@@ -45,31 +45,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Check Firebase Details Individually
   if (firebaseProject) {
       responseData.details.firebaseProject = `Present (${firebaseProject})`;
+  } else {
+      responseData.details.firebaseProject = 'Missing (Check FIREBASE_PROJECT_ID)';
   }
   
   if (firebaseEmail) {
-      responseData.details.firebaseEmail = `Present (${firebaseEmail.split('@')[0]}...)`;
+      const emailParts = firebaseEmail.split('@');
+      const maskedEmail = emailParts.length > 1 ? `${emailParts[0].substring(0, 3)}...@${emailParts[1]}` : 'Invalid Format';
+      responseData.details.firebaseEmail = `Present (${maskedEmail})`;
+  } else {
+      responseData.details.firebaseEmail = 'Missing (Check FIREBASE_CLIENT_EMAIL)';
   }
 
   if (firebaseKey) {
       // Check for common formatting issues with the private key
-      // It must contain the header/footer and properly formatted newlines
       const hasBegin = firebaseKey.includes('BEGIN PRIVATE KEY');
-      const hasEnd = firebaseKey.includes('END PRIVATE KEY');
       
-      // Check if it's a one-liner (which is often the issue in Vercel)
-      // A valid key has many newlines.
-      const hasNewlines = firebaseKey.includes('\n') || firebaseKey.includes('\\n'); 
+      // CRITICAL: Vercel env vars sometimes strip newlines if not pasted correctly.
+      // We check for literal newline characters or escaped newlines.
+      const hasRealNewlines = firebaseKey.includes('\n');
+      const hasEscapedNewlines = firebaseKey.includes('\\n');
       
-      if (hasBegin && hasEnd) {
-          if (hasNewlines) {
-               responseData.details.firebaseKey = `Valid Format (${firebaseKey.length} chars)`;
-          } else {
-               responseData.details.firebaseKey = `Warning: No newlines detected. Ensure 'real' newlines are used.`;
-          }
+      if (!hasBegin) {
+          responseData.details.firebaseKey = `Invalid: Missing Header (-----BEGIN PRIVATE KEY-----)`;
+      } else if (!hasRealNewlines && !hasEscapedNewlines) {
+          responseData.details.firebaseKey = `Invalid: Key is one long line. Needs newlines.`;
       } else {
-          responseData.details.firebaseKey = `Invalid: Missing Header/Footer (Check Copy/Paste)`;
+          responseData.details.firebaseKey = `Valid Format (${firebaseKey.length} chars)`;
       }
+  } else {
+      responseData.details.firebaseKey = 'Missing (Check FIREBASE_PRIVATE_KEY)';
   }
 
   return res.status(200).json(responseData);
