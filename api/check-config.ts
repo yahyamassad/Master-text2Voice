@@ -76,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!hasBegin || !hasEnd) {
           responseData.details.firebaseKey = `Invalid: Missing Header/Footer`;
       } else if (hasLiteralSlashN && !hasRealNewline) {
-          // We treat this as VALID now because api/feedback.ts automatically fixes it using .replace(/\\n/g, '\n')
+          // We treat this as VALID because api/feedback.ts automatically fixes it using .replace(/\\n/g, '\n')
           responseData.details.firebaseKey = `Valid (Auto-Fixed)`;
       } else if (hasRealNewline) {
           responseData.details.firebaseKey = `Valid (Multi-line)`;
