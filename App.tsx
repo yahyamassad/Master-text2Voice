@@ -358,19 +358,15 @@ const App: React.FC = () => {
   // Helper to refresh voices and update state if changed
   const refreshVoices = useCallback(() => {
       const voices = window.speechSynthesis.getVoices();
-      // Only update if the list has actually changed in length or was empty and now has something
-      // This prevents infinite loops if we just depend on [systemVoices] without check
       setSystemVoices(prev => {
-          if (voices.length !== prev.length && voices.length > 0) {
+          // Update if count changed OR if we had 0 voices and now have some
+          if (voices.length !== prev.length || (prev.length === 0 && voices.length > 0)) {
               return voices;
           }
-          // If lengths match but content differs (unlikely but possible), deep check could go here
-          // For now, length check + non-empty check is usually enough for the "disappearing" bug
-          return prev.length === 0 && voices.length > 0 ? voices : prev;
+          return prev;
       });
       
-      // If current voice is invalid or default, try to set a better one based on language
-      // We do this inside the effect usually, but triggering it here helps too
+      // Ensure current voice selection is valid
       if (!voice || (!GEMINI_VOICES.includes(voice) && !voices.some(v => v.name === voice))) {
            const defaultVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
            if (defaultVoice && !GEMINI_VOICES.includes(voice)) {
@@ -380,23 +376,18 @@ const App: React.FC = () => {
   }, [voice]);
 
   useEffect(() => {
-    // Initial attempt
     refreshVoices();
-
-    // Event listener for Chrome/Edge async loading
     window.speechSynthesis.onvoiceschanged = refreshVoices;
 
-    // Periodic check fallback (sometimes onvoiceschanged doesn't fire on mobile)
-    // We check if the count CHANGED, not just if it was zero.
-    const intervalId = setInterval(refreshVoices, 2000);
+    // Aggressive Polling for Mobile/Chrome that might miss the event
+    const intervalId = setInterval(refreshVoices, 1000);
 
-    // Keep-alive for SpeechSynthesis (Chrome bug workaround)
     const keepAliveInterval = setInterval(() => {
         if (window.speechSynthesis && window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
             window.speechSynthesis.pause();
             window.speechSynthesis.resume();
         }
-    }, 14000); // Every 14 seconds
+    }, 14000);
 
     return () => {
         window.speechSynthesis.onvoiceschanged = null;
@@ -690,10 +681,8 @@ const App: React.FC = () => {
                 
                 if (!selectedVoice) {
                     const targetLangCode = target === 'source' ? sourceLang : targetLang;
-                    const targetSpeechCode = translationLanguages.find(l => l.code === targetLangCode)?.speechCode || 'en-US';
-                    // Broader search if strict match fails
-                    selectedVoice = systemVoices.find(v => v.lang === targetSpeechCode) 
-                                 || systemVoices.find(v => v.lang.startsWith(targetLangCode))
+                    // Fallback logic: case-insensitive match
+                    selectedVoice = systemVoices.find(v => v.lang.toLowerCase().includes(targetLangCode.toLowerCase())) 
                                  || systemVoices[0];
                 }
 
