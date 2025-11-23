@@ -1074,17 +1074,47 @@ const App: React.FC = () => {
       const provider = new GoogleAuthProvider();
       signInWithPopup(auth as any, provider).catch(error => {
           console.error("Sign-in error:", error);
-          // Specific meaningful error
-          if (error.code === 'auth/configuration-not-found' || error.code === 'auth/api-key-not-valid') {
-               alert("Sign-in failed: Configuration Mismatch. Please Redeploy your Vercel project to update the keys.");
+          
+          const errorCode = error.code;
+          const errorMessage = error.message;
+
+          // Enhanced Error Handling for Auth Issues
+          if (errorCode === 'auth/operation-not-allowed') {
+               const isRtl = uiLanguage === 'ar';
+               const msg = isRtl 
+                 ? `خطأ: العملية غير مسموح بها (${errorCode}).\nيرجى التأكد من تفعيل مزود Google في Firebase Console > Authentication.`
+                 : `Error: Operation not allowed (${errorCode}).\nPlease ensure the Google provider is enabled in Firebase Console > Authentication.`;
+               alert(msg);
+          } else if (errorCode === 'auth/unauthorized-domain') {
+               const isRtl = uiLanguage === 'ar';
+               const msg = isRtl 
+                 ? `خطأ النطاق غير مصرح به (${errorCode}).\nيرجى إضافة هذا النطاق إلى 'Authorized Domains' في Firebase Console.`
+                 : `Error: Unauthorized Domain (${errorCode}).\nPlease add this domain to 'Authorized Domains' in Firebase Console.`;
+               alert(msg);
+          } else if (errorCode === 'auth/popup-closed-by-user') {
+               // User closed popup, ignore
+          } else if (errorCode === 'auth/popup-blocked') {
+               alert(t('errorUnexpected', uiLanguage) + " (Popup Blocked)");
+          } else if (errorCode === 'auth/invalid-api-key') {
+               alert("Invalid API Key. Please check Vercel environment variables.");
           } else {
-               setError(t('signInError', uiLanguage));
+               // Fallback: Show the raw code to help debugging
+               const isRtl = uiLanguage === 'ar';
+               const msg = isRtl 
+                 ? `فشل تسجيل الدخول.\nالكود: ${errorCode}\nالرسالة: ${errorMessage}\n\nنصيحة للمطور: تأكد من إعدادات OAuth Client ID في Google Cloud.`
+                 : `Sign-in failed.\nCode: ${errorCode}\nMessage: ${errorMessage}\n\nTip for Dev: Check OAuth Client ID settings in Google Cloud.`;
+               alert(msg);
           }
       });
   };
 
   const handleSignOut = useCallback(() => {
       const { app, auth, isFirebaseConfigured } = getFirebase();
+      
+      // Force clear dev mode sticky session
+      sessionStorage.removeItem('sawtli_dev_mode');
+      setIsDevMode(false);
+
       if (!isFirebaseConfigured || !app || !auth) return;
       signOut(auth as any).catch(error => console.error("Sign-out error:", error));
   }, [isFirebaseConfigured]);
