@@ -15,17 +15,16 @@ let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let auth: Auth | null = null;
 
-// Safely access environment variables. In some environments (like this preview),
-// `import.meta.env` might be undefined. This approach prevents a TypeError.
-const env = (import.meta as any)?.env || {};
-
+// CRITICAL FIX: Access environment variables EXPLICITLY.
+// Vite statically replaces `import.meta.env.VITE_KEY` strings at build time.
+// Dynamic access (e.g. `env['VITE_KEY']`) fails in production because the object isn't bundled fully.
 const firebaseConfig = {
-    apiKey: env.VITE_FIREBASE_API_KEY,
-    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: env.VITE_FIREBASE_APP_ID,
+    apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY,
+    authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: (import.meta as any).env.VITE_FIREBASE_APP_ID,
 };
 
 // Determine if the config values exist
