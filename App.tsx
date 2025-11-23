@@ -380,8 +380,10 @@ const App: React.FC = () => {
     window.speechSynthesis.onvoiceschanged = refreshVoices;
 
     // Aggressive Polling for Mobile/Chrome that might miss the event
+    // Some browsers (Chrome Android) load voices asynchronously without firing events reliably
     const intervalId = setInterval(refreshVoices, 1000);
 
+    // Keep Alive for SpeechSynthesis (it times out after 15s in Chrome)
     const keepAliveInterval = setInterval(() => {
         if (window.speechSynthesis && window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
             window.speechSynthesis.pause();
@@ -681,7 +683,7 @@ const App: React.FC = () => {
                 
                 if (!selectedVoice) {
                     const targetLangCode = target === 'source' ? sourceLang : targetLang;
-                    // Fallback logic: case-insensitive match
+                    // Fallback logic: case-insensitive match and loose searching
                     selectedVoice = systemVoices.find(v => v.lang.toLowerCase().includes(targetLangCode.toLowerCase())) 
                                  || systemVoices[0];
                 }
