@@ -128,6 +128,22 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
 
     if (!isGuideOpen) return null;
 
+    // Loading State to prevent flash of "Error"
+    if (checking && !serverStatus) {
+        return (
+             <div className="p-6 border border-slate-700 rounded-xl bg-slate-800/80 animate-pulse mb-8 shadow-xl">
+                 <div className="flex items-center justify-between mb-4">
+                    <div className="h-6 bg-slate-700 rounded w-1/3"></div>
+                    <div className="h-6 bg-slate-700 rounded w-16"></div>
+                 </div>
+                 <div className="space-y-3">
+                     <div className="h-4 bg-slate-700 rounded w-full"></div>
+                     <div className="h-4 bg-slate-700 rounded w-3/4"></div>
+                 </div>
+             </div>
+        );
+    }
+
     const keyStatus = serverStatus?.details?.firebaseKey || '';
     const isAutoFixed = keyStatus.includes('Auto-Fixed') || keyStatus.includes('Auto-fixing') || keyStatus.includes('Auto-corrected');
 
@@ -161,11 +177,12 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
         );
     } else if (isServerReady && !isFirebaseConfigured) {
         // INTERMEDIATE STATE: SERVER READY, FRONTEND MISSING
-        containerStyle = "bg-slate-800/95 border-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.1)]";
-        headerIcon = <CheckIcon className="w-6 h-6 text-cyan-400" />;
-        headerTitleColor = "text-cyan-400";
-        headerBg = "bg-cyan-900/30 border-cyan-500/30";
-        titleText = uiLanguage === 'ar' ? 'اكتمل إعداد الخادم!' : 'Server Config Complete!';
+        // We use a Teal/Blue theme here to indicate "Good progress, but one more step"
+        containerStyle = "bg-slate-800/95 border-teal-500/50 shadow-[0_0_20px_rgba(45,212,191,0.15)]";
+        headerIcon = <CheckIcon className="w-6 h-6 text-teal-400" />;
+        headerTitleColor = "text-teal-400";
+        headerBg = "bg-teal-900/30 border-teal-500/30";
+        titleText = uiLanguage === 'ar' ? 'اكتمل إعداد الخادم!' : 'Almost Done! Server Ready';
         descriptionText = uiLanguage === 'ar' 
             ? 'الخادم جاهز. الخطوة التالية: إعداد الواجهة الأمامية (Frontend).' 
             : 'Server-side is ready. Next step: Configure Frontend variables.';
@@ -201,7 +218,7 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
             <div className="mt-4 border-t border-slate-700 pt-4 space-y-4 text-sm">
                 
                 {/* Diagnostics Panel (Collapsible if valid) */}
-                <div className={`rounded-lg border relative overflow-hidden transition-all duration-300 ${isServerReady ? 'bg-green-900/10 border-green-500/20' : 'bg-black/20 border-slate-700'}`}>
+                <div className={`rounded-lg border relative overflow-hidden transition-all duration-300 ${isServerReady ? 'bg-green-950/20 border-green-500/20' : 'bg-black/20 border-slate-700'}`}>
                     <div 
                         className="p-3 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors"
                         onClick={() => setExpandServerDetails(!expandServerDetails)}
@@ -235,7 +252,8 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                                         <div className="mt-3 p-2 bg-green-900/20 border border-green-500/30 text-green-300 rounded text-[10px] leading-relaxed flex gap-2 items-start">
                                             <CheckIcon className="w-3 h-3 mt-0.5 flex-shrink-0 text-green-400" />
                                             <div>
-                                                <strong>Fixed:</strong> Your Private Key format was corrected automatically.
+                                                <strong>Good news:</strong> Your Private Key format was corrected automatically.
+                                                <div className="opacity-70 mt-0.5">{uiLanguage === 'ar' ? 'تم إصلاح تنسيق المفتاح تلقائياً. يمكنك المتابعة.' : 'System auto-fixed the key format. You are good to go.'}</div>
                                             </div>
                                         </div>
                                     )}
@@ -251,12 +269,12 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
 
                 {/* Frontend Config Missing Warning - Highlights when it's the next step */}
                 {!isFirebaseConfigured && (
-                    <div className={`space-y-3 pt-2 transition-all ${isServerReady ? 'opacity-100 scale-100' : 'opacity-70'}`}>
+                    <div className={`space-y-3 pt-2 transition-all duration-500 ${isServerReady ? 'opacity-100 scale-100' : 'opacity-70 blur-[1px]'}`}>
                         <div className="flex items-center gap-2 text-cyan-400">
                             <div className="bg-cyan-900/30 p-1.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.3)]">
                                 <InfoIcon className="w-4 h-4" />
                             </div>
-                            <h5 className="font-bold text-sm uppercase tracking-wide">Action Required: Configure Frontend</h5>
+                            <h5 className="font-bold text-sm uppercase tracking-wide">ACTION REQUIRED: CONFIGURE FRONTEND</h5>
                         </div>
                         
                         <p className="text-xs text-slate-400 leading-relaxed ml-1">
@@ -272,3 +290,4 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
         </div>
     );
 }
+    
