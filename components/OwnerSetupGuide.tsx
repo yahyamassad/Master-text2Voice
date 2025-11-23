@@ -26,7 +26,7 @@ interface OwnerSetupGuideProps {
 function StatusRow({ label, value }: { label: string, value?: string }) {
     const val = value || '';
     
-    // Determine status. We treat "Auto-Fixed" as completely valid (Green).
+    // Determine status. We treat "Auto-Fixed" and "Auto-fixing" as completely valid (Green).
     const isOk = val.includes('Present') || val.includes('Valid') || val.includes('Auto-Fixed') || val.includes('Auto-fixing') || val.includes('Auto-corrected');
     // Only warn if explicit invalid or missing
     const isError = val.includes('Missing') || val.includes('Invalid');
@@ -64,16 +64,28 @@ function FirebaseSetup({ uiLanguage }: { uiLanguage: Language }) {
     };
 
     return (
-        <div className="space-y-2 mt-4 border-t border-slate-700 pt-4">
-            <h5 className="font-bold text-slate-200">Missing Firebase Client Config (Frontend)</h5>
-            <div dir="ltr" className="relative p-3 bg-slate-900 rounded-md font-mono text-xs text-cyan-300 text-left border border-slate-700">
-                <pre className="whitespace-pre-wrap opacity-50"><code>{firebaseClientEnvVars}</code></pre>
+        <div className="space-y-4 mt-4 border-t border-slate-700 pt-4 animate-fade-in-down">
+            <div className="flex items-center gap-2 text-cyan-400">
+                <div className="bg-cyan-900/30 p-1.5 rounded-full animate-pulse">
+                    <InfoIcon className="w-5 h-5" />
+                </div>
+                <h5 className="font-bold text-lg">Action Required: Configure Frontend</h5>
+            </div>
+            
+            <p className="text-sm text-slate-400 leading-relaxed">
+                {uiLanguage === 'ar' 
+                    ? 'ممتاز! الخادم يعمل. الآن انسخ إعدادات Firebase الخاصة بتطبيق الويب وأضفها كمتغيرات بيئة في Vercel.'
+                    : 'Great! Server is ready. Now copy your Firebase Web App config and add them as Environment Variables in Vercel.'}
+            </p>
+
+            <div dir="ltr" className="relative p-4 bg-slate-900 rounded-xl font-mono text-xs text-cyan-300 text-left border-2 border-cyan-500/30 shadow-[0_0_20px_rgba(34,211,238,0.1)]">
+                <pre className="whitespace-pre-wrap opacity-80"><code>{firebaseClientEnvVars}</code></pre>
                 <button 
                     onClick={handleCopy} 
-                    className="absolute top-2 right-2 px-3 py-1.5 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-2 transition-all border border-slate-600"
+                    className="absolute top-3 right-3 px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-cyan-600 flex items-center gap-2 transition-all border border-slate-600 hover:border-cyan-400 shadow-lg"
                 >
-                    {copied ? <CheckIcon className="w-3 h-3 text-green-400" /> : <CopyIcon className="w-3 h-3" />}
-                    {copied ? (uiLanguage === 'ar' ? 'تم النسخ' : 'Copied') : (uiLanguage === 'ar' ? 'نسخ' : 'Copy')}
+                    {copied ? <CheckIcon className="w-4 h-4 text-white" /> : <CopyIcon className="w-4 h-4" />}
+                    {copied ? (uiLanguage === 'ar' ? 'تم النسخ' : 'Copied') : (uiLanguage === 'ar' ? 'نسخ الكل' : 'Copy All')}
                 </button>
             </div>
         </div>
@@ -123,53 +135,91 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     // Robust check for any form of auto-fixing string to ensure the message appears
     const isAutoFixed = keyStatus.includes('Auto-Fixed') || keyStatus.includes('Auto-fixing') || keyStatus.includes('Auto-corrected');
 
+    // Logic to determine if Server is fully ready
+    const isServerReady = 
+        serverStatus?.details?.gemini?.includes('Present') &&
+        serverStatus?.details?.firebaseProject?.includes('Present') &&
+        serverStatus?.details?.firebaseEmail?.includes('Present') &&
+        (serverStatus?.details?.firebaseKey?.includes('Valid') || isAutoFixed);
+
+    const isFullyConfigured = isServerReady && isFirebaseConfigured;
+
+    // Dynamic Styling based on state
+    const containerStyle = isServerReady 
+        ? "bg-slate-800/95 border-blue-500/50 shadow-blue-900/20" 
+        : "bg-slate-800/95 border-amber-500/50 shadow-amber-900/20";
+    
+    const headerIcon = isServerReady 
+        ? <CheckIcon className="w-6 h-6 text-green-400" /> 
+        : <WarningIcon className="w-6 h-6 text-amber-400" />;
+        
+    const headerBg = isServerReady ? "bg-green-900/30 border-green-500/30" : "bg-amber-900/30 border-amber-500/30";
+    const headerTitleColor = isServerReady ? "text-green-400" : "text-amber-400";
+
+    // If fully configured, we might want to auto-hide or show a success banner
+    if (isFullyConfigured) {
+        return (
+             <div className="p-4 bg-green-900/20 border border-green-500/30 rounded-xl text-green-200 text-center mb-8 flex items-center justify-between">
+                 <span className="flex items-center gap-2 font-bold">
+                     <CheckIcon className="w-5 h-5" /> 
+                     {uiLanguage === 'ar' ? 'تم الانتهاء من جميع الإعدادات بنجاح!' : 'All Systems Operational! Setup Complete.'}
+                 </span>
+                 <button onClick={handlePermanentDismiss} className="text-xs underline hover:text-white">{uiLanguage === 'ar' ? 'إخفاء' : 'Hide'}</button>
+             </div>
+        );
+    }
+
     return (
-        <div className="p-5 bg-slate-800/95 border border-amber-500/50 rounded-xl text-slate-300 shadow-2xl backdrop-blur-md relative overflow-hidden mb-8 animate-fade-in-down">
+        <div className={`p-5 border rounded-xl text-slate-300 shadow-2xl backdrop-blur-md relative overflow-hidden mb-8 animate-fade-in-down ${containerStyle}`}>
             {/* Header */}
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-start gap-3">
-                    <div className="bg-amber-900/30 p-2 rounded-lg border border-amber-500/30">
-                        <WarningIcon className="w-6 h-6 text-amber-400" />
+                    <div className={`p-2 rounded-lg border ${headerBg}`}>
+                        {headerIcon}
                     </div>
                     <div>
-                        <h3 className="font-bold text-amber-400 text-lg">{t('appOwnerNoticeTitle', uiLanguage)}</h3>
+                        <h3 className={`font-bold text-lg ${headerTitleColor}`}>
+                            {isServerReady 
+                                ? (uiLanguage === 'ar' ? 'اكتمل إعداد الخادم!' : 'Server Config Complete!')
+                                : t('appOwnerNoticeTitle', uiLanguage)}
+                        </h3>
                         <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
-                            {uiLanguage === 'ar' 
-                                ? 'رسالة للمطور: هذا القسم يظهر لك فقط لمساعدتك في حل مشاكل الإعداد.'
-                                : 'Dev Message: This section is visible only to you to help debug setup issues.'}
+                            {isServerReady 
+                                ? (uiLanguage === 'ar' ? 'الخادم جاهز. الخطوة التالية: إعداد الواجهة الأمامية (Frontend).' : 'Server-side is ready. Next step: Configure Frontend variables.')
+                                : (uiLanguage === 'ar' ? 'رسالة للمطور: الرجاء إصلاح أخطاء الخادم أدناه.' : 'Dev Message: Please fix the server configuration errors below.')}
                         </p>
                     </div>
                 </div>
                 <button 
                     onClick={handlePermanentDismiss}
-                    className="text-xs bg-red-900/30 hover:bg-red-900/50 text-red-200 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30 flex items-center gap-1"
+                    className="text-xs bg-slate-700/50 hover:bg-slate-700 text-slate-400 px-3 py-1.5 rounded-lg transition-colors border border-slate-600 flex items-center gap-1"
                     title="Don't show again"
                 >
                     <TrashIcon className="w-3 h-3" />
-                    {uiLanguage === 'ar' ? 'إخفاء نهائي' : 'Dismiss'}
+                    {uiLanguage === 'ar' ? 'إخفاء' : 'Dismiss'}
                 </button>
             </div>
             
             <div className="mt-4 border-t border-slate-700 pt-4 space-y-6 text-sm">
                 
                 {/* Diagnostics Panel */}
-                <div className="bg-blue-900/10 border border-blue-500/30 p-4 rounded-lg relative overflow-hidden">
-                    <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-bold text-blue-400 flex items-center gap-2 text-base">
+                <div className={`rounded-lg relative overflow-hidden transition-all ${isServerReady ? 'bg-green-900/10 border border-green-500/20 opacity-80 hover:opacity-100' : 'bg-blue-900/10 border border-blue-500/30'}`}>
+                    <div className="p-3 flex justify-between items-center bg-black/20 border-b border-white/5">
+                        <h4 className={`font-bold flex items-center gap-2 text-base ${isServerReady ? 'text-green-400' : 'text-blue-400'}`}>
                             <InfoIcon className="w-5 h-5" />
-                            {uiLanguage === 'ar' ? 'حالة الخادم (Server Config)' : 'Server Configuration Status'}
+                            {uiLanguage === 'ar' ? 'حالة الخادم (Server Config)' : 'Server Status'}
                         </h4>
                         <button 
                             onClick={checkServerConfig} 
                             disabled={checking}
-                            className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md font-bold text-xs transition-colors flex items-center gap-2 disabled:opacity-50"
+                            className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded-md font-bold text-xs transition-colors flex items-center gap-2 disabled:opacity-50"
                         >
-                            {checking ? <span className="animate-pulse">...</span> : <span>{uiLanguage === 'ar' ? 'تحديث الحالة' : 'Refresh'}</span>}
+                            {checking ? <span className="animate-pulse">...</span> : <span>{uiLanguage === 'ar' ? 'تحديث' : 'Check'}</span>}
                         </button>
                     </div>
 
                     {serverStatus && !serverStatus.error && serverStatus.details ? (
-                        <div className="p-4 bg-black/40 rounded-lg border border-slate-600/50 space-y-2">
+                        <div className="p-4 space-y-2">
                             <StatusRow label="Gemini API Key" value={serverStatus.details.gemini} />
                             <StatusRow label="Firebase Project" value={serverStatus.details.firebaseProject} />
                             <StatusRow label="Firebase Email" value={serverStatus.details.firebaseEmail} />
@@ -177,10 +227,10 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                             
                             {/* Specific Success Message for Auto-Fixed keys */}
                             {isAutoFixed && (
-                                <div className="mt-3 p-2 bg-green-900/30 border border-green-500/50 text-green-200 rounded text-xs leading-relaxed flex gap-2 items-start">
-                                    <CheckIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                <div className="mt-3 p-2 bg-green-900/30 border border-green-500/50 text-green-200 rounded text-xs leading-relaxed flex gap-2 items-start animate-fade-in">
+                                    <CheckIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-400" />
                                     <div>
-                                        <strong>Good news:</strong> Your Private Key format was corrected automatically by our system. 
+                                        <strong>Good news:</strong> Your Private Key format was corrected automatically. 
                                         <br/>
                                         {uiLanguage === 'ar' ? 'تم إصلاح تنسيق المفتاح تلقائياً. يمكنك المتابعة.' : 'The key format was fixed automatically. You are good to go.'}
                                     </div>
@@ -188,13 +238,13 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                             )}
                         </div>
                     ) : (
-                        <div className="p-4 bg-black/20 rounded-lg border border-slate-700 text-center text-slate-500 italic">
-                            {checking ? 'Checking connection...' : (serverStatus?.error || 'Click Refresh to check status')}
+                        <div className="p-4 text-center text-slate-500 italic">
+                            {checking ? 'Checking connection...' : (serverStatus?.error || 'Click Check to verify server')}
                         </div>
                     )}
                 </div>
 
-                {/* Frontend Config Missing Warning */}
+                {/* Frontend Config Missing Warning - Shows ONLY if not configured */}
                 {!isFirebaseConfigured && <FirebaseSetup uiLanguage={uiLanguage} />}
             </div>
         </div>
