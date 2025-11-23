@@ -12,12 +12,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const apiKey = process.env.API_KEY;
+  const env = process.env;
+  
+  const apiKey = env.API_KEY;
   
   // Server-side Firebase Admin variables
-  const firebaseProject = process.env.FIREBASE_PROJECT_ID;
-  const firebaseEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const firebaseKey = process.env.FIREBASE_PRIVATE_KEY;
+  const firebaseProject = env.FIREBASE_PROJECT_ID;
+  const firebaseEmail = env.FIREBASE_CLIENT_EMAIL;
+  const firebaseKey = env.FIREBASE_PRIVATE_KEY;
 
   const responseData: any = {
       configured: false,
@@ -29,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
   };
 
-  // Check Gemini
+  // 1. Check Gemini
   if (apiKey && apiKey.trim() !== '') {
       const last4 = apiKey.length > 4 ? apiKey.slice(-4) : '****';
       try {
@@ -42,14 +44,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
   }
 
-  // Check Firebase Details Individually
-  if (firebaseProject) {
+  // 2. Check Firebase Project ID
+  if (firebaseProject && firebaseProject.trim().length > 0) {
       responseData.details.firebaseProject = `Present (${firebaseProject})`;
   } else {
       responseData.details.firebaseProject = 'Missing (Check FIREBASE_PROJECT_ID)';
   }
   
-  if (firebaseEmail) {
+  // 3. Check Firebase Email
+  if (firebaseEmail && firebaseEmail.trim().length > 0) {
       const emailParts = firebaseEmail.split('@');
       const maskedEmail = emailParts.length > 1 ? `${emailParts[0].substring(0, 3)}...@${emailParts[1]}` : 'Invalid Format';
       responseData.details.firebaseEmail = `Present (${maskedEmail})`;
@@ -57,25 +60,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       responseData.details.firebaseEmail = 'Missing (Check FIREBASE_CLIENT_EMAIL)';
   }
 
-  if (firebaseKey) {
-      // Check for common formatting issues with the private key
+  // 4. Check Firebase Private Key (The most common point of failure)
+  if (firebaseKey && firebaseKey.trim().length > 0) {
+      // Check for common formatting issues
       const hasBegin = firebaseKey.includes('BEGIN PRIVATE KEY');
+      const hasEnd = firebaseKey.includes('END PRIVATE KEY');
       
       // CRITICAL: Vercel env vars sometimes strip newlines if not pasted correctly.
       // We check for literal newline characters or escaped newlines.
       const hasRealNewlines = firebaseKey.includes('\n');
       const hasEscapedNewlines = firebaseKey.includes('\\n');
       
-      if (!hasBegin) {
-          responseData.details.firebaseKey = `Invalid: Missing Header (-----BEGIN PRIVATE KEY-----)`;
+      if (!hasBegin || !hasEnd) {
+          responseData.details.firebaseKey = `Invalid: Missing Header/Footer (BEGIN/END PRIVATE KEY)`;
       } else if (!hasRealNewlines && !hasEscapedNewlines) {
-          responseData.details.firebaseKey = `Invalid: Key is one long line. Needs newlines.`;
+          responseData.details.firebaseKey = `Invalid: Key is a single long line. It MUST have newlines.`;
       } else {
-          responseData.details.firebaseKey = `Valid Format (${firebaseKey.length} chars)`;
+          // It looks okay, let's see if we can parse it
+          try {
+             const formattedKey = firebaseKey.replace(/\\n/g, '\n');
+             if (formattedKey.length > 100) {
+                 responseData.details.firebaseKey = `Valid Format (${formattedKey.length} chars)`;
+             } else {
+                 responseData.details.firebaseKey = `Invalid: Too short`;
+             }
+          } catch(e) {
+              responseData.details.firebaseKey = `Error Parsing Key`;
+          }
       }
   } else {
       responseData.details.firebaseKey = 'Missing (Check FIREBASE_PRIVATE_KEY)';
   }
 
+  // Return 200 even if config is missing so the frontend can display the debug info
   return res.status(200).json(responseData);
 }
