@@ -42,6 +42,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (e) {
           responseData.details.gemini = `Invalid Format`;
       }
+  } else {
+      responseData.details.gemini = 'Missing (Check API_KEY)';
   }
 
   // 2. Check Firebase Project ID
@@ -67,26 +69,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const hasEnd = firebaseKey.includes('END PRIVATE KEY');
       
       // CRITICAL: Vercel env vars sometimes strip newlines if not pasted correctly.
-      // We check for literal newline characters or escaped newlines.
+      // We check for literal newline characters OR escaped newline strings which are common.
       const hasRealNewlines = firebaseKey.includes('\n');
       const hasEscapedNewlines = firebaseKey.includes('\\n');
       
       if (!hasBegin || !hasEnd) {
-          responseData.details.firebaseKey = `Invalid: Missing Header/Footer (BEGIN/END PRIVATE KEY)`;
+          responseData.details.firebaseKey = `Invalid: Missing Header/Footer`;
       } else if (!hasRealNewlines && !hasEscapedNewlines) {
-          responseData.details.firebaseKey = `Invalid: Key is a single long line. It MUST have newlines.`;
+          responseData.details.firebaseKey = `Invalid: single long line (missing newlines)`;
       } else {
-          // It looks okay, let's see if we can parse it
-          try {
-             const formattedKey = firebaseKey.replace(/\\n/g, '\n');
-             if (formattedKey.length > 100) {
-                 responseData.details.firebaseKey = `Valid Format (${formattedKey.length} chars)`;
-             } else {
-                 responseData.details.firebaseKey = `Invalid: Too short`;
-             }
-          } catch(e) {
-              responseData.details.firebaseKey = `Error Parsing Key`;
-          }
+          // It looks okay
+          responseData.details.firebaseKey = `Valid Format (${firebaseKey.length} chars)`;
       }
   } else {
       responseData.details.firebaseKey = 'Missing (Check FIREBASE_PRIVATE_KEY)';
