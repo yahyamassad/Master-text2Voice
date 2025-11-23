@@ -33,6 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (apiKey && apiKey.trim() !== '') {
       const last4 = apiKey.length > 4 ? apiKey.slice(-4) : '****';
       try {
+          // Simple instantiation check
           new GoogleGenAI({ apiKey });
           responseData.details.gemini = `Present (Ends in ...${last4})`;
           responseData.configured = true;
@@ -52,14 +53,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (firebaseKey) {
       // Check for common formatting issues with the private key
+      // It must contain the header/footer and properly formatted newlines
       const hasBegin = firebaseKey.includes('BEGIN PRIVATE KEY');
       const hasEnd = firebaseKey.includes('END PRIVATE KEY');
-      const length = firebaseKey.length;
+      
+      // Check if it's a one-liner (which is often the issue in Vercel)
+      // A valid key has many newlines.
+      const hasNewlines = firebaseKey.includes('\n') || firebaseKey.includes('\\n'); 
       
       if (hasBegin && hasEnd) {
-          responseData.details.firebaseKey = `Valid Format (${length} chars)`;
+          if (hasNewlines) {
+               responseData.details.firebaseKey = `Valid Format (${firebaseKey.length} chars)`;
+          } else {
+               responseData.details.firebaseKey = `Warning: No newlines detected. Ensure 'real' newlines are used.`;
+          }
       } else {
-          responseData.details.firebaseKey = `Invalid Format (Missing Header/Footer)`;
+          responseData.details.firebaseKey = `Invalid: Missing Header/Footer (Check Copy/Paste)`;
       }
   }
 
