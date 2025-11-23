@@ -68,17 +68,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const hasBegin = firebaseKey.includes('BEGIN PRIVATE KEY');
       const hasEnd = firebaseKey.includes('END PRIVATE KEY');
       
-      // CRITICAL: Vercel env vars sometimes strip newlines if not pasted correctly.
-      // We check for literal newline characters OR escaped newline strings which are common.
-      const hasRealNewlines = firebaseKey.includes('\n');
-      const hasEscapedNewlines = firebaseKey.includes('\\n');
+      // CRITICAL: Check for newline issues.
+      // Real newlines usually aren't visible in env var console logs, but literals "\n" are.
+      const hasLiteralSlashN = firebaseKey.includes('\\n');
+      const hasRealNewline = firebaseKey.includes('\n');
       
       if (!hasBegin || !hasEnd) {
           responseData.details.firebaseKey = `Invalid: Missing Header/Footer`;
-      } else if (!hasRealNewlines && !hasEscapedNewlines) {
-          responseData.details.firebaseKey = `Invalid: single long line (missing newlines)`;
+      } else if (hasLiteralSlashN && !hasRealNewline) {
+          // This is the "Single Line" warning state - code handles it, but good to notify user
+          responseData.details.firebaseKey = `Valid Format (Single Line detected - Auto-fixing)`;
+      } else if (hasRealNewline) {
+          responseData.details.firebaseKey = `Valid Format (Multi-line)`;
       } else {
-          // It looks okay
+          // Just a fallback
           responseData.details.firebaseKey = `Valid Format (${firebaseKey.length} chars)`;
       }
   } else {
