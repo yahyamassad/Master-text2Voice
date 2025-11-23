@@ -189,10 +189,10 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
         headerIcon = <CheckIcon className="w-6 h-6 text-teal-400" />;
         headerTitleColor = "text-teal-400";
         headerBg = "bg-teal-900/30 border-teal-500/30";
-        titleText = uiLanguage === 'ar' ? 'اكتمل إعداد الخادم!' : 'Almost Done! Server Ready';
+        titleText = uiLanguage === 'ar' ? 'الخادم جاهز! ولكن...' : 'Server Ready! But...';
         descriptionText = uiLanguage === 'ar' 
-            ? 'الخادم جاهز. الخطوة التالية: إعداد الواجهة الأمامية (Frontend).' 
-            : 'Server-side is ready. Next step: Configure Frontend variables.';
+            ? 'الخادم يعمل بنجاح. ولكن التطبيق لا يزال ينتظر إعدادات الواجهة الأمامية لكي تكتمل الصورة.' 
+            : 'Server-side is operational. The frontend app is still waiting for its configuration.';
     }
 
     return (
@@ -288,11 +288,24 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                         
                         <p className="text-xs text-slate-400 leading-relaxed ml-1">
                             {uiLanguage === 'ar' 
-                                ? 'ممتاز! الخادم يعمل. الآن انسخ إعدادات Firebase الخاصة بتطبيق الويب وأضفها كمتغيرات بيئة في Vercel.'
-                                : 'Great! Server is ready. Now copy your Firebase Web App config and add them as Environment Variables in Vercel.'}
+                                ? 'انسخ إعدادات Firebase أدناه وأضفها لمتغيرات البيئة في Vercel.'
+                                : 'Copy the Firebase config below and add them as Environment Variables in Vercel.'}
                         </p>
 
                         <FirebaseSetup uiLanguage={uiLanguage} projectId={detectedProjectId} />
+                        
+                        {/* Troubleshooting / Redeploy Warning */}
+                        <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg flex items-start gap-3 text-xs text-blue-200">
+                            <InfoIcon className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                            <div>
+                                <p className="font-bold mb-1 text-blue-300">{uiLanguage === 'ar' ? 'أضفت المتغيرات وما زالت الرسالة تظهر؟' : 'Added variables but still see this?'}</p>
+                                <p className="opacity-80 leading-relaxed">
+                                    {uiLanguage === 'ar' 
+                                        ? 'متغيرات Vercel لا تعمل فوراً. يجب عليك الذهاب إلى صفحة "Deployments" في Vercel وإعادة نشر آخر نسخة (Redeploy) ليتم "خبز" المتغيرات داخل التطبيق.'
+                                        : 'Vercel variables are baked in at build time. You MUST go to your Vercel "Deployments" page and trigger a **Redeploy** for the changes to take effect.'}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
