@@ -56,6 +56,42 @@ function StatusRow({ label, value }: { label: string, value?: string }) {
     );
 }
 
+function EnvVarCheckRow({ name }: { name: string }) {
+    // Safely access env vars
+    const env = (import.meta as any)?.env || {};
+    const val = env[name];
+    
+    let status = 'Missing';
+    let color = 'text-red-500';
+    let detail = '';
+
+    if (val && typeof val === 'string') {
+        if (val.trim() === '') {
+            status = 'Empty';
+            color = 'text-amber-500';
+        } else if (val.startsWith('"') || val.endsWith('"')) {
+            status = 'Invalid Format (Quotes?)';
+            color = 'text-red-400';
+            detail = 'Remove quotes in Vercel';
+        } else {
+            status = 'Present';
+            color = 'text-green-400';
+            // Show first 4 chars for verification
+            detail = val.length > 4 ? `${val.substring(0, 4)}...` : val;
+        }
+    }
+
+    return (
+        <div className="flex items-center justify-between py-1 border-b border-slate-700/30 last:border-0">
+            <span className="text-[10px] font-mono text-slate-400">{name}</span>
+            <div className="text-right">
+                <span className={`text-[10px] font-bold ${color}`}>{status}</span>
+                {detail && <div className="text-[9px] text-slate-500">{detail}</div>}
+            </div>
+        </div>
+    );
+}
+
 function FirebaseSetup({ uiLanguage, projectId }: { uiLanguage: Language, projectId?: string }) {
     const [copied, setCopied] = useState(false);
 
@@ -99,6 +135,7 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
     const [checking, setChecking] = useState(false);
     const [expandServerDetails, setExpandServerDetails] = useState(false);
+    const [expandFrontendDebug, setExpandFrontendDebug] = useState(false);
     
     // Auto-check on mount
     useEffect(() => {
@@ -184,15 +221,14 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
         );
     } else if (isServerReady && !isFirebaseConfigured) {
         // INTERMEDIATE STATE: SERVER READY, FRONTEND MISSING
-        // We use a Teal/Blue theme here to indicate "Good progress, but one more step"
         containerStyle = "bg-slate-800/95 border-teal-500/50 shadow-[0_0_20px_rgba(45,212,191,0.15)]";
         headerIcon = <CheckIcon className="w-6 h-6 text-teal-400" />;
         headerTitleColor = "text-teal-400";
         headerBg = "bg-teal-900/30 border-teal-500/30";
         titleText = uiLanguage === 'ar' ? 'الخادم جاهز! ولكن...' : 'Server Ready! But...';
         descriptionText = uiLanguage === 'ar' 
-            ? 'الخادم يعمل بنجاح. ولكن التطبيق لا يزال ينتظر إعدادات الواجهة الأمامية لكي تكتمل الصورة.' 
-            : 'Server-side is operational. The frontend app is still waiting for its configuration.';
+            ? 'الخادم يعمل بنجاح. ولكن التطبيق لا يزال ينتظر إعدادات الواجهة الأمامية.' 
+            : 'Server-side is operational. The frontend app is still waiting for configuration.';
     }
 
     return (
@@ -274,7 +310,7 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                     )}
                 </div>
 
-                {/* Frontend Config Missing Warning - Highlights when it's the next step */}
+                {/* Frontend Config Missing Warning */}
                 {!isFirebaseConfigured && (
                     <div className={`space-y-3 pt-2 transition-all duration-500 ${isServerReady ? 'opacity-100 scale-100' : 'opacity-70 blur-[1px]'}`}>
                         <div className="flex items-center gap-2 text-cyan-400">
@@ -294,7 +330,40 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
 
                         <FirebaseSetup uiLanguage={uiLanguage} projectId={detectedProjectId} />
                         
-                        {/* Troubleshooting / Redeploy Warning */}
+                        {/* Debugging Tool for Frontend Variables */}
+                        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-900/10 overflow-hidden">
+                             <div 
+                                className="p-2 px-3 flex justify-between items-center cursor-pointer hover:bg-red-900/20 transition-colors"
+                                onClick={() => setExpandFrontendDebug(!expandFrontendDebug)}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <WarningIcon className="w-4 h-4 text-red-400" />
+                                    <span className="text-xs font-bold text-red-300">{uiLanguage === 'ar' ? 'تشخيص الأخطاء (Frontend Debug)' : 'Frontend Diagnostics'}</span>
+                                </div>
+                                <ChevronDownIcon className={`w-3 h-3 text-red-400 transition-transform ${expandFrontendDebug ? 'rotate-180' : ''}`} />
+                            </div>
+                            
+                            {expandFrontendDebug && (
+                                <div dir="ltr" className="p-3 border-t border-red-500/30 bg-black/30 text-xs space-y-1 animate-fade-in">
+                                    <p className="text-slate-500 mb-2 text-[10px] italic">
+                                        Checking what the browser can see (import.meta.env)...
+                                    </p>
+                                    <EnvVarCheckRow name="VITE_FIREBASE_API_KEY" />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_PROJECT_ID" />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_AUTH_DOMAIN" />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_STORAGE_BUCKET" />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_MESSAGING_SENDER_ID" />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_APP_ID" />
+                                    
+                                    <div className="mt-3 text-[10px] text-slate-400 leading-relaxed border-t border-slate-800 pt-2">
+                                        <strong className="text-red-400">Missing?</strong> You need to Redeploy in Vercel.<br/>
+                                        <strong className="text-red-400">Invalid Format?</strong> Check for extra quotes in Vercel values.<br/>
+                                        <strong className="text-green-400">Present but Red?</strong> Your Firebase Config values might be incorrect (e.g. wrong API Key), causing initialization to crash.
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg flex items-start gap-3 text-xs text-blue-200">
                             <InfoIcon className="w-5 h-5 text-blue-400 flex-shrink-0" />
                             <div>
