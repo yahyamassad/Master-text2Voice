@@ -21,16 +21,19 @@ interface OwnerSetupGuideProps {
     isFirebaseConfigured: boolean;
 }
 
-// --- Helper Components (Defined OUTSIDE the main component to prevent re-render/scope issues) ---
+// --- Helper Components ---
 
 function StatusRow({ label, value }: { label: string, value?: string }) {
-    // Determine status based on the returned string
-    const isOk = value && (value.includes('Present') || value.includes('Valid'));
-    const isWarning = value && value.includes('Single Line');
+    const val = value || '';
     
-    let statusColor = 'text-red-500';
+    // Determine status. We treat "Auto-Fixed" as completely valid (Green).
+    const isOk = val.includes('Present') || val.includes('Valid') || val.includes('Auto-Fixed') || val.includes('Auto-fixing') || val.includes('Auto-corrected');
+    // Only warn if explicit invalid or missing
+    const isError = val.includes('Missing') || val.includes('Invalid');
+    
+    let statusColor = 'text-amber-400'; // Default to warning color for unknown states
     if (isOk) statusColor = 'text-green-400';
-    if (isWarning) statusColor = 'text-amber-400';
+    else if (isError) statusColor = 'text-red-500';
 
     return (
         <div className="grid grid-cols-[1fr_2fr] gap-2 items-center border-b border-slate-700 pb-2 last:border-0">
@@ -116,6 +119,10 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
 
     if (!isGuideOpen) return null;
 
+    const keyStatus = serverStatus?.details?.firebaseKey || '';
+    // Robust check for any form of auto-fixing string to ensure the message appears
+    const isAutoFixed = keyStatus.includes('Auto-Fixed') || keyStatus.includes('Auto-fixing') || keyStatus.includes('Auto-corrected');
+
     return (
         <div className="p-5 bg-slate-800/95 border border-amber-500/50 rounded-xl text-slate-300 shadow-2xl backdrop-blur-md relative overflow-hidden mb-8 animate-fade-in-down">
             {/* Header */}
@@ -168,12 +175,15 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                             <StatusRow label="Firebase Email" value={serverStatus.details.firebaseEmail} />
                             <StatusRow label="Private Key" value={serverStatus.details.firebaseKey} />
                             
-                            {/* Specific Help Message for Newline Issues */}
-                            {serverStatus.details.firebaseKey?.includes('Single Line') && (
-                                <div className="mt-3 p-2 bg-amber-900/30 border border-amber-500/50 text-amber-200 rounded text-xs leading-relaxed">
-                                    <strong>Note:</strong> Your Private Key is detected as a "Single Line". This is common with Vercel.
-                                    Our backend code automatically fixes this by replacing <code>\n</code> with real newlines, so it <em>should</em> work. 
-                                    If you still get authentication errors, try pasting the key in Vercel wrapped in double quotes <code>"..."</code>.
+                            {/* Specific Success Message for Auto-Fixed keys */}
+                            {isAutoFixed && (
+                                <div className="mt-3 p-2 bg-green-900/30 border border-green-500/50 text-green-200 rounded text-xs leading-relaxed flex gap-2 items-start">
+                                    <CheckIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                        <strong>Good news:</strong> Your Private Key format was corrected automatically by our system. 
+                                        <br/>
+                                        {uiLanguage === 'ar' ? 'تم إصلاح تنسيق المفتاح تلقائياً. يمكنك المتابعة.' : 'The key format was fixed automatically. You are good to go.'}
+                                    </div>
                                 </div>
                             )}
                         </div>
