@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { t, Language } from '../i18n/translations';
-import { WarningIcon, CopyIcon, TrashIcon, InfoIcon } from './icons';
+import { WarningIcon, CopyIcon, TrashIcon, InfoIcon, CheckIcon } from './icons';
 
 // --- Interfaces ---
 interface ServerStatus {
@@ -21,14 +21,21 @@ interface OwnerSetupGuideProps {
     isFirebaseConfigured: boolean;
 }
 
-// --- Helper Components ---
+// --- Helper Components (Defined OUTSIDE the main component to prevent re-render/scope issues) ---
 
 function StatusRow({ label, value }: { label: string, value?: string }) {
-    const isOk = value?.includes('Present') || value?.includes('Valid');
+    // Determine status based on the returned string
+    const isOk = value && (value.includes('Present') || value.includes('Valid'));
+    const isWarning = value && value.includes('Single Line');
+    
+    let statusColor = 'text-red-500';
+    if (isOk) statusColor = 'text-green-400';
+    if (isWarning) statusColor = 'text-amber-400';
+
     return (
         <div className="grid grid-cols-[1fr_2fr] gap-2 items-center border-b border-slate-700 pb-2 last:border-0">
             <span className="text-slate-400">{label}:</span>
-            <span className={isOk ? 'text-green-400 font-bold' : 'text-red-500 font-bold'}>
+            <span className={`font-bold font-mono text-xs ${statusColor}`}>
                 {value || 'Unknown'}
             </span>
         </div>
@@ -36,7 +43,7 @@ function StatusRow({ label, value }: { label: string, value?: string }) {
 }
 
 function FirebaseSetup({ uiLanguage }: { uiLanguage: Language }) {
-    const [varsCopyButtonText, setVarsCopyButtonText] = useState(t('firebaseSetupCopyButton', uiLanguage));
+    const [copied, setCopied] = useState(false);
 
     const firebaseClientEnvVars = [
       'VITE_FIREBASE_API_KEY="your-api-key"',
@@ -49,8 +56,8 @@ function FirebaseSetup({ uiLanguage }: { uiLanguage: Language }) {
 
     const handleCopy = () => {
         navigator.clipboard.writeText(firebaseClientEnvVars);
-        setVarsCopyButtonText(t('firebaseSetupCopiedButton', uiLanguage));
-        setTimeout(() => setVarsCopyButtonText(t('firebaseSetupCopyButton', uiLanguage)), 2000);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
     return (
@@ -60,9 +67,10 @@ function FirebaseSetup({ uiLanguage }: { uiLanguage: Language }) {
                 <pre className="whitespace-pre-wrap opacity-50"><code>{firebaseClientEnvVars}</code></pre>
                 <button 
                     onClick={handleCopy} 
-                    className="absolute top-2 right-2 px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-1"
+                    className="absolute top-2 right-2 px-3 py-1.5 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600 flex items-center gap-2 transition-all border border-slate-600"
                 >
-                    <CopyIcon className="w-3 h-3" /> {varsCopyButtonText}
+                    {copied ? <CheckIcon className="w-3 h-3 text-green-400" /> : <CopyIcon className="w-3 h-3" />}
+                    {copied ? (uiLanguage === 'ar' ? 'تم النسخ' : 'Copied') : (uiLanguage === 'ar' ? 'نسخ' : 'Copy')}
                 </button>
             </div>
         </div>
@@ -76,8 +84,11 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
     const [checking, setChecking] = useState(false);
     
+    // Auto-check on mount if config seems missing
     useEffect(() => {
-        // Auto-check logic could go here
+        if (!isApiConfigured || !isFirebaseConfigured) {
+            checkServerConfig();
+        }
     }, [isApiConfigured, isFirebaseConfigured]);
 
     const handlePermanentDismiss = () => {
@@ -106,79 +117,74 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     if (!isGuideOpen) return null;
 
     return (
-        <div className="p-4 bg-slate-800/95 border border-amber-500/50 rounded-xl text-slate-300 shadow-2xl backdrop-blur-md relative overflow-hidden mb-8">
+        <div className="p-5 bg-slate-800/95 border border-amber-500/50 rounded-xl text-slate-300 shadow-2xl backdrop-blur-md relative overflow-hidden mb-8 animate-fade-in-down">
             {/* Header */}
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-start gap-3">
-                    <div className="bg-amber-900/30 p-2 rounded-lg border border-amber-500/30 animate-pulse">
+                    <div className="bg-amber-900/30 p-2 rounded-lg border border-amber-500/30">
                         <WarningIcon className="w-6 h-6 text-amber-400" />
                     </div>
                     <div>
                         <h3 className="font-bold text-amber-400 text-lg">{t('appOwnerNoticeTitle', uiLanguage)}</h3>
-                        <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                        <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
                             {uiLanguage === 'ar' 
                                 ? 'رسالة للمطور: هذا القسم يظهر لك فقط لمساعدتك في حل مشاكل الإعداد.'
                                 : 'Dev Message: This section is visible only to you to help debug setup issues.'}
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-2">
-                    <button 
-                        onClick={handlePermanentDismiss}
-                        className="text-xs bg-red-900/30 hover:bg-red-900/50 text-red-200 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30 flex items-center gap-1"
-                        title="Don't show again"
-                    >
-                        <TrashIcon className="w-3 h-3" />
-                        {uiLanguage === 'ar' ? 'إخفاء نهائي' : 'Dismiss Forever'}
-                    </button>
-                </div>
+                <button 
+                    onClick={handlePermanentDismiss}
+                    className="text-xs bg-red-900/30 hover:bg-red-900/50 text-red-200 px-3 py-1.5 rounded-lg transition-colors border border-red-500/30 flex items-center gap-1"
+                    title="Don't show again"
+                >
+                    <TrashIcon className="w-3 h-3" />
+                    {uiLanguage === 'ar' ? 'إخفاء نهائي' : 'Dismiss'}
+                </button>
             </div>
             
             <div className="mt-4 border-t border-slate-700 pt-4 space-y-6 text-sm">
                 
                 {/* Diagnostics Panel */}
-                <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg relative overflow-hidden">
-                    <h4 className="font-bold text-blue-400 flex items-center gap-2 text-lg">
-                        <InfoIcon className="w-5 h-5" />
-                        {uiLanguage === 'ar' ? 'فحص حالة السيرفر المباشرة' : 'Live Server Configuration Check'}
-                    </h4>
-                    <p className="mt-2 text-slate-300 text-sm mb-3">
-                        {uiLanguage === 'ar' 
-                            ? 'اضغط الزر أدناه لنسأل السيرفر عما يراه من متغيرات البيئة.' 
-                            : 'Click below to ask the server what Environment Variables it actually sees.'}
-                    </p>
-                    
-                    <button 
-                        onClick={checkServerConfig} 
-                        disabled={checking}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-md font-bold text-xs transition-colors flex items-center gap-2"
-                    >
-                        {checking ? <span>Checking...</span> : <span>{uiLanguage === 'ar' ? 'تحقق الآن' : 'Run Diagnostic'}</span>}
-                    </button>
+                <div className="bg-blue-900/10 border border-blue-500/30 p-4 rounded-lg relative overflow-hidden">
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-bold text-blue-400 flex items-center gap-2 text-base">
+                            <InfoIcon className="w-5 h-5" />
+                            {uiLanguage === 'ar' ? 'حالة الخادم (Server Config)' : 'Server Configuration Status'}
+                        </h4>
+                        <button 
+                            onClick={checkServerConfig} 
+                            disabled={checking}
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md font-bold text-xs transition-colors flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {checking ? <span className="animate-pulse">...</span> : <span>{uiLanguage === 'ar' ? 'تحديث الحالة' : 'Refresh'}</span>}
+                        </button>
+                    </div>
 
-                    {serverStatus && !serverStatus.error && serverStatus.details && (
-                        <div className="mt-4 p-4 bg-black/50 rounded-lg border border-slate-600 font-mono text-xs space-y-3 select-text">
+                    {serverStatus && !serverStatus.error && serverStatus.details ? (
+                        <div className="p-4 bg-black/40 rounded-lg border border-slate-600/50 space-y-2">
                             <StatusRow label="Gemini API Key" value={serverStatus.details.gemini} />
                             <StatusRow label="Firebase Project" value={serverStatus.details.firebaseProject} />
                             <StatusRow label="Firebase Email" value={serverStatus.details.firebaseEmail} />
                             <StatusRow label="Private Key" value={serverStatus.details.firebaseKey} />
                             
-                            {serverStatus.details.firebaseKey?.includes('single long line') && (
-                                <div className="mt-2 p-2 bg-red-900/20 border border-red-500/50 text-red-200 rounded">
-                                    <strong>Fix Required:</strong> The Private Key in Vercel is missing newlines. 
-                                    Open Vercel Settings, delete the key, and paste it again. Ensure it looks like multiple lines, or replace spaces with real newlines.
+                            {/* Specific Help Message for Newline Issues */}
+                            {serverStatus.details.firebaseKey?.includes('Single Line') && (
+                                <div className="mt-3 p-2 bg-amber-900/30 border border-amber-500/50 text-amber-200 rounded text-xs leading-relaxed">
+                                    <strong>Note:</strong> Your Private Key is detected as a "Single Line". This is common with Vercel.
+                                    Our backend code automatically fixes this by replacing <code>\n</code> with real newlines, so it <em>should</em> work. 
+                                    If you still get authentication errors, try pasting the key in Vercel wrapped in double quotes <code>"..."</code>.
                                 </div>
                             )}
                         </div>
-                    )}
-                    
-                    {serverStatus && serverStatus.error && (
-                        <div className="mt-3 p-2 bg-red-900/50 text-red-200 rounded border border-red-500 text-xs">
-                            {serverStatus.error}
+                    ) : (
+                        <div className="p-4 bg-black/20 rounded-lg border border-slate-700 text-center text-slate-500 italic">
+                            {checking ? 'Checking connection...' : (serverStatus?.error || 'Click Refresh to check status')}
                         </div>
                     )}
                 </div>
 
+                {/* Frontend Config Missing Warning */}
                 {!isFirebaseConfigured && <FirebaseSetup uiLanguage={uiLanguage} />}
             </div>
         </div>
