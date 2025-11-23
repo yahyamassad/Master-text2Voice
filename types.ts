@@ -62,7 +62,7 @@ export const PLAN_LIMITS = {
         allowDownloads: false,
         allowWav: false,
         allowGemini: true, // Allowed but capped at 50 chars effectively by logic
-        allowStudio: true, 
+        allowStudio: false, // LOCKED: No Studio for visitors
         allowMultiSpeaker: false,
         allowEffects: false,
     },
@@ -75,7 +75,7 @@ export const PLAN_LIMITS = {
         allowDownloads: true,    // MP3 Only
         allowWav: false,
         allowGemini: true,       // The main hook
-        allowStudio: true, 
+        allowStudio: false,      // LOCKED: Upsell for Gold/Platinum
         allowMultiSpeaker: false,
         allowEffects: false,     // Upsell
     },
