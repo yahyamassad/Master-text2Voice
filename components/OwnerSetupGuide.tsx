@@ -56,20 +56,17 @@ function StatusRow({ label, value }: { label: string, value?: string }) {
     );
 }
 
-function EnvVarCheckRow({ name }: { name: string }) {
-    // Safely access env vars
-    const env = (import.meta as any)?.env || {};
-    const val = env[name];
-    
+function EnvVarCheckRow({ name, value }: { name: string, value: string | undefined }) {
     let status = 'Missing';
     let color = 'text-red-500';
     let detail = '';
 
-    if (val && typeof val === 'string') {
-        if (val.trim() === '') {
+    // Check the passed value directly
+    if (value && typeof value === 'string') {
+        if (value.trim() === '') {
             status = 'Empty';
             color = 'text-amber-500';
-        } else if (val.startsWith('"') || val.endsWith('"')) {
+        } else if (value.startsWith('"') || value.endsWith('"')) {
             status = 'Invalid Format (Quotes?)';
             color = 'text-red-400';
             detail = 'Remove quotes in Vercel';
@@ -77,7 +74,7 @@ function EnvVarCheckRow({ name }: { name: string }) {
             status = 'Present';
             color = 'text-green-400';
             // Show first 4 chars for verification
-            detail = val.length > 4 ? `${val.substring(0, 4)}...` : val;
+            detail = value.length > 4 ? `${value.substring(0, 4)}...` : value;
         }
     }
 
@@ -254,8 +251,7 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                     title="Don't show again"
                 >
                     <TrashIcon className="w-3 h-3" />
-                    {uiLanguage === 'ar' ? 'إخفاء' : 'Dismiss'}
-                </button>
+                    {uiLanguage === 'ar' ? 'إخفاء' : 'Dismiss'}</button>
             </div>
             
             <div className="mt-4 border-t border-slate-700 pt-4 space-y-4 text-sm">
@@ -346,14 +342,14 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                             {expandFrontendDebug && (
                                 <div dir="ltr" className="p-3 border-t border-red-500/30 bg-black/30 text-xs space-y-1 animate-fade-in">
                                     <p className="text-slate-500 mb-2 text-[10px] italic">
-                                        Checking what the browser can see (import.meta.env)...
+                                        Checking what the browser sees (import.meta.env)...
                                     </p>
-                                    <EnvVarCheckRow name="VITE_FIREBASE_API_KEY" />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_PROJECT_ID" />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_AUTH_DOMAIN" />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_STORAGE_BUCKET" />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_MESSAGING_SENDER_ID" />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_APP_ID" />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_API_KEY" value={(import.meta as any).env.VITE_FIREBASE_API_KEY} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_PROJECT_ID" value={(import.meta as any).env.VITE_FIREBASE_PROJECT_ID} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_AUTH_DOMAIN" value={(import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_STORAGE_BUCKET" value={(import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_MESSAGING_SENDER_ID" value={(import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_APP_ID" value={(import.meta as any).env.VITE_FIREBASE_APP_ID} />
                                     
                                     <div className="mt-3 text-[10px] text-slate-400 leading-relaxed border-t border-slate-800 pt-2">
                                         <strong className="text-red-400">Missing?</strong> You need to Redeploy in Vercel.<br/>
