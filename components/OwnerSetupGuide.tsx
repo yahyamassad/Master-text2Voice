@@ -56,14 +56,16 @@ function StatusRow({ label, value }: { label: string, value?: string }) {
     );
 }
 
-function FirebaseSetup({ uiLanguage }: { uiLanguage: Language }) {
+function FirebaseSetup({ uiLanguage, projectId }: { uiLanguage: Language, projectId?: string }) {
     const [copied, setCopied] = useState(false);
+
+    const pId = projectId || 'your-project-id';
 
     const firebaseClientEnvVars = [
       'VITE_FIREBASE_API_KEY="your-api-key"',
-      'VITE_FIREBASE_AUTH_DOMAIN="your-project-id.firebaseapp.com"',
-      'VITE_FIREBASE_PROJECT_ID="your-project-id"',
-      'VITE_FIREBASE_STORAGE_BUCKET="your-project-id.appspot.com"',
+      `VITE_FIREBASE_AUTH_DOMAIN="${pId}.firebaseapp.com"`,
+      `VITE_FIREBASE_PROJECT_ID="${pId}"`,
+      `VITE_FIREBASE_STORAGE_BUCKET="${pId}.appspot.com"`,
       'VITE_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"',
       'VITE_FIREBASE_APP_ID="your-app-id"',
     ].join('\n');
@@ -155,6 +157,11 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
         (serverStatus?.details?.firebaseKey?.includes('Valid') || isAutoFixed);
 
     const isFullyConfigured = isServerReady && isFirebaseConfigured;
+
+    // Attempt to extract Project ID for the snippet if present
+    const projectStatus = serverStatus?.details?.firebaseProject || '';
+    const projectMatch = projectStatus.match(/\(([^)]+)\)/);
+    const detectedProjectId = projectMatch ? projectMatch[1] : undefined;
 
     // Dynamic Styling based on state
     let containerStyle = "bg-slate-800/95 border-amber-500/50 shadow-amber-900/20";
@@ -274,7 +281,9 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                             <div className="bg-cyan-900/30 p-1.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.3)]">
                                 <InfoIcon className="w-4 h-4" />
                             </div>
-                            <h5 className="font-bold text-sm uppercase tracking-wide">ACTION REQUIRED: CONFIGURE FRONTEND</h5>
+                            <h5 className="font-bold text-sm uppercase tracking-wide">
+                                {uiLanguage === 'ar' ? 'إجراء مطلوب: إعداد الواجهة الأمامية' : 'ACTION REQUIRED: CONFIGURE FRONTEND'}
+                            </h5>
                         </div>
                         
                         <p className="text-xs text-slate-400 leading-relaxed ml-1">
@@ -283,11 +292,10 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                                 : 'Great! Server is ready. Now copy your Firebase Web App config and add them as Environment Variables in Vercel.'}
                         </p>
 
-                        <FirebaseSetup uiLanguage={uiLanguage} />
+                        <FirebaseSetup uiLanguage={uiLanguage} projectId={detectedProjectId} />
                     </div>
                 )}
             </div>
         </div>
     );
 }
-    
