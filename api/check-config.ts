@@ -76,13 +76,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!hasBegin || !hasEnd) {
           responseData.details.firebaseKey = `Invalid: Missing Header/Footer`;
       } else if (hasLiteralSlashN && !hasRealNewline) {
-          // This is the "Single Line" warning state - code handles it, but good to notify user
-          responseData.details.firebaseKey = `Valid Format (Single Line detected - Auto-fixing)`;
+          // We treat this as VALID now because api/feedback.ts automatically fixes it using .replace(/\\n/g, '\n')
+          responseData.details.firebaseKey = `Valid (Auto-Fixed)`;
       } else if (hasRealNewline) {
-          responseData.details.firebaseKey = `Valid Format (Multi-line)`;
+          responseData.details.firebaseKey = `Valid (Multi-line)`;
       } else {
           // Just a fallback
-          responseData.details.firebaseKey = `Valid Format (${firebaseKey.length} chars)`;
+          responseData.details.firebaseKey = `Valid (${firebaseKey.length} chars)`;
       }
   } else {
       responseData.details.firebaseKey = 'Missing (Check FIREBASE_PRIVATE_KEY)';
