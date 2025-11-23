@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState, useEffect } from 'react';
 // Fix: Import User type from the main firebase/auth module for correct typing matching App.tsx
 import { User } from 'firebase/auth';
@@ -43,8 +40,8 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
 
     const handleActivateDevMode = () => {
         const input = secretKeyInput.trim().toLowerCase();
-        // Added 'friend' and 'صديق' as secret keys for my friend!
-        if (input === MASTER_KEY || input === 'friend' || input === 'صديق') {
+        // Added 'friend', 'dinner' and 'صديق' as secret keys!
+        if (input === MASTER_KEY || input === 'friend' || input === 'صديق' || input === 'dinner') {
             onSetDevMode(true);
             setIsDevMode(true);
             alert(t('keySaved', uiLanguage));
