@@ -1070,6 +1070,7 @@ const App: React.FC = () => {
   };
 
   const handleSignIn = async () => {
+      console.log("Attempting to Sign In...");
       // CRITICAL FIX: Attempt to get the auth instance safely.
       const { auth } = getFirebase();
       
@@ -1079,14 +1080,15 @@ const App: React.FC = () => {
 
       // 1. Check if Env Vars exist at all.
       if (!envApiKey) {
-          // If missing from env, show the Setup Guide so the owner knows to add them.
+          // Explicit alert for debugging the silent failure
+          alert("Configuration Error: VITE_FIREBASE_API_KEY is missing in the browser.\n\nIf you are on Vercel: You MUST Redeploy (rebuild) the app after adding Environment Variables for them to take effect.");
+          
           setShowSetupGuide(true);
           window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
       }
 
       // 2. If Env Vars exist but 'auth' is null, it means Initialization FAILED.
-      // DO NOT show the guide (the user has already added keys). Show an error instead.
       if (!auth) {
           const isRtl = uiLanguage === 'ar';
           const msg = isRtl 
@@ -1102,10 +1104,10 @@ const App: React.FC = () => {
       const provider = new GoogleAuthProvider();
       
       try {
+          console.log("Calling signInWithPopup...");
           const result = await signInWithPopup(auth, provider);
-          // SUCCESS! 
-          // CRITICAL FIX: Manually update state because onAuthStateChanged might not fire immediately
-          // if the useEffect hook didn't pick up the auth instance on mount.
+          console.log("Sign In Successful", result.user.uid);
+          
           setUser(result.user);
           
           // Re-initialize listeners with new user
@@ -1474,8 +1476,8 @@ const App: React.FC = () => {
                     <OwnerSetupGuide 
                         uiLanguage={uiLanguage} 
                         isApiConfigured={isApiConfigured} 
-                        // isFirebaseConfigured is checked internally by the guide now
-                        isFirebaseConfigured={isApiConfigured} // Passing placeholder to satisfy prop type, component handles check
+                        // FIX: Passing the correct client-side config check from getFirebase
+                        isFirebaseConfigured={!!getFirebase().app} 
                     />
                 </div>
             )}
