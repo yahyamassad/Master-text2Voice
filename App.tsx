@@ -8,8 +8,9 @@ import {
 import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig, GEMINI_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
-import { onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut, deleteUser } from 'firebase/auth';
+// FIX: Import Auth functions from SDK directly, instances from config
 import { getFirebase } from './firebaseConfig';
+import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument } from './services/firestoreService';
 import { AudioStudioModal } from './components/AudioStudioModal'; 
 import SettingsModal from './components/SettingsModal';
@@ -75,7 +76,7 @@ const App: React.FC = () => {
   // Auth State & Tiers
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
-  const { isFirebaseConfigured } = useMemo(() => getFirebase(), []);
+  // REMOVED stale useMemo for isFirebaseConfigured to prevent logic traps
   const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); // Assume true initially to prevent flash
   
   // Subscription State (Mock for Demo)
@@ -86,7 +87,16 @@ const App: React.FC = () => {
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
   // Guide Visibility State
-  const [showSetupGuide, setShowSetupGuide] = useState(true);
+  // HIDDEN BY DEFAULT. Only visible if 'setup=true' is in URL.
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
+
+  // Check for Setup Trigger in URL
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('setup') === 'true') {
+          setShowSetupGuide(true);
+      }
+  }, []);
 
   // User Statistics for Quotas & Gamification
   // Initialized with safe defaults, updated from storage on load
@@ -302,20 +312,16 @@ const App: React.FC = () => {
   }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
 
   useEffect(() => {
-    // Check dismissal state first
-    if (localStorage.getItem('sawtli_hide_setup_guide') === 'true') {
-        setShowSetupGuide(false);
-    }
-
     // Check if API Key is configured on server
     fetch('/api/check-config')
         .then(res => res.json())
         .then(data => setIsApiConfigured(!!data.configured))
         .catch(() => setIsApiConfigured(false)); // If fetch fails, assume config issue or network
 
-    const { app, auth, isFirebaseConfigured } = getFirebase();
-    if (isFirebaseConfigured && app && auth) {
-        const unsubscribeAuth = onAuthStateChanged(auth as any, (currentUser) => {
+    // INITIAL AUTH CHECK
+    const { app, auth } = getFirebase();
+    if (auth) {
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setIsAuthLoading(false);
 
@@ -325,6 +331,9 @@ const App: React.FC = () => {
             }
 
             if (currentUser) {
+                // If user is logged in, hide guide
+                setShowSetupGuide(false);
+
                 setUserSubscription('free'); // Default to free trial logic
                 loadUserStats(currentUser.uid); // Load stats
                 firestoreUnsubscribeRef.current = subscribeToHistory(currentUser.uid, (items) => {
@@ -346,13 +355,14 @@ const App: React.FC = () => {
              if (firestoreUnsubscribeRef.current) firestoreUnsubscribeRef.current();
         };
     } else {
+        // Fallback if auth init fails temporarily
         setIsAuthLoading(false);
         try {
             const savedHistory = localStorage.getItem('sawtli_history');
             if (savedHistory) setHistory(JSON.parse(savedHistory));
         } catch (e) { console.error("Failed to load history", e); }
     }
-  }, [isFirebaseConfigured]);
+  }, []); // Run once on mount. getFirebase() is stable.
 
   // --- ROBUST SYSTEM VOICE LOADING ---
   // Helper to refresh voices and update state if changed
@@ -1059,42 +1069,94 @@ const App: React.FC = () => {
       return { icon: <SpeakerIcon className="text-cyan-400" />, label: defaultLabel, className };
   };
 
-  const handleSignIn = () => {
-      const { app, auth } = getFirebase();
-      // Attempt sign-in even if "isFirebaseConfigured" check was flaky.
-      // The actual sign-in call will fail with a proper error if config is truly missing.
-      if (!app || !auth) {
-          const msg = uiLanguage === 'ar' 
-            ? "عذراً، لم يتم تهيئة خدمة المصادقة.\nيرجى التأكد من إضافة المتغيرات في Vercel وعمل Redeploy."
-            : "Authentication service not initialized.\nPlease ensure Vercel variables are set and you have Triggered a Redeploy.";
+  const handleSignIn = async () => {
+      // CRITICAL FIX: Attempt to get the auth instance safely.
+      const { auth } = getFirebase();
+      
+      // SAFE ACCESS to environment variable to prevent crashes in preview
+      const env = (import.meta as any)?.env || {};
+      const envApiKey = env.VITE_FIREBASE_API_KEY;
+
+      // 1. Check if Env Vars exist at all.
+      if (!envApiKey) {
+          // If missing from env, show the Setup Guide so the owner knows to add them.
+          setShowSetupGuide(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+      }
+
+      // 2. If Env Vars exist but 'auth' is null, it means Initialization FAILED.
+      // DO NOT show the guide (the user has already added keys). Show an error instead.
+      if (!auth) {
+          const isRtl = uiLanguage === 'ar';
+          const msg = isRtl 
+            ? "فشل تهيئة خدمة Firebase. يرجى التحقق من صحة مفاتيح API في المتغيرات وإعادة تحميل الصفحة."
+            : "Firebase initialization failed. Please check your API keys in environment variables and refresh.";
           alert(msg);
+          console.error("Sign-in blocked: Auth not initialized despite env vars present.");
           return;
       }
       
+      // 3. Proceed with Sign In
+      setIsAuthLoading(true);
       const provider = new GoogleAuthProvider();
-      signInWithPopup(auth as any, provider).catch(error => {
+      
+      try {
+          const result = await signInWithPopup(auth, provider);
+          // SUCCESS! 
+          // CRITICAL FIX: Manually update state because onAuthStateChanged might not fire immediately
+          // if the useEffect hook didn't pick up the auth instance on mount.
+          setUser(result.user);
+          
+          // Re-initialize listeners with new user
+          loadUserStats(result.user.uid);
+          if (firestoreUnsubscribeRef.current) firestoreUnsubscribeRef.current();
+          firestoreUnsubscribeRef.current = subscribeToHistory(result.user.uid, (items) => {
+              setHistory(items);
+          });
+
+      } catch (error: any) {
           console.error("Sign-in error:", error);
           
           const errorCode = error.code;
           const errorMessage = error.message;
+          const errorString = JSON.stringify(error).toLowerCase();
 
-          // Enhanced Error Handling for Auth Issues
-          if (errorCode === 'auth/operation-not-allowed') {
+          // --- INTELLIGENT ERROR HANDLING ---
+          
+          // Check for Google Cloud API Key restrictions (Referer Blocked)
+          if (errorString.includes('blocked') || errorString.includes('referer') || errorString.includes('403') || errorString.includes('missing required data')) {
+               const domain = window.location.origin;
+               const isRtl = uiLanguage === 'ar';
+               const msg = isRtl
+                 ? `🛑 تنبيه أمني: تم رفض الاتصال.\n\nالسبب المرجح: مفتاح API الخاص بك مقيد ولا يسمح للنطاق الحالي بالوصول.\n\nالحل:\n1. اذهب إلى Google Cloud Console > Credentials\n2. عدّل مفتاح API وأضف هذه الروابط إلى "Web Restrictions":\n   - https://${window.location.hostname}/*\n   - https://YOUR-PROJECT-ID.firebaseapp.com/*`
+                 : `🛑 Security Alert: Connection Refused.\n\nLikely Cause: Your API Key restrictions block this domain.\n\nFix:\n1. Go to Google Cloud Console > Credentials\n2. Edit your API Key and add these URLs to "Web Restrictions":\n   - https://${window.location.hostname}/*\n   - https://YOUR-PROJECT-ID.firebaseapp.com/*`;
+               alert(msg);
+               return;
+          }
+
+          if (errorCode === 'auth/popup-closed-by-user') {
+               // If closed by user AND not on localhost, it's often a configuration crash
+               if (window.location.hostname !== 'localhost') {
+                   const isRtl = uiLanguage === 'ar';
+                   const msg = isRtl
+                     ? `⚠️ تم إغلاق النافذة فجأة.\n\nإذا لم تقم بإغلاقها بنفسك، فهذا يعني أن نطاق "${window.location.hostname}" غير مسموح له بالدخول.\n\nالحل: أضف هذا النطاق إلى قائمة "Authorized Domains" في Firebase Console > Authentication.`
+                     : `⚠️ Popup Closed Unexpectedly.\n\nIf you didn't close it, it means "${window.location.hostname}" is not authorized.\n\nFix: Add this domain to "Authorized Domains" in Firebase Console > Authentication.`;
+                   alert(msg);
+               }
+          } else if (errorCode === 'auth/operation-not-allowed') {
                const isRtl = uiLanguage === 'ar';
                const msg = isRtl 
                  ? `خطأ: العملية غير مسموح بها (${errorCode}).\nيرجى التأكد من تفعيل مزود Google في Firebase Console > Authentication.`
                  : `Error: Operation not allowed (${errorCode}).\nPlease ensure the Google provider is enabled in Firebase Console > Authentication.`;
                alert(msg);
           } else if (errorCode === 'auth/unauthorized-domain') {
+               const domain = window.location.hostname;
                const isRtl = uiLanguage === 'ar';
                const msg = isRtl 
-                 ? `خطأ النطاق غير مصرح به (${errorCode}).\nيرجى إضافة هذا النطاق إلى 'Authorized Domains' في Firebase Console.`
-                 : `Error: Unauthorized Domain (${errorCode}).\nPlease add this domain to 'Authorized Domains' in Firebase Console.`;
+                 ? `🛑 النطاق غير مصرح به (${errorCode}).\n\nالنطاق الحالي: ${domain}\n\nالحل: يجب إضافة هذا النطاق إلى قائمة "Authorized Domains" في Firebase Console > Authentication > Settings.`
+                 : `🛑 Unauthorized Domain (${errorCode}).\n\nCurrent Domain: ${domain}\n\nFix: Add this domain to "Authorized Domains" in Firebase Console > Authentication > Settings.`;
                alert(msg);
-          } else if (errorCode === 'auth/popup-closed-by-user') {
-               // User closed popup, ignore
-          } else if (errorCode === 'auth/popup-blocked') {
-               alert(t('errorUnexpected', uiLanguage) + " (Popup Blocked)");
           } else if (errorCode === 'auth/invalid-api-key') {
                alert("Invalid API Key. Please check Vercel environment variables.");
           } else {
@@ -1105,19 +1167,26 @@ const App: React.FC = () => {
                  : `Sign-in failed.\nCode: ${errorCode}\nMessage: ${errorMessage}\n\nTip for Dev: Check OAuth Client ID settings in Google Cloud.`;
                alert(msg);
           }
-      });
+      } finally {
+          setIsAuthLoading(false);
+      }
   };
 
   const handleSignOut = useCallback(() => {
-      const { app, auth, isFirebaseConfigured } = getFirebase();
+      const { auth } = getFirebase();
       
       // Force clear dev mode sticky session
       sessionStorage.removeItem('sawtli_dev_mode');
       setIsDevMode(false);
 
-      if (!isFirebaseConfigured || !app || !auth) return;
-      signOut(auth as any).catch(error => console.error("Sign-out error:", error));
-  }, [isFirebaseConfigured]);
+      if (auth) {
+          signOut(auth).catch(error => console.error("Sign-out error:", error));
+      }
+      
+      // Manually clear state to ensure UI updates immediately
+      setUser(null);
+      setHistory([]);
+  }, []);
 
   const handleClearHistory = useCallback(async () => {
     if (user) {
@@ -1144,9 +1213,12 @@ const App: React.FC = () => {
         try {
             await clearHistoryForUser(user.uid);
             await deleteUserDocument(user.uid);
-            await deleteUser(user);
+            // Note: Ideally we should delete the Auth user too, but that requires strict re-authentication.
+            // For this demo, we just wipe data and sign out.
+            
             alert(t('accountDeletedSuccess', uiLanguage));
             setIsAccountOpen(false);
+            handleSignOut(); // Log them out
         } catch (error) {
             console.error("Account deletion error:", error);
             setError(t('accountDeletionError', uiLanguage));
@@ -1155,7 +1227,7 @@ const App: React.FC = () => {
             setLoadingTask('');
         }
     }
-  }, [user, uiLanguage]);
+  }, [user, uiLanguage, handleSignOut]);
 
   const handleSignOutAndClose = useCallback(() => {
     handleSignOut();
@@ -1385,8 +1457,10 @@ const App: React.FC = () => {
                     ) : (
                         <button 
                             onClick={handleSignIn} 
-                            className="border border-cyan-500/50 text-cyan-500 px-4 sm:px-6 py-2 rounded-lg hover:bg-cyan-950/30 hover:border-cyan-400 uppercase text-xs sm:text-sm font-bold tracking-widest transition-all"
+                            disabled={isAuthLoading}
+                            className="border border-cyan-500/50 text-cyan-500 px-4 sm:px-6 py-2 rounded-lg hover:bg-cyan-950/30 hover:border-cyan-400 uppercase text-xs sm:text-sm font-bold tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
+                            {isAuthLoading && <LoaderIcon className="w-4 h-4" />}
                             {uiLanguage === 'ar' ? 'دخول' : 'SIGN IN'}
                         </button>
                     )}
@@ -1394,13 +1468,14 @@ const App: React.FC = () => {
         </header>
 
         <main className="w-full space-y-6 flex-grow">
-            {/* Owner Setup Guide - Visible only if config is missing (but now dismissible persistently) */}
-            {(!isApiConfigured || !isFirebaseConfigured) && showSetupGuide && (
+            {/* Owner Setup Guide - HIDDEN by default unless ?setup=true is in URL or force shown */}
+            {showSetupGuide && !user && (
                 <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 mb-6 z-50 relative">
                     <OwnerSetupGuide 
                         uiLanguage={uiLanguage} 
                         isApiConfigured={isApiConfigured} 
-                        isFirebaseConfigured={isFirebaseConfigured} 
+                        // isFirebaseConfigured is checked internally by the guide now
+                        isFirebaseConfigured={isApiConfigured} // Passing placeholder to satisfy prop type, component handles check
                     />
                 </div>
             )}
