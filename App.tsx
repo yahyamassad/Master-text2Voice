@@ -10,7 +10,12 @@ import { History } from './components/History';
 import { HistoryItem, SpeakerConfig, GEMINI_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
 // FIX: Import Auth functions from SDK directly, instances from config
 import { getFirebase } from './firebaseConfig';
-import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
+import firebase from 'firebase/app';
+import 'firebase/auth';
+
+// Type definition for User
+type User = firebase.User;
+
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument } from './services/firestoreService';
 import { AudioStudioModal } from './components/AudioStudioModal'; 
 import SettingsModal from './components/SettingsModal';
@@ -321,7 +326,7 @@ const App: React.FC = () => {
     // INITIAL AUTH CHECK
     const { app, auth } = getFirebase();
     if (auth) {
-        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
             setUser(currentUser);
             setIsAuthLoading(false);
 
@@ -1074,48 +1079,37 @@ const App: React.FC = () => {
       // CRITICAL FIX: Attempt to get the auth instance safely.
       const { auth } = getFirebase();
       
-      // SAFE ACCESS to environment variable to prevent crashes in preview
-      const env = (import.meta as any)?.env || {};
-      const envApiKey = env.VITE_FIREBASE_API_KEY;
-
-      // 1. Check if Env Vars exist at all.
-      if (!envApiKey) {
-          // Explicit alert for debugging the silent failure
-          alert("Configuration Error: VITE_FIREBASE_API_KEY is missing in the browser.\n\nIf you are on Vercel: You MUST Redeploy (rebuild) the app after adding Environment Variables for them to take effect.");
-          
-          setShowSetupGuide(true);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-      }
-
-      // 2. If Env Vars exist but 'auth' is null, it means Initialization FAILED.
+      // 2. If 'auth' is null, initialization failed (likely bad config values).
       if (!auth) {
           const isRtl = uiLanguage === 'ar';
           const msg = isRtl 
-            ? "فشل تهيئة خدمة Firebase. يرجى التحقق من صحة مفاتيح API في المتغيرات وإعادة تحميل الصفحة."
-            : "Firebase initialization failed. Please check your API keys in environment variables and refresh.";
+            ? "فشل تهيئة خدمة Firebase. يرجى التحقق من صحة مفاتيح API في ملف التكوين وإعادة تحميل الصفحة."
+            : "Firebase initialization failed. Please check your API keys in configuration and refresh.";
           alert(msg);
-          console.error("Sign-in blocked: Auth not initialized despite env vars present.");
+          console.error("Sign-in blocked: Auth not initialized.");
           return;
       }
       
       // 3. Proceed with Sign In
       setIsAuthLoading(true);
-      const provider = new GoogleAuthProvider();
+      const provider = new firebase.auth.GoogleAuthProvider();
       
       try {
           console.log("Calling signInWithPopup...");
-          const result = await signInWithPopup(auth, provider);
-          console.log("Sign In Successful", result.user.uid);
+          // v8/compat syntax
+          const result = await auth.signInWithPopup(provider);
+          console.log("Sign In Successful", result.user?.uid);
           
           setUser(result.user);
           
           // Re-initialize listeners with new user
-          loadUserStats(result.user.uid);
-          if (firestoreUnsubscribeRef.current) firestoreUnsubscribeRef.current();
-          firestoreUnsubscribeRef.current = subscribeToHistory(result.user.uid, (items) => {
-              setHistory(items);
-          });
+          if (result.user) {
+              loadUserStats(result.user.uid);
+              if (firestoreUnsubscribeRef.current) firestoreUnsubscribeRef.current();
+              firestoreUnsubscribeRef.current = subscribeToHistory(result.user.uid, (items) => {
+                  setHistory(items);
+              });
+          }
 
       } catch (error: any) {
           console.error("Sign-in error:", error);
@@ -1182,7 +1176,8 @@ const App: React.FC = () => {
       setIsDevMode(false);
 
       if (auth) {
-          signOut(auth).catch(error => console.error("Sign-out error:", error));
+          // v8 syntax: auth.signOut()
+          auth.signOut().catch(error => console.error("Sign-out error:", error));
       }
       
       // Manually clear state to ensure UI updates immediately
