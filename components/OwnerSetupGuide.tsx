@@ -44,10 +44,10 @@ function StatusRow({ label, value }: { label: string, value?: string }) {
     }
 
     return (
-        <div className="flex items-center justify-between border-b border-slate-700/50 pb-2 last:border-0">
-            <span className="text-slate-400 text-xs font-medium">{label}</span>
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2 last:border-0">
+            <span className="text-slate-200 text-sm font-bold">{label}</span>
             <div className="flex items-center gap-2">
-                <span className={`font-mono text-[10px] sm:text-xs ${statusColor}`}>
+                <span className={`font-mono text-xs font-bold ${statusColor}`}>
                     {value || 'Unknown'}
                 </span>
                 {icon}
@@ -79,11 +79,11 @@ function EnvVarCheckRow({ name, value }: { name: string, value: string | undefin
     }
 
     return (
-        <div className="flex items-center justify-between py-1 border-b border-slate-700/30 last:border-0">
-            <span className="text-[10px] font-mono text-slate-400">{name}</span>
+        <div className="flex items-center justify-between py-2 border-b border-slate-800 last:border-0 bg-slate-900 px-2">
+            <span className="text-xs font-mono text-slate-300 font-bold">{name}</span>
             <div className="text-right">
-                <span className={`text-[10px] font-bold ${color}`}>{status}</span>
-                {detail && <div className="text-[9px] text-slate-500">{detail}</div>}
+                <span className={`text-xs font-black uppercase tracking-wider ${color}`}>{status}</span>
+                {detail && <div className="text-[10px] text-slate-500 font-mono">{detail}</div>}
             </div>
         </div>
     );
@@ -110,14 +110,14 @@ function FirebaseSetup({ uiLanguage, projectId }: { uiLanguage: Language, projec
     };
 
     return (
-        <div className="space-y-4 mt-2 animate-fade-in-down">
-            <div dir="ltr" className="relative p-4 bg-slate-900 rounded-xl font-mono text-xs text-cyan-300 text-left border-2 border-cyan-500/30 shadow-[0_0_20px_rgba(34,211,238,0.1)] group hover:border-cyan-500/50 transition-all">
-                <pre className="whitespace-pre-wrap opacity-80 overflow-x-auto"><code>{firebaseClientEnvVars}</code></pre>
+        <div className="space-y-4 mt-3">
+            <div dir="ltr" className="relative p-5 bg-[#0b1120] rounded-xl font-mono text-sm text-cyan-300 text-left border border-slate-800 shadow-inner group">
+                <pre className="whitespace-pre-wrap overflow-x-auto font-bold leading-relaxed"><code>{firebaseClientEnvVars}</code></pre>
                 <button 
                     onClick={handleCopy} 
-                    className="absolute top-3 right-3 px-3 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-cyan-600 flex items-center gap-2 transition-all border border-slate-600 hover:border-cyan-400 shadow-lg group-hover:opacity-100"
+                    className="absolute top-3 right-3 px-4 py-2 bg-slate-800 hover:bg-cyan-600 text-white rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-slate-600 hover:border-cyan-400 shadow-lg"
                 >
-                    {copied ? <CheckIcon className="w-3 h-3 text-white" /> : <CopyIcon className="w-3 h-3" />}
+                    {copied ? <CheckIcon className="w-4 h-4 text-white" /> : <CopyIcon className="w-4 h-4" />}
                     {copied ? (uiLanguage === 'ar' ? 'تم النسخ' : 'Copied') : (uiLanguage === 'ar' ? 'نسخ' : 'Copy')}
                 </button>
             </div>
@@ -140,11 +140,7 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     }, []);
 
     const handlePermanentDismiss = () => {
-        const confirmMsg = uiLanguage === 'ar' ? 'هل أنت متأكد؟ سيتم إخفاء هذا الدليل نهائياً.' : 'Are you sure? This will hide the guide permanently.';
-        if (window.confirm(confirmMsg)) {
-            localStorage.setItem('sawtli_hide_setup_guide', 'true');
-            setIsGuideOpen(false);
-        }
+        setIsGuideOpen(false);
     };
     
     const checkServerConfig = async () => {
@@ -162,19 +158,30 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
         }
     };
 
+    // Helper to safely access env vars without crashing if env is undefined
+    const getSafeEnv = (key: string) => {
+        try {
+            // @ts-ignore
+            // CRITICAL FIX: Use optional chaining for safety in all environments
+            return (import.meta && (import.meta as any).env && (import.meta as any).env[key]) || undefined;
+        } catch (e) {
+            return undefined;
+        }
+    };
+
     if (!isGuideOpen) return null;
 
-    // Loading State to prevent flash of "Error"
+    // Loading State
     if (checking && !serverStatus) {
         return (
-             <div className="p-6 border border-slate-700 rounded-xl bg-slate-800/80 animate-pulse mb-8 shadow-xl">
+             <div className="p-6 border border-slate-700 rounded-xl bg-slate-900 shadow-xl">
                  <div className="flex items-center justify-between mb-4">
-                    <div className="h-6 bg-slate-700 rounded w-1/3"></div>
-                    <div className="h-6 bg-slate-700 rounded w-16"></div>
+                    <div className="h-6 bg-slate-800 rounded w-1/3 animate-pulse"></div>
+                    <div className="h-6 bg-slate-800 rounded w-16 animate-pulse"></div>
                  </div>
                  <div className="space-y-3">
-                     <div className="h-4 bg-slate-700 rounded w-full"></div>
-                     <div className="h-4 bg-slate-700 rounded w-3/4"></div>
+                     <div className="h-4 bg-slate-800 rounded w-full animate-pulse"></div>
+                     <div className="h-4 bg-slate-800 rounded w-3/4 animate-pulse"></div>
                  </div>
              </div>
         );
@@ -183,7 +190,6 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     const keyStatus = serverStatus?.details?.firebaseKey || '';
     const isAutoFixed = keyStatus.includes('Auto-Fixed') || keyStatus.includes('Auto-fixing') || keyStatus.includes('Auto-corrected');
 
-    // Logic to determine if Server is fully ready
     const isServerReady = 
         serverStatus?.details?.gemini?.includes('Present') &&
         serverStatus?.details?.firebaseProject?.includes('Present') &&
@@ -192,36 +198,33 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
 
     const isFullyConfigured = isServerReady && isFirebaseConfigured;
 
-    // Attempt to extract Project ID for the snippet if present
     const projectStatus = serverStatus?.details?.firebaseProject || '';
     const projectMatch = projectStatus.match(/\(([^)]+)\)/);
     const detectedProjectId = projectMatch ? projectMatch[1] : undefined;
 
-    // Dynamic Styling based on state
-    let containerStyle = "bg-slate-800/95 border-amber-500/50 shadow-amber-900/20";
+    // Styles - SOLID BACKGROUNDS (No Blur)
+    let containerStyle = "bg-[#0f172a] border-amber-500/50 shadow-2xl ring-1 ring-amber-900/50";
     let headerIcon = <WarningIcon className="w-6 h-6 text-amber-400" />;
     let headerTitleColor = "text-amber-400";
-    let headerBg = "bg-amber-900/30 border-amber-500/30";
+    let headerBg = "bg-amber-950/30 border-amber-500/30";
     let titleText = uiLanguage === 'ar' ? 'إجراء مطلوب: إعدادات الخادم' : 'Action Required: Server Setup';
     let descriptionText = uiLanguage === 'ar' ? 'رسالة للمطور: يرجى إصلاح أخطاء الخادم أدناه.' : 'Dev Message: Please fix the server configuration errors below.';
 
     if (isFullyConfigured) {
-        // SUCCESS STATE
         return (
-             <div className="p-4 bg-green-900/20 border border-green-500/30 rounded-xl text-green-200 text-center mb-8 flex items-center justify-between animate-fade-in-down">
-                 <span className="flex items-center gap-2 font-bold text-sm">
-                     <CheckIcon className="w-5 h-5 text-green-400" /> 
+             <div className="p-5 bg-[#020617] border border-green-500/50 rounded-xl text-green-100 text-center mb-8 flex items-center justify-between shadow-xl relative z-50">
+                 <span className="flex items-center gap-3 font-bold text-base">
+                     <CheckIcon className="w-6 h-6 text-green-400" /> 
                      {uiLanguage === 'ar' ? 'اكتملت الإعدادات! الخادم والواجهة يعملان.' : 'Setup Complete! Server & Client are operational.'}
                  </span>
-                 <button onClick={handlePermanentDismiss} className="text-xs bg-green-900/50 hover:bg-green-800 px-3 py-1 rounded border border-green-500/30 transition-colors">{uiLanguage === 'ar' ? 'إخفاء' : 'Dismiss'}</button>
+                 <button onClick={handlePermanentDismiss} className="text-xs bg-green-900/50 hover:bg-green-800 px-4 py-2 rounded border border-green-500/50 transition-colors font-bold">{uiLanguage === 'ar' ? 'إغلاق' : 'Close'}</button>
              </div>
         );
     } else if (isServerReady && !isFirebaseConfigured) {
-        // INTERMEDIATE STATE: SERVER READY, FRONTEND MISSING
-        containerStyle = "bg-slate-800/95 border-teal-500/50 shadow-[0_0_20px_rgba(45,212,191,0.15)]";
+        containerStyle = "bg-[#0f172a] border-teal-500/50 shadow-2xl ring-1 ring-teal-900/50";
         headerIcon = <CheckIcon className="w-6 h-6 text-teal-400" />;
         headerTitleColor = "text-teal-400";
-        headerBg = "bg-teal-900/30 border-teal-500/30";
+        headerBg = "bg-teal-950/30 border-teal-500/30";
         titleText = uiLanguage === 'ar' ? 'الخادم جاهز! ولكن...' : 'Server Ready! But...';
         descriptionText = uiLanguage === 'ar' 
             ? 'الخادم يعمل بنجاح. ولكن التطبيق لا يزال ينتظر إعدادات الواجهة الأمامية.' 
@@ -229,76 +232,77 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     }
 
     return (
-        <div className={`p-5 border rounded-xl text-slate-300 shadow-2xl backdrop-blur-md relative overflow-hidden mb-8 animate-fade-in-down transition-all duration-500 ${containerStyle}`}>
+        <div className={`p-6 border rounded-2xl text-slate-100 mb-8 transition-all duration-300 relative z-50 ${containerStyle}`}>
             {/* Header */}
-            <div className="flex justify-between items-start mb-4">
-                <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg border ${headerBg} transition-colors duration-500`}>
+            <div className="flex justify-between items-start mb-6">
+                <div className="flex items-start gap-4">
+                    <div className={`p-3 rounded-xl border ${headerBg} shrink-0`}>
                         {headerIcon}
                     </div>
                     <div>
-                        <h3 className={`font-bold text-lg ${headerTitleColor} transition-colors duration-500`}>
+                        <h3 className={`font-black text-xl ${headerTitleColor} tracking-wide`}>
                             {titleText}
                         </h3>
-                        <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
+                        <p className="text-sm text-slate-300 mt-1 max-w-xl leading-relaxed font-medium">
                             {descriptionText}
                         </p>
                     </div>
                 </div>
                 <button 
                     onClick={handlePermanentDismiss}
-                    className="text-xs bg-slate-700/50 hover:bg-slate-700 text-slate-400 px-3 py-1.5 rounded-lg transition-colors border border-slate-600 flex items-center gap-1"
-                    title="Don't show again"
+                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-lg transition-colors border border-slate-600 flex items-center gap-2 font-bold shadow-md"
+                    title="Dismiss"
                 >
-                    <TrashIcon className="w-3 h-3" />
+                    <TrashIcon className="w-4 h-4" />
                     {uiLanguage === 'ar' ? 'إخفاء' : 'Dismiss'}</button>
             </div>
             
-            <div className="mt-4 border-t border-slate-700 pt-4 space-y-4 text-sm">
+            <div className="mt-4 border-t border-slate-800 pt-5 space-y-6 text-sm">
                 
-                {/* Diagnostics Panel (Collapsible if valid) */}
-                <div className={`rounded-lg border relative overflow-hidden transition-all duration-300 ${isServerReady ? 'bg-green-950/20 border-green-500/20' : 'bg-black/20 border-slate-700'}`}>
+                {/* Diagnostics Panel */}
+                <div className={`rounded-xl border overflow-hidden transition-all duration-300 ${isServerReady ? 'bg-[#020617] border-green-900/50' : 'bg-[#020617] border-slate-700'}`}>
                     <div 
-                        className="p-3 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors"
+                        className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-800 transition-colors"
                         onClick={() => setExpandServerDetails(!expandServerDetails)}
                     >
-                        <h4 className={`font-bold flex items-center gap-2 text-sm ${isServerReady ? 'text-green-400' : 'text-slate-300'}`}>
-                            {isServerReady ? <CheckIcon className="w-4 h-4" /> : <InfoIcon className="w-4 h-4" />}
+                        <h4 className={`font-bold flex items-center gap-2 text-sm ${isServerReady ? 'text-green-400' : 'text-slate-200'}`}>
+                            {isServerReady ? <CheckIcon className="w-5 h-5" /> : <InfoIcon className="w-5 h-5" />}
                             {uiLanguage === 'ar' ? 'حالة الخادم (Server Config)' : 'Server Status'}
                         </h4>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); checkServerConfig(); }}
                                 disabled={checking}
-                                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded text-[10px] font-bold transition-colors border border-slate-600"
+                                className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors border border-slate-600 shadow-sm"
                             >
                                 {checking ? '...' : (uiLanguage === 'ar' ? 'تحديث' : 'Check')}
                             </button>
-                            <ChevronDownIcon className={`w-4 h-4 text-slate-500 transition-transform ${expandServerDetails || !isServerReady ? 'rotate-180' : ''}`} />
+                            <ChevronDownIcon className={`w-5 h-5 text-slate-400 transition-transform ${expandServerDetails || !isServerReady ? 'rotate-180' : ''}`} />
                         </div>
                     </div>
 
                     {(expandServerDetails || !isServerReady) && (
-                        <div className="p-4 border-t border-slate-700/50 bg-black/20 animate-fade-in">
+                        <div className="p-5 border-t border-slate-800 bg-slate-950">
                             {serverStatus && !serverStatus.error && serverStatus.details ? (
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                     <StatusRow label="Gemini API Key" value={serverStatus.details.gemini} />
                                     <StatusRow label="Firebase Project" value={serverStatus.details.firebaseProject} />
                                     <StatusRow label="Firebase Email" value={serverStatus.details.firebaseEmail} />
                                     <StatusRow label="Private Key" value={serverStatus.details.firebaseKey} />
                                     
                                     {isAutoFixed && (
-                                        <div className="mt-3 p-2 bg-green-900/20 border border-green-500/30 text-green-300 rounded text-[10px] leading-relaxed flex gap-2 items-start">
-                                            <CheckIcon className="w-3 h-3 mt-0.5 flex-shrink-0 text-green-400" />
+                                        <div className="mt-4 p-3 bg-green-950/20 border border-green-500/20 text-green-300 rounded-lg text-xs leading-relaxed flex gap-3 items-start font-medium">
+                                            <CheckIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-400" />
                                             <div>
-                                                <strong>Good news:</strong> Your Private Key format was corrected automatically.
-                                                <div className="opacity-70 mt-0.5">{uiLanguage === 'ar' ? 'تم إصلاح تنسيق المفتاح تلقائياً. يمكنك المتابعة.' : 'System auto-fixed the key format. You are good to go.'}</div>
+                                                <strong className="text-green-200 block mb-1">Good news:</strong> 
+                                                Your Private Key format was corrected automatically.
+                                                <div className="opacity-80 mt-1">{uiLanguage === 'ar' ? 'تم إصلاح تنسيق المفتاح تلقائياً. يمكنك المتابعة.' : 'System auto-fixed the key format. You are good to go.'}</div>
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             ) : (
-                                <div className="text-center text-slate-500 italic text-xs py-2">
+                                <div className="text-center text-slate-400 italic text-xs py-2">
                                     {checking ? 'Checking connection...' : (serverStatus?.error || 'Click Check to verify server')}
                                 </div>
                             )}
@@ -308,50 +312,50 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
 
                 {/* Frontend Config Missing Warning */}
                 {!isFirebaseConfigured && (
-                    <div className={`space-y-3 pt-2 transition-all duration-500 ${isServerReady ? 'opacity-100 scale-100' : 'opacity-70 blur-[1px]'}`}>
-                        <div className="flex items-center gap-2 text-cyan-400">
-                            <div className="bg-cyan-900/30 p-1.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.3)]">
-                                <InfoIcon className="w-4 h-4" />
+                    <div className="space-y-4 pt-2">
+                        <div className="flex items-center gap-3 text-cyan-400">
+                            <div className="bg-cyan-950 p-2 rounded-full border border-cyan-500/30">
+                                <InfoIcon className="w-5 h-5" />
                             </div>
-                            <h5 className="font-bold text-sm uppercase tracking-wide">
+                            <h5 className="font-black text-base uppercase tracking-wide text-cyan-300 shadow-black drop-shadow-md">
                                 {uiLanguage === 'ar' ? 'إجراء مطلوب: إعداد الواجهة الأمامية' : 'ACTION REQUIRED: CONFIGURE FRONTEND'}
                             </h5>
                         </div>
                         
-                        <p className="text-xs text-slate-400 leading-relaxed ml-1">
+                        <p className="text-sm text-slate-300 leading-relaxed ml-1 font-medium">
                             {uiLanguage === 'ar' 
-                                ? 'انسخ إعدادات Firebase أدناه وأضفها لمتغيرات البيئة في Vercel.'
-                                : 'Copy the Firebase config below and add them as Environment Variables in Vercel.'}
+                                ? 'انسخ إعدادات Firebase أدناه وأضفها لمتغيرات البيئة في Vercel (Environment Variables).'
+                                : 'Copy the Firebase config below and add them as Environment Variables in Vercel Dashboard.'}
                         </p>
 
                         <FirebaseSetup uiLanguage={uiLanguage} projectId={detectedProjectId} />
                         
                         {/* Debugging Tool for Frontend Variables */}
-                        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-900/10 overflow-hidden">
+                        <div className="mt-6 rounded-xl border border-red-900/50 bg-[#0f172a] overflow-hidden">
                              <div 
-                                className="p-2 px-3 flex justify-between items-center cursor-pointer hover:bg-red-900/20 transition-colors"
+                                className="p-3 px-4 flex justify-between items-center cursor-pointer hover:bg-red-900/20 transition-colors"
                                 onClick={() => setExpandFrontendDebug(!expandFrontendDebug)}
                             >
-                                <div className="flex items-center gap-2">
-                                    <WarningIcon className="w-4 h-4 text-red-400" />
-                                    <span className="text-xs font-bold text-red-300">{uiLanguage === 'ar' ? 'تشخيص الأخطاء (Frontend Debug)' : 'Frontend Diagnostics'}</span>
+                                <div className="flex items-center gap-3">
+                                    <WarningIcon className="w-5 h-5 text-red-400" />
+                                    <span className="text-sm font-bold text-red-200">{uiLanguage === 'ar' ? 'تشخيص الأخطاء (Frontend Debug)' : 'Frontend Diagnostics'}</span>
                                 </div>
-                                <ChevronDownIcon className={`w-3 h-3 text-red-400 transition-transform ${expandFrontendDebug ? 'rotate-180' : ''}`} />
+                                <ChevronDownIcon className={`w-4 h-4 text-red-400 transition-transform ${expandFrontendDebug ? 'rotate-180' : ''}`} />
                             </div>
                             
                             {expandFrontendDebug && (
-                                <div dir="ltr" className="p-3 border-t border-red-500/30 bg-black/30 text-xs space-y-1 animate-fade-in">
-                                    <p className="text-slate-500 mb-2 text-[10px] italic">
+                                <div dir="ltr" className="p-4 border-t border-red-900/50 bg-[#020617] text-xs space-y-1">
+                                    <p className="text-slate-400 mb-3 text-[11px] italic">
                                         Checking what the browser sees (import.meta.env)...
                                     </p>
-                                    <EnvVarCheckRow name="VITE_FIREBASE_API_KEY" value={(import.meta as any).env.VITE_FIREBASE_API_KEY} />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_PROJECT_ID" value={(import.meta as any).env.VITE_FIREBASE_PROJECT_ID} />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_AUTH_DOMAIN" value={(import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN} />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_STORAGE_BUCKET" value={(import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET} />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_MESSAGING_SENDER_ID" value={(import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID} />
-                                    <EnvVarCheckRow name="VITE_FIREBASE_APP_ID" value={(import.meta as any).env.VITE_FIREBASE_APP_ID} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_API_KEY" value={getSafeEnv('VITE_FIREBASE_API_KEY')} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_PROJECT_ID" value={getSafeEnv('VITE_FIREBASE_PROJECT_ID')} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_AUTH_DOMAIN" value={getSafeEnv('VITE_FIREBASE_AUTH_DOMAIN')} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_STORAGE_BUCKET" value={getSafeEnv('VITE_FIREBASE_STORAGE_BUCKET')} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_MESSAGING_SENDER_ID" value={getSafeEnv('VITE_FIREBASE_MESSAGING_SENDER_ID')} />
+                                    <EnvVarCheckRow name="VITE_FIREBASE_APP_ID" value={getSafeEnv('VITE_FIREBASE_APP_ID')} />
                                     
-                                    <div className="mt-3 text-[10px] text-slate-400 leading-relaxed border-t border-slate-800 pt-2">
+                                    <div className="mt-4 text-[11px] text-slate-300 leading-relaxed border-t border-slate-800 pt-3 font-medium">
                                         <strong className="text-red-400">Missing?</strong> You need to Redeploy in Vercel.<br/>
                                         <strong className="text-red-400">Invalid Format?</strong> Check for extra quotes in Vercel values.<br/>
                                         <strong className="text-green-400">Present but Red?</strong> Your Firebase Config values might be incorrect (e.g. wrong API Key), causing initialization to crash.
@@ -360,14 +364,31 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                             )}
                         </div>
 
-                        <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg flex items-start gap-3 text-xs text-blue-200">
-                            <InfoIcon className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                        <div className="mt-6 p-4 bg-blue-950/30 border border-blue-500/30 rounded-xl flex items-start gap-3 text-sm text-blue-100 shadow-inner">
+                            <InfoIcon className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-bold mb-1 text-blue-300">{uiLanguage === 'ar' ? 'أضفت المتغيرات وما زالت الرسالة تظهر؟' : 'Added variables but still see this?'}</p>
-                                <p className="opacity-80 leading-relaxed">
+                                <p className="opacity-90 leading-relaxed font-medium">
                                     {uiLanguage === 'ar' 
                                         ? 'متغيرات Vercel لا تعمل فوراً. يجب عليك الذهاب إلى صفحة "Deployments" في Vercel وإعادة نشر آخر نسخة (Redeploy) ليتم "خبز" المتغيرات داخل التطبيق.'
                                         : 'Vercel variables are baked in at build time. You MUST go to your Vercel "Deployments" page and trigger a **Redeploy** for the changes to take effect.'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 6: Authorized Domains (Custom) */}
+                {isServerReady && isFirebaseConfigured && (
+                    <div className="rounded-xl border border-slate-700 bg-[#020617] p-4 mt-4">
+                        <div className="flex items-start gap-3">
+                            <InfoIcon className="w-5 h-5 text-slate-400 mt-0.5" />
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-200 mb-1">{uiLanguage === 'ar' ? 'الدخول لا يعمل على الدومين الخاص؟' : 'Login failing on Custom Domain?'}</h4>
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                    {uiLanguage === 'ar'
+                                        ? 'للسماح بتسجيل الدخول عبر Google من `sawtli.com`، اذهب إلى Firebase Console > Authentication > Settings > Authorized Domains وأضف "sawtli.com" و "www.sawtli.com".'
+                                        : 'To allow Google Sign-In from `sawtli.com`, go to Firebase Console > Authentication > Settings > Authorized Domains and add BOTH "sawtli.com" and "www.sawtli.com".'}
                                 </p>
                             </div>
                         </div>
