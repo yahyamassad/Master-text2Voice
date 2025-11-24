@@ -1,19 +1,18 @@
 
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getFirestore, type Firestore } from 'firebase/firestore';
-import { getAuth, type Auth } from 'firebase/auth';
+import firebase from 'firebase/app';
+import 'firebase/firestore';
+import 'firebase/auth';
 
 // State holders
-let app: FirebaseApp | undefined;
-let db: Firestore | undefined;
-let auth: Auth | undefined;
+let app: firebase.app.App | undefined;
+let db: firebase.firestore.Firestore | undefined;
+let auth: firebase.auth.Auth | undefined;
 let isFirebaseConfigured = false;
 
 // ============================================================================
-// FIREBASE CONFIGURATION
+// FIREBASE CONFIGURATION - HARDCODED
 // ============================================================================
-// To HARDCODE your keys (bypass Vercel Env Vars), replace the process.env or 
-// import.meta.env values below with your actual strings like "AIzaSy..."
+// PASTE YOUR KEYS BELOW. DO NOT COMMIT TO PUBLIC REPOS.
 // ============================================================================
 
 const firebaseConfig = {
@@ -30,23 +29,17 @@ const firebaseConfig = {
 const initializeFirebase = () => {
     if (app) return;
 
-    console.log("Initializing Firebase...");
-
-    // Basic validation to ensure we don't crash if keys are empty strings
-    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-        console.warn("Firebase Config Missing. Please check Vercel Env Vars or Hardcode in firebaseConfig.ts");
-        return;
-    }
+    console.log("Initializing Firebase (Hardcoded)...");
 
     try {
-        if (!getApps().length) {
-            app = initializeApp(firebaseConfig);
+        if (!firebase.apps.length) {
+            app = firebase.initializeApp(firebaseConfig);
         } else {
-            app = getApp();
+            app = firebase.app();
         }
         
-        db = getFirestore(app);
-        auth = getAuth(app);
+        db = app.firestore();
+        auth = app.auth();
         isFirebaseConfigured = true;
         console.log("Firebase Initialized Successfully");
     } catch (error) {
@@ -72,5 +65,5 @@ export const getFirebase = () => {
 
 export { app, db, auth, isFirebaseConfigured };
 // Re-export types
-export type { Auth };
-export type { Firestore };
+export type Auth = firebase.auth.Auth;
+export type Firestore = firebase.firestore.Firestore;
