@@ -17,12 +17,13 @@ let isFirebaseConfigured = false;
 // ============================================================================
 
 const firebaseConfig = {
-    apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY,
-    authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: (import.meta as any).env.VITE_FIREBASE_APP_ID,
+  apiKey: "AIzaSyChk5lI5nEZHy4IMc1xDh51wVTpL0__7Uo",
+  authDomain: "master-text2voice.firebaseapp.com",
+  projectId: "master-text2voice",
+  storageBucket: "master-text2voice.firebasestorage.app",
+  messagingSenderId: "390050145859",
+  appId: "1:390050145859:web:2013fd0bfc352d060956f6",
+  measurementId: "G-0BWE7XEESG"
 };
 
 // Initialization function
