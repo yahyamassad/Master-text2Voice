@@ -585,9 +585,9 @@ const App: React.FC = () => {
             let textToProcess = text;
             let isTruncated = false;
             
-            if (userTier === 'visitor' && text.length > planConfig.maxCharsPerRequest) {
-                // TRUNCATE SILENTLY
-                textToProcess = text.substring(0, 100); // ~10 seconds of audio
+            if (userTier === 'visitor' && text.length > 100) {
+                // TRUNCATE SILENTLY FOR THE SIP
+                textToProcess = text.substring(0, 100); 
                 isTruncated = true;
             }
 
@@ -853,6 +853,8 @@ const App: React.FC = () => {
     recognition.onerror = (event: any) => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setMicError(t('errorMicPermission', uiLanguage));
+      } else if (event.error === 'no-speech') {
+          // Ignore no-speech errors, just stop
       } else {
         setMicError(event.error);
       }
