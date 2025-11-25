@@ -8,12 +8,11 @@ import {
 import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig, GEMINI_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
-// FIX: Import Auth functions from SDK directly, instances from config
-import { getFirebase } from './firebaseConfig';
-import firebase from 'firebase/app';
-import 'firebase/auth';
 
-// Type definition for User
+// FIX: Import Firebase Compat from config
+import firebase, { getFirebase } from './firebaseConfig';
+
+// Correct Type Definition using Namespace
 type User = firebase.User;
 
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument } from './services/firestoreService';
@@ -81,18 +80,15 @@ const App: React.FC = () => {
   // Auth State & Tiers
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
-  // REMOVED stale useMemo for isFirebaseConfigured to prevent logic traps
-  const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); // Assume true initially to prevent flash
+  const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); 
   
   // Subscription State (Mock for Demo)
   const [userSubscription, setUserSubscription] = useState<'free' | 'gold' | 'platinum'>('free');
   
-  // Owner/Dev State override - DISABLED BY DEFAULT FOR PRODUCTION
-  // Use the secret key 'sawtli-master' in Account > Developer Powers to activate.
+  // Owner/Dev State override
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
   // Guide Visibility State
-  // HIDDEN BY DEFAULT. Only visible if 'setup=true' is in URL.
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
   // Check for Setup Trigger in URL
@@ -104,7 +100,6 @@ const App: React.FC = () => {
   }, []);
 
   // User Statistics for Quotas & Gamification
-  // Initialized with safe defaults, updated from storage on load
   const [userStats, setUserStats] = useState<UserStats>({
       trialStartDate: Date.now(),
       totalCharsUsed: 0,
@@ -133,12 +128,11 @@ const App: React.FC = () => {
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   
   // Settings State
-  // Use a system voice by default for the free "Taste" experience
   const [voice, setVoice] = useState('Google US English'); 
   const [emotion, setEmotion] = useState('Default');
   const [pauseDuration, setPauseDuration] = useState(1.0);
-  const [speed, setSpeed] = useState(1.0); // Speed state
-  const [seed, setSeed] = useState(42); // Seed for deterministic output
+  const [speed, setSpeed] = useState(1.0);
+  const [seed, setSeed] = useState(42);
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
@@ -170,26 +164,24 @@ const App: React.FC = () => {
   // Keep a reference to an AudioContext to reuse it and bypass autoplay blocks
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // --- PLAYBACK TRACKING FOR GEMINI RESUME ---
+  // --- PLAYBACK TRACKING ---
   const playbackStartTimeRef = useRef<number>(0);
   const playbackOffsetRef = useRef<number>(0);
-  const isPausedRef = useRef<boolean>(false); // Ref to track pause state inside callbacks
+  const isPausedRef = useRef<boolean>(false);
 
   // --- DERIVED STATE FOR TIERS & LIMITS ---
   const userTier: UserTier = isDevMode ? 'admin' : (user ? userSubscription : 'visitor');
   const planConfig = PLAN_LIMITS[userTier];
   
   // Calculate dynamic limits based on stats
-  const currentDailyLimit = planConfig.dailyLimit; // Base daily limit
+  const currentDailyLimit = planConfig.dailyLimit;
   const effectiveTotalLimit = planConfig.totalTrialLimit + userStats.bonusChars;
   const daysSinceStart = Math.floor((Date.now() - userStats.trialStartDate) / (1000 * 60 * 60 * 24));
   const isTrialExpired = userTier === 'free' && daysSinceStart > planConfig.trialDays;
   
-  // Calculate remaining
   const dailyCharsRemaining = Math.max(0, currentDailyLimit - userStats.dailyCharsUsed);
   const totalCharsRemaining = Math.max(0, effectiveTotalLimit - userStats.totalCharsUsed);
   
-  // Logic for "Over Limit"
   const isDailyLimitReached = userTier !== 'admin' && userStats.dailyCharsUsed >= currentDailyLimit;
   const isTotalLimitReached = userTier !== 'admin' && userStats.totalCharsUsed >= effectiveTotalLimit;
   
@@ -197,8 +189,6 @@ const App: React.FC = () => {
       if (userTier === 'admin') return false;
       if (isTrialExpired) return true;
       if (userTier === 'visitor') return textLength > planConfig.maxCharsPerRequest;
-      
-      // For free users, check remaining capacity
       return textLength > dailyCharsRemaining || textLength > totalCharsRemaining;
   };
 
@@ -206,13 +196,11 @@ const App: React.FC = () => {
 
   // --- CORE FUNCTIONS ---
   
-  // --- STATS MANAGEMENT ---
   const loadUserStats = (userId: string) => {
       const key = `sawtli_stats_${userId}`;
       const stored = localStorage.getItem(key);
       if (stored) {
           const parsed = JSON.parse(stored);
-          // Check if day changed to reset daily usage
           const today = new Date().toISOString().split('T')[0];
           if (parsed.lastUsageDate !== today) {
               parsed.dailyCharsUsed = 0;
@@ -221,7 +209,6 @@ const App: React.FC = () => {
           }
           setUserStats(parsed);
       } else {
-          // Initialize new stats
           const newStats: UserStats = {
               trialStartDate: Date.now(),
               totalCharsUsed: 0,
@@ -238,7 +225,7 @@ const App: React.FC = () => {
   };
 
   const updateUserStats = (charsConsumed: number) => {
-      if (userTier === 'admin' || userTier === 'visitor') return; // Don't track admin or visitor persistently like this
+      if (userTier === 'admin' || userTier === 'visitor') return; 
       if (!user) return;
 
       setUserStats(prev => {
@@ -258,8 +245,6 @@ const App: React.FC = () => {
       let bonus = 0;
       setUserStats(prev => {
           if (type === 'share' && !prev.hasShared) {
-              // Share gives daily boost? No, let's add to total capacity effectively extending trial volume
-              // Or maybe just add a chunk. Let's add 50 chars to TOTAL allowed.
               bonus = 50;
               const newStats = { ...prev, hasShared: true, bonusChars: prev.bonusChars + 50 };
               localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
@@ -271,7 +256,6 @@ const App: React.FC = () => {
               localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
               return newStats;
           }
-          // Invite logic would go here
           return prev;
       });
   };
@@ -317,16 +301,16 @@ const App: React.FC = () => {
   }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
 
   useEffect(() => {
-    // Check if API Key is configured on server
     fetch('/api/check-config')
         .then(res => res.json())
         .then(data => setIsApiConfigured(!!data.configured))
-        .catch(() => setIsApiConfigured(false)); // If fetch fails, assume config issue or network
+        .catch(() => setIsApiConfigured(false));
 
     // INITIAL AUTH CHECK
-    const { app, auth } = getFirebase();
+    const { auth } = getFirebase();
     if (auth) {
-        const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+        // Use compat syntax
+        const unsubscribeAuth = auth.onAuthStateChanged((currentUser: any) => {
             setUser(currentUser);
             setIsAuthLoading(false);
 
@@ -336,11 +320,9 @@ const App: React.FC = () => {
             }
 
             if (currentUser) {
-                // If user is logged in, hide guide
                 setShowSetupGuide(false);
-
-                setUserSubscription('free'); // Default to free trial logic
-                loadUserStats(currentUser.uid); // Load stats
+                setUserSubscription('free');
+                loadUserStats(currentUser.uid);
                 firestoreUnsubscribeRef.current = subscribeToHistory(currentUser.uid, (items) => {
                     setHistory(items);
                 });
@@ -360,28 +342,23 @@ const App: React.FC = () => {
              if (firestoreUnsubscribeRef.current) firestoreUnsubscribeRef.current();
         };
     } else {
-        // Fallback if auth init fails temporarily
         setIsAuthLoading(false);
         try {
             const savedHistory = localStorage.getItem('sawtli_history');
             if (savedHistory) setHistory(JSON.parse(savedHistory));
         } catch (e) { console.error("Failed to load history", e); }
     }
-  }, []); // Run once on mount. getFirebase() is stable.
+  }, []); 
 
-  // --- ROBUST SYSTEM VOICE LOADING ---
-  // Helper to refresh voices and update state if changed
   const refreshVoices = useCallback(() => {
       const voices = window.speechSynthesis.getVoices();
       setSystemVoices(prev => {
-          // Update if count changed OR if we had 0 voices and now have some
           if (voices.length !== prev.length || (prev.length === 0 && voices.length > 0)) {
               return voices;
           }
           return prev;
       });
       
-      // Ensure current voice selection is valid
       if (!voice || (!GEMINI_VOICES.includes(voice) && !voices.some(v => v.name === voice))) {
            const defaultVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
            if (defaultVoice && !GEMINI_VOICES.includes(voice)) {
@@ -393,12 +370,7 @@ const App: React.FC = () => {
   useEffect(() => {
     refreshVoices();
     window.speechSynthesis.onvoiceschanged = refreshVoices;
-
-    // Aggressive Polling for Mobile/Chrome that might miss the event
-    // Some browsers (Chrome Android) load voices asynchronously without firing events reliably
     const intervalId = setInterval(refreshVoices, 1000);
-
-    // Keep Alive for SpeechSynthesis (it times out after 15s in Chrome)
     const keepAliveInterval = setInterval(() => {
         if (window.speechSynthesis && window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
             window.speechSynthesis.pause();
@@ -492,14 +464,11 @@ const App: React.FC = () => {
           return;
       }
 
-      // --- QUOTA CHECKING LOGIC ---
-      // Visitor: strict 100 chars.
       if (userTier === 'visitor') {
           if (text.length > planConfig.maxCharsPerRequest) {
-              // "The Sip" Strategy: We truncate later
+              // "The Sip"
           }
       } else {
-          // Member Logic
           if (isTrialExpired) {
               setError(t('trialExpired', uiLanguage));
               setIsUpgradeOpen(true);
@@ -507,7 +476,7 @@ const App: React.FC = () => {
           }
           if (isDailyLimitReached) {
               setError(t('dailyLimitReached', uiLanguage));
-              setIsGamificationOpen(true); // Offer boost
+              setIsGamificationOpen(true); 
               return;
           }
           if (isTotalLimitReached) {
@@ -515,7 +484,6 @@ const App: React.FC = () => {
               setIsUpgradeOpen(true);
               return;
           }
-          // If text is longer than remaining daily quota
           if (text.length > dailyCharsRemaining) {
               setError(`${t('dailyLimitReached', uiLanguage)}. (${dailyCharsRemaining} chars left)`);
               setIsGamificationOpen(true);
@@ -581,13 +549,12 @@ const App: React.FC = () => {
                 isPausedRef.current = false;
             }
             
-            // --- "THE SIP" & TRUNCATION LOGIC ---
             let textToProcess = text;
             if (userTier === 'visitor' && text.length > planConfig.maxCharsPerRequest) {
                 textToProcess = text.substring(0, planConfig.maxCharsPerRequest);
             }
 
-            const cacheKey = getCacheKey(textToProcess); // Cache based on what we actually send
+            const cacheKey = getCacheKey(textToProcess);
             let pcmData: Uint8Array | null = null;
 
             if (audioCacheRef.current.has(cacheKey)) {
@@ -612,6 +579,7 @@ const App: React.FC = () => {
 
                 try {
                     const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+                    // @ts-ignore - user type mismatch in compat mode
                     const idToken = user ? await user.getIdToken() : undefined;
 
                     pcmData = await generateSpeech(
@@ -639,8 +607,6 @@ const App: React.FC = () => {
                         audioCacheRef.current.set(cacheKey, pcmData);
                         setLastGeneratedPCM(pcmData);
                         
-                        // --- CONSUME QUOTA ---
-                        // Only consume if it was a fresh generation (not cached)
                         if (userTier !== 'visitor' && userTier !== 'admin') {
                             updateUserStats(textToProcess.length);
                         }
@@ -674,7 +640,6 @@ const App: React.FC = () => {
                              setLoadingTask('');
                              playbackOffsetRef.current = 0;
                              
-                             // Visitor Tease after playback ends
                              if (userTier === 'visitor' && text.length > planConfig.maxCharsPerRequest) {
                                  setTimeout(() => setIsUpgradeOpen(true), 500);
                              }
@@ -698,7 +663,6 @@ const App: React.FC = () => {
                 
                 if (!selectedVoice) {
                     const targetLangCode = target === 'source' ? sourceLang : targetLang;
-                    // Fallback logic: case-insensitive match and loose searching
                     selectedVoice = systemVoices.find(v => v.lang.toLowerCase().includes(targetLangCode.toLowerCase())) 
                                  || systemVoices[0];
                 }
@@ -752,10 +716,8 @@ const App: React.FC = () => {
           return;
       }
       if (!sourceText.trim()) return;
-      // Translate consumes quota? No, translation is usually cheap/free in this model
-      // But let's apply the generic "Over Limit" check just in case user pastes a book
       if (userTier !== 'admin' && sourceText.length > 2000) {
-           setError(t('errorFileTooLarge', uiLanguage)); // Reusing error message for simplicity
+           setError(t('errorFileTooLarge', uiLanguage)); 
            return;
       }
 
@@ -768,6 +730,7 @@ const App: React.FC = () => {
       const signal = apiAbortControllerRef.current.signal;
       
       try {
+          // @ts-ignore
           const idToken = user ? await user.getIdToken() : undefined;
           const result = await translateText(
               sourceText,
@@ -908,7 +871,6 @@ const App: React.FC = () => {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
       
-      // Gamification: Share Bonus
       if (user) handleBoost('share');
   };
 
@@ -947,6 +909,7 @@ const App: React.FC = () => {
              }
         } else {
              const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+             // @ts-ignore
              const idToken = user ? await user.getIdToken() : undefined;
 
              const pcmData = await generateSpeech(
@@ -971,12 +934,6 @@ const App: React.FC = () => {
             }
             audioCacheRef.current.set(cacheKey, pcmData);
             
-            // CONSUME QUOTA FOR DOWNLOAD? 
-            // Usually we charged at generation. Downloading cached audio should be free.
-            // If we regenerated, generateSpeech logic inside would consume.
-            // BUT wait, handleSpeak consumes. generateAudioBlob calls generateSpeech directly.
-            // So yes, generateSpeech logic needs to know if it should consume.
-            // For now, let's assume downloading consumes quota if not cached.
             if (userTier !== 'visitor' && userTier !== 'admin') {
                  updateUserStats(text.length);
             }
@@ -1075,34 +1032,28 @@ const App: React.FC = () => {
   };
 
   const handleSignIn = async () => {
-      console.log("Attempting to Sign In...");
-      // CRITICAL FIX: Attempt to get the auth instance safely.
       const { auth } = getFirebase();
       
-      // 2. If 'auth' is null, initialization failed (likely bad config values).
       if (!auth) {
           const isRtl = uiLanguage === 'ar';
           const msg = isRtl 
-            ? "فشل تهيئة خدمة Firebase. يرجى التحقق من صحة مفاتيح API في ملف التكوين وإعادة تحميل الصفحة."
-            : "Firebase initialization failed. Please check your API keys in configuration and refresh.";
+            ? "فشل تهيئة خدمة Firebase. يرجى إعادة تحميل الصفحة."
+            : "Firebase initialization failed. Please refresh the page.";
           alert(msg);
-          console.error("Sign-in blocked: Auth not initialized.");
           return;
       }
       
-      // 3. Proceed with Sign In
       setIsAuthLoading(true);
+      // Use compat provider
       const provider = new firebase.auth.GoogleAuthProvider();
       
       try {
-          console.log("Calling signInWithPopup...");
-          // v8/compat syntax
+          // Use compat signInWithPopup
+          // @ts-ignore
           const result = await auth.signInWithPopup(provider);
-          console.log("Sign In Successful", result.user?.uid);
           
           setUser(result.user);
           
-          // Re-initialize listeners with new user
           if (result.user) {
               loadUserStats(result.user.uid);
               if (firestoreUnsubscribeRef.current) firestoreUnsubscribeRef.current();
@@ -1118,9 +1069,6 @@ const App: React.FC = () => {
           const errorMessage = error.message;
           const errorString = JSON.stringify(error).toLowerCase();
 
-          // --- INTELLIGENT ERROR HANDLING ---
-          
-          // Check for Google Cloud API Key restrictions (Referer Blocked)
           if (errorString.includes('blocked') || errorString.includes('referer') || errorString.includes('403') || errorString.includes('missing required data')) {
                const domain = window.location.origin;
                const isRtl = uiLanguage === 'ar';
@@ -1132,7 +1080,6 @@ const App: React.FC = () => {
           }
 
           if (errorCode === 'auth/popup-closed-by-user') {
-               // If closed by user AND not on localhost, it's often a configuration crash
                if (window.location.hostname !== 'localhost') {
                    const isRtl = uiLanguage === 'ar';
                    const msg = isRtl
@@ -1154,9 +1101,8 @@ const App: React.FC = () => {
                  : `🛑 Unauthorized Domain (${errorCode}).\n\nCurrent Domain: ${domain}\n\nFix: Add this domain to "Authorized Domains" in Firebase Console > Authentication > Settings.`;
                alert(msg);
           } else if (errorCode === 'auth/invalid-api-key') {
-               alert("Invalid API Key. Please check Vercel environment variables.");
+               alert("Invalid API Key. Please check configuration.");
           } else {
-               // Fallback: Show the raw code to help debugging
                const isRtl = uiLanguage === 'ar';
                const msg = isRtl 
                  ? `فشل تسجيل الدخول.\nالكود: ${errorCode}\nالرسالة: ${errorMessage}\n\nنصيحة للمطور: تأكد من إعدادات OAuth Client ID في Google Cloud.`
@@ -1171,16 +1117,14 @@ const App: React.FC = () => {
   const handleSignOut = useCallback(() => {
       const { auth } = getFirebase();
       
-      // Force clear dev mode sticky session
       sessionStorage.removeItem('sawtli_dev_mode');
       setIsDevMode(false);
 
       if (auth) {
-          // v8 syntax: auth.signOut()
+          // @ts-ignore
           auth.signOut().catch(error => console.error("Sign-out error:", error));
       }
       
-      // Manually clear state to ensure UI updates immediately
       setUser(null);
       setHistory([]);
   }, []);
@@ -1210,12 +1154,9 @@ const App: React.FC = () => {
         try {
             await clearHistoryForUser(user.uid);
             await deleteUserDocument(user.uid);
-            // Note: Ideally we should delete the Auth user too, but that requires strict re-authentication.
-            // For this demo, we just wipe data and sign out.
-            
             alert(t('accountDeletedSuccess', uiLanguage));
             setIsAccountOpen(false);
-            handleSignOut(); // Log them out
+            handleSignOut(); 
         } catch (error) {
             console.error("Account deletion error:", error);
             setError(t('accountDeletionError', uiLanguage));
@@ -1397,7 +1338,7 @@ const App: React.FC = () => {
 
   const swapButton = (
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 my-6 md:my-0 pointer-events-none">
-         <button onClick={swapLanguages} title={t('swapLanguages', uiLanguage)} className="pointer-events-auto h-12 w-12 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-full transition-all active:scale-90 border border-slate-600 hover:border-cyan-400 shadow-xl group">
+         <button onClick={swapLanguages} title={t('swapLanguages', uiLanguage)} className="pointer-events-auto h-12 w-12 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-full transition-all active:scale-95 border border-slate-600 hover:border-cyan-400 shadow-xl group">
             <SwapIcon className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
         </button>
      </div>
@@ -1587,6 +1528,7 @@ const App: React.FC = () => {
           voice={voice} 
           sourceAudioPCM={lastGeneratedPCM}
           allowDownloads={planConfig.allowDownloads} // Pass explicit permission
+          allowStudio={planConfig.allowStudio} // Pass explicit permission
           onUpgrade={() => setIsUpgradeOpen(true)} // Pass upgrade handler
       />}
       {isTutorialOpen && <TutorialModal onClose={() => setIsTutorialOpen(false)} uiLanguage={uiLanguage} />}

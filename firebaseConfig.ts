@@ -1,9 +1,10 @@
+
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 
 // ============================================================================
-// FIREBASE CONFIGURATION - HARDCODED (FIXED)
+// FIREBASE CONFIGURATION - HARDCODED (FIXED FOR VERCEL)
 // ============================================================================
 const firebaseConfig = {
     apiKey: "AIzaSyChk5lI5nEZHy4IMc1xDh51wVTpL0__7Uo",
@@ -15,9 +16,9 @@ const firebaseConfig = {
     measurementId: "G-0BWE7XEESG"
 };
 
-let app;
-let auth;
-let db;
+let app: firebase.app.App;
+let auth: firebase.auth.Auth;
+let db: firebase.firestore.Firestore;
 let isFirebaseConfigured = false;
 
 try {
@@ -26,10 +27,13 @@ try {
     } else {
         app = firebase.app();
     }
+    
+    // Initialize Compat Services
     auth = firebase.auth();
     db = firebase.firestore();
     isFirebaseConfigured = true;
-    console.log("Firebase Initialized Successfully (Hardcoded Mode)");
+    
+    console.log("Firebase Initialized Successfully (Compat Mode)");
 } catch (error) {
     console.error("Firebase Initialization Error:", error);
 }
@@ -39,3 +43,4 @@ export const getFirebase = () => {
 };
 
 export { app, auth, db, isFirebaseConfigured };
+export default firebase;
