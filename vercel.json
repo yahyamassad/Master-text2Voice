@@ -12,7 +12,11 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!api/|.*\\.).*)",
+      "source": "/__/auth/:path*",
+      "destination": "https://master-text2voice.firebaseapp.com/__/auth/:path*"
+    },
+    {
+      "source": "/((?!api/|__/auth/|.*\\.).*)",
       "destination": "/index.html"
     }
   ]
