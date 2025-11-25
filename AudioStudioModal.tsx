@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
-import { WarningIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, SawtliLogoIcon, TrashIcon, StopIcon, MicrophoneIcon, LockIcon } from './icons';
+import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, GearIcon } from './icons';
 import { AudioSettings, AudioPresetName } from '../types';
 import { AUDIO_PRESETS, processAudio, createMp3Blob } from '../utils/audioUtils';
 
@@ -15,7 +15,6 @@ interface AudioStudioModalProps {
     onUpgrade?: () => void;
 }
 
-// --- VISUALIZER COMPONENT ---
 const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: boolean }> = ({ analyser, isPlaying }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationRef = useRef<number>(0);
@@ -32,8 +31,6 @@ const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: bool
         const dataArray = new Uint8Array(bufferLength);
 
         const draw = () => {
-            if (!isPlaying && !analyser) return;
-
             animationRef.current = requestAnimationFrame(draw);
             analyser.getByteFrequencyData(dataArray);
 
@@ -57,17 +54,8 @@ const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: bool
             }
         };
 
-        if (isPlaying) {
-            draw();
-        } else {
-             if (animationRef.current) cancelAnimationFrame(animationRef.current);
-             ctx.clearRect(0, 0, canvas.width, canvas.height);
-             ctx.beginPath();
-             ctx.moveTo(0, canvas.height / 2);
-             ctx.lineTo(canvas.width, canvas.height / 2);
-             ctx.strokeStyle = '#334155';
-             ctx.lineWidth = 1;
-             ctx.stroke();
+        if (isPlaying || analyser) {
+             draw();
         }
 
         return () => {
@@ -84,9 +72,6 @@ const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: bool
         />
     );
 };
-
-
-// --- CONTROL COMPONENTS ---
 
 const Knob: React.FC<{ label: string, value: number, min?: number, max?: number, onChange: (val: number) => void, color?: string }> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan' }) => {
     const percentage = (value - min) / (max - min);
@@ -199,14 +184,12 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
     </div>
 );
 
-// --- MAIN COMPONENT ---
-
 export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, allowStudio = false, onUpgrade }) => {
     const [activeTab, setActiveTab] = useState<'ai' | 'mic' | 'upload'>('ai');
     const [presetName, setPresetName] = useState<AudioPresetName>('Default');
     const [settings, setSettings] = useState<AudioSettings>(AUDIO_PRESETS[0].settings);
     const [monitorVolume, setMonitorVolume] = useState(80); 
-    const [musicVolume, setMusicVolume] = useState(40); // Background Music Volume
+    const [musicVolume, setMusicVolume] = useState(40); 
     
     const [fileName, setFileName] = useState<string>('Gemini AI Audio');
     const [fileDuration, setFileDuration] = useState<number>(0);
@@ -222,7 +205,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     const [recordingTime, setRecordingTime] = useState(0);
     const [micAudioBuffer, setMicAudioBuffer] = useState<AudioBuffer | null>(null);
     
-    // Music State
     const [musicBuffer, setMusicBuffer] = useState<AudioBuffer | null>(null);
     const [musicFileName, setMusicFileName] = useState<string | null>(null);
     
@@ -243,16 +225,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     
     const isManualStopRef = useRef(false);
     const processingRequestRef = useRef(0);
-
-    // UNLOCKED: No longer forcing close if allowStudio is false. We let them play but gate download.
-    // useEffect(() => {
-    //     if (allowStudio === false) {
-    //         onClose();
-    //         return;
-    //     }
-    //     document.body.style.overflow = 'hidden';
-    //     return () => { document.body.style.overflow = 'unset'; };
-    // }, [allowStudio, onClose]);
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -305,7 +277,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     
     const handleMusicVolumeChange = (v: number) => {
         setMusicVolume(v);
-        setProcessedBuffer(null); // Re-mix needed
+        setProcessedBuffer(null);
         if (isPlaying) stopPlayback();
     };
 
@@ -330,11 +302,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
         return true;
     };
 
-    const startRecording = async () => {
-        if (!confirmAction(uiLanguage === 'ar' ? 'هل أنت متأكد؟ سيتم استبدال التسجيل الحالي.' : 'Are you sure? This will replace the current recording.')) {
-            return;
-        }
+    const resetMic = async () => {
+        if (isRecording) stopRecording();
+        await startRecording();
+    };
 
+    const startRecording = async () => {
         try {
             stopPlayback();
             setMicAudioBuffer(null);
@@ -343,7 +316,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             const ctx = getAudioContext();
             if (ctx.state === 'suspended') await ctx.resume();
             
-            // FIX: High Quality Mic Constraints (No Processing)
             const constraints = {
                 audio: {
                     echoCancellation: false,
@@ -355,6 +327,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             streamRef.current = stream;
+
+            // LIVE VISUALIZER SETUP
+            const micSource = ctx.createMediaStreamSource(stream);
+            const analyser = ctx.createAnalyser();
+            micSource.connect(analyser);
+            setAnalyserNode(analyser);
             
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
@@ -365,6 +343,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             };
 
             mediaRecorder.onstop = async () => {
+                // Clean up visualizer
+                micSource.disconnect();
+                analyser.disconnect();
+                setAnalyserNode(null);
+
                 const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
                 const arrayBuffer = await blob.arrayBuffer();
                 const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
@@ -457,7 +440,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
              if (isMusic) {
                  setMusicBuffer(decodedBuffer);
                  setMusicFileName(file.name);
-                 setProcessedBuffer(null); // Need re-mix
+                 setProcessedBuffer(null); 
              } else {
                  setMicAudioBuffer(decodedBuffer);
                  setProcessedBuffer(null);
@@ -534,7 +517,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             let buffer = processedBuffer;
             
             if (!buffer) {
-                // Mix music here if present
                 buffer = await processAudio(source, settings, musicBuffer, musicVolume);
                 
                 if (requestId !== processingRequestRef.current) return; 
@@ -628,7 +610,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
         if (!source) return;
         try {
             setIsProcessing(true);
-            // Mix music into download
             let buffer = processedBuffer || await processAudio(source, settings, musicBuffer, musicVolume);
             const blob = await createMp3Blob(buffer, 1, buffer.sampleRate);
             const url = URL.createObjectURL(blob);
@@ -679,9 +660,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                     <div className="bg-[#020617] rounded-xl border border-slate-800 overflow-hidden relative shadow-2xl">
                         <div className="h-32 sm:h-40 relative w-full">
                              {isRecording ? (
-                                 <div className="absolute inset-0 flex items-center justify-center">
-                                     <div className="animate-pulse text-red-500 font-mono text-xl font-bold tracking-widest">RECORDING {formatTime(recordingTime)}</div>
-                                 </div>
+                                 <>
+                                     <AudioVisualizer analyser={analyserNode} isPlaying={true} />
+                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                         <div className="animate-pulse text-red-500 font-mono text-xl font-bold tracking-widest bg-black/30 px-4 py-1 rounded">RECORDING {formatTime(recordingTime)}</div>
+                                     </div>
+                                 </>
                              ) : (
                                  <AudioVisualizer analyser={analyserNode} isPlaying={isPlaying} />
                              )}
@@ -751,7 +735,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                             <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-2">
                                 <button 
                                     onClick={activeTab === 'mic' ? (isRecording ? stopRecording : startRecording) : onUploadClick}
-                                    className={`flex-1 h-16 rounded-lg flex flex-col items-center justify-center transition-all group border
+                                    className={`flex-1 h-16 rounded-lg flex flex-col items-center justify-center transition-all group border relative
                                         ${activeTab === 'mic' 
                                             ? (isRecording ? 'bg-red-900/80 border-red-500 text-white animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-500 hover:text-red-400')
                                             : 'bg-slate-800 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700'
@@ -759,6 +743,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                 >
                                     {activeTab === 'mic' ? (
                                         <>
+                                            {/* Settings Gear for Mic Re-selection */}
+                                            {!isRecording && (
+                                                <div 
+                                                    onClick={(e) => { e.stopPropagation(); resetMic(); }}
+                                                    className="absolute top-1 right-1 p-1 text-slate-500 hover:text-white z-20 cursor-pointer"
+                                                    title="Reset Mic / Settings"
+                                                >
+                                                    <GearIcon className="w-3 h-3" />
+                                                </div>
+                                            )}
                                             <div className={`w-3 h-3 rounded-full mb-1 ${isRecording ? 'bg-white rounded-sm' : 'bg-red-500'}`}></div>
                                             <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider">{isRecording ? 'STOP' : 'RECORD'}</span>
                                         </>
@@ -817,14 +811,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
                                     <div className="w-1 h-3 bg-cyan-500 rounded-sm"></div> MIXER
                                 </div>
-                                <button onClick={onMusicUploadClick} className="text-[10px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400">
+                                <button onClick={onMusicUploadClick} className="text-[10px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase tracking-wide">
                                     {musicFileName ? 'Replace Music' : '+ Music'}
                                 </button>
                              </div>
-                             {musicFileName && <div className="text-[9px] text-amber-400 mb-2 truncate w-full text-center">{musicFileName}</div>}
+                             {musicFileName && <div className="text-[9px] text-amber-400 mb-2 truncate w-full text-center font-mono">{musicFileName}</div>}
                              <div className="flex gap-4 h-full items-center justify-center pb-2 flex-grow">
                                 <Fader label="Voice" value={settings.volume} onChange={(v) => updateSetting('volume', v)} height="h-32" labelSize="text-xs sm:text-sm" />
-                                <Fader label="Music" value={musicVolume} onChange={handleMusicVolumeChange} color="amber" height="h-32" labelSize="text-xs sm:text-sm" />
+                                {musicFileName && <Fader label="Music" value={musicVolume} onChange={handleMusicVolumeChange} color="amber" height="h-32" labelSize="text-xs sm:text-sm" />}
                                 <Fader label="Monitor" value={monitorVolume} onChange={setMonitorVolume} color="slate" height="h-32" labelSize="text-xs sm:text-sm" />
                              </div>
                         </div>

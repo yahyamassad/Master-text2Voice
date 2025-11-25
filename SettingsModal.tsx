@@ -30,7 +30,7 @@ interface SettingsModalProps {
   targetLang: string;
   currentLimits: any; 
   onUpgrade: () => void;
-  onRefreshVoices?: () => void; // New prop
+  onRefreshVoices?: () => void; 
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -42,7 +42,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
     const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
-    const [showAllSystemVoices, setShowAllSystemVoices] = useState(false); // NEW TOGGLE
+    const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
 
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -57,7 +57,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }, []);
 
     const relevantSystemVoices = useMemo(() => {
-        if (showAllSystemVoices) return systemVoices; // Return ALL if toggle is on
+        if (showAllSystemVoices) return systemVoices;
 
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();

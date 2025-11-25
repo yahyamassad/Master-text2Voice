@@ -226,13 +226,6 @@ const App: React.FC = () => {
   const isDailyLimitReached = userTier !== 'admin' && userStats.dailyCharsUsed >= currentDailyLimit;
   const isTotalLimitReached = userTier !== 'admin' && userStats.totalCharsUsed >= effectiveTotalLimit;
   
-  const isOverLimit = (textLength: number) => {
-      if (userTier === 'admin') return false;
-      if (isTrialExpired) return true;
-      if (userTier === 'visitor') return false; // Visitors NOT blocked, just truncated
-      return textLength > dailyCharsRemaining || textLength > totalCharsRemaining;
-  };
-
   const isProOrAbove = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
 
   // --- CORE FUNCTIONS ---

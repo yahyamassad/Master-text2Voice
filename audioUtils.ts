@@ -6,8 +6,6 @@ import { AudioSettings, AudioPreset, AudioPresetName } from '../types';
 
 /**
  * Converts raw Int16 PCM data (bytes) into Float32Array (-1.0 to 1.0).
- * Gemini returns Linear-16 (16-bit signed integers).
- * We use Int16Array directly which handles system endianness automatically.
  */
 function convertInt16ToFloat32(incomingData: Uint8Array): Float32Array {
     const buffer = incomingData.byteOffset % 2 === 0 
@@ -124,7 +122,6 @@ export async function decodeAudioData(
         const bufferCopy = data.slice(0).buffer;
         const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const decoded = await tempCtx.decodeAudioData(bufferCopy);
-        // tempCtx.close() is not strictly needed for offline/temp contexts but good practice if it was real
         return decoded;
     } catch (e) {
         return rawPcmToAudioBuffer(data);
@@ -165,13 +162,12 @@ export async function processAudio(
     const speed = settings.speed || 1.0;
     const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
     
-    // Calculate total duration including music tail if music exists and is longer
+    // Determine Output Duration (Voice + Reverb vs Music)
     let outputDuration = (sourceBuffer.duration / speed) + reverbTail;
     if (backgroundMusicBuffer) {
-        // If music is longer, we might want to fade it out or keep it?
-        // For "workstation" feel, let's match the voice duration mostly, maybe a bit extra.
-        // Or let's just take the max to be safe so music doesn't cut off abruptly if it's slightly longer.
-        outputDuration = Math.max(outputDuration, Math.min(backgroundMusicBuffer.duration, outputDuration + 5)); 
+        // Extend if music is slightly longer, but cap reasonable max to avoid huge empty files if music is 5 mins
+        const voiceEnd = outputDuration;
+        outputDuration = Math.max(voiceEnd, Math.min(voiceEnd + 5, backgroundMusicBuffer.duration)); 
     }
     
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
@@ -251,15 +247,10 @@ export async function processAudio(
         musicSource.buffer = backgroundMusicBuffer;
         
         const musicGain = offlineCtx.createGain();
-        // Logic: musicVolume 0-100. 
-        // We want background music to be generally quieter than voice by default.
-        // Let's say max music volume is 0.6 gain to avoid overpowering.
-        const normalizedVol = (musicVolume / 100) * 0.6; 
-        musicGain.gain.value = normalizedVol;
-        
-        // Auto-ducking simulation (Simple volume drop)
-        // Real sidechaining is complex in WebAudio without extensive nodes. 
-        // We'll stick to static mix for now to ensure stability.
+        // Music volume logic: 0-100. Default 40 is good background.
+        // Normalize: 100 = 1.0 gain (loud).
+        const musicVol = musicVolume / 100;
+        musicGain.gain.value = musicVol;
         
         musicSource.connect(musicGain);
         musicGain.connect(offlineCtx.destination);
@@ -274,35 +265,6 @@ export async function processAudio(
 
     source.start(0);
     return await offlineCtx.startRendering();
-}
-
-export async function playProcessedAudio(
-    buffer: AudioBuffer,
-    existingContext: AudioContext | null,
-    onEnded: () => void
-): Promise<{ source: AudioBufferSourceNode, gainNode: GainNode }> {
-     let audioContext: AudioContext;
-     if (existingContext) {
-        audioContext = existingContext;
-    } else {
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    
-    if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-    }
-
-    const source = audioContext.createBufferSource();
-    const gainNode = audioContext.createGain();
-    
-    source.buffer = buffer;
-    source.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    source.onended = onEnded;
-    source.start(0);
-    
-    return { source, gainNode };
 }
 
 export function createWavBlob(data: Uint8Array | AudioBuffer, numChannels: number, sampleRate: number): Blob {

@@ -4,20 +4,11 @@ import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 
 // ============================================================================
-// FIREBASE CONFIGURATION
+// FIREBASE CONFIGURATION - HARDCODED FOR IMMEDIATE STABILITY
 // ============================================================================
-
-// Determine the Auth Domain dynamically.
-// If we are on the custom domain (sawtli.com), use it as the auth handler
-// to prevent the popup from showing 'firebaseapp.com' or 'vercel.app'.
-// This works because of the 'rewrites' rule in vercel.json.
-const isProd = typeof window !== 'undefined' && window.location.hostname.includes('sawtli');
-// Fallback to firebaseapp.com directly to avoid any Vercel proxy issues for now
-const calculatedAuthDomain = "master-text2voice.firebaseapp.com";
-
 const firebaseConfig = {
     apiKey: "AIzaSyChk5lI5nEZHy4IMc1xDh51wVTpL0__7Uo",
-    authDomain: calculatedAuthDomain,
+    authDomain: "master-text2voice.firebaseapp.com", // Fixed to firebaseapp to prevent Vercel proxy issues
     projectId: "master-text2voice",
     storageBucket: "master-text2voice.firebasestorage.app",
     messagingSenderId: "390050145859",
@@ -37,12 +28,11 @@ try {
         app = firebase.app();
     }
     
-    // Initialize Compat Services
     auth = firebase.auth();
     db = firebase.firestore();
     isFirebaseConfigured = true;
     
-    console.log(`Firebase Initialized. Auth Domain: ${firebaseConfig.authDomain}`);
+    console.log("Firebase Initialized Successfully (Compat Mode)");
 } catch (error) {
     console.error("Firebase Initialization Error:", error);
 }
