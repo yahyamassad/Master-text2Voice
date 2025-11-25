@@ -12,7 +12,8 @@ import 'firebase/compat/firestore';
 // to prevent the popup from showing 'firebaseapp.com' or 'vercel.app'.
 // This works because of the 'rewrites' rule in vercel.json.
 const isProd = typeof window !== 'undefined' && window.location.hostname.includes('sawtli');
-const calculatedAuthDomain = isProd ? "www.sawtli.com" : "master-text2voice.firebaseapp.com";
+// Fallback to firebaseapp.com directly to avoid any Vercel proxy issues for now
+const calculatedAuthDomain = "master-text2voice.firebaseapp.com";
 
 const firebaseConfig = {
     apiKey: "AIzaSyChk5lI5nEZHy4IMc1xDh51wVTpL0__7Uo",

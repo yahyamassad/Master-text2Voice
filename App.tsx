@@ -62,6 +62,35 @@ const getInitialLanguage = (): Language => {
     return 'en'; // Default to English
 };
 
+// --- TOAST NOTIFICATION SYSTEM ---
+interface ToastMsg {
+    id: number;
+    message: string;
+    type: 'success' | 'error' | 'info';
+}
+
+const ToastContainer: React.FC<{ toasts: ToastMsg[], removeToast: (id: number) => void }> = ({ toasts, removeToast }) => {
+    return (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[999] flex flex-col gap-2 pointer-events-none">
+            {toasts.map(toast => (
+                <div 
+                    key={toast.id} 
+                    className={`pointer-events-auto px-4 py-2.5 rounded-lg shadow-2xl text-sm font-bold flex items-center gap-3 animate-fade-in-down border ${
+                        toast.type === 'success' ? 'bg-slate-900/90 text-green-400 border-green-500/30' : 
+                        toast.type === 'error' ? 'bg-slate-900/90 text-red-400 border-red-500/30' : 
+                        'bg-slate-900/90 text-cyan-400 border-cyan-500/30'
+                    }`}
+                    onClick={() => removeToast(toast.id)}
+                >
+                    {toast.type === 'success' && <CheckIcon className="w-4 h-4"/>}
+                    {toast.type === 'error' && <WarningIcon className="w-4 h-4"/>}
+                    {toast.type === 'info' && <InfoIcon className="w-4 h-4"/>}
+                    <span>{toast.message}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
 
 // Main App Component
 const App: React.FC = () => {
@@ -169,6 +198,18 @@ const App: React.FC = () => {
   const playbackOffsetRef = useRef<number>(0);
   const isPausedRef = useRef<boolean>(false);
 
+  // --- TOAST STATE ---
+  const [toasts, setToasts] = useState<ToastMsg[]>([]);
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+      const id = Date.now();
+      setToasts(prev => [...prev, { id, message, type }]);
+      setTimeout(() => {
+          setToasts(prev => prev.filter(t => t.id !== id));
+      }, 4000);
+  }, []);
+  const removeToast = (id: number) => setToasts(prev => prev.filter(t => t.id !== id));
+
+
   // --- DERIVED STATE FOR TIERS & LIMITS ---
   const userTier: UserTier = isDevMode ? 'admin' : (user ? userSubscription : 'visitor');
   const planConfig = PLAN_LIMITS[userTier];
@@ -188,7 +229,7 @@ const App: React.FC = () => {
   const isOverLimit = (textLength: number) => {
       if (userTier === 'admin') return false;
       if (isTrialExpired) return true;
-      if (userTier === 'visitor') return textLength > planConfig.maxCharsPerRequest;
+      if (userTier === 'visitor') return false; // Visitors NOT blocked, just truncated
       return textLength > dailyCharsRemaining || textLength > totalCharsRemaining;
   };
 
@@ -309,7 +350,6 @@ const App: React.FC = () => {
     // INITIAL AUTH CHECK
     const { auth } = getFirebase();
     if (auth) {
-        // Use compat syntax
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser: any) => {
             setUser(currentUser);
             setIsAuthLoading(false);
@@ -464,28 +504,27 @@ const App: React.FC = () => {
           return;
       }
 
+      // --- QUOTA CHECKING & SIP STRATEGY ---
       if (userTier === 'visitor') {
-          if (text.length > planConfig.maxCharsPerRequest) {
-              // "The Sip"
-          }
+          // Never block visitors here. We truncate text later ("The Sip").
       } else {
           if (isTrialExpired) {
-              setError(t('trialExpired', uiLanguage));
+              showToast(t('trialExpired', uiLanguage), 'error');
               setIsUpgradeOpen(true);
               return;
           }
           if (isDailyLimitReached) {
-              setError(t('dailyLimitReached', uiLanguage));
+              showToast(t('dailyLimitReached', uiLanguage), 'info');
               setIsGamificationOpen(true); 
               return;
           }
           if (isTotalLimitReached) {
-              setError(t('totalLimitReached', uiLanguage));
+              showToast(t('totalLimitReached', uiLanguage), 'error');
               setIsUpgradeOpen(true);
               return;
           }
           if (text.length > dailyCharsRemaining) {
-              setError(`${t('dailyLimitReached', uiLanguage)}. (${dailyCharsRemaining} chars left)`);
+              showToast(`${t('dailyLimitReached', uiLanguage)}. (${dailyCharsRemaining} chars left)`, 'error');
               setIsGamificationOpen(true);
               return;
           }
@@ -549,9 +588,14 @@ const App: React.FC = () => {
                 isPausedRef.current = false;
             }
             
+            // --- "THE SIP" IMPLEMENTATION ---
             let textToProcess = text;
+            let isTruncated = false;
+            
             if (userTier === 'visitor' && text.length > planConfig.maxCharsPerRequest) {
-                textToProcess = text.substring(0, planConfig.maxCharsPerRequest);
+                // TRUNCATE SILENTLY
+                textToProcess = text.substring(0, 100); // ~10 seconds of audio
+                isTruncated = true;
             }
 
             const cacheKey = getCacheKey(textToProcess);
@@ -570,7 +614,7 @@ const App: React.FC = () => {
                 const clientTimeout = setTimeout(() => {
                      if(isLoading && activePlayer === target) {
                          stopAll();
-                         setError("Timeout: Generation took too long.");
+                         showToast("Timeout: Generation took too long.", 'error');
                      }
                 }, 45000); 
 
@@ -579,7 +623,7 @@ const App: React.FC = () => {
 
                 try {
                     const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
-                    // @ts-ignore - user type mismatch in compat mode
+                    // @ts-ignore
                     const idToken = user ? await user.getIdToken() : undefined;
 
                     pcmData = await generateSpeech(
@@ -617,7 +661,7 @@ const App: React.FC = () => {
                     clearTimeout(clientTimeout);
                     if (err.message !== 'Aborted' && err.name !== 'AbortError') {
                         console.error("Audio generation failed:", err);
-                        setError(err.message || t('errorUnexpected', uiLanguage));
+                        showToast(err.message || t('errorUnexpected', uiLanguage), 'error');
                     }
                     setIsLoading(false);
                     setActivePlayer(null);
@@ -640,8 +684,13 @@ const App: React.FC = () => {
                              setLoadingTask('');
                              playbackOffsetRef.current = 0;
                              
-                             if (userTier === 'visitor' && text.length > planConfig.maxCharsPerRequest) {
-                                 setTimeout(() => setIsUpgradeOpen(true), 500);
+                             // THE SIP: Show toast after playback ends for visitors
+                             if (isTruncated) {
+                                 setTimeout(() => {
+                                     const isRtl = uiLanguage === 'ar';
+                                     showToast(isRtl ? "هذه معاينة مجانية. سجل للدخول لسماع النص كاملاً." : "Free preview ended. Sign in to hear full text.", 'info');
+                                     setIsUpgradeOpen(true);
+                                 }, 500);
                              }
                          }
                     }, 
@@ -691,7 +740,7 @@ const App: React.FC = () => {
                 
                 utterance.onerror = (e) => {
                     if (e.error !== 'interrupted' && e.error !== 'canceled') {
-                        setError(t('errorSpeechGenerationSystem', uiLanguage).replace('{voiceName}', voice));
+                        showToast(t('errorSpeechGenerationSystem', uiLanguage).replace('{voiceName}', voice), 'error');
                     }
                     if(e.error !== 'interrupted') {
                          setActivePlayer(null);
@@ -704,7 +753,7 @@ const App: React.FC = () => {
 
         } catch (e) {
             console.error("Failed to initiate speech synthesis:", e);
-            setError(t('errorSpeechGeneration', uiLanguage));
+            showToast(t('errorSpeechGeneration', uiLanguage), 'error');
             setActivePlayer(null);
         }
       }
@@ -717,7 +766,7 @@ const App: React.FC = () => {
       }
       if (!sourceText.trim()) return;
       if (userTier !== 'admin' && sourceText.length > 2000) {
-           setError(t('errorFileTooLarge', uiLanguage)); 
+           showToast(t('errorFileTooLarge', uiLanguage), 'error'); 
            return;
       }
 
@@ -766,7 +815,7 @@ const App: React.FC = () => {
       } catch (err: any) {
           if (err.message !== 'Aborted' && err.name !== 'AbortError') {
               console.error("Translation failed:", err);
-              setError(err.message || t('errorTranslate', uiLanguage));
+              showToast(err.message || t('errorTranslate', uiLanguage), 'error');
           }
       } finally {
           if(!apiAbortControllerRef.current?.signal.aborted) {
@@ -877,17 +926,9 @@ const App: React.FC = () => {
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
     if (!text.trim()) return null;
 
-    if (format === 'wav' && !planConfig.allowWav) {
-        setIsUpgradeOpen(true);
-        return null;
-    }
-    if (!planConfig.allowDownloads) {
-        setIsUpgradeOpen(true);
-        return null;
-    }
-
+    // HONEY POT LOGIC: Don't block here for download button, block inside Modal or handleDownload
     if (!GEMINI_VOICES.includes(voice)) {
-        setError(t('errorDownloadSystemVoice', uiLanguage));
+        showToast(t('errorDownloadSystemVoice', uiLanguage), 'error');
         return null;
     }
     
@@ -950,7 +991,7 @@ const App: React.FC = () => {
     } catch (err: any) {
         if (err.message !== 'Aborted' && err.name !== 'AbortError') {
           console.error(`Audio generation for ${format} failed:`, err);
-          setError(err.message || (format === 'mp3' ? t('errorMp3Encoding', uiLanguage) : t('errorSpeechGeneration', uiLanguage)));
+          showToast(err.message || (format === 'mp3' ? t('errorMp3Encoding', uiLanguage) : t('errorSpeechGeneration', uiLanguage)), 'error');
         }
     } finally {
         setIsLoading(false);
@@ -963,6 +1004,12 @@ const App: React.FC = () => {
   }, [voice, emotion, multiSpeaker, speakerA, speakerB, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
 
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
+    // HONEY POT: If visitor, block NOW
+    if (userTier === 'visitor') {
+        setIsUpgradeOpen(true);
+        return;
+    }
+
     const textToProcess = translatedText || sourceText;
     const blob = await generateAudioBlob(textToProcess, format);
     if (blob) {
@@ -976,7 +1023,7 @@ const App: React.FC = () => {
         URL.revokeObjectURL(url);
     }
     setIsDownloadOpen(false);
-  }, [translatedText, sourceText, generateAudioBlob]);
+  }, [translatedText, sourceText, generateAudioBlob, userTier]);
   
   const handleInsertTag = (tag: string) => {
     const textarea = sourceTextAreaRef.current;
@@ -997,18 +1044,14 @@ const App: React.FC = () => {
   };
   
   const handleAudioStudioOpen = () => {
-      if(planConfig.allowStudio) {
-          setIsAudioStudioOpen(true);
-      } else {
-          setIsUpgradeOpen(true);
-      }
+      // HONEY POT: ALWAYS OPEN STUDIO
+      setIsAudioStudioOpen(true);
   };
 
 
   const getButtonState = (target: 'source' | 'target') => {
       const isThisPlayerActive = activePlayer === target;
-      const isGemini = GEMINI_VOICES.includes(voice);
-
+      
       if (isLoading && (loadingTask.startsWith(t('generatingSpeech', uiLanguage)) || loadingTask.startsWith(t('warmingUp', uiLanguage))) && isThisPlayerActive) {
            return { 
              icon: <StopIcon />, 
@@ -1035,20 +1078,14 @@ const App: React.FC = () => {
       const { auth } = getFirebase();
       
       if (!auth) {
-          const isRtl = uiLanguage === 'ar';
-          const msg = isRtl 
-            ? "فشل تهيئة خدمة Firebase. يرجى إعادة تحميل الصفحة."
-            : "Firebase initialization failed. Please refresh the page.";
-          alert(msg);
+          console.error("Firebase initialization failed. Check console for details.");
           return;
       }
       
       setIsAuthLoading(true);
-      // Use compat provider
       const provider = new firebase.auth.GoogleAuthProvider();
       
       try {
-          // Use compat signInWithPopup
           // @ts-ignore
           const result = await auth.signInWithPopup(provider);
           
@@ -1060,54 +1097,20 @@ const App: React.FC = () => {
               firestoreUnsubscribeRef.current = subscribeToHistory(result.user.uid, (items) => {
                   setHistory(items);
               });
+              showToast(uiLanguage === 'ar' ? 'تم تسجيل الدخول بنجاح' : 'Signed in successfully', 'success');
           }
 
       } catch (error: any) {
           console.error("Sign-in error:", error);
           
-          const errorCode = error.code;
-          const errorMessage = error.message;
           const errorString = JSON.stringify(error).toLowerCase();
-
-          if (errorString.includes('blocked') || errorString.includes('referer') || errorString.includes('403') || errorString.includes('missing required data')) {
-               const domain = window.location.origin;
-               const isRtl = uiLanguage === 'ar';
-               const msg = isRtl
-                 ? `🛑 تنبيه أمني: تم رفض الاتصال.\n\nالسبب المرجح: مفتاح API الخاص بك مقيد ولا يسمح للنطاق الحالي بالوصول.\n\nالحل:\n1. اذهب إلى Google Cloud Console > Credentials\n2. عدّل مفتاح API وأضف هذه الروابط إلى "Web Restrictions":\n   - https://${window.location.hostname}/*\n   - https://YOUR-PROJECT-ID.firebaseapp.com/*`
-                 : `🛑 Security Alert: Connection Refused.\n\nLikely Cause: Your API Key restrictions block this domain.\n\nFix:\n1. Go to Google Cloud Console > Credentials\n2. Edit your API Key and add these URLs to "Web Restrictions":\n   - https://${window.location.hostname}/*\n   - https://YOUR-PROJECT-ID.firebaseapp.com/*`;
-               alert(msg);
-               return;
-          }
-
-          if (errorCode === 'auth/popup-closed-by-user') {
-               if (window.location.hostname !== 'localhost') {
-                   const isRtl = uiLanguage === 'ar';
-                   const msg = isRtl
-                     ? `⚠️ تم إغلاق النافذة فجأة.\n\nإذا لم تقم بإغلاقها بنفسك، فهذا يعني أن نطاق "${window.location.hostname}" غير مسموح له بالدخول.\n\nالحل: أضف هذا النطاق إلى قائمة "Authorized Domains" في Firebase Console > Authentication.`
-                     : `⚠️ Popup Closed Unexpectedly.\n\nIf you didn't close it, it means "${window.location.hostname}" is not authorized.\n\nFix: Add this domain to "Authorized Domains" in Firebase Console > Authentication.`;
-                   alert(msg);
-               }
-          } else if (errorCode === 'auth/operation-not-allowed') {
-               const isRtl = uiLanguage === 'ar';
-               const msg = isRtl 
-                 ? `خطأ: العملية غير مسموح بها (${errorCode}).\nيرجى التأكد من تفعيل مزود Google في Firebase Console > Authentication.`
-                 : `Error: Operation not allowed (${errorCode}).\nPlease ensure the Google provider is enabled in Firebase Console > Authentication.`;
-               alert(msg);
-          } else if (errorCode === 'auth/unauthorized-domain') {
-               const domain = window.location.hostname;
-               const isRtl = uiLanguage === 'ar';
-               const msg = isRtl 
-                 ? `🛑 النطاق غير مصرح به (${errorCode}).\n\nالنطاق الحالي: ${domain}\n\nالحل: يجب إضافة هذا النطاق إلى قائمة "Authorized Domains" في Firebase Console > Authentication > Settings.`
-                 : `🛑 Unauthorized Domain (${errorCode}).\n\nCurrent Domain: ${domain}\n\nFix: Add this domain to "Authorized Domains" in Firebase Console > Authentication > Settings.`;
-               alert(msg);
-          } else if (errorCode === 'auth/invalid-api-key') {
-               alert("Invalid API Key. Please check configuration.");
+          if (errorString.includes('blocked') || errorString.includes('referer') || errorString.includes('403')) {
+             console.error("API Key Restriction Error: Add referrer to Google Cloud Console.");
+             showToast("Sign-in Error: Check console", 'error');
+          } else if (error.code === 'auth/popup-closed-by-user') {
+             // Ignored
           } else {
-               const isRtl = uiLanguage === 'ar';
-               const msg = isRtl 
-                 ? `فشل تسجيل الدخول.\nالكود: ${errorCode}\nالرسالة: ${errorMessage}\n\nنصيحة للمطور: تأكد من إعدادات OAuth Client ID في Google Cloud.`
-                 : `Sign-in failed.\nCode: ${errorCode}\nMessage: ${errorMessage}\n\nTip for Dev: Check OAuth Client ID settings in Google Cloud.`;
-               alert(msg);
+             showToast(t('signInError', uiLanguage), 'error');
           }
       } finally {
           setIsAuthLoading(false);
@@ -1127,6 +1130,7 @@ const App: React.FC = () => {
       
       setUser(null);
       setHistory([]);
+      showToast(uiLanguage === 'ar' ? 'تم تسجيل الخروج' : 'Signed out', 'info');
   }, []);
 
   const handleClearHistory = useCallback(async () => {
@@ -1134,15 +1138,16 @@ const App: React.FC = () => {
         if(window.confirm(t('clearCloudHistoryInfo', uiLanguage))) {
             try {
                 await clearHistoryForUser(user.uid);
-                alert(t('historyClearSuccess', uiLanguage));
+                showToast(t('historyClearSuccess', uiLanguage), 'success');
             } catch (e) {
                 console.error(e);
-                alert(t('historyClearError', uiLanguage));
+                showToast(t('historyClearError', uiLanguage), 'error');
             }
         }
     } else {
         setHistory([]);
         localStorage.removeItem('sawtli_history');
+        showToast(t('historyClearSuccess', uiLanguage), 'success');
     }
   }, [user, uiLanguage]);
 
@@ -1154,12 +1159,12 @@ const App: React.FC = () => {
         try {
             await clearHistoryForUser(user.uid);
             await deleteUserDocument(user.uid);
-            alert(t('accountDeletedSuccess', uiLanguage));
             setIsAccountOpen(false);
             handleSignOut(); 
+            showToast(t('accountDeletedSuccess', uiLanguage), 'success');
         } catch (error) {
             console.error("Account deletion error:", error);
-            setError(t('accountDeletionError', uiLanguage));
+            showToast(t('accountDeletionError', uiLanguage), 'error');
         } finally {
             setIsLoading(false);
             setLoadingTask('');
@@ -1185,16 +1190,16 @@ const App: React.FC = () => {
       setIsUpgradeOpen(false);
   };
 
-
-  // --- RENDER ---
+  // --- DERIVED UI STATE ---
+  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
+  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
+  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
   const sourceButtonState = getButtonState('source');
   const targetButtonState = getButtonState('target');
-  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
-  const isSourceRtl = translationLanguages.find(l => l.code === sourceLang)?.code === 'ar';
-  const isTargetRtl = translationLanguages.find(l => l.code === targetLang)?.code === 'ar';
-  const isUiRtl = uiLanguage === 'ar';
 
-  // --- VISUAL QUOTA INDICATOR ---
+
+  // --- RENDER ---
+
   const QuotaIndicator = () => {
       if (userTier === 'admin' || userTier === 'gold' || userTier === 'platinum') return null;
       
@@ -1209,10 +1214,8 @@ const App: React.FC = () => {
           );
       }
 
-      // Free User Logic
       return (
           <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden">
-               {/* Daily Progress */}
                <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isDailyLimitReached ? 'bg-red-500' : 'bg-cyan-500'}`} 
                     style={{ width: `${Math.min(100, (userStats.dailyCharsUsed / currentDailyLimit) * 100)}%` }}>
                </div>
@@ -1242,10 +1245,7 @@ const App: React.FC = () => {
 
   const sourceTextArea = (
     <div className="flex flex-col w-full md:w-1/2">
-      {/* INNER CONTAINER - Clean styling without heavy stroke */}
       <div className="relative group rounded-2xl border border-slate-700/50 bg-[#0f172a] overflow-hidden h-full flex flex-col">
-              
-              {/* HEADER: Language Select & Tools */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-[#1e293b]/30 backdrop-blur-sm">
                   <LanguageSelect value={sourceLang} onChange={setSourceLang} />
                   
@@ -1253,7 +1253,6 @@ const App: React.FC = () => {
                      <button onClick={() => handleCopy(sourceText, 'source')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 rounded-lg transition-colors">
                           {copiedSource ? <CheckIcon className="h-4 w-4 text-green-400"/> : <CopyIcon className="h-4 w-4" />}
                       </button>
-                       {/* Effects Button */}
                       <div className={`relative ${isUsingSystemVoice || !planConfig.allowEffects ? 'opacity-70' : ''}`} ref={effectsDropdownRef}>
                           <button
                               onClick={() => planConfig.allowEffects ? setIsEffectsOpen(!isEffectsOpen) : setIsUpgradeOpen(true)}
@@ -1281,14 +1280,12 @@ const App: React.FC = () => {
                   </div>
               </div>
 
-              {/* BODY: Text Area */}
               <div className="flex-grow relative bg-[#0f172a]">
                   <textarea
                       ref={sourceTextAreaRef}
                       value={sourceText}
                       onChange={(e) => setSourceText(e.target.value)}
                       placeholder={t('placeholder', uiLanguage)}
-                      // Note: Max length is just a UI safeguard, real check happens on Speak click
                       maxLength={userTier === 'admin' ? 999999 : 5000} 
                       dir={isSourceRtl ? 'rtl' : 'ltr'}
                       className={`w-full h-64 sm:h-72 p-5 bg-transparent border-none resize-none text-lg md:text-xl font-normal leading-loose tracking-normal focus:ring-0 outline-none placeholder-slate-600 text-slate-200
@@ -1296,7 +1293,6 @@ const App: React.FC = () => {
                   />
               </div>
               
-              {/* FOOTER: Counters & HUD */}
               <QuotaIndicator />
       </div>
     </div>
@@ -1304,10 +1300,7 @@ const App: React.FC = () => {
 
   const translatedTextArea = (
       <div className="flex flex-col w-full md:w-1/2">
-           {/* INNER CONTAINER - Clean styling without heavy stroke */}
            <div className="relative group rounded-2xl border border-slate-700/50 bg-[#0f172a] overflow-hidden h-full flex flex-col">
-                    
-                    {/* HEADER */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-[#1e293b]/30 backdrop-blur-sm">
                         <LanguageSelect value={targetLang} onChange={setTargetLang} />
                         <button onClick={() => handleCopy(translatedText, 'target')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 rounded-lg transition-colors">
@@ -1315,7 +1308,6 @@ const App: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* BODY */}
                     <div className="flex-grow bg-[#0f172a]">
                         <textarea
                             value={translatedText}
@@ -1327,7 +1319,6 @@ const App: React.FC = () => {
                         />
                     </div>
 
-                     {/* FOOTER */}
                     <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-sm font-mono font-bold tracking-widest text-slate-500 select-none">
                         <span className="text-cyan-500/70">TRANSLATION</span>
                         <span>{translatedText.length.toString().padStart(4, '0')} CHARS</span>
@@ -1347,18 +1338,13 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
       
-      {/* Background Gradient Accents */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
            <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-900/10 blur-[100px]"></div>
            <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-cyan-900/10 blur-[100px]"></div>
       </div>
 
       <div className="w-full max-w-7xl mx-auto flex flex-col min-h-[calc(100vh-2rem)] z-10 relative">
-
-        {/* Header - New Layout: Left(Lang Btn) - Center(Stacked Logo) - Right(Sign In Btn) */}
         <header className="flex items-center justify-between w-full my-6 py-4 px-4 sm:px-8 relative z-40 mt-12">
-                
-                {/* Left: Language Button */}
                  <div className="flex justify-start w-1/3">
                     <div className="relative group">
                         <button className="border border-cyan-500/50 text-cyan-500 px-6 sm:px-8 py-3 rounded-lg hover:bg-cyan-950/30 hover:border-cyan-400 uppercase text-base sm:text-lg font-bold tracking-widest transition-all flex items-center gap-2">
@@ -1366,7 +1352,6 @@ const App: React.FC = () => {
                             <span className="sm:hidden">{uiLanguage.toUpperCase()}</span>
                             <ChevronDownIcon className="w-3 h-3" />
                         </button>
-                        {/* Dropdown logic */}
                          <select 
                             value={uiLanguage} 
                             onChange={e => setUiLanguage(e.target.value as Language)}
@@ -1379,12 +1364,10 @@ const App: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Center: Stacked Logo (New SVG) */}
                 <div className="flex flex-col items-center justify-center w-1/3">
                      <SawtliLogoIcon className="w-auto h-16 sm:h-24" />
                 </div>
 
-                {/* Right: Auth Button */}
                 <div className="flex justify-end w-1/3">
                     {isAuthLoading ? (
                         <div className="w-8 h-8 bg-slate-800 rounded-full animate-pulse"></div>
@@ -1406,19 +1389,16 @@ const App: React.FC = () => {
         </header>
 
         <main className="w-full space-y-6 flex-grow">
-            {/* Owner Setup Guide - HIDDEN by default unless ?setup=true is in URL or force shown */}
             {showSetupGuide && !user && (
                 <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 mb-6 z-50 relative">
                     <OwnerSetupGuide 
                         uiLanguage={uiLanguage} 
                         isApiConfigured={isApiConfigured} 
-                        // FIX: Passing the correct client-side config check from getFirebase
                         isFirebaseConfigured={!!getFirebase().app} 
                     />
                 </div>
             )}
 
-            {/* Main Interface Panel - Added Turquoise Stroke & Glow Here */}
             <div className="glass-panel rounded-3xl p-5 md:p-8 space-y-6 relative bg-[#1e293b]/80 backdrop-blur-sm shadow-[0_0_20px_rgba(34,211,238,0.15)] border-2 border-cyan-500/50">
                 
                 {error && <div className="bg-red-950/50 border border-red-500/30 text-red-200 p-4 rounded-xl text-sm mb-4 font-bold flex items-center gap-3 animate-fade-in-down"><WarningIcon className="w-5 h-5 flex-shrink-0 text-red-400"/> <p>{error}</p></div>}
@@ -1430,7 +1410,6 @@ const App: React.FC = () => {
                     {translatedTextArea}
                 </div>
                 
-                {/* Centralized Controls Row */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-4 relative">
                      <ActionButton
                         icon={sourceButtonState.icon}
@@ -1462,7 +1441,6 @@ const App: React.FC = () => {
 
             </div>
 
-            {/* Translate Button (Floating) */}
              <div className="flex justify-center -mt-10 z-30 relative pointer-events-none">
                 <div className="pointer-events-auto">
                      <button 
@@ -1470,7 +1448,6 @@ const App: React.FC = () => {
                         disabled={isLoading} 
                         className="group relative px-12 py-4 rounded-2xl font-bold text-lg tracking-wider uppercase text-slate-200 transition-all transform hover:-translate-y-1 active:scale-95 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-80 shadow-2xl overflow-hidden bg-slate-700 hover:text-white border-2 border-slate-600 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(34,211,238,0.4)]"
                     >
-                        {/* Fancy Gradient Hover Effect */}
                          <div className="absolute inset-0 bg-gradient-to-r from-cyan-600/20 to-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         <div className="relative flex items-center gap-3">
                              {isLoading && loadingTask.startsWith(t('translatingButton', uiLanguage)) ? <LoaderIcon className="w-6 h-6"/> : <TranslateIcon className="w-6 h-6 group-hover:text-cyan-400 transition-colors" />}
@@ -1480,7 +1457,6 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* Action Cards Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 pb-4">
                 <ActionCard icon={<GearIcon className="w-10 h-10" />} label={t('speechSettings', uiLanguage)} onClick={() => setIsSettingsOpen(true)} />
                 <ActionCard icon={<HistoryIcon className="w-10 h-10" />} label={t('historyButton', uiLanguage)} onClick={() => setIsHistoryOpen(true)} />
@@ -1492,7 +1468,8 @@ const App: React.FC = () => {
                 <ActionCard 
                     icon={!planConfig.allowDownloads ? <LockIcon className="text-amber-500 w-10 h-10"/> : <DownloadIcon className="w-10 h-10" />} 
                     label={t('downloadButton', uiLanguage)} 
-                    onClick={() => planConfig.allowDownloads ? setIsDownloadOpen(true) : setIsUpgradeOpen(true)} 
+                    // HONEY POT: Always allow opening, check inside logic
+                    onClick={() => setIsDownloadOpen(true)} 
                     disabled={isLoading || (!sourceText && !translatedText) || isUsingSystemVoice} 
                 />
                 <ActionCard 
@@ -1505,7 +1482,6 @@ const App: React.FC = () => {
                 <ActionCard icon={<VideoCameraIcon className="w-10 h-10" />} label={uiLanguage === 'ar' ? 'دليل الاستخدام' : 'Tutorial'} onClick={() => setIsTutorialOpen(true)} />
             </div>
             
-            {/* --- FEEDBACK SECTION (Lazy Loaded but inline) --- */}
             <Suspense fallback={null}>
                 <Feedback language={uiLanguage} onOpenReport={() => setIsReportOpen(true)} />
             </Suspense>
@@ -1516,9 +1492,6 @@ const App: React.FC = () => {
         </footer>
       </div>
 
-      {/* --- MODALS RENDERED HERE AT ROOT LEVEL --- */}
-      {/* This prevents stacking context issues with the header/main wrapper */}
-      
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} onRefreshVoices={() => window.speechSynthesis.getVoices()} />}
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
@@ -1527,9 +1500,9 @@ const App: React.FC = () => {
           uiLanguage={uiLanguage} 
           voice={voice} 
           sourceAudioPCM={lastGeneratedPCM}
-          allowDownloads={planConfig.allowDownloads} // Pass explicit permission
-          allowStudio={planConfig.allowStudio} // Pass explicit permission
-          onUpgrade={() => setIsUpgradeOpen(true)} // Pass upgrade handler
+          allowDownloads={planConfig.allowDownloads} 
+          allowStudio={planConfig.allowStudio} 
+          onUpgrade={() => setIsUpgradeOpen(true)} 
       />}
       {isTutorialOpen && <TutorialModal onClose={() => setIsTutorialOpen(false)} uiLanguage={uiLanguage} />}
       {isUpgradeOpen && <UpgradeModal onClose={() => setIsUpgradeOpen(false)} uiLanguage={uiLanguage} currentTier={userTier} onUpgrade={handleUpgrade} onSignIn={() => { setIsUpgradeOpen(false); handleSignIn(); }} />}
@@ -1549,7 +1522,8 @@ const App: React.FC = () => {
           />}
           {isReportOpen && <ReportModal onClose={() => setIsReportOpen(false)} uiLanguage={uiLanguage} user={user} />}
       </Suspense>
-
+      
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };
