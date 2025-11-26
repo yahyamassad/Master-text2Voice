@@ -90,14 +90,17 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
 
                         {/* Gold Card (Teaser) */}
                         <div className="p-6 rounded-xl border bg-gradient-to-b from-slate-800 to-slate-900 border-amber-500/30 flex flex-col relative overflow-hidden group hover:border-amber-500 transition-colors shadow-xl transform hover:-translate-y-1">
-                            <div className="absolute top-0 right-0 bg-amber-600/20 text-amber-400 border-l border-b border-amber-500/30 text-xs font-bold px-3 py-1 rounded-bl-lg">{t('comingSoon', uiLanguage)}</div>
-                            <div className="mb-6">
-                                <h3 className="text-lg font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-2 mb-2">
-                                    {t('planGold', uiLanguage)} <SparklesIcon className="w-4 h-4"/>
-                                </h3>
-                                <div className="text-3xl font-bold text-slate-200 tracking-wide italic opacity-80">{t('priceGold', uiLanguage)}</div>
-                                <p className="text-xs text-slate-500 mt-2">For creators & professionals.</p>
+                            {/* Moved badge to not overlap button click area visually, though z-index handles it */}
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+                                        {t('planGold', uiLanguage)} <SparklesIcon className="w-4 h-4"/>
+                                    </h3>
+                                    <div className="text-3xl font-bold text-slate-200 tracking-wide italic opacity-80">{t('priceGold', uiLanguage)}</div>
+                                </div>
+                                <div className="bg-amber-600/20 text-amber-400 border border-amber-500/30 text-xs font-bold px-2 py-1 rounded">{t('comingSoon', uiLanguage)}</div>
                             </div>
+                            <p className="text-xs text-slate-500 -mt-4 mb-6">For creators & professionals.</p>
                             
                             <ul className="space-y-4 text-sm text-slate-200 flex-grow mb-8">
                                 <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureCharsExtended', uiLanguage)}</li>
@@ -107,30 +110,34 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                                 <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureMultiSpeaker', uiLanguage)}</li>
                             </ul>
                             
-                            <button 
-                                onClick={(e) => handleTierUpgrade(e, 'gold')}
-                                disabled={loadingTier === 'gold' || joinedTiers.includes('gold')}
-                                className={`w-full py-3 rounded-lg font-bold shadow-lg transition-all mt-auto uppercase tracking-wide flex items-center justify-center gap-2 relative z-20 ${
-                                    joinedTiers.includes('gold') 
-                                        ? 'bg-green-600/20 text-green-400 border border-green-500/50 cursor-default' 
-                                        : 'bg-amber-600 hover:bg-amber-500 text-white hover:shadow-amber-500/20'
-                                }`}
-                            >
-                                {loadingTier === 'gold' ? <LoaderIcon className="w-5 h-5" /> : 
-                                 joinedTiers.includes('gold') ? (uiLanguage === 'ar' ? 'تم الانضمام' : 'Joined') : t('joinWaitlist', uiLanguage)}
-                            </button>
+                            <div className="relative z-50">
+                                <button 
+                                    onClick={(e) => handleTierUpgrade(e, 'gold')}
+                                    disabled={loadingTier === 'gold' || joinedTiers.includes('gold')}
+                                    className={`w-full py-3 rounded-lg font-bold shadow-lg transition-all mt-auto uppercase tracking-wide flex items-center justify-center gap-2 cursor-pointer ${
+                                        joinedTiers.includes('gold') 
+                                            ? 'bg-green-600/20 text-green-400 border border-green-500/50 cursor-default' 
+                                            : 'bg-amber-600 hover:bg-amber-500 text-white hover:shadow-amber-500/20'
+                                    }`}
+                                >
+                                    {loadingTier === 'gold' ? <LoaderIcon className="w-5 h-5" /> : 
+                                    joinedTiers.includes('gold') ? (uiLanguage === 'ar' ? 'تم الانضمام' : 'Joined') : t('joinWaitlist', uiLanguage)}
+                                </button>
+                            </div>
                         </div>
 
                         {/* Platinum Card (Teaser) */}
                         <div className="p-6 rounded-xl border bg-slate-800 border-cyan-400/20 flex flex-col relative overflow-hidden hover:border-cyan-400 transition-colors opacity-90 hover:opacity-100">
-                             <div className="absolute top-0 right-0 bg-cyan-900/20 text-cyan-400 border-l border-b border-cyan-500/30 text-xs font-bold px-3 py-1 rounded-bl-lg">{t('comingSoon', uiLanguage)}</div>
-                             <div className="mb-6">
-                                <h3 className="text-lg font-semibold text-cyan-300 uppercase tracking-wider flex items-center gap-2 mb-2">
-                                    {t('planPlatinum', uiLanguage)}
-                                </h3>
-                                <div className="text-3xl font-bold text-slate-200 tracking-wide italic opacity-80">{t('pricePlatinum', uiLanguage)}</div>
-                                <p className="text-xs text-slate-500 mt-2">Ultimate Audio Studio access.</p>
-                            </div>
+                             <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-cyan-300 uppercase tracking-wider flex items-center gap-2 mb-2">
+                                        {t('planPlatinum', uiLanguage)}
+                                    </h3>
+                                    <div className="text-3xl font-bold text-slate-200 tracking-wide italic opacity-80">{t('pricePlatinum', uiLanguage)}</div>
+                                </div>
+                                <div className="bg-cyan-900/20 text-cyan-400 border border-cyan-500/30 text-xs font-bold px-2 py-1 rounded">{t('comingSoon', uiLanguage)}</div>
+                             </div>
+                             <p className="text-xs text-slate-500 -mt-4 mb-6">Ultimate Audio Studio access.</p>
                             
                             <ul className="space-y-4 text-sm text-slate-200 flex-grow mb-8">
                                 <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-cyan-400"/> {t('featureCharsUnlimited', uiLanguage)}</li>
@@ -140,18 +147,20 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                                 <li className="flex items-center gap-3 text-slate-400 italic">+ All Gold Features</li>
                             </ul>
                             
-                            <button 
-                                onClick={(e) => handleTierUpgrade(e, 'platinum')}
-                                disabled={loadingTier === 'platinum' || joinedTiers.includes('platinum')}
-                                className={`w-full py-3 rounded-lg font-bold border transition-all mt-auto uppercase tracking-wide flex items-center justify-center gap-2 relative z-20 ${
-                                    joinedTiers.includes('platinum') 
-                                        ? 'bg-green-600/20 text-green-400 border-green-500/50 cursor-default' 
-                                        : 'bg-slate-700 hover:bg-cyan-900/40 text-cyan-400 border-cyan-500/30 hover:text-cyan-300'
-                                }`}
-                            >
-                                {loadingTier === 'platinum' ? <LoaderIcon className="w-5 h-5" /> : 
-                                 joinedTiers.includes('platinum') ? (uiLanguage === 'ar' ? 'تم الانضمام' : 'Joined') : t('joinWaitlist', uiLanguage)}
-                            </button>
+                            <div className="relative z-50">
+                                <button 
+                                    onClick={(e) => handleTierUpgrade(e, 'platinum')}
+                                    disabled={loadingTier === 'platinum' || joinedTiers.includes('platinum')}
+                                    className={`w-full py-3 rounded-lg font-bold border transition-all mt-auto uppercase tracking-wide flex items-center justify-center gap-2 cursor-pointer ${
+                                        joinedTiers.includes('platinum') 
+                                            ? 'bg-green-600/20 text-green-400 border-green-500/50 cursor-default' 
+                                            : 'bg-slate-700 hover:bg-cyan-900/40 text-cyan-400 border-cyan-500/30 hover:text-cyan-300'
+                                    }`}
+                                >
+                                    {loadingTier === 'platinum' ? <LoaderIcon className="w-5 h-5" /> : 
+                                    joinedTiers.includes('platinum') ? (uiLanguage === 'ar' ? 'تم الانضمام' : 'Joined') : t('joinWaitlist', uiLanguage)}
+                                </button>
+                            </div>
                         </div>
 
                     </div>
