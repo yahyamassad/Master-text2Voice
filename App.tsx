@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
-import { generateSpeech, translateText, previewVoice } from './services/geminiService';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy, ReactElement } from 'react';
+import { generateSpeech, translateText } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, WarningIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, ReportIcon, PauseIcon, VideoCameraIcon, LockIcon, SparklesIcon, TrashIcon, InfoIcon
 } from './components/icons';
-import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
+import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig, GEMINI_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
 
@@ -1140,7 +1140,13 @@ const App: React.FC = () => {
               ${isSourceRtl ? 'text-right font-arabic' : 'text-left'}
               bg-slate-900/50 border-slate-700 text-slate-200 placeholder-slate-500 focus:border-cyan-500/50 focus:bg-slate-900`}
           />
-          <div className="absolute bottom-4 right-4 flex gap-2 z-20">
+          
+          {/* RESTORED QUOTA INDICATOR HERE */}
+          <div className="absolute bottom-0 left-0 w-full">
+              <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} />
+          </div>
+
+          <div className="absolute bottom-14 right-4 flex gap-2 z-20">
                <button onClick={() => setSourceText('')} disabled={!sourceText} className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors disabled:opacity-0" title="Clear">
                   <TrashIcon className="w-5 h-5" />
               </button>
@@ -1148,7 +1154,7 @@ const App: React.FC = () => {
                   {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400"/> : <CopyIcon className="w-5 h-5" />}
               </button>
           </div>
-          <div className="absolute bottom-4 left-4 z-20">
+          <div className="absolute bottom-14 left-4 z-20">
                <div className="relative">
                   <button 
                       onClick={() => setIsEffectsOpen(!isEffectsOpen)}
@@ -1544,6 +1550,40 @@ const DownloadModal: React.FC<{
                      )}
                 </div>
             </div>
+        </div>
+    );
+};
+
+const QuotaIndicator: React.FC<{
+    stats: UserStats;
+    tier: UserTier;
+    limits: typeof PLAN_LIMITS['free'];
+}> = ({ stats, tier, limits }) => {
+    if (tier === 'admin') return null; 
+
+    const dailyUsed = stats.dailyCharsUsed;
+    const dailyLimit = limits.dailyLimit;
+    
+    const dailyPercent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
+
+    let barColor = 'bg-cyan-500';
+    if (dailyPercent > 80) barColor = 'bg-amber-500';
+    if (dailyPercent >= 100) barColor = 'bg-red-500';
+
+    return (
+        <div className="w-full bg-slate-900/90 backdrop-blur-sm border-t border-slate-800 px-6 py-2 flex flex-col gap-1 rounded-b-2xl">
+            <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                <span>Daily Quota</span>
+                <span>{dailyLimit === Infinity ? 'Unlimited' : `${dailyUsed} / ${dailyLimit}`}</span>
+            </div>
+            {dailyLimit !== Infinity && (
+                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                        className={`h-full transition-all duration-500 ${barColor}`} 
+                        style={{ width: `${dailyPercent}%` }}
+                    ></div>
+                </div>
+            )}
         </div>
     );
 };
