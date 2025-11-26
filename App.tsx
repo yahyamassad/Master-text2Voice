@@ -1124,20 +1124,22 @@ const App: React.FC = () => {
       }
   };
 
-  const handleUpgrade = async (tier: 'gold' | 'platinum') => {
+  // Updated to return promise success/fail status
+  const handleUpgrade = async (tier: 'gold' | 'platinum'): Promise<boolean> => {
       if (!user) {
           showToast(t('signInError', uiLanguage), 'error'); 
           handleSignIn();
-          return;
+          return false;
       }
       
       try {
           await addToWaitlist(user.uid, user.email, tier);
-          setIsUpgradeOpen(false);
           showToast(t('waitlistSuccess', uiLanguage), 'success');
+          return true;
       } catch (e: any) {
-          console.error("Failed to join waitlist:", e);
+          console.error("Failed to join waitlist:", e.message);
           showToast(`Failed to join waitlist: ${e.message || 'Unknown error'}`, 'error');
+          return false;
       }
   };
 
@@ -1330,7 +1332,7 @@ const App: React.FC = () => {
         </header>
 
         <main className="w-full space-y-6 flex-grow">
-            {showSetupGuide && !user && (
+            {showSetupGuide && (
                 <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 mb-6 z-50 relative">
                     <OwnerSetupGuide 
                         uiLanguage={uiLanguage} 
@@ -1468,6 +1470,7 @@ const App: React.FC = () => {
               currentTier={userTier}
               onUpgrade={() => { setIsAccountOpen(false); setIsUpgradeOpen(true); }}
               onSetDevMode={handleSetDevMode}
+              onOpenOwnerGuide={() => { setIsAccountOpen(false); setShowSetupGuide(true); }}
           />}
           {isReportOpen && <ReportModal onClose={() => setIsReportOpen(false)} uiLanguage={uiLanguage} user={user} />}
       </Suspense>
