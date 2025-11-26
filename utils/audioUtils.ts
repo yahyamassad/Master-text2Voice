@@ -146,7 +146,7 @@ export async function processAudio(
     autoDucking: boolean = false,
     voiceVolume: number = 80
 ): Promise<AudioBuffer> {
-    const renderSampleRate = 44100; 
+    const renderSampleRate = 48000; // High Quality 48kHz as requested
     let sourceBuffer: AudioBuffer | null = null;
 
     if (input instanceof Uint8Array) {
@@ -328,7 +328,7 @@ function createWavBlobFromFloat32(samples: Float32Array, numChannels: number, sa
     return new Blob([view], { type: 'audio/wav' });
 }
 
-export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: number, sampleRate: number): Promise<Blob> {
+export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: number, sampleRate: number, bitrate: number = 128): Promise<Blob> {
     return new Promise((resolve, reject) => {
         try {
             const lamejs = (window as any).lamejs;
@@ -355,9 +355,13 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
 
             const mp3Data = [];
             const sampleBlockSize = 1152;
+            
+            // Use the requested bitrate (e.g., 320)
+            mp3encoder = new lamejs.Mp3Encoder(channels, rate, bitrate);
+
             for (let i = 0; i < pcmData.length; i += sampleBlockSize) {
                 const chunk = pcmData.subarray(i, i + sampleBlockSize);
-                const mp3buf = mp3encoder ? mp3encoder.encodeBuffer(chunk) : (mp3encoder = new lamejs.Mp3Encoder(channels, rate, 128), mp3encoder.encodeBuffer(chunk));
+                const mp3buf = mp3encoder.encodeBuffer(chunk);
                 if (mp3buf.length > 0) mp3Data.push(mp3buf);
             }
             
