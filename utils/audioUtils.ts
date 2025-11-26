@@ -139,42 +139,35 @@ function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: n
 }
 
 export async function processAudio(
-    input: Uint8Array | AudioBuffer,
+    input: Uint8Array | AudioBuffer | null,
     settings: AudioSettings,
     backgroundMusicBuffer: AudioBuffer | null = null,
     musicVolume: number = 40,
-    autoDucking: boolean = false
+    autoDucking: boolean = false,
+    voiceVolume: number = 80
 ): Promise<AudioBuffer> {
     const renderSampleRate = 44100; 
-    let sourceBuffer: AudioBuffer;
+    let sourceBuffer: AudioBuffer | null = null;
 
-    // Handle cases where one track might be missing
-    if (!input) {
-         // Create a silent buffer if no voice, so music can still play
-         const tempCtx = new OfflineAudioContext(1, 44100, 44100);
-         sourceBuffer = tempCtx.createBuffer(1, 44100, 44100); 
-    } else if (input instanceof Uint8Array) {
+    if (input instanceof Uint8Array) {
         sourceBuffer = rawPcmToAudioBuffer(input);
-    } else {
+    } else if (input instanceof AudioBuffer) {
         sourceBuffer = input;
     }
     
     const speed = settings.speed || 1.0;
     const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
     
-    let outputDuration = (sourceBuffer.duration / speed) + reverbTail;
+    let outputDuration = 1.0;
+    if (sourceBuffer) outputDuration = (sourceBuffer.duration / speed) + reverbTail;
     if (backgroundMusicBuffer) {
         outputDuration = Math.max(outputDuration, backgroundMusicBuffer.duration); 
     }
     
-    outputDuration = Math.max(outputDuration, 1.0);
-
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
     // --- VOICE CHAIN ---
-    let voiceGain: GainNode | null = null;
-
-    if (input) {
+    if (sourceBuffer && voiceVolume > 0) {
         const source = offlineCtx.createBufferSource();
         source.buffer = sourceBuffer;
         source.playbackRate.value = speed;
@@ -214,8 +207,8 @@ export async function processAudio(
             dryGain.gain.value = 1;
         }
 
-        voiceGain = offlineCtx.createGain();
-        voiceGain.gain.value = (settings.volume / 50); 
+        const voiceGain = offlineCtx.createGain();
+        voiceGain.gain.value = (voiceVolume / 100); 
 
         let currentNode: AudioNode = source;
         filters.forEach(f => { currentNode.connect(f); currentNode = f; });
@@ -231,17 +224,17 @@ export async function processAudio(
     }
     
     // --- MUSIC CHAIN ---
-    if (backgroundMusicBuffer) {
+    if (backgroundMusicBuffer && musicVolume > 0) {
         const musicSource = offlineCtx.createBufferSource();
         musicSource.buffer = backgroundMusicBuffer;
-        if (input && backgroundMusicBuffer.duration < sourceBuffer.duration) {
+        if (sourceBuffer && backgroundMusicBuffer.duration < sourceBuffer.duration) {
              musicSource.loop = true;
         }
         
         const musicGain = offlineCtx.createGain();
-        // Auto Ducking Logic for Export (Static approx)
-        // For export, we apply a moderate reduction if ducking is enabled to be safe
-        const exportVolume = autoDucking ? (musicVolume / 100) * 0.4 : (musicVolume / 100);
+        // Auto Ducking Logic for Export (Static Approx)
+        // Reduce music volume significantly if both tracks exist and ducking is ON
+        const exportVolume = (autoDucking && sourceBuffer && voiceVolume > 0) ? (musicVolume / 100) * 0.2 : (musicVolume / 100);
         musicGain.gain.value = exportVolume;
         
         musicSource.connect(musicGain);
