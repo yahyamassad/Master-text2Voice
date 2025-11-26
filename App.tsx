@@ -227,6 +227,9 @@ const App: React.FC = () => {
   const isTotalLimitReached = userTier !== 'admin' && userStats.totalCharsUsed >= effectiveTotalLimit;
   
   const isProOrAbove = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
+  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
+  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
+  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
 
   // --- CORE FUNCTIONS ---
   
@@ -587,9 +590,9 @@ const App: React.FC = () => {
             let textToProcess = text;
             let isTruncated = false;
             
-            if (userTier === 'visitor' && text.length > 50) {
-                // TRUNCATE SILENTLY FOR THE SIP (50 chars as requested)
-                textToProcess = text.substring(0, 50); 
+            if (userTier === 'visitor' && text.length > 100) {
+                // TRUNCATE SILENTLY FOR THE SIP
+                textToProcess = text.substring(0, 100); 
                 isTruncated = true;
             }
 
@@ -857,7 +860,7 @@ const App: React.FC = () => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setMicError(t('errorMicPermission', uiLanguage));
       } else if (event.error === 'no-speech') {
-          // Ignore no-speech errors, just stop
+          // Ignore no-speech errors, just stop silently
       } else {
         setMicError(event.error);
       }
@@ -1120,173 +1123,128 @@ const App: React.FC = () => {
       showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), 'success');
   };
 
-  const getButtonState = (target: 'source' | 'target') => {
-      const isActive = activePlayer === target;
-      if (isActive) {
-          if (isPaused) {
-              return {
-                  icon: <PlayCircleIcon className="w-6 h-6" />,
-                  label: t('resumeSpeaking', uiLanguage),
-                  className: "bg-amber-600/90 border-amber-400 text-white hover:bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
-              };
-          }
-          return {
-              icon: <PauseIcon className="w-6 h-6 animate-pulse" />,
-              label: t('pauseSpeaking', uiLanguage),
-              className: "bg-slate-800 border-cyan-400 text-cyan-400 hover:bg-slate-700 hover:text-white shadow-[0_0_20px_rgba(34,211,238,0.3)]"
-          };
-      }
-      return {
-          icon: <SpeakerIcon className="w-6 h-6" />,
-          label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage),
-          className: "bg-slate-800 border-cyan-500/30 text-cyan-500 hover:bg-slate-700 hover:border-cyan-400 hover:text-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]"
-      };
-  };
-
-  // --- DERIVED UI STATE ---
-  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
-  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
-  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
-  const sourceButtonState = getButtonState('source');
-  const targetButtonState = getButtonState('target');
-
-
-  // --- RENDER ---
-
-  const QuotaIndicator = () => {
-      if (userTier === 'admin' || userTier === 'gold' || userTier === 'platinum') return null;
-      
-      if (userTier === 'visitor') {
-          return (
-              <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-                   <span className="text-cyan-500/70">VISITOR MODE</span>
-                   <span className="text-amber-500 cursor-pointer hover:underline" onClick={() => setIsUpgradeOpen(true)}>
-                       {uiLanguage === 'ar' ? 'سجل للحصول على 5000 حرف' : 'Sign In for 5000 chars'}
-                   </span>
-              </div>
-          );
-      }
-
-      return (
-          <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden">
-               <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isDailyLimitReached ? 'bg-red-500' : 'bg-cyan-500'}`} 
-                    style={{ width: `${Math.min(100, (userStats.dailyCharsUsed / currentDailyLimit) * 100)}%` }}>
-               </div>
-               
-               <div className="flex items-center gap-3 z-10">
-                   <span className={isDailyLimitReached ? 'text-red-500' : 'text-cyan-500'}>
-                       {t('dailyUsageLabel', uiLanguage)}: {userStats.dailyCharsUsed} / {currentDailyLimit}
-                   </span>
-                   {isDailyLimitReached && !isTotalLimitReached && (
-                       <button 
-                        onClick={() => setIsGamificationOpen(true)} 
-                        className="bg-amber-600 text-white px-2 py-0.5 rounded text-[9px] animate-pulse hover:bg-amber-500"
-                       >
-                           {t('boostQuota', uiLanguage)}
-                       </button>
-                   )}
-               </div>
-
-               <div className="flex items-center gap-2 z-10">
-                   <span className={isTrialExpired ? 'text-red-500' : 'text-slate-400'}>
-                       {t('daysLeft', uiLanguage)}: {planConfig.trialDays - daysSinceStart}
-                   </span>
-               </div>
-          </div>
-      );
-  };
-
   const sourceTextArea = (
-    <div className="flex flex-col w-full md:w-1/2">
-      <div className="relative group rounded-2xl border border-slate-700/50 bg-[#0f172a] overflow-hidden h-full flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-[#1e293b]/30 backdrop-blur-sm">
-                  <LanguageSelect value={sourceLang} onChange={setSourceLang} />
-                  
-                  <div className="flex items-center gap-2">
-                     <button onClick={() => handleCopy(sourceText, 'source')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 rounded-lg transition-colors">
-                          {copiedSource ? <CheckIcon className="h-4 w-4 text-green-400"/> : <CopyIcon className="h-4 w-4" />}
-                      </button>
-                      <div className={`relative ${isUsingSystemVoice || !planConfig.allowEffects ? 'opacity-70' : ''}`} ref={effectsDropdownRef}>
-                          <button
-                              onClick={() => planConfig.allowEffects ? setIsEffectsOpen(!isEffectsOpen) : setIsUpgradeOpen(true)}
-                              disabled={isUsingSystemVoice}
-                              className="p-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-700 rounded-lg transition-colors"
-                              title={!planConfig.allowEffects ? "Upgrade to unlock effects" : t('soundEffects', uiLanguage)}
-                          >
-                              <SparklesIcon className="w-4 h-4" />
-                          </button>
-                           {isEffectsOpen && (
-                              <div className="absolute top-full mt-2 right-0 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-30 w-56 animate-fade-in-down max-h-64 overflow-y-auto">
-                                  {soundEffects.map(effect => (
-                                    <button
-                                      key={effect.tag}
-                                      onClick={() => handleInsertTag(effect.tag)}
-                                      className="w-full flex items-center gap-3 text-left px-4 py-3 text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-0"
-                                    >
-                                      <span className="text-lg leading-none">{effect.emoji}</span>
-                                      <span className="text-xs font-bold uppercase tracking-wider">{t(effect.labelKey as any, uiLanguage)}</span>
-                                    </button>
-                                  ))}
-                              </div>
-                          )}
-                      </div>
-                  </div>
-              </div>
+      <div className="flex-1 relative group h-full">
+          <div className="absolute top-0 left-0 w-full h-10 bg-gradient-to-b from-slate-900/90 to-transparent z-10 pointer-events-none rounded-t-2xl"></div>
+          <div className="absolute top-3 left-4 right-4 flex justify-between items-center z-20">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('sourceLanguage', uiLanguage)}</span>
+              <LanguageSelect value={sourceLang} onChange={setSourceLang} />
+          </div>
+          <textarea
+              ref={sourceTextAreaRef}
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              placeholder={t('placeholder', uiLanguage)}
+              dir={isSourceRtl ? 'rtl' : 'ltr'}
+              className={`w-full h-64 sm:h-80 p-6 pt-16 rounded-2xl resize-none text-lg sm:text-xl leading-relaxed shadow-inner transition-all border-2 focus:ring-2 focus:ring-cyan-500/50 outline-none
+              ${isSourceRtl ? 'text-right font-arabic' : 'text-left'}
+              bg-slate-900/50 border-slate-700 text-slate-200 placeholder-slate-500 focus:border-cyan-500/50 focus:bg-slate-900`}
+          />
+          
+          {/* RESTORED QUOTA INDICATOR HERE */}
+          <div className="absolute bottom-0 left-0 w-full">
+              <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} />
+          </div>
 
-              <div className="flex-grow relative bg-[#0f172a]">
-                  <textarea
-                      ref={sourceTextAreaRef}
-                      value={sourceText}
-                      onChange={(e) => setSourceText(e.target.value)}
-                      placeholder={t('placeholder', uiLanguage)}
-                      maxLength={userTier === 'admin' ? 999999 : 5000} 
-                      dir={isSourceRtl ? 'rtl' : 'ltr'}
-                      className={`w-full h-64 sm:h-72 p-5 bg-transparent border-none resize-none text-lg md:text-xl font-normal leading-loose tracking-normal focus:ring-0 outline-none placeholder-slate-600 text-slate-200
-                        ${isSourceRtl ? 'text-right' : 'text-left'}`}
-                  />
+          <div className="absolute bottom-14 right-4 flex gap-2 z-20">
+               <button onClick={() => setSourceText('')} disabled={!sourceText} className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors disabled:opacity-0" title="Clear">
+                  <TrashIcon className="w-5 h-5" />
+              </button>
+              <button onClick={() => handleCopy(sourceText, 'source')} disabled={!sourceText} className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-colors disabled:opacity-0" title={t('copy', uiLanguage)}>
+                  {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400"/> : <CopyIcon className="w-5 h-5" />}
+              </button>
+          </div>
+          <div className="absolute bottom-14 left-4 z-20">
+               <div className="relative">
+                  <button 
+                      onClick={() => setIsEffectsOpen(!isEffectsOpen)}
+                      className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-yellow-400 hover:bg-slate-800 transition-colors"
+                      title={t('soundEffects', uiLanguage)}
+                  >
+                      <SparklesIcon className="w-5 h-5" />
+                  </button>
+                  {isEffectsOpen && (
+                      <div ref={effectsDropdownRef} className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-slate-600 rounded-xl shadow-xl overflow-hidden grid grid-cols-3 gap-1 p-2 z-50">
+                          {soundEffects.map((effect) => (
+                              <button
+                                  key={effect.tag}
+                                  onClick={() => handleInsertTag(effect.tag)}
+                                  className="flex flex-col items-center justify-center p-2 hover:bg-slate-700 rounded-lg transition-colors group"
+                                  title={t(effect.labelKey as any, uiLanguage)}
+                              >
+                                  <span className="text-xl group-hover:scale-125 transition-transform">{effect.emoji}</span>
+                              </button>
+                          ))}
+                      </div>
+                  )}
               </div>
-              
-              <QuotaIndicator />
+          </div>
       </div>
-    </div>
   );
 
   const translatedTextArea = (
-      <div className="flex flex-col w-full md:w-1/2">
-           <div className="relative group rounded-2xl border border-slate-700/50 bg-[#0f172a] overflow-hidden h-full flex flex-col">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-[#1e293b]/30 backdrop-blur-sm">
-                        <LanguageSelect value={targetLang} onChange={setTargetLang} />
-                        <button onClick={() => handleCopy(translatedText, 'target')} title={t('copyTooltip', uiLanguage)} className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 rounded-lg transition-colors">
-                            {copiedTarget ? <CheckIcon className="h-4 w-4 text-green-400"/> : <CopyIcon className="h-4 w-4" />}
-                        </button>
-                    </div>
-
-                    <div className="flex-grow bg-[#0f172a]">
-                        <textarea
-                            value={translatedText}
-                            readOnly
-                            placeholder={t('translationPlaceholder', uiLanguage)}
-                            dir={isTargetRtl ? 'rtl' : 'ltr'}
-                            className={`w-full h-64 sm:h-72 p-5 bg-transparent border-none resize-none text-lg md:text-xl font-normal leading-loose tracking-normal focus:ring-0 outline-none placeholder-slate-600 text-slate-200
-                                ${isTargetRtl ? 'text-right' : 'text-left'}`}
-                        />
-                    </div>
-
-                    <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-sm font-mono font-bold tracking-widest text-slate-500 select-none">
-                        <span className="text-cyan-500/70">TRANSLATION</span>
-                        <span>{translatedText.length.toString().padStart(4, '0')} CHARS</span>
-                    </div>
-           </div>
+      <div className="flex-1 relative group h-full">
+          <div className="absolute top-0 left-0 w-full h-10 bg-gradient-to-b from-slate-900/90 to-transparent z-10 pointer-events-none rounded-t-2xl"></div>
+          <div className="absolute top-3 left-4 right-4 flex justify-between items-center z-20">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('targetLanguage', uiLanguage)}</span>
+              <LanguageSelect value={targetLang} onChange={setTargetLang} />
+          </div>
+          <textarea
+              readOnly
+              value={translatedText}
+              placeholder={t('translationPlaceholder', uiLanguage)}
+              dir={isTargetRtl ? 'rtl' : 'ltr'}
+              className={`w-full h-64 sm:h-80 p-6 pt-16 rounded-2xl resize-none text-lg sm:text-xl leading-relaxed shadow-inner transition-all border-2 outline-none
+              ${isTargetRtl ? 'text-right font-arabic' : 'text-left'}
+              bg-black/20 border-slate-800 text-cyan-100 placeholder-slate-600/50 focus:border-cyan-500/30`}
+          />
+           <div className="absolute bottom-4 right-4 flex gap-2 z-20">
+              <button onClick={() => handleCopy(translatedText, 'target')} disabled={!translatedText} className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-colors disabled:opacity-0" title={t('copy', uiLanguage)}>
+                  {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400"/> : <CopyIcon className="w-5 h-5" />}
+              </button>
+          </div>
       </div>
   );
 
   const swapButton = (
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 my-6 md:my-0 pointer-events-none">
-         <button onClick={swapLanguages} title={t('swapLanguages', uiLanguage)} className="pointer-events-auto h-12 w-12 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-full transition-all active:scale-95 border border-slate-600 hover:border-cyan-400 shadow-xl group">
-            <SwapIcon className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
-        </button>
-     </div>
+      <div className="flex md:flex-col justify-center items-center gap-2 relative z-10 -my-4 md:my-0">
+          <button
+              onClick={swapLanguages}
+              className="p-3 rounded-full bg-slate-800 border-2 border-slate-600 text-slate-400 hover:text-cyan-400 hover:border-cyan-400 transition-all shadow-lg hover:shadow-cyan-500/20 hover:scale-110 active:rotate-180"
+              title={t('swapLanguages', uiLanguage)}
+          >
+              <SwapIcon className="w-6 h-6" />
+          </button>
+      </div>
   );
+
+  const getButtonState = (target: 'source' | 'target') => {
+      const isTargetPlaying = activePlayer === target;
+      const isTargetLoading = isLoading && activePlayer === target;
+      
+      if (isTargetPlaying) {
+          if (isPaused) {
+              return { icon: <PlayCircleIcon className="h-8 w-8"/>, label: t('resumeSpeaking', uiLanguage), className: 'bg-amber-600 border-amber-400 text-white' };
+          }
+          // If active and not paused, it's playing. But if isLoading is set, it might be buffering.
+          // Actually handleSpeak sets isLoading false right before playing if successful (for Gemini).
+          // For system voice, isLoading isn't used for playback.
+          return { icon: <PauseIcon className="h-8 w-8"/>, label: t('pauseSpeaking', uiLanguage), className: 'bg-slate-800 border-cyan-500 text-cyan-400 animate-pulse' };
+      }
+      
+      if (isTargetLoading) {
+           return { icon: <LoaderIcon className="h-8 w-8"/>, label: loadingTask || t('generatingSpeech', uiLanguage), className: 'bg-cyan-900 border-cyan-700 text-cyan-200' };
+      }
+      
+      return { 
+          icon: <SpeakerIcon className="h-8 w-8"/>, 
+          label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage), 
+          className: 'bg-slate-800 border-slate-600 text-slate-400 hover:text-white hover:bg-slate-700 hover:border-cyan-500' 
+      };
+  };
+
+  const sourceButtonState = getButtonState('source');
+  const targetButtonState = getButtonState('target');
 
   return (
     <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
@@ -1438,8 +1396,7 @@ const App: React.FC = () => {
             <Suspense fallback={null}>
                 <Feedback language={uiLanguage} onOpenReport={() => setIsReportOpen(true)} />
             </Suspense>
-            
-            <ToastContainer toasts={toasts} removeToast={removeToast} />
+
         </main>
         <footer className="w-full pt-4 pb-2 text-center text-slate-500 text-[10px] font-bold border-t border-slate-800 tracking-widest uppercase">
              <p>© {new Date().getFullYear()} Sawtli Pro • Audio Workstation v4.0</p>
@@ -1603,18 +1560,6 @@ const QuotaIndicator: React.FC<{
     limits: typeof PLAN_LIMITS['free'];
 }> = ({ stats, tier, limits }) => {
     if (tier === 'admin') return null; 
-    
-    // Handle visitor specifically
-    if (tier === 'visitor') {
-        return (
-            <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-                 <span className="text-cyan-500/70">VISITOR MODE</span>
-                 <span className="text-amber-500 cursor-pointer hover:underline">
-                     Sign In for 5000 chars
-                 </span>
-            </div>
-        );
-    }
 
     const dailyUsed = stats.dailyCharsUsed;
     const dailyLimit = limits.dailyLimit;
