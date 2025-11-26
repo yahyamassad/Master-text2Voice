@@ -1,385 +1,766 @@
 
-import { AudioSettings, AudioPreset, AudioPresetName } from '../types';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { t, Language } from '../i18n/translations';
+import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, MicrophoneIcon, LockIcon } from './icons';
+import { AudioSettings, AudioPresetName } from '../types';
+import { AUDIO_PRESETS, processAudio, createMp3Blob, createWavBlob, rawPcmToAudioBuffer } from '../utils/audioUtils';
 
-function convertInt16ToFloat32(incomingData: Uint8Array): Float32Array {
-    const buffer = incomingData.byteOffset % 2 === 0 
-        ? incomingData.buffer 
-        : incomingData.buffer.slice(incomingData.byteOffset, incomingData.byteOffset + incomingData.byteLength);
-        
-    const int16Data = new Int16Array(buffer, incomingData.byteOffset % 2 === 0 ? incomingData.byteOffset : 0, incomingData.byteLength / 2);
-    const output = new Float32Array(int16Data.length);
-
-    for (let i = 0; i < int16Data.length; i++) {
-        output[i] = int16Data[i] / 32768.0;
-    }
-    return output;
+interface AudioStudioModalProps {
+    onClose: () => void;
+    uiLanguage: Language;
+    voice: string;
+    sourceAudioPCM?: Uint8Array | null;
+    allowDownloads?: boolean;
+    allowStudio?: boolean; 
+    onUpgrade?: () => void;
 }
 
-export function decode(base64: string): Uint8Array {
-  try {
-      const cleanBase64 = base64.replace(/[\r\n\s]/g, '');
-      const binaryString = atob(cleanBase64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      return bytes;
-  } catch (e) {
-      console.error("Failed to decode base64 string:", e);
-      return new Uint8Array(0);
-  }
-}
+const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: boolean }> = ({ analyser, isPlaying }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const animationRef = useRef<number>(0);
 
-export function encode(bytes: Uint8Array): string {
-  let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-export async function playAudio(
-    pcmData: Uint8Array,
-    existingContext: AudioContext | null,
-    onEnded: () => void,
-    speed: number = 1.0, 
-    offset: number = 0
-): Promise<AudioBufferSourceNode | null> {
-    let audioContext: AudioContext;
-
-    try {
-        if (existingContext) {
-            audioContext = existingContext;
-        } else {
-            audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        }
-        
-        if (audioContext.state === 'suspended') {
-            await audioContext.resume();
+        if (!analyser) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            return;
         }
 
-        const float32Data = convertInt16ToFloat32(pcmData);
-        const buffer = audioContext.createBuffer(1, float32Data.length, 24000);
-        buffer.getChannelData(0).set(float32Data);
-        
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        
-        if (Number.isFinite(speed) && speed > 0) {
-            source.playbackRate.value = speed;
-        }
+        analyser.fftSize = 2048; 
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
 
-        source.connect(audioContext.destination);
-        
-        source.onended = () => {
-             if (!existingContext && audioContext.state !== 'closed') {
-                audioContext.close().catch(() => {});
+        const draw = () => {
+            animationRef.current = requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const width = canvas.width;
+            const height = canvas.height;
+            const barWidth = (width / bufferLength) * 2.5;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const barHeight = (dataArray[i] / 255) * height;
+                const gradient = ctx.createLinearGradient(0, height - barHeight, 0, height);
+                gradient.addColorStop(0, '#22d3ee');
+                gradient.addColorStop(1, '#0891b2');
+
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+                x += barWidth + 1;
             }
-            try { source.disconnect(); } catch(e){}
-            onEnded();
         };
+
+        if (isPlaying || analyser) {
+             draw();
+        }
+
+        return () => {
+            if (animationRef.current) cancelAnimationFrame(animationRef.current);
+        };
+    }, [analyser, isPlaying]);
+
+    return (
+        <canvas ref={canvasRef} width={1000} height={160} className="w-full h-full rounded bg-black/50" />
+    );
+};
+
+const Knob: React.FC<{ label: string, value: number, min?: number, max?: number, onChange: (val: number) => void, color?: string }> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan' }) => {
+    const percentage = (value - min) / (max - min);
+    const rotation = -135 + (percentage * 270); 
+
+    const handleWheel = (e: React.WheelEvent) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -1 : 1; 
+        const step = (max - min) / 50; 
+        let newValue = value + (delta * step);
+        newValue = Math.max(min, Math.min(max, newValue));
+        onChange(newValue);
+    };
+    
+    const isPurple = color === 'purple';
+
+    return (
+        <div className="flex flex-col items-center group" onWheel={handleWheel}>
+             <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${isPurple ? 'border-purple-900/50 group-hover:border-purple-500/50' : 'border-cyan-900/50 group-hover:border-cyan-500/50'} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
+                 <div className="absolute w-full h-full rounded-full pointer-events-none" style={{ transform: `rotate(${rotation}deg)` }}>
+                     <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-2.5 sm:w-2 sm:h-3 rounded-full ${isPurple ? 'bg-purple-400 shadow-[0_0_8px_#a855f7]' : 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'}`}></div>
+                 </div>
+                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#0f172a] border border-slate-700 flex items-center justify-center shadow-inner">
+                     <span className={`text-sm sm:text-lg font-mono font-bold select-none pointer-events-none ${isPurple ? 'text-purple-300' : 'text-cyan-300'}`}>{Math.round(value)}</span>
+                 </div>
+             </div>
+             <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">{label}</span>
+        </div>
+    );
+};
+
+const Fader: React.FC<{ label: string, value: number, min?: number, max?: number, step?: number, onChange: (val: number) => void, height?: string, color?: string, labelSize?: string, disabled?: boolean }> = ({ label, value, min=0, max=100, step=1, onChange, height="h-32", color='cyan', labelSize='text-xs sm:text-sm', disabled }) => {
+    const isCyan = color === 'cyan';
+    const isAmber = color === 'amber';
+    
+    let barColor = 'bg-slate-300';
+    if(isCyan) barColor = 'bg-cyan-400';
+    if(isAmber) barColor = 'bg-amber-400';
+
+    let glowColor = 'bg-slate-500/20';
+    if(isCyan) glowColor = 'bg-cyan-500/20';
+    if(isAmber) glowColor = 'bg-amber-500/20';
+    
+    return (
+    <div className={`flex flex-col items-center w-12 sm:w-16 group h-full justify-end ${disabled ? 'opacity-50 grayscale' : ''}`}>
+        <div className={`relative w-3 sm:w-4 bg-black rounded-full border border-slate-800 ${height} mb-2 shadow-inner`}>
+            <input
+                type="range"
+                min={min}
+                max={max}
+                step={step}
+                value={value}
+                onChange={(e) => onChange(parseFloat(e.target.value))}
+                className={`absolute inset-0 w-full h-full opacity-0 z-10 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                title={`${label}: ${value}`}
+                disabled={disabled}
+                {...({ orient: "vertical" } as any)}
+                style={{ WebkitAppearance: 'slider-vertical' } as any}
+            />
+            <div className={`absolute bottom-0 left-0 w-full rounded-full pointer-events-none ${glowColor}`} style={{ height: `${((value - min) / (max - min)) * 100}%` }}></div>
+            <div 
+                className="absolute left-1/2 -translate-x-1/2 w-6 sm:w-8 h-4 sm:h-5 bg-gradient-to-b from-slate-600 to-slate-900 rounded shadow-lg border-t border-slate-500 border-b-2 border-black pointer-events-none flex items-center justify-center"
+                style={{ bottom: `calc(${((value - min) / (max - min)) * 100}% - 10px)` }}
+            >
+                 <div className="w-full h-px bg-black opacity-50"></div>
+                 <div className={`w-3 sm:w-5 h-1 rounded-full ${barColor}`}></div>
+            </div>
+        </div>
+        <div className="bg-slate-900 px-1 py-0.5 rounded border border-slate-800 min-w-[2rem] text-center">
+             <span className="text-[10px] sm:text-xs font-mono font-bold text-cyan-100">{Math.round(value)}</span>
+        </div>
+        <span className={`${labelSize} font-bold text-slate-500 uppercase tracking-wider mt-1 text-center leading-tight`}>{label}</span>
+    </div>
+)};
+
+const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number) => void }> = ({ value, label, onChange }) => (
+    <div className="flex flex-col items-center h-full group w-full">
+         <div className="relative flex-grow w-full max-w-[30px] sm:max-w-[40px] flex justify-center bg-black/50 rounded-md mb-2 border border-slate-800 min-h-[80px]">
+             <div className="absolute top-1/2 left-0 w-full h-px bg-slate-700"></div>
+            <input type="range" min="-12" max="12" value={value} onChange={(e) => onChange(parseInt(e.target.value, 10))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ WebkitAppearance: 'slider-vertical' } as any} />
+            <div className={`absolute w-1.5 rounded-full transition-all duration-75 ${value === 0 ? 'bg-slate-700 h-0.5 top-1/2' : 'bg-cyan-600/50 left-1/2 -translate-x-1/2'}`} style={ value !== 0 ? { bottom: value > 0 ? '50%' : `calc(50% - ${Math.abs(value)/24 * 100}%)`, height: `${Math.abs(value)/24 * 100}%` } : {}}></div>
+            <div className="absolute left-1/2 -translate-x-1/2 w-6 sm:w-8 h-3 sm:h-4 bg-[#334155] rounded shadow-md border border-slate-600 pointer-events-none flex items-center justify-center" style={{ bottom: `calc(${((value + 12) / 24) * 100}% - 8px)` }}>
+                <div className={`w-3 sm:w-4 h-1 rounded-sm ${value > 0 ? 'bg-cyan-400' : (value < 0 ? 'bg-amber-500' : 'bg-slate-400')}`}></div>
+            </div>
+        </div>
+        <span className="text-[8px] sm:text-[10px] font-bold text-slate-500 uppercase">{label}</span>
+        <span className={`text-[8px] sm:text-[10px] font-mono font-bold ${value !== 0 ? 'text-cyan-400' : 'text-slate-600'}`}>{value > 0 ? `+${value}` : value}dB</span>
+    </div>
+);
+
+export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, onUpgrade }) => {
+    const [activeTab, setActiveTab] = useState<'ai' | 'mic' | 'upload'>('ai');
+    const [presetName, setPresetName] = useState<AudioPresetName>('Default');
+    const [settings, setSettings] = useState<AudioSettings>(AUDIO_PRESETS[0].settings);
+    
+    // Volume Controls
+    const [voiceVolume, setVoiceVolume] = useState(80);
+    const [musicVolume, setMusicVolume] = useState(40);
+    
+    // Buffers
+    const [micAudioBuffer, setMicAudioBuffer] = useState<AudioBuffer | null>(null);
+    const [musicBuffer, setMusicBuffer] = useState<AudioBuffer | null>(null);
+    const [voiceBuffer, setVoiceBuffer] = useState<AudioBuffer | null>(null); 
+    
+    // File Meta
+    const [fileName, setFileName] = useState<string>('Gemini AI Audio');
+    const [musicFileName, setMusicFileName] = useState<string | null>(null);
+    const [fileDuration, setFileDuration] = useState<number>(0);
+    const [currentTime, setCurrentTime] = useState<number>(0);
+
+    // Processing / Playback State
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    
+    // Hardware
+    const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
+    const [selectedDeviceId, setSelectedDeviceId] = useState<string>('default');
+    const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+    
+    // Menu
+    const [showExportMenu, setShowExportMenu] = useState(false);
+    
+    // Refs
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const musicInputRef = useRef<HTMLInputElement>(null);
+    
+    // Real-time Audio Graph Refs
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const voiceSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const musicSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const voiceGainRef = useRef<GainNode | null>(null);
+    const musicGainRef = useRef<GainNode | null>(null);
+    
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordingChunksRef = useRef<Blob[]>([]);
+    const timerIntervalRef = useRef<any>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    
+    const playbackStartTimeRef = useRef<number>(0);
+    const playbackOffsetRef = useRef<number>(0);
+    const playAnimationFrameRef = useRef<number>(0);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
+
+    // --- INIT & CLEANUP ---
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            const audioInputs = devices.filter(device => device.kind === 'audioinput');
+            setInputDevices(audioInputs);
+        });
         
-        let safeOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
-        if (safeOffset >= buffer.duration) {
-             safeOffset = 0; 
+        const handleClickOutside = (event: MouseEvent) => {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+                setShowExportMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+
+        return () => {
+            document.body.style.overflow = 'unset';
+            document.removeEventListener('mousedown', handleClickOutside);
+            stopPlayback();
+            stopRecording();
+            if (audioContextRef.current) {
+                audioContextRef.current.close().catch(() => {});
+            }
+        };
+    }, []);
+
+    // --- LOAD AI AUDIO ---
+    useEffect(() => {
+        if (activeTab === 'ai' && sourceAudioPCM) {
+            const buf = rawPcmToAudioBuffer(sourceAudioPCM);
+            setVoiceBuffer(buf);
+            setFileDuration(buf.duration);
+            setFileName(`Gemini ${voice} Session`);
+        }
+    }, [activeTab, sourceAudioPCM, voice]);
+
+    const getAudioContext = () => {
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        return audioContextRef.current;
+    };
+
+    // --- PLAYBACK LOGIC (REAL-TIME MIXING) ---
+    const stopPlayback = useCallback(() => {
+        if (playAnimationFrameRef.current) {
+            cancelAnimationFrame(playAnimationFrameRef.current);
         }
         
-        source.start(0, safeOffset);
-        return source;
-    } catch (e) {
-        console.error("Error playing audio:", e);
-        if (!existingContext && audioContext! && audioContext!.state !== 'closed') {
-            audioContext!.close().catch(() => {});
-        }
-        onEnded(); 
-        return null;
-    }
-}
-
-export function rawPcmToAudioBuffer(pcmData: Uint8Array): AudioBuffer {
-    const float32Data = convertInt16ToFloat32(pcmData);
-    const tempCtx = new OfflineAudioContext(1, float32Data.length || 1, 24000);
-    const buffer = tempCtx.createBuffer(1, float32Data.length, 24000);
-    buffer.getChannelData(0).set(float32Data);
-    return buffer;
-}
-
-export async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext | OfflineAudioContext,
-  sampleRate: number = 24000, 
-  numChannels: number = 1,
-): Promise<AudioBuffer> {
-    try {
-        const bufferCopy = data.slice(0).buffer;
-        const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const decoded = await tempCtx.decodeAudioData(bufferCopy);
-        return decoded;
-    } catch (e) {
-        return rawPcmToAudioBuffer(data);
-    }
-}
-
-function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: number, reverse: boolean): AudioBuffer {
-    const sampleRate = ctx.sampleRate;
-    const length = sampleRate * duration;
-    const impulse = ctx.createBuffer(2, length, sampleRate);
-    const left = impulse.getChannelData(0);
-    const right = impulse.getChannelData(1);
-
-    for (let i = 0; i < length; i++) {
-        const n = reverse ? length - i : i;
-        const amount = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
-        left[i] = amount;
-        right[i] = amount;
-    }
-    return impulse;
-}
-
-export async function processAudio(
-    input: Uint8Array | AudioBuffer,
-    settings: AudioSettings,
-    backgroundMusicBuffer: AudioBuffer | null = null,
-    musicVolume: number = 40 
-): Promise<AudioBuffer> {
-    const renderSampleRate = 44100; 
-    let sourceBuffer: AudioBuffer;
-
-    if (input instanceof Uint8Array) {
-        sourceBuffer = rawPcmToAudioBuffer(input);
-    } else {
-        sourceBuffer = input;
-    }
-    
-    const speed = settings.speed || 1.0;
-    const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
-    
-    let outputDuration = (sourceBuffer.duration / speed) + reverbTail;
-    if (backgroundMusicBuffer) {
-        outputDuration = Math.max(outputDuration, backgroundMusicBuffer.duration); 
-    }
-    
-    const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
-
-    const source = offlineCtx.createBufferSource();
-    source.buffer = sourceBuffer;
-    source.playbackRate.value = speed;
-
-    const frequencies = [60, 250, 1000, 4000, 12000];
-    const filters = frequencies.map((freq, i) => {
-        const filter = offlineCtx.createBiquadFilter();
-        if (i === 0) filter.type = 'lowshelf';
-        else if (i === 4) filter.type = 'highshelf';
-        else filter.type = 'peaking';
+        try { if (voiceSourceRef.current) voiceSourceRef.current.stop(); } catch(e){}
+        try { if (musicSourceRef.current) musicSourceRef.current.stop(); } catch(e){}
         
-        filter.frequency.value = freq;
-        filter.gain.value = settings.eqBands[i] || 0;
-        filter.Q.value = 1.0;
-        return filter;
-    });
-
-    const compressor = offlineCtx.createDynamicsCompressor();
-    const compAmount = settings.compression / 100; 
-    compressor.threshold.value = -10 - (compAmount * 40); 
-    compressor.ratio.value = 1 + (compAmount * 11);       
-    compressor.attack.value = 0.003; 
-    compressor.release.value = 0.25;
-
-    const reverbNode = offlineCtx.createConvolver();
-    const reverbGain = offlineCtx.createGain(); 
-    const dryGain = offlineCtx.createGain();    
-    
-    if (settings.reverb > 0) {
-        const revDuration = 1.5 + (settings.reverb / 100) * 2.0; 
-        reverbNode.buffer = createImpulseResponse(offlineCtx, revDuration, 2.0, false);
-        const mix = settings.reverb / 100;
-        reverbGain.gain.value = mix;
-        dryGain.gain.value = 1 - (mix * 0.5); 
-    } else {
-        reverbGain.gain.value = 0;
-        dryGain.gain.value = 1;
-    }
-
-    const voiceMasterGain = offlineCtx.createGain();
-    voiceMasterGain.gain.value = (settings.volume / 50); 
-
-    let currentNode: AudioNode = source;
-    filters.forEach(f => { currentNode.connect(f); currentNode = f; });
-    currentNode.connect(compressor);
-    compressor.connect(reverbNode);
-    reverbNode.connect(reverbGain);
-    reverbGain.connect(voiceMasterGain);
-    compressor.connect(dryGain);
-    dryGain.connect(voiceMasterGain);
-    voiceMasterGain.connect(offlineCtx.destination);
-    
-    if (backgroundMusicBuffer) {
-        const musicSource = offlineCtx.createBufferSource();
-        musicSource.buffer = backgroundMusicBuffer;
-        if (backgroundMusicBuffer.duration < sourceBuffer.duration) {
-             musicSource.loop = true;
-        }
+        voiceSourceRef.current = null;
+        musicSourceRef.current = null;
         
-        const musicGain = offlineCtx.createGain();
-        musicGain.gain.value = musicVolume / 100;
-        
-        musicSource.connect(musicGain);
-        musicGain.connect(offlineCtx.destination);
-        musicSource.start(0);
-    }
+        if (!isRecording) setAnalyserNode(null); // Keep visualizer if recording
+        setIsPlaying(false);
+    }, [isRecording]);
 
-    source.start(0);
-    return await offlineCtx.startRendering();
-}
-
-export function createWavBlob(data: Uint8Array | AudioBuffer, numChannels: number, sampleRate: number): Blob {
-    let samples: Float32Array;
-    let channels = numChannels;
-    let rate = sampleRate;
-
-    if (data instanceof AudioBuffer) {
-        samples = interleave(data);
-        channels = data.numberOfChannels;
-        rate = data.sampleRate;
-    } else {
-        samples = convertInt16ToFloat32(data);
-        rate = 24000; 
-        channels = 1;
-    }
-    
-    return createWavBlobFromFloat32(samples, channels, rate);
-}
-
-function interleave(inputBuffer: AudioBuffer): Float32Array {
-    const numChannels = inputBuffer.numberOfChannels;
-    const length = inputBuffer.length * numChannels;
-    const result = new Float32Array(length);
-    for (let i = 0; i < inputBuffer.length; i++) {
-        for (let channel = 0; channel < numChannels; channel++) {
-            result[i * numChannels + channel] = inputBuffer.getChannelData(channel)[i];
+    const handlePlayPause = async () => {
+        if (isPlaying) {
+            // Pause Logic
+            const ctx = getAudioContext();
+            if (ctx) {
+                const elapsed = ctx.currentTime - playbackStartTimeRef.current;
+                playbackOffsetRef.current += elapsed; // Keep track of actual play time
+                // We don't reset automatically if there is music, unless both are done.
+            }
+            stopPlayback();
+            return;
         }
-    }
-    return result;
-}
 
-function createWavBlobFromFloat32(samples: Float32Array, numChannels: number, sampleRate: number): Blob {
-    const buffer = new ArrayBuffer(44 + samples.length * 2);
-    const view = new DataView(buffer);
-    
-    const writeString = (view: DataView, offset: number, string: string) => {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
+        // Play Logic - Allow if either voice or music is present
+        if (!voiceBuffer && !musicBuffer) return;
+        
+        const primaryDuration = voiceBuffer ? voiceBuffer.duration : (musicBuffer ? musicBuffer.duration : 0);
+
+        // Reset if at end
+        if (playbackOffsetRef.current >= primaryDuration - 0.1) {
+            playbackOffsetRef.current = 0;
+        }
+
+        try {
+            setIsProcessing(true); 
+            const ctx = getAudioContext();
+            if (ctx.state === 'suspended') await ctx.resume();
+            
+            // --- VOICE GRAPH ---
+            let processedVoice: AudioBuffer | null = null;
+            let vSource: AudioBufferSourceNode | null = null;
+            let vGain: GainNode | null = null;
+            let analyser: AnalyserNode | null = null;
+
+            if (voiceBuffer) {
+                // 1. Process Voice with Effects (Offline)
+                processedVoice = await processAudio(voiceBuffer, settings, null, 0); 
+                
+                // 2. Setup Live Graph
+                vSource = ctx.createBufferSource();
+                vSource.buffer = processedVoice;
+                
+                vGain = ctx.createGain();
+                vGain.gain.value = voiceVolume / 100;
+                
+                analyser = ctx.createAnalyser();
+                analyser.smoothingTimeConstant = 0.8;
+
+                vSource.connect(vGain).connect(analyser).connect(ctx.destination);
+                vSource.start(0, playbackOffsetRef.current);
+            }
+            
+            // --- MUSIC GRAPH ---
+            let mSource: AudioBufferSourceNode | null = null;
+            let mGain: GainNode | null = null;
+
+            if (musicBuffer) {
+                mSource = ctx.createBufferSource();
+                mSource.buffer = musicBuffer;
+                mSource.loop = true; 
+                
+                mGain = ctx.createGain();
+                mGain.gain.value = musicVolume / 100;
+                
+                // Connect music to same analyser if voice missing, else direct
+                if (!vSource && !analyser) {
+                     analyser = ctx.createAnalyser();
+                     mSource.connect(mGain).connect(analyser).connect(ctx.destination);
+                } else {
+                     mSource.connect(mGain).connect(ctx.destination);
+                }
+                
+                // Sync music start
+                const musicOffset = playbackOffsetRef.current % musicBuffer.duration;
+                mSource.start(0, musicOffset);
+            }
+
+            voiceSourceRef.current = vSource;
+            voiceGainRef.current = vGain;
+            musicSourceRef.current = mSource;
+            musicGainRef.current = mGain;
+            setAnalyserNode(analyser);
+            
+            playbackStartTimeRef.current = ctx.currentTime;
+            setIsPlaying(true);
+            setIsProcessing(false);
+
+            // Animation Loop
+            const updateUI = () => {
+                if (ctx.state === 'running') {
+                    const currentSegmentTime = ctx.currentTime - playbackStartTimeRef.current;
+                    const actualTime = playbackOffsetRef.current + currentSegmentTime;
+                    const totalDur = processedVoice ? processedVoice.duration : (musicBuffer ? musicBuffer.duration : 0);
+                    
+                    if (processedVoice && actualTime >= totalDur) {
+                        setCurrentTime(totalDur);
+                        stopPlayback();
+                        playbackOffsetRef.current = 0;
+                        setCurrentTime(0);
+                    } else {
+                        setCurrentTime(actualTime);
+                        playAnimationFrameRef.current = requestAnimationFrame(updateUI);
+                    }
+                }
+            };
+            updateUI();
+
+        } catch (e) {
+            console.error("Playback error:", e);
+            setIsProcessing(false);
         }
     };
 
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + samples.length * 2, true);
-    writeString(view, 8, 'WAVE');
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * 2, true);
-    view.setUint16(32, numChannels * 2, true);
-    view.setUint16(34, 16, true);
-    writeString(view, 36, 'data');
-    view.setUint32(40, samples.length * 2, true);
-    
-    for (let i = 0; i < samples.length; i++) {
-        let s = Math.max(-1, Math.min(1, samples[i]));
-        s = s < 0 ? s * 0x8000 : s * 0x7FFF;
-        view.setInt16(44 + i * 2, s, true);
-    }
-    
-    return new Blob([view], { type: 'audio/wav' });
-}
-
-export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: number, sampleRate: number): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-        try {
-            const lamejs = (window as any).lamejs;
-            if (!lamejs) throw new Error("lamejs not loaded");
-
-            let mp3encoder: any;
-            let pcmData: Int16Array;
-            let rate = sampleRate;
-            let channels = 1;
-            
-            if (buffer instanceof AudioBuffer) {
-                const ch0 = buffer.getChannelData(0);
-                pcmData = new Int16Array(ch0.length);
-                for (let i = 0; i < ch0.length; i++) {
-                    let s = Math.max(-1, Math.min(1, ch0[i]));
-                    pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-                rate = buffer.sampleRate;
-            } else {
-                const b = buffer.byteLength % 2 === 0 ? buffer : buffer.subarray(0, buffer.byteLength - 1);
-                pcmData = new Int16Array(b.buffer, b.byteOffset, b.byteLength / 2);
-                rate = 24000;
-            }
-
-            const mp3Data = [];
-            const sampleBlockSize = 1152;
-            for (let i = 0; i < pcmData.length; i += sampleBlockSize) {
-                const chunk = pcmData.subarray(i, i + sampleBlockSize);
-                const mp3buf = mp3encoder ? mp3encoder.encodeBuffer(chunk) : (mp3encoder = new lamejs.Mp3Encoder(channels, rate, 128), mp3encoder.encodeBuffer(chunk));
-                if (mp3buf.length > 0) mp3Data.push(mp3buf);
-            }
-            
-            const endBuf = mp3encoder.flush();
-            if (endBuf.length > 0) mp3Data.push(endBuf);
-
-            resolve(new Blob(mp3Data, { type: 'audio/mpeg' }));
-
-        } catch (e) {
-            reject(e);
+    // Real-time Volume Adjustment
+    useEffect(() => {
+        if (voiceGainRef.current) {
+             voiceGainRef.current.gain.setTargetAtTime(voiceVolume / 100, audioContextRef.current?.currentTime || 0, 0.1);
         }
-    });
-}
+    }, [voiceVolume]);
 
-export const AUDIO_PRESETS: AudioPreset[] = [
-    {
-        name: 'Default',
-        label: { en: 'Original', ar: 'الأصلي' },
-        settings: { volume: 50, speed: 1.0, pitch: 0, eqBands: [0, 0, 0, 0, 0], reverb: 0, compression: 0, stereoWidth: 0 }
-    },
-    {
-        name: 'YouTube',
-        label: { en: 'YouTube (Clean)', ar: 'يوتيوب (واضح)' },
-        settings: { volume: 80, speed: 1.0, pitch: 0, eqBands: [0, 3, 0, 2, 1], reverb: 2, compression: 25, stereoWidth: 0 }
-    },
-    {
-        name: 'Podcast',
-        label: { en: 'Podcast (Warm)', ar: 'بودكاست (دافئ)' },
-        settings: { volume: 85, speed: 1.0, pitch: 0, eqBands: [4, 3, 1, 0, -2], reverb: 3, compression: 35, stereoWidth: 0 }
-    },
-    {
-        name: 'SocialMedia',
-        label: { en: 'Social (Punchy)', ar: 'سوشيال (قوي)' },
-        settings: { volume: 95, speed: 1.05, pitch: 0, eqBands: [1, 3, 0, 4, 2], reverb: 0, compression: 55, stereoWidth: 0 }
-    },
-    {
-        name: 'Cinema',
-        label: { en: 'Cinema (Epic)', ar: 'سينما (ملحمي)' },
-        settings: { volume: 75, speed: 0.95, pitch: 0, eqBands: [5, 0, 1, 1, 3], reverb: 15, compression: 15, stereoWidth: 0 }
-    },
-    {
-        name: 'Telephone',
-        label: { en: 'Telephone', ar: 'هاتف' },
-        settings: { volume: 65, speed: 1.0, pitch: 0, eqBands: [-12, -4, 6, -4, -12], reverb: 0, compression: 80, stereoWidth: 0 }
-    },
-    {
-        name: 'Gaming',
-        label: { en: 'Gaming/Stream', ar: 'ألعاب/بث' },
-        settings: { volume: 90, speed: 1.0, pitch: 0, eqBands: [2, 0, 0, 5, 2], reverb: 0, compression: 45, stereoWidth: 0 }
-    },
-    {
-        name: 'ASMR',
-        label: { en: 'ASMR (Soft)', ar: 'همس (ASMR)' },
-        settings: { volume: 85, speed: 1.0, pitch: 0, eqBands: [1, 0, -2, 3, 5], reverb: 10, compression: 70, stereoWidth: 0 }
+    useEffect(() => {
+        if (musicGainRef.current) {
+            musicGainRef.current.gain.setTargetAtTime(musicVolume / 100, audioContextRef.current?.currentTime || 0, 0.1);
+        }
+    }, [musicVolume]);
+
+
+    // --- MIC LOGIC ---
+    const startRecording = async () => {
+        try {
+            stopPlayback();
+            setMicAudioBuffer(null);
+            const ctx = getAudioContext();
+            if (ctx.state === 'suspended') await ctx.resume();
+            
+            // HQ Constraints
+            const constraints = {
+                audio: {
+                    deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    channelCount: 1,
+                    sampleRate: 48000
+                }
+            };
+            
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            streamRef.current = stream;
+
+            const micSource = ctx.createMediaStreamSource(stream);
+            const analyser = ctx.createAnalyser();
+            micSource.connect(analyser);
+            setAnalyserNode(analyser);
+            
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            recordingChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
+
+            mediaRecorder.onstop = async () => {
+                micSource.disconnect();
+                analyser.disconnect();
+                setAnalyserNode(null);
+
+                const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+                const arrayBuffer = await blob.arrayBuffer();
+                const decoded = await ctx.decodeAudioData(arrayBuffer);
+                
+                setMicAudioBuffer(decoded);
+                setVoiceBuffer(decoded); 
+                setFileDuration(decoded.duration);
+                setFileName(`Recording_${new Date().toLocaleTimeString()}`);
+                playbackOffsetRef.current = 0;
+                setCurrentTime(0);
+                
+                if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+            };
+            
+            mediaRecorder.start();
+            setIsRecording(true);
+            setRecordingTime(0);
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = setInterval(() => setRecordingTime(p => p + 1), 1000);
+            
+        } catch (err) {
+            console.error("Mic Access Error:", err);
+            alert("Failed to access microphone. Please check permissions.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        }
+    };
+
+    // --- FILE HANDLING ---
+    const onMusicUploadClick = () => { musicInputRef.current?.click(); };
+    const handleMusicFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files?.[0]) {
+             const file = e.target.files[0];
+             setIsProcessing(true);
+             try {
+                 const arrayBuffer = await file.arrayBuffer();
+                 const ctx = getAudioContext();
+                 const decoded = await ctx.decodeAudioData(arrayBuffer);
+                 setMusicBuffer(decoded);
+                 setMusicFileName(file.name);
+             } catch (e) { console.error(e); alert("Music load failed"); }
+             finally { setIsProcessing(false); }
+        }
+    };
+
+    const onReplaceVoiceClick = () => { 
+        console.log("Replace Voice Clicked");
+        if (fileInputRef.current) {
+            fileInputRef.current.click(); 
+        } else {
+            console.error("File Input Ref is null");
+        }
+    };
+    
+    const handleVoiceFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files?.[0]) {
+             const file = e.target.files[0];
+             setIsProcessing(true);
+             try {
+                 const arrayBuffer = await file.arrayBuffer();
+                 const ctx = getAudioContext();
+                 const decoded = await ctx.decodeAudioData(arrayBuffer);
+                 setMicAudioBuffer(decoded);
+                 setVoiceBuffer(decoded);
+                 setFileName(file.name);
+                 setFileDuration(decoded.duration);
+                 setActiveTab('upload');
+                 playbackOffsetRef.current = 0;
+                 setCurrentTime(0);
+             } catch (e) { console.error(e); alert("Voice load failed"); }
+             finally { setIsProcessing(false); }
+        }
+    };
+
+    // --- EXPORT ---
+    const handleExportClick = (format: 'mp3' | 'wav' | 'flac') => {
+        setShowExportMenu(false);
+        
+        if (!allowDownloads) {
+            if (onUpgrade) onUpgrade();
+            return;
+        }
+        
+        performDownload(format);
+    };
+
+    const performDownload = async (format: string) => {
+        // Allow export if at least one buffer exists
+        if (!voiceBuffer && !musicBuffer) return;
+        
+        try {
+            setIsProcessing(true);
+            // Pass empty buffer if one track is missing
+            const vBuf = voiceBuffer || audioContextRef.current!.createBuffer(1, 1, 24000);
+            
+            const buffer = await processAudio(vBuf, settings, musicBuffer, musicVolume);
+            
+            let blob;
+            if (format === 'wav' || format === 'flac') {
+                 blob = createWavBlob(buffer, 1, buffer.sampleRate);
+            } else {
+                 blob = await createMp3Blob(buffer, 1, buffer.sampleRate);
+            }
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sawtli_mix.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const time = parseFloat(e.target.value);
+        setCurrentTime(time);
+        playbackOffsetRef.current = time;
+        if (isPlaying) {
+            stopPlayback();
+            setTimeout(() => handlePlayPause(), 50);
+        }
+    };
+
+    const handleTabSwitch = (tab: 'ai' | 'mic' | 'upload') => {
+        if (activeTab === tab) return;
+        stopPlayback();
+        setActiveTab(tab);
+        
+        if (tab === 'ai') {
+            if (sourceAudioPCM) {
+                const buf = rawPcmToAudioBuffer(sourceAudioPCM);
+                setVoiceBuffer(buf);
+                setFileDuration(buf.duration);
+                setFileName(`Gemini ${voice} Session`);
+            } else {
+                setVoiceBuffer(null);
+            }
+        } else if (tab === 'mic') {
+             setVoiceBuffer(micAudioBuffer);
+             setFileDuration(micAudioBuffer?.duration || 0);
+             setFileName(micAudioBuffer ? "Recording" : "Ready to Record");
+        } else {
+             setVoiceBuffer(micAudioBuffer); // Using same buffer var logic for uploaded voice
+             setFileDuration(micAudioBuffer?.duration || 0);
+             setFileName("Uploaded File");
+        }
+        playbackOffsetRef.current = 0;
+        setCurrentTime(0);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-[#0f172a] z-[100] flex flex-col animate-fade-in-down h-[100dvh]">
+            <div className="bg-[#0f172a] border-b border-slate-800 shrink-0 w-full" dir="ltr">
+                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex items-center justify-between select-none">
+                    <div className="flex items-center">
+                        <SawtliLogoIcon className="h-16 sm:h-20 w-auto" />
+                    </div>
+                    <div className="flex items-center gap-6">
+                        <h2 className="text-2xl sm:text-3xl font-thin tracking-[0.2em] text-slate-200 uppercase hidden sm:block border-r border-slate-700 pr-6 mr-2">Audio Studio</h2>
+                        <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-hide w-full">
+                <div className="max-w-7xl mx-auto space-y-6 pb-10">
+
+                    <div className="bg-[#020617] rounded-xl border border-slate-800 overflow-hidden relative shadow-2xl">
+                        <div className="h-32 sm:h-40 relative w-full">
+                             <AudioVisualizer analyser={analyserNode} isPlaying={isPlaying || isRecording} />
+                             {isRecording && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="animate-pulse text-red-500 font-mono text-xl font-bold tracking-widest bg-black/30 px-4 py-1 rounded">RECORDING {Math.floor(recordingTime/60)}:{String(recordingTime%60).padStart(2,'0')}</div></div>}
+                        </div>
+                        <div className="bg-[#0f172a] px-4 py-2 flex items-center gap-4 text-[10px] sm:text-xs font-mono text-cyan-400 border-t border-slate-800" dir="ltr">
+                            <span className="w-16 text-right">{Math.floor(currentTime/60)}:{String(Math.floor(currentTime%60)).padStart(2,'0')} / {Math.floor(fileDuration/60)}:{String(Math.floor(fileDuration%60)).padStart(2,'0')}</span>
+                            <div className="flex-1 relative h-6 flex items-center group cursor-pointer">
+                                <div className="absolute inset-0 bg-slate-800 h-1 rounded-full my-auto"></div>
+                                <div className="absolute left-0 bg-cyan-500 h-1 rounded-full my-auto pointer-events-none" style={{ width: `${(currentTime / (fileDuration || 1)) * 100}%` }}></div>
+                                <input type="range" min="0" max={fileDuration || 1} step="0.01" value={currentTime} onChange={handleSeek} disabled={!voiceBuffer && !musicBuffer} className="w-full h-full opacity-0 cursor-pointer z-10" />
+                                <div className="absolute h-3 w-3 bg-white rounded-full shadow pointer-events-none" style={{ left: `calc(${((currentTime / (fileDuration || 1)) * 100)}% - 6px)` }}></div>
+                            </div>
+                            <span className="text-slate-400 truncate max-w-[120px]" title={fileName}>{fileName}</span>
+                        </div>
+                    </div>
+
+                    <div className="bg-[#1e293b] p-3 rounded-2xl border border-slate-700 shadow-xl relative" dir="ltr">
+                        <div className="flex flex-col md:flex-row items-stretch gap-4 relative z-10">
+                            <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-1">
+                                {['upload', 'mic', 'ai'].map((tab) => (
+                                    <button key={tab} onClick={() => handleTabSwitch(tab as any)} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === tab ? (tab === 'upload' ? 'bg-amber-700 text-white' : tab === 'mic' ? 'bg-red-700 text-white' : 'bg-cyan-700 text-white') : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+                                        {tab === 'upload' ? 'FILE' : tab === 'mic' ? 'MIC' : 'GEMINI'}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="flex-shrink-0 flex justify-center items-center">
+                                 <button onClick={handlePlayPause} disabled={!voiceBuffer && !musicBuffer} className={`w-20 h-full min-h-[4rem] rounded-xl flex items-center justify-center border-2 transition-all active:scale-95 shadow-xl ${isPlaying ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-cyan-600 border-cyan-400 text-white'}`}>
+                                    {isPlaying ? <PauseIcon className="w-8 h-8"/> : <PlayCircleIcon className="w-10 h-10 ml-1"/>}
+                                 </button>
+                            </div>
+
+                            <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-2">
+                                <div className="flex-1 relative flex flex-col justify-center">
+                                    {activeTab === 'mic' ? (
+                                        <div className="w-full h-full flex flex-col gap-1">
+                                            <button onClick={isRecording ? stopRecording : startRecording} className={`flex-1 rounded-t-lg flex items-center justify-center border ${isRecording ? 'bg-red-900/80 border-red-500 text-white animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-300 hover:text-white'}`}>
+                                                <span className="font-bold text-sm">{isRecording ? 'STOP' : 'RECORD'}</span>
+                                            </button>
+                                            <select 
+                                                value={selectedDeviceId} 
+                                                onChange={(e) => setSelectedDeviceId(e.target.value)} 
+                                                disabled={isRecording}
+                                                className="w-full bg-slate-900 text-slate-400 border border-slate-700 rounded-b-lg p-1 text-[10px] focus:outline-none"
+                                            >
+                                                <option value="default">Default Mic</option>
+                                                {inputDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,4)}`}</option>)}
+                                            </select>
+                                        </div>
+                                    ) : (
+                                        <button onClick={onReplaceVoiceClick} className="w-full h-16 rounded-lg flex flex-col items-center justify-center bg-slate-800 border border-slate-600 text-slate-300 hover:text-white hover:border-slate-400">
+                                            <span className="font-bold">REPLACE / UPLOAD</span>
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex-1 relative" ref={exportMenuRef}>
+                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={!voiceBuffer && !musicBuffer} className="w-full h-16 rounded-lg flex flex-col items-center justify-center bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 font-bold uppercase">
+                                        {isProcessing ? <LoaderIcon className="w-5 h-5 mb-1"/> : <DownloadIcon className="w-5 h-5 mb-1" />}
+                                        <span>{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span>
+                                    </button>
+                                    {showExportMenu && (
+                                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl z-50">
+                                            <button onClick={() => handleExportClick('mp3')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold border-b border-slate-700">MP3 (Standard)</button>
+                                            <button onClick={() => handleExportClick('wav')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold border-b border-slate-700 flex justify-between">WAV <span className="text-amber-500 text-xs">Pro</span></button>
+                                            <button onClick={() => handleExportClick('flac')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold flex justify-between">FLAC <span className="text-amber-500 text-xs">Pro</span></button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <input type="file" ref={fileInputRef} onChange={handleVoiceFileChange} accept="audio/*" className="hidden" />
+                        <input type="file" ref={musicInputRef} onChange={handleMusicFileChange} accept="audio/*" className="hidden" />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-full">
+                             <div className="w-full flex items-center justify-between mb-6 border-b border-slate-700 pb-3">
+                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest">MIXER</div>
+                                <button onClick={onMusicUploadClick} className="text-[10px] bg-slate-800 px-3 py-1.5 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors shadow-sm">{musicFileName ? 'Change Music' : '+ Music Track'}</button>
+                             </div>
+                             <div className="flex gap-8 h-full items-end justify-center pb-2 flex-grow">
+                                <Fader label="VOICE" value={voiceVolume} onChange={setVoiceVolume} height="h-40" />
+                                <Fader label="MUSIC" value={musicVolume} onChange={setMusicVolume} color="amber" height="h-40" disabled={!musicFileName} />
+                             </div>
+                        </div>
+
+                        <div className="lg:col-span-2 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col">
+                             <div className="text-xs font-bold text-slate-300 uppercase mb-4 border-b border-slate-700 pb-3 tracking-widest">Equalizer & Presets</div>
+                             
+                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                                {AUDIO_PRESETS.map(p => (
+                                    <button 
+                                        key={p.name} 
+                                        onClick={() => {stopPlayback(); setPresetName(p.name); setSettings({...p.settings});}} 
+                                        className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-750 hover:text-slate-200'}`}
+                                    >
+                                        {p.name}
+                                    </button>
+                                ))}
+                             </div>
+                             
+                             <div className="flex justify-between px-2 gap-2 flex-1 items-end bg-black/20 rounded-xl p-4 border border-slate-800/50">
+                                <EqSlider value={settings.eqBands[0]} label="60Hz" onChange={(v) => {stopPlayback(); const b=[...settings.eqBands]; b[0]=v; updateSetting('eqBands',b);}} />
+                                <EqSlider value={settings.eqBands[1]} label="250Hz" onChange={(v) => {stopPlayback(); const b=[...settings.eqBands]; b[1]=v; updateSetting('eqBands',b);}} />
+                                <EqSlider value={settings.eqBands[2]} label="1KHz" onChange={(v) => {stopPlayback(); const b=[...settings.eqBands]; b[2]=v; updateSetting('eqBands',b);}} />
+                                <EqSlider value={settings.eqBands[3]} label="4KHz" onChange={(v) => {stopPlayback(); const b=[...settings.eqBands]; b[3]=v; updateSetting('eqBands',b);}} />
+                                <EqSlider value={settings.eqBands[4]} label="12KHz" onChange={(v) => {stopPlayback(); const b=[...settings.eqBands]; b[4]=v; updateSetting('eqBands',b);}} />
+                            </div>
+                         </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Dynamics</div>
+                            <Knob label="COMPRESSOR" value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" />
+                        </div>
+                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Ambience</div>
+                            <Knob label="REVERB" value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} />
+                        </div>
+                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Speed</div>
+                            <Knob label="SPEED" value={settings.speed * 50} min={25} max={100} onChange={(v) => updateSetting('speed', v/50)} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    function updateSetting<K extends keyof AudioSettings>(key: K, value: AudioSettings[K]) {
+        setSettings(prev => ({ ...prev, [key]: value }));
+        setPresetName('Default');
+        stopPlayback(); 
     }
-];
+};
