@@ -19,6 +19,7 @@ import TutorialModal from './components/TutorialModal';
 import UpgradeModal from './components/UpgradeModal';
 import GamificationModal from './components/GamificationModal';
 import OwnerSetupGuide from './components/OwnerSetupGuide';
+import PrivacyModal from './components/PrivacyModal';
 
 const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
@@ -196,6 +197,7 @@ const App: React.FC = () => {
   const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState<boolean>(false);
   const [isGamificationOpen, setIsGamificationOpen] = useState<boolean>(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState<boolean>(false);
   
   const [copiedSource, setCopiedSource] = useState<boolean>(false);
   const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
@@ -1414,8 +1416,11 @@ const App: React.FC = () => {
             
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </main>
-        <footer className="w-full pt-4 pb-2 text-center text-slate-500 text-[10px] font-bold border-t border-slate-800 tracking-widest uppercase">
+        <footer className="w-full pt-4 pb-2 text-center text-slate-500 text-[10px] font-bold border-t border-slate-800 tracking-widest uppercase flex flex-col gap-1">
              <p>© {new Date().getFullYear()} Sawtli Pro • Audio Workstation v4.0</p>
+             <button onClick={() => setIsPrivacyOpen(true)} className="hover:text-slate-300 transition-colors underline decoration-slate-700">
+                 {uiLanguage === 'ar' ? 'الخصوصية وشروط الاستخدام' : 'Privacy Policy & Terms'}
+             </button>
         </footer>
       </div>
 
@@ -1438,6 +1443,7 @@ const App: React.FC = () => {
       {isTutorialOpen && <TutorialModal onClose={() => setIsTutorialOpen(false)} uiLanguage={uiLanguage} />}
       {isUpgradeOpen && <UpgradeModal onClose={() => setIsUpgradeOpen(false)} uiLanguage={uiLanguage} currentTier={userTier} onUpgrade={handleUpgrade} onSignIn={() => { setIsUpgradeOpen(false); handleSignIn(); }} />}
       {isGamificationOpen && <GamificationModal onClose={() => setIsGamificationOpen(false)} uiLanguage={uiLanguage} userStats={userStats} onBoost={handleBoost} />}
+      {isPrivacyOpen && <PrivacyModal onClose={() => setIsPrivacyOpen(false)} uiLanguage={uiLanguage} />}
 
       <Suspense fallback={null}>
           {isAccountOpen && <AccountModal 
