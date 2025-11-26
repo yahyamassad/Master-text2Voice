@@ -161,7 +161,8 @@ export async function processAudio(
     let outputDuration = 1.0;
     if (sourceBuffer) outputDuration = (sourceBuffer.duration / speed) + reverbTail;
     if (backgroundMusicBuffer) {
-        outputDuration = Math.max(outputDuration, backgroundMusicBuffer.duration); 
+        // If voice exists, use its duration (plus tail), else use music duration
+        outputDuration = sourceBuffer ? Math.max(outputDuration, backgroundMusicBuffer.duration) : backgroundMusicBuffer.duration;
     }
     
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
@@ -227,14 +228,15 @@ export async function processAudio(
     if (backgroundMusicBuffer && musicVolume > 0) {
         const musicSource = offlineCtx.createBufferSource();
         musicSource.buffer = backgroundMusicBuffer;
+        
+        // Loop music only if voice exists and is longer than music
         if (sourceBuffer && backgroundMusicBuffer.duration < sourceBuffer.duration) {
              musicSource.loop = true;
         }
         
         const musicGain = offlineCtx.createGain();
-        // Auto Ducking Logic for Export (Static Approx)
-        // Reduce music volume significantly if both tracks exist and ducking is ON
-        const exportVolume = (autoDucking && sourceBuffer && voiceVolume > 0) ? (musicVolume / 100) * 0.2 : (musicVolume / 100);
+        // Static Auto Ducking logic for export (approximate)
+        const exportVolume = (autoDucking && sourceBuffer && voiceVolume > 0) ? (musicVolume / 100) * 0.15 : (musicVolume / 100);
         musicGain.gain.value = exportVolume;
         
         musicSource.connect(musicGain);
