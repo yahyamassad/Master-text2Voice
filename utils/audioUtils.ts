@@ -159,15 +159,29 @@ export async function processAudio(
     const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
     
     let outputDuration = 1.0;
-    if (sourceBuffer) outputDuration = (sourceBuffer.duration / speed) + reverbTail;
-    if (backgroundMusicBuffer) {
-        // If voice exists, use its duration (plus tail), else use music duration
-        outputDuration = sourceBuffer ? Math.max(outputDuration, backgroundMusicBuffer.duration) : backgroundMusicBuffer.duration;
+    
+    if (sourceBuffer) {
+        outputDuration = (sourceBuffer.duration / speed) + reverbTail;
     }
     
+    if (backgroundMusicBuffer) {
+        // Music track logic: length is at least music length, or voice length if voice is longer
+        const musicDur = backgroundMusicBuffer.duration;
+        if (sourceBuffer) {
+             outputDuration = Math.max(outputDuration, musicDur);
+        } else {
+             outputDuration = musicDur;
+        }
+    }
+    
+    // Ensure minimum duration to avoid empty rendering errors
+    if (outputDuration < 0.1) outputDuration = 1.0;
+
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
     // --- VOICE CHAIN ---
+    let voiceAnalyser: GainNode | null = null; // Used for ducking trigger
+    
     if (sourceBuffer && voiceVolume > 0) {
         const source = offlineCtx.createBufferSource();
         source.buffer = sourceBuffer;
@@ -210,7 +224,10 @@ export async function processAudio(
 
         const voiceGain = offlineCtx.createGain();
         voiceGain.gain.value = (voiceVolume / 100); 
-
+        
+        // Used to detect signal for ducking
+        voiceAnalyser = offlineCtx.createGain(); 
+        
         let currentNode: AudioNode = source;
         filters.forEach(f => { currentNode.connect(f); currentNode = f; });
         currentNode.connect(compressor);
@@ -219,7 +236,9 @@ export async function processAudio(
         reverbGain.connect(voiceGain);
         compressor.connect(dryGain);
         dryGain.connect(voiceGain);
+        
         voiceGain.connect(offlineCtx.destination);
+        voiceGain.connect(voiceAnalyser); // Feed to analyzer/trigger path if we could sidechain
         
         source.start(0);
     }
@@ -228,16 +247,15 @@ export async function processAudio(
     if (backgroundMusicBuffer && musicVolume > 0) {
         const musicSource = offlineCtx.createBufferSource();
         musicSource.buffer = backgroundMusicBuffer;
-        
-        // Loop music only if voice exists and is longer than music
-        if (sourceBuffer && backgroundMusicBuffer.duration < sourceBuffer.duration) {
-             musicSource.loop = true;
-        }
+        musicSource.loop = true;
         
         const musicGain = offlineCtx.createGain();
-        // Static Auto Ducking logic for export (approximate)
-        const exportVolume = (autoDucking && sourceBuffer && voiceVolume > 0) ? (musicVolume / 100) * 0.15 : (musicVolume / 100);
-        musicGain.gain.value = exportVolume;
+        // Simplified export ducking: If auto-ducking is on and we have a voice track, 
+        // we apply a static reduction to music for the whole clip to simulate the mix.
+        // For a perfect ducking, we'd need a ScriptProcessor in OfflineCtx (deprecated) or detailed curve automation.
+        // Here we choose a 'safe' mix level for export if ducking is active.
+        const duckingFactor = (autoDucking && sourceBuffer && voiceVolume > 0) ? 0.2 : 1.0;
+        musicGain.gain.value = (musicVolume / 100) * duckingFactor;
         
         musicSource.connect(musicGain);
         musicGain.connect(offlineCtx.destination);
