@@ -1,12 +1,6 @@
 
 import { AudioSettings, AudioPreset, AudioPresetName } from '../types';
 
-// This tells TypeScript that the 'lamejs' object is available globally.
-// declare const lamejs: any; 
-
-/**
- * Converts raw Int16 PCM data (bytes) into Float32Array (-1.0 to 1.0).
- */
 function convertInt16ToFloat32(incomingData: Uint8Array): Float32Array {
     const buffer = incomingData.byteOffset % 2 === 0 
         ? incomingData.buffer 
@@ -124,7 +118,6 @@ export async function decodeAudioData(
         const decoded = await tempCtx.decodeAudioData(bufferCopy);
         return decoded;
     } catch (e) {
-        // Fallback for raw PCM
         return rawPcmToAudioBuffer(data);
     }
 }
@@ -149,9 +142,9 @@ export async function processAudio(
     input: Uint8Array | AudioBuffer,
     settings: AudioSettings,
     backgroundMusicBuffer: AudioBuffer | null = null,
-    musicVolume: number = 50
+    musicVolume: number = 40 
 ): Promise<AudioBuffer> {
-    const renderSampleRate = 44100; // Standard output rate
+    const renderSampleRate = 44100; 
     let sourceBuffer: AudioBuffer;
 
     if (input instanceof Uint8Array) {
@@ -163,22 +156,17 @@ export async function processAudio(
     const speed = settings.speed || 1.0;
     const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
     
-    // Determine Output Duration (Voice + Reverb vs Music)
     let outputDuration = (sourceBuffer.duration / speed) + reverbTail;
     if (backgroundMusicBuffer) {
-        // Extend if music is slightly longer, but cap reasonable max to avoid huge empty files if music is 5 mins
-        const voiceEnd = outputDuration;
-        outputDuration = Math.max(voiceEnd, Math.min(voiceEnd + 5, backgroundMusicBuffer.duration)); 
+        outputDuration = Math.max(outputDuration, backgroundMusicBuffer.duration); 
     }
     
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
-    // --- VOICE CHAIN ---
     const source = offlineCtx.createBufferSource();
     source.buffer = sourceBuffer;
     source.playbackRate.value = speed;
 
-    // -- EQ (5 Bands) --
     const frequencies = [60, 250, 1000, 4000, 12000];
     const filters = frequencies.map((freq, i) => {
         const filter = offlineCtx.createBiquadFilter();
@@ -192,17 +180,13 @@ export async function processAudio(
         return filter;
     });
 
-    // -- Compressor --
     const compressor = offlineCtx.createDynamicsCompressor();
     const compAmount = settings.compression / 100; 
-    
     compressor.threshold.value = -10 - (compAmount * 40); 
     compressor.ratio.value = 1 + (compAmount * 11);       
     compressor.attack.value = 0.003; 
     compressor.release.value = 0.25;
-    compressor.knee.value = 30;
 
-    // -- Reverb --
     const reverbNode = offlineCtx.createConvolver();
     const reverbGain = offlineCtx.createGain(); 
     const dryGain = offlineCtx.createGain();    
@@ -210,7 +194,6 @@ export async function processAudio(
     if (settings.reverb > 0) {
         const revDuration = 1.5 + (settings.reverb / 100) * 2.0; 
         reverbNode.buffer = createImpulseResponse(offlineCtx, revDuration, 2.0, false);
-        
         const mix = settings.reverb / 100;
         reverbGain.gain.value = mix;
         dryGain.gain.value = 1 - (mix * 0.5); 
@@ -219,48 +202,31 @@ export async function processAudio(
         dryGain.gain.value = 1;
     }
 
-    // -- Master Volume (Voice) --
     const voiceMasterGain = offlineCtx.createGain();
-    const makeupGain = settings.compression > 50 ? 1.2 : 1.0;
-    voiceMasterGain.gain.value = (settings.volume / 50) * makeupGain;
+    voiceMasterGain.gain.value = (settings.volume / 50); 
 
-    // Connect Voice Graph
     let currentNode: AudioNode = source;
-    filters.forEach(f => {
-        currentNode.connect(f);
-        currentNode = f;
-    });
-
+    filters.forEach(f => { currentNode.connect(f); currentNode = f; });
     currentNode.connect(compressor);
-
     compressor.connect(reverbNode);
     reverbNode.connect(reverbGain);
     reverbGain.connect(voiceMasterGain);
-
     compressor.connect(dryGain);
     dryGain.connect(voiceMasterGain);
-    
     voiceMasterGain.connect(offlineCtx.destination);
     
-    // --- MUSIC CHAIN ---
     if (backgroundMusicBuffer) {
         const musicSource = offlineCtx.createBufferSource();
         musicSource.buffer = backgroundMusicBuffer;
-        
-        const musicGain = offlineCtx.createGain();
-        // Music volume logic: 0-100. Default 40 is good background.
-        // Normalize: 100 = 1.0 gain (loud).
-        const musicVol = musicVolume / 100;
-        musicGain.gain.value = musicVol;
-        
-        musicSource.connect(musicGain);
-        musicGain.connect(offlineCtx.destination);
-        
-        // Loop music if shorter than voice
         if (backgroundMusicBuffer.duration < sourceBuffer.duration) {
              musicSource.loop = true;
         }
         
+        const musicGain = offlineCtx.createGain();
+        musicGain.gain.value = musicVolume / 100;
+        
+        musicSource.connect(musicGain);
+        musicGain.connect(offlineCtx.destination);
         musicSource.start(0);
     }
 
