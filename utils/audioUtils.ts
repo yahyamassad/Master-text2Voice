@@ -1,7 +1,6 @@
 
 import { AudioSettings, AudioPreset, AudioPresetName } from '../types';
 
-// ... existing helper functions (convertInt16ToFloat32, decode, encode, playAudio, etc.) kept same ...
 function convertInt16ToFloat32(incomingData: Uint8Array): Float32Array {
     const buffer = incomingData.byteOffset % 2 === 0 
         ? incomingData.buffer 
@@ -139,20 +138,19 @@ function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: n
     return impulse;
 }
 
-// --- Main Process Function Updated ---
 export async function processAudio(
     input: Uint8Array | AudioBuffer,
     settings: AudioSettings,
     backgroundMusicBuffer: AudioBuffer | null = null,
     musicVolume: number = 40,
-    autoDucking: boolean = false,
-    voiceVolume: number = 80 
+    autoDucking: boolean = false
 ): Promise<AudioBuffer> {
     const renderSampleRate = 44100; 
     let sourceBuffer: AudioBuffer;
 
+    // Handle cases where one track might be missing
     if (!input) {
-         // Silence if no voice
+         // Create a silent buffer if no voice, so music can still play
          const tempCtx = new OfflineAudioContext(1, 44100, 44100);
          sourceBuffer = tempCtx.createBuffer(1, 44100, 44100); 
     } else if (input instanceof Uint8Array) {
@@ -169,8 +167,7 @@ export async function processAudio(
         outputDuration = Math.max(outputDuration, backgroundMusicBuffer.duration); 
     }
     
-    // Ensure minimum length
-    outputDuration = Math.max(outputDuration, 2.0);
+    outputDuration = Math.max(outputDuration, 1.0);
 
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
@@ -218,8 +215,7 @@ export async function processAudio(
         }
 
         voiceGain = offlineCtx.createGain();
-        // Voice volume control
-        voiceGain.gain.value = voiceVolume / 100; 
+        voiceGain.gain.value = (settings.volume / 50); 
 
         let currentNode: AudioNode = source;
         filters.forEach(f => { currentNode.connect(f); currentNode = f; });
@@ -235,7 +231,7 @@ export async function processAudio(
     }
     
     // --- MUSIC CHAIN ---
-    if (backgroundMusicBuffer && musicVolume > 0) {
+    if (backgroundMusicBuffer) {
         const musicSource = offlineCtx.createBufferSource();
         musicSource.buffer = backgroundMusicBuffer;
         if (input && backgroundMusicBuffer.duration < sourceBuffer.duration) {
@@ -243,16 +239,10 @@ export async function processAudio(
         }
         
         const musicGain = offlineCtx.createGain();
-        // Auto Ducking Logic for Export (Aggressive)
-        const baseVol = musicVolume / 100;
-        if (autoDucking && input) {
-            musicGain.gain.setValueAtTime(baseVol, 0);
-            // Simply duck whole track for export simplicity in this version, 
-            // or use 20% volume if ducking enabled to ensure voice clarity
-            musicGain.gain.value = baseVol * 0.2; 
-        } else {
-            musicGain.gain.value = baseVol;
-        }
+        // Auto Ducking Logic for Export (Static approx)
+        // For export, we apply a moderate reduction if ducking is enabled to be safe
+        const exportVolume = autoDucking ? (musicVolume / 100) * 0.4 : (musicVolume / 100);
+        musicGain.gain.value = exportVolume;
         
         musicSource.connect(musicGain);
         musicGain.connect(offlineCtx.destination);
@@ -262,7 +252,6 @@ export async function processAudio(
     return await offlineCtx.startRendering();
 }
 
-// ... createWavBlob, createMp3Blob, AUDIO_PRESETS kept same ...
 export function createWavBlob(data: Uint8Array | AudioBuffer, numChannels: number, sampleRate: number): Blob {
     let samples: Float32Array;
     let channels = numChannels;
