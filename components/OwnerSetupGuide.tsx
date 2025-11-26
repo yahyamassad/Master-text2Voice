@@ -125,6 +125,68 @@ function FirebaseSetup({ uiLanguage, projectId }: { uiLanguage: Language, projec
     );
 }
 
+function FirestoreRulesSetup({ uiLanguage }: { uiLanguage: Language }) {
+    const [copied, setCopied] = useState(false);
+
+    const rules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User Data & History
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /history/{historyId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Waitlist (Authenticated users can add themselves)
+    match /waitlist/{userId} {
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Feedback (Public read/write for now)
+    match /feedback/{document=**} {
+      allow read, write: if true;
+    }
+    
+    // Reports (Public write)
+    match /reports/{document=**} {
+      allow create: if true;
+    }
+  }
+}`;
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(rules);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <div className="space-y-2 mt-4">
+            <h4 className="text-sm font-bold text-slate-200">
+                {uiLanguage === 'ar' ? 'قواعد الأمان (Firestore Rules)' : 'Required Firestore Rules'}
+            </h4>
+            <p className="text-xs text-slate-400 mb-2">
+                {uiLanguage === 'ar' 
+                    ? 'انسخ هذا الكود وضعه في تبويب "Rules" في قاعدة بيانات Firestore لتفعيل التسجيل والقوائم.' 
+                    : 'Copy this code into the "Rules" tab of your Firestore Database to enable waitlist and feedback.'}
+            </p>
+            <div dir="ltr" className="relative p-4 bg-[#0b1120] rounded-xl font-mono text-xs text-green-300 text-left border border-slate-800 shadow-inner">
+                <pre className="whitespace-pre-wrap overflow-x-auto leading-relaxed"><code>{rules}</code></pre>
+                <button 
+                    onClick={handleCopy} 
+                    className="absolute top-3 right-3 px-3 py-1.5 bg-slate-800 hover:bg-cyan-600 text-white rounded-lg text-[10px] font-bold flex items-center gap-2 transition-all border border-slate-600 hover:border-cyan-400 shadow-lg"
+                >
+                    {copied ? <CheckIcon className="w-3 h-3 text-white" /> : <CopyIcon className="w-3 h-3" />}
+                    {copied ? 'Copied' : 'Copy'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // --- Main Component ---
 
 export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebaseConfigured }: OwnerSetupGuideProps) {
@@ -211,15 +273,9 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     let descriptionText = uiLanguage === 'ar' ? 'رسالة للمطور: يرجى إصلاح أخطاء الخادم أدناه.' : 'Dev Message: Please fix the server configuration errors below.';
 
     if (isFullyConfigured) {
-        return (
-             <div className="p-5 bg-[#020617] border border-green-500/50 rounded-xl text-green-100 text-center mb-8 flex items-center justify-between shadow-xl relative z-50">
-                 <span className="flex items-center gap-3 font-bold text-base">
-                     <CheckIcon className="w-6 h-6 text-green-400" /> 
-                     {uiLanguage === 'ar' ? 'اكتملت الإعدادات! الخادم والواجهة يعملان.' : 'Setup Complete! Server & Client are operational.'}
-                 </span>
-                 <button onClick={handlePermanentDismiss} className="text-xs bg-green-900/50 hover:bg-green-800 px-4 py-2 rounded border border-green-500/50 transition-colors font-bold">{uiLanguage === 'ar' ? 'إغلاق' : 'Close'}</button>
-             </div>
-        );
+        // Even if fully configured, we show the Rules helper if triggered by setup param or just to be helpful in dev mode,
+        // but typically this component disappears. However, to help the user fix the waitlist bug, we'll show the rules section
+        // if this component is visible.
     } else if (isServerReady && !isFirebaseConfigured) {
         containerStyle = "bg-[#0f172a] border-teal-500/50 shadow-2xl ring-1 ring-teal-900/50";
         headerIcon = <CheckIcon className="w-6 h-6 text-teal-400" />;
@@ -309,6 +365,9 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                         </div>
                     )}
                 </div>
+
+                {/* Rules Setup - Important for fixing "Permission Denied" errors */}
+                <FirestoreRulesSetup uiLanguage={uiLanguage} />
 
                 {/* Frontend Config Missing Warning */}
                 {!isFirebaseConfigured && (
