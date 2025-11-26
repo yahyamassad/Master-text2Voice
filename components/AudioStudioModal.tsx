@@ -6,6 +6,7 @@ import { AudioSettings, AudioPresetName } from '../types';
 import { AUDIO_PRESETS, processAudio, createMp3Blob, createWavBlob, rawPcmToAudioBuffer } from '../utils/audioUtils';
 
 interface AudioStudioModalProps {
+    isOpen?: boolean;
     onClose: () => void;
     uiLanguage: Language;
     voice: string;
@@ -199,7 +200,7 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
     </div>
 );
 
-export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, onUpgrade }) => {
+export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = true, onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, onUpgrade }) => {
     const [activeTab, setActiveTab] = useState<'ai' | 'mic' | 'upload'>('ai');
     const [presetName, setPresetName] = useState<AudioPresetName>('Default');
     const [settings, setSettings] = useState<AudioSettings>(AUDIO_PRESETS[0].settings);
@@ -221,6 +222,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     const [fileName, setFileName] = useState<string>('Gemini AI Audio');
     const [musicFileName, setMusicFileName] = useState<string | null>(null);
     const [fileDuration, setFileDuration] = useState<number>(0);
+    const [musicDuration, setMusicDuration] = useState<number>(0);
     const [currentTime, setCurrentTime] = useState<number>(0);
 
     // Processing / Playback State
@@ -277,7 +279,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
 
     // --- INIT & CLEANUP ---
     useEffect(() => {
-        document.body.style.overflow = 'hidden';
         navigator.mediaDevices.enumerateDevices().then(devices => {
             const audioInputs = devices.filter(device => device.kind === 'audioinput');
             setInputDevices(audioInputs);
@@ -300,6 +301,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             }
         };
     }, []);
+
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+            if (isPlaying) stopPlayback();
+            if (isRecording) stopRecording();
+        }
+    }, [isOpen]);
 
     // --- LOAD AI AUDIO ---
     useEffect(() => {
@@ -405,6 +416,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                      mSource.connect(mGain).connect(visualizerAnalyser).connect(ctx.destination);
                 } else {
                      mSource.connect(mGain).connect(ctx.destination);
+                     if (visualizerAnalyser) {
+                         // Connect Music to Visualizer too for Composite View
+                         mGain.connect(visualizerAnalyser);
+                     }
                 }
                 
                 const musicOffset = playbackOffsetRef.current % musicBuffer.duration;
@@ -575,6 +590,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                  const decoded = await ctx.decodeAudioData(arrayBuffer);
                  setMusicBuffer(decoded);
                  setMusicFileName(file.name);
+                 setMusicDuration(decoded.duration);
              } catch (e) { console.error(e); alert("Music load failed"); }
              finally { setIsProcessing(false); }
         }
@@ -607,7 +623,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     };
 
     // --- EXPORT ---
-    const handleExportClick = (format: 'mp3' | 'wav' | 'flac') => {
+    const handleExportClick = (format: 'mp3' | 'wav' | 'flac', mode: 'mix' | 'voice-only') => {
         setShowExportMenu(false);
         
         if (!allowDownloads) {
@@ -615,18 +631,18 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             return;
         }
         
-        performDownload(format);
+        performDownload(format, mode);
     };
 
-    const performDownload = async (format: string) => {
+    const performDownload = async (format: string, mode: 'mix' | 'voice-only') => {
         if (!voiceBuffer && !musicBuffer) return;
         
         try {
             setIsProcessing(true);
             
-            // Handle Mute state during export
+            // Handle Mute state during export based on mode
             const finalVoiceVolume = isVoiceMuted ? 0 : voiceVolume;
-            const finalMusicVolume = isMusicMuted ? 0 : musicVolume;
+            const finalMusicVolume = (mode === 'voice-only' || isMusicMuted) ? 0 : musicVolume;
 
             // Process with Mixing and Ducking
             const buffer = await processAudio(voiceBuffer, settings, musicBuffer, finalMusicVolume, autoDucking, finalVoiceVolume);
@@ -641,7 +657,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `sawtli_mix.${format}`;
+            const suffix = mode === 'voice-only' ? '_voice' : '_mix';
+            a.download = `sawtli${suffix}.${format}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -689,6 +706,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
         playbackOffsetRef.current = 0;
         setCurrentTime(0);
     };
+
+    if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 bg-[#0f172a] z-[100] flex flex-col animate-fade-in-down h-[100dvh]">
@@ -772,10 +791,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                         <span>{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span>
                                     </button>
                                     {showExportMenu && (
-                                        <div className="absolute top-full right-0 mt-2 w-48 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl z-[100]">
-                                            <button onClick={() => handleExportClick('mp3')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold border-b border-slate-700">MP3 (Standard)</button>
-                                            <button onClick={() => handleExportClick('wav')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold border-b border-slate-700 flex justify-between">WAV <span className="text-amber-500 text-xs">Pro</span></button>
-                                            <button onClick={() => handleExportClick('flac')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold flex justify-between">FLAC <span className="text-amber-500 text-xs">Pro</span></button>
+                                        <div className="absolute top-full right-0 mt-2 w-56 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl z-[100]">
+                                            <button onClick={() => handleExportClick('mp3', 'mix')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold border-b border-slate-700 flex justify-between">MP3 Mix <span className="text-slate-400 text-[10px] font-normal">Voice+Music</span></button>
+                                            <button onClick={() => handleExportClick('wav', 'mix')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold border-b border-slate-700 flex justify-between">WAV Mix <span className="text-amber-500 text-[10px]">Pro</span></button>
+                                            <button onClick={() => handleExportClick('mp3', 'voice-only')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-cyan-400 text-sm font-bold flex justify-between">Voice Only <span className="text-slate-400 text-[10px] font-normal">No Music</span></button>
                                         </div>
                                     )}
                                 </div>
@@ -789,7 +808,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" dir="ltr">
                         
                         {/* LEFT: BAND EQ-5 (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-64">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-80">
                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
@@ -804,17 +823,30 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                         </div>
 
                         {/* CENTER: MIXER (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-64">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-80">
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
+                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
                                 <div className="flex gap-2">
-                                    <button onClick={onMusicUploadClick} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase">{musicFileName ? 'REPLACE MUSIC' : 'ADD MUSIC'}</button>
+                                    <button onClick={onMusicUploadClick} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors">{musicFileName ? 'REPLACE' : 'ADD MUSIC'}</button>
                                     <div className="relative flex items-center">
-                                        <button onClick={() => setAutoDucking(!autoDucking)} className={`text-[9px] px-2 py-1 rounded border font-bold uppercase transition-all ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>AUTO DUCKING</button>
+                                        <button onClick={() => setAutoDucking(!autoDucking)} className={`text-[9px] px-2 py-1 rounded border font-bold uppercase transition-all ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>DUCKING</button>
                                         {duckingActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></div>}
                                     </div>
                                 </div>
-                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
                              </div>
+                             
+                             {/* Music Info Display */}
+                             <div className="w-full bg-black/30 rounded border border-slate-800/50 p-2 mb-4 text-[10px] font-mono flex justify-between items-center text-slate-400 min-h-[32px]">
+                                 {musicFileName ? (
+                                     <>
+                                        <span className="truncate text-amber-500/80 max-w-[180px]" title={musicFileName}>♪ {musicFileName}</span>
+                                        <span>{Math.floor(musicDuration/60)}:{String(Math.floor(musicDuration%60)).padStart(2,'0')}</span>
+                                     </>
+                                 ) : (
+                                     <span className="italic text-slate-600 text-center w-full">No music track loaded</span>
+                                 )}
+                             </div>
+
                              <div className="flex gap-8 h-full items-end justify-center pb-2 flex-grow">
                                 <Fader label="MONITOR" value={80} onChange={() => {}} height="h-32" disabled />
                                 <Fader 
@@ -840,15 +872,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                         </div>
 
                         {/* RIGHT: PRESETS (4 Cols - 2x4 Grid) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-64">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-80">
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
                              </div>
-                             <div className="grid grid-cols-2 gap-2 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
+                             <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
                                  <button 
                                     onClick={() => {stopPlayback(); setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});}} 
-                                    className={`col-span-2 w-full px-2 py-3 rounded font-bold border transition-all text-center uppercase tracking-wide text-[10px] ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                    className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                 >
                                     RESET DEFAULT
                                 </button>
@@ -856,7 +888,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                     <button 
                                         key={p.name} 
                                         onClick={() => {stopPlayback(); setPresetName(p.name); setSettings({...p.settings});}} 
-                                        className={`w-full px-1 py-3 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-[9px] ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                        className={`w-full px-1 py-4 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-[10px] flex items-center justify-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                         title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
                                     >
                                         {p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
