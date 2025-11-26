@@ -1,19 +1,40 @@
 
 import React, { useState } from 'react';
 import { t, Language } from '../i18n/translations';
-import { CheckIcon, LockIcon, SparklesIcon, UserIcon } from './icons';
+import { CheckIcon, LockIcon, SparklesIcon, UserIcon, LoaderIcon } from './icons';
 import { UserTier } from '../types';
 
 interface UpgradeModalProps {
     onClose: () => void;
     uiLanguage: Language;
     currentTier: UserTier;
-    onUpgrade: (tier: 'gold' | 'platinum') => void; 
+    onUpgrade: (tier: 'gold' | 'platinum') => Promise<boolean>; 
     onSignIn: () => void;
 }
 
 const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, currentTier, onUpgrade, onSignIn }) => {
-    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+    // Track which tier is currently processing
+    const [loadingTier, setLoadingTier] = useState<'gold' | 'platinum' | null>(null);
+    // Track which tiers have been successfully joined in this session
+    const [joinedTiers, setJoinedTiers] = useState<string[]>([]);
+
+    const handleTierUpgrade = async (e: React.MouseEvent, tier: 'gold' | 'platinum') => {
+        e.stopPropagation(); // Prevent bubbling issues
+        
+        if (loadingTier || joinedTiers.includes(tier)) return;
+
+        setLoadingTier(tier);
+        try {
+            const success = await onUpgrade(tier);
+            if (success) {
+                setJoinedTiers(prev => [...prev, tier]);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoadingTier(null);
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[70] p-4 animate-fade-in-down" onClick={onClose}>
@@ -25,10 +46,10 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                                 {t('earlyAccess', uiLanguage)} 🚀
                             </h2>
-                            <p className="text-sm text-slate-400">Join the waitlist for premium features</p>
+                            <p className="text-sm text-slate-400">{uiLanguage === 'ar' ? 'انضم لقائمة الانتظار للميزات المدفوعة' : 'Join the waitlist for premium features'}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white">
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
@@ -52,7 +73,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                              {currentTier === 'visitor' ? (
                                 <button 
                                     onClick={onSignIn}
-                                    className="w-full py-3 rounded-lg bg-slate-700 text-white font-bold hover:bg-slate-600 border border-slate-500 transition-colors flex items-center justify-center gap-2 mt-auto"
+                                    className="w-full py-3 rounded-lg bg-slate-700 text-white font-bold hover:bg-slate-600 border border-slate-500 transition-colors flex items-center justify-center gap-2 mt-auto relative z-20"
                                 >
                                      <UserIcon className="w-4 h-4" />
                                      {t('loginToRegister', uiLanguage)}
@@ -60,9 +81,9 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                              ) : (
                                 <button 
                                     disabled
-                                    className="w-full py-3 rounded-lg bg-slate-800 text-slate-500 font-bold border border-slate-700 cursor-default mt-auto"
+                                    className="w-full py-3 rounded-lg bg-slate-800 text-slate-500 font-bold border border-slate-700 cursor-default mt-auto relative z-20"
                                 >
-                                     Active
+                                     {uiLanguage === 'ar' ? 'نشط حالياً' : 'Active'}
                                 </button>
                              )}
                         </div>
@@ -87,10 +108,16 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                             </ul>
                             
                             <button 
-                                onClick={() => onUpgrade('gold')}
-                                className="w-full py-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-lg hover:shadow-amber-500/20 transition-all mt-auto uppercase tracking-wide"
+                                onClick={(e) => handleTierUpgrade(e, 'gold')}
+                                disabled={loadingTier === 'gold' || joinedTiers.includes('gold')}
+                                className={`w-full py-3 rounded-lg font-bold shadow-lg transition-all mt-auto uppercase tracking-wide flex items-center justify-center gap-2 relative z-20 ${
+                                    joinedTiers.includes('gold') 
+                                        ? 'bg-green-600/20 text-green-400 border border-green-500/50 cursor-default' 
+                                        : 'bg-amber-600 hover:bg-amber-500 text-white hover:shadow-amber-500/20'
+                                }`}
                             >
-                                {t('joinWaitlist', uiLanguage)}
+                                {loadingTier === 'gold' ? <LoaderIcon className="w-5 h-5" /> : 
+                                 joinedTiers.includes('gold') ? (uiLanguage === 'ar' ? 'تم الانضمام' : 'Joined') : t('joinWaitlist', uiLanguage)}
                             </button>
                         </div>
 
@@ -114,10 +141,16 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                             </ul>
                             
                             <button 
-                                onClick={() => onUpgrade('platinum')}
-                                className="w-full py-3 rounded-lg bg-slate-700 hover:bg-cyan-900/40 text-cyan-400 border border-cyan-500/30 font-bold hover:text-cyan-300 transition-all mt-auto uppercase tracking-wide"
+                                onClick={(e) => handleTierUpgrade(e, 'platinum')}
+                                disabled={loadingTier === 'platinum' || joinedTiers.includes('platinum')}
+                                className={`w-full py-3 rounded-lg font-bold border transition-all mt-auto uppercase tracking-wide flex items-center justify-center gap-2 relative z-20 ${
+                                    joinedTiers.includes('platinum') 
+                                        ? 'bg-green-600/20 text-green-400 border-green-500/50 cursor-default' 
+                                        : 'bg-slate-700 hover:bg-cyan-900/40 text-cyan-400 border-cyan-500/30 hover:text-cyan-300'
+                                }`}
                             >
-                                {t('joinWaitlist', uiLanguage)}
+                                {loadingTier === 'platinum' ? <LoaderIcon className="w-5 h-5" /> : 
+                                 joinedTiers.includes('platinum') ? (uiLanguage === 'ar' ? 'تم الانضمام' : 'Joined') : t('joinWaitlist', uiLanguage)}
                             </button>
                         </div>
 
