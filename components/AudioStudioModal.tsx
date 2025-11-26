@@ -178,7 +178,7 @@ const Fader: React.FC<{
 
 const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number) => void }> = ({ value, label, onChange }) => (
     <div className="flex flex-col items-center h-full group w-full">
-         <div className="relative flex-grow w-full max-w-[30px] sm:max-w-[40px] flex justify-center bg-black/50 rounded-md mb-2 border border-slate-800 min-h-[160px]">
+         <div className="relative flex-grow w-full max-w-[30px] sm:max-w-[40px] flex justify-center bg-black/50 rounded-md mb-2 border border-slate-800 min-h-[120px]">
              <div className="absolute top-1/2 left-0 w-full h-px bg-slate-700"></div>
             <input type="range" min="-12" max="12" value={value} onChange={(e) => onChange(parseInt(e.target.value, 10))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ WebkitAppearance: 'slider-vertical' } as any} />
             <div className={`absolute w-1.5 rounded-full transition-all duration-75 ${value === 0 ? 'bg-slate-700 h-0.5 top-1/2' : 'bg-cyan-600/50 left-1/2 -translate-x-1/2'}`} style={ value !== 0 ? { bottom: value > 0 ? '50%' : `calc(50% - ${Math.abs(value)/24 * 100}%)`, height: `${Math.abs(value)/24 * 100}%` } : {}}></div>
@@ -202,6 +202,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     const [isVoiceMuted, setIsVoiceMuted] = useState(false);
     const [isMusicMuted, setIsMusicMuted] = useState(false);
     const [autoDucking, setAutoDucking] = useState(false);
+    const [duckingActive, setDuckingActive] = useState(false); // Visual indicator
     
     // Buffers
     const [micAudioBuffer, setMicAudioBuffer] = useState<AudioBuffer | null>(null);
@@ -232,6 +233,20 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     const fileInputRef = useRef<HTMLInputElement>(null);
     const musicInputRef = useRef<HTMLInputElement>(null);
     
+    // REFS FOR REAL-TIME LOOP ACCESS (Fixes Slider Lag)
+    const musicVolumeRef = useRef(musicVolume);
+    const voiceVolumeRef = useRef(voiceVolume);
+    const isMusicMutedRef = useRef(isMusicMuted);
+    const isVoiceMutedRef = useRef(isVoiceMuted);
+    const autoDuckingRef = useRef(autoDucking);
+    
+    // Sync Refs with State
+    useEffect(() => { musicVolumeRef.current = musicVolume; }, [musicVolume]);
+    useEffect(() => { voiceVolumeRef.current = voiceVolume; }, [voiceVolume]);
+    useEffect(() => { isMusicMutedRef.current = isMusicMuted; }, [isMusicMuted]);
+    useEffect(() => { isVoiceMutedRef.current = isVoiceMuted; }, [isVoiceMuted]);
+    useEffect(() => { autoDuckingRef.current = autoDucking; }, [autoDucking]);
+
     // Real-time Audio Graph Refs
     const audioContextRef = useRef<AudioContext | null>(null);
     const voiceSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -308,13 +323,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
         musicSourceRef.current = null;
         duckingAnalyserRef.current = null;
         
-        if (!isRecording) setAnalyserNode(null); // Keep visualizer if recording
+        if (!isRecording) setAnalyserNode(null);
         setIsPlaying(false);
+        setDuckingActive(false);
     }, [isRecording]);
 
     const handlePlayPause = async () => {
         if (isPlaying) {
-            // Pause Logic
             const ctx = getAudioContext();
             if (ctx) {
                 const elapsed = ctx.currentTime - playbackStartTimeRef.current;
@@ -324,12 +339,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             return;
         }
 
-        // Play Logic - Allow if either voice or music is present
         if (!voiceBuffer && !musicBuffer) return;
         
         const primaryDuration = voiceBuffer ? voiceBuffer.duration : (musicBuffer ? musicBuffer.duration : 0);
 
-        // Reset if at end
         if (playbackOffsetRef.current >= primaryDuration - 0.1) {
             playbackOffsetRef.current = 0;
         }
@@ -358,12 +371,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                 visualizerAnalyser = ctx.createAnalyser();
                 visualizerAnalyser.smoothingTimeConstant = 0.8;
                 
-                // For auto ducking detection
                 duckingAnalyser = ctx.createAnalyser();
-                duckingAnalyser.fftSize = 1024; 
+                duckingAnalyser.fftSize = 512; // Faster response
 
                 vSource.connect(vGain).connect(visualizerAnalyser).connect(ctx.destination);
-                vSource.connect(duckingAnalyser); // Analyze voice before gain for ducking trigger
+                vSource.connect(duckingAnalyser); 
                 
                 vSource.start(0, playbackOffsetRef.current);
             }
@@ -380,7 +392,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                 mGain = ctx.createGain();
                 mGain.gain.value = isMusicMuted ? 0 : (musicVolume / 100);
                 
-                // Connect music to same analyser if voice missing, else direct
                 if (!vSource && !visualizerAnalyser) {
                      visualizerAnalyser = ctx.createAnalyser();
                      mSource.connect(mGain).connect(visualizerAnalyser).connect(ctx.destination);
@@ -388,7 +399,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                      mSource.connect(mGain).connect(ctx.destination);
                 }
                 
-                // Sync music start
                 const musicOffset = playbackOffsetRef.current % musicBuffer.duration;
                 mSource.start(0, musicOffset);
             }
@@ -404,32 +414,49 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             setIsPlaying(true);
             setIsProcessing(false);
 
-            // Animation Loop
+            // Animation Loop (The Engine)
             const updateUI = () => {
                 if (ctx.state === 'running') {
                     const currentSegmentTime = ctx.currentTime - playbackStartTimeRef.current;
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
                     const totalDur = processedVoice ? processedVoice.duration : (musicBuffer ? musicBuffer.duration : 0);
                     
-                    // --- REAL-TIME AUTO DUCKING LOGIC ---
-                    if (autoDucking && duckingAnalyser && mGain && !isMusicMuted) {
-                        const dataArray = new Uint8Array(duckingAnalyser.frequencyBinCount);
-                        duckingAnalyser.getByteTimeDomainData(dataArray);
-                        
-                        let sum = 0;
-                        for(let i = 0; i < dataArray.length; i++) {
-                            const v = (dataArray[i] - 128) / 128;
-                            sum += v*v;
+                    // REAL-TIME MIXING LOGIC (Using Refs to bypass stale closures)
+                    const currentMusicVol = isMusicMutedRef.current ? 0 : (musicVolumeRef.current / 100);
+                    const currentVoiceVol = isVoiceMutedRef.current ? 0 : (voiceVolumeRef.current / 100);
+
+                    // Update Voice Volume
+                    if (vGain) {
+                        vGain.gain.setTargetAtTime(currentVoiceVol, ctx.currentTime, 0.05);
+                    }
+
+                    // Update Music Volume + Ducking
+                    if (mGain) {
+                        let targetMusicGain = currentMusicVol;
+                        let isDucking = false;
+
+                        if (autoDuckingRef.current && duckingAnalyser && !isMusicMutedRef.current) {
+                            const dataArray = new Uint8Array(duckingAnalyser.frequencyBinCount);
+                            duckingAnalyser.getByteTimeDomainData(dataArray);
+                            
+                            let sum = 0;
+                            // Analyze only a portion for speed
+                            for(let i = 0; i < dataArray.length; i+=4) {
+                                const v = (dataArray[i] - 128) / 128;
+                                sum += v*v;
+                            }
+                            const rms = Math.sqrt(sum / (dataArray.length / 4));
+                            const threshold = 0.01; // High sensitivity
+                            
+                            if (rms > threshold) {
+                                targetMusicGain = currentMusicVol * 0.15; // Duck to 15%
+                                isDucking = true;
+                            }
                         }
-                        const rms = Math.sqrt(sum / dataArray.length);
-                        const threshold = 0.02; // Sensitivity
                         
-                        // Duck down to 10% volume if talking (Aggressive Ducking)
-                        const targetMusicGain = rms > threshold ? (musicVolume / 100) * 0.1 : (musicVolume / 100);
-                        // Smooth transition (0.3s attack/release)
-                        mGain.gain.setTargetAtTime(targetMusicGain, ctx.currentTime, 0.3);
-                    } else if (mGain && !autoDucking && !isMusicMuted) {
-                         mGain.gain.setTargetAtTime(musicVolume / 100, ctx.currentTime, 0.1);
+                        // Use fast attack (0.05) and slower release (0.2)
+                        mGain.gain.setTargetAtTime(targetMusicGain, ctx.currentTime, isDucking ? 0.05 : 0.3);
+                        setDuckingActive(isDucking);
                     }
 
                     if (processedVoice && actualTime >= totalDur) {
@@ -451,22 +478,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
         }
     };
 
-    // Real-time Volume & Mute Adjustment
-    useEffect(() => {
-        if (voiceGainRef.current) {
-             const target = isVoiceMuted ? 0 : (voiceVolume / 100);
-             voiceGainRef.current.gain.setTargetAtTime(target, audioContextRef.current?.currentTime || 0, 0.1);
-        }
-    }, [voiceVolume, isVoiceMuted]);
-
-    useEffect(() => {
-        if (musicGainRef.current && !autoDucking) {
-            const target = isMusicMuted ? 0 : (musicVolume / 100);
-            musicGainRef.current.gain.setTargetAtTime(target, audioContextRef.current?.currentTime || 0, 0.1);
-        }
-    }, [musicVolume, isMusicMuted, autoDucking]);
-
-
     // --- MIC LOGIC ---
     const startRecording = async () => {
         try {
@@ -475,7 +486,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             const ctx = getAudioContext();
             if (ctx.state === 'suspended') await ctx.resume();
             
-            // HQ Constraints + Gain Boost Prep
             const constraints = {
                 audio: {
                     deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
@@ -510,10 +520,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                 const arrayBuffer = await blob.arrayBuffer();
                 const decoded = await ctx.decodeAudioData(arrayBuffer);
                 
-                // --- BOOST MIC VOLUME (SOFTWARE GAIN 4x) ---
+                // --- BOOST MIC VOLUME (SOFTWARE GAIN 3.5x) ---
                 const rawData = decoded.getChannelData(0);
                 for (let i = 0; i < rawData.length; i++) {
-                    rawData[i] = Math.max(-1, Math.min(1, rawData[i] * 4.0));
+                    rawData[i] = Math.max(-1, Math.min(1, rawData[i] * 3.5));
                 }
                 
                 setMicAudioBuffer(decoded);
@@ -771,13 +781,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                     {/* Main Grid: EQ (LEFT) | Mixer (CENTER) | Presets (RIGHT) */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" dir="ltr">
                         
-                        {/* LEFT: BAND EQ-5 (5 Cols) */}
-                        <div className="lg:col-span-5 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-full">
-                            <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
+                        {/* LEFT: BAND EQ-5 (4 Cols) */}
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-56">
+                            <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
-                                <div className="w-1 h-4 bg-cyan-500 rounded-full"></div>
+                                <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
                             </div>
-                            <div className="flex justify-between px-2 gap-3 flex-1 items-end bg-black/20 rounded-xl p-4 border border-slate-800/50 min-h-[200px]">
+                            <div className="flex justify-between px-1 gap-2 flex-1 items-end bg-black/20 rounded-xl p-3 border border-slate-800/50">
                                 <EqSlider value={settings.eqBands[0]} label="60Hz" onChange={(v) => {const b=[...settings.eqBands]; b[0]=v; updateSetting('eqBands',b);}} />
                                 <EqSlider value={settings.eqBands[1]} label="250Hz" onChange={(v) => {const b=[...settings.eqBands]; b[1]=v; updateSetting('eqBands',b);}} />
                                 <EqSlider value={settings.eqBands[2]} label="1KHz" onChange={(v) => {const b=[...settings.eqBands]; b[2]=v; updateSetting('eqBands',b);}} />
@@ -787,22 +797,25 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                         </div>
 
                         {/* CENTER: MIXER (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-full">
-                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-56">
+                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="flex gap-2">
                                     <button onClick={onMusicUploadClick} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase">{musicFileName ? 'REPLACE MUSIC' : 'ADD MUSIC'}</button>
-                                    <button onClick={() => setAutoDucking(!autoDucking)} className={`text-[9px] px-2 py-1 rounded border font-bold uppercase transition-all ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>AUTO DUCKING</button>
+                                    <div className="relative flex items-center">
+                                        <button onClick={() => setAutoDucking(!autoDucking)} className={`text-[9px] px-2 py-1 rounded border font-bold uppercase transition-all ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>AUTO DUCKING</button>
+                                        {duckingActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></div>}
+                                    </div>
                                 </div>
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
                              </div>
-                             <div className="flex gap-8 h-full items-end justify-center pb-2 flex-grow min-h-[200px]">
-                                <Fader label="MONITOR" value={80} onChange={() => {}} height="h-48" disabled />
+                             <div className="flex gap-8 h-full items-end justify-center pb-2 flex-grow">
+                                <Fader label="MONITOR" value={80} onChange={() => {}} height="h-32" disabled />
                                 <Fader 
                                     label="MUSIC" 
                                     value={musicVolume} 
                                     onChange={setMusicVolume} 
                                     color="amber" 
-                                    height="h-48" 
+                                    height="h-32" 
                                     disabled={!musicFileName} 
                                     muted={isMusicMuted}
                                     onMuteToggle={() => setIsMusicMuted(!isMusicMuted)}
@@ -811,7 +824,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                     label="SOUND" 
                                     value={voiceVolume} 
                                     onChange={setVoiceVolume} 
-                                    height="h-48" 
+                                    height="h-32" 
                                     disabled={!voiceBuffer} 
                                     muted={isVoiceMuted}
                                     onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)}
@@ -819,16 +832,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                              </div>
                         </div>
 
-                        {/* RIGHT: PRESETS (3 Cols - List Style) */}
-                        <div className="lg:col-span-3 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-full">
-                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
+                        {/* RIGHT: PRESETS (4 Cols - 2x4 Grid) */}
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-56">
+                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
-                                <div className="w-1 h-4 bg-cyan-500 rounded-full"></div>
+                                <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
                              </div>
-                             <div className="flex flex-col gap-2 h-full overflow-y-auto pr-1 custom-scrollbar min-h-[200px]">
+                             <div className="grid grid-cols-2 gap-2 h-full overflow-y-auto pr-1 custom-scrollbar">
                                  <button 
                                     onClick={() => {stopPlayback(); setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});}} 
-                                    className={`w-full px-3 py-3 rounded-lg text-xs font-bold border transition-all text-center uppercase tracking-wide ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                    className={`col-span-2 w-full px-2 py-2 rounded-lg text-xs font-bold border transition-all text-center uppercase tracking-wide ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                 >
                                     RESET DEFAULT
                                 </button>
@@ -836,7 +849,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                     <button 
                                         key={p.name} 
                                         onClick={() => {stopPlayback(); setPresetName(p.name); setSettings({...p.settings});}} 
-                                        className={`w-full px-3 py-2.5 rounded-lg text-[10px] sm:text-xs font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                        className={`w-full px-2 py-2 rounded-lg text-[9px] sm:text-[10px] font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                         title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
                                     >
                                         {p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
