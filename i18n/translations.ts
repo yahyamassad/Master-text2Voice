@@ -1757,6 +1757,13 @@ export const translations = {
       es: 'Unirse a la lista',
       pt: 'Entrar na lista de espera',
   },
+  waitlistSuccess: {
+      ar: 'تم انضمامك للقائمة بنجاح! سنراسلك قريباً.',
+      en: 'Waitlist joined successfully! We will contact you soon.',
+      fr: 'Liste d\'attente rejointe ! Nous vous contacterons bientôt.',
+      es: '¡Unido a la lista! Te contactaremos pronto.',
+      pt: 'Entrou na lista! Entraremos em contato em breve.',
+  },
   lockedFeature: {
       ar: 'ميزة مقفلة',
       en: 'Locked Feature',
