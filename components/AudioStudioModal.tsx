@@ -93,15 +93,15 @@ const Knob: React.FC<{ label: string, value: number, min?: number, max?: number,
 
     return (
         <div className="flex flex-col items-center group" onWheel={handleWheel}>
-             <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${isPurple ? 'border-purple-900/50 group-hover:border-purple-500/50' : 'border-cyan-900/50 group-hover:border-cyan-500/50'} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
+             <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${isPurple ? 'border-purple-900/50 group-hover:border-purple-500/50' : 'border-cyan-900/50 group-hover:border-cyan-500/50'} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
                  <div className="absolute w-full h-full rounded-full pointer-events-none" style={{ transform: `rotate(${rotation}deg)` }}>
-                     <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-2.5 sm:w-2 sm:h-3 rounded-full ${isPurple ? 'bg-purple-400 shadow-[0_0_8px_#a855f7]' : 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'}`}></div>
+                     <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-2.5 rounded-full ${isPurple ? 'bg-purple-400 shadow-[0_0_8px_#a855f7]' : 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'}`}></div>
                  </div>
-                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#0f172a] border border-slate-700 flex items-center justify-center shadow-inner">
-                     <span className={`text-sm sm:text-lg font-mono font-bold select-none pointer-events-none ${isPurple ? 'text-purple-300' : 'text-cyan-300'}`}>{Math.round(value)}</span>
+                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0f172a] border border-slate-700 flex items-center justify-center shadow-inner">
+                     <span className={`text-xs sm:text-sm font-mono font-bold select-none pointer-events-none ${isPurple ? 'text-purple-300' : 'text-cyan-300'}`}>{Math.round(value)}</span>
                  </div>
              </div>
-             <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">{label}</span>
+             <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">{label}</span>
         </div>
     );
 };
@@ -220,6 +220,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     const playbackOffsetRef = useRef<number>(0);
     const playAnimationFrameRef = useRef<number>(0);
     const exportMenuRef = useRef<HTMLDivElement>(null);
+    
+    // Analyser for Auto Ducking logic
+    const duckingAnalyserRef = useRef<AnalyserNode | null>(null);
 
     // --- INIT & CLEANUP ---
     useEffect(() => {
@@ -275,6 +278,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
         
         voiceSourceRef.current = null;
         musicSourceRef.current = null;
+        duckingAnalyserRef.current = null;
         
         if (!isRecording) setAnalyserNode(null); // Keep visualizer if recording
         setIsPlaying(false);
@@ -311,7 +315,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             let processedVoice: AudioBuffer | null = null;
             let vSource: AudioBufferSourceNode | null = null;
             let vGain: GainNode | null = null;
-            let analyser: AnalyserNode | null = null;
+            let visualizerAnalyser: AnalyserNode | null = null;
+            let duckingAnalyser: AnalyserNode | null = null;
 
             if (voiceBuffer) {
                 processedVoice = await processAudio(voiceBuffer, settings, null, 0, false); 
@@ -322,10 +327,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                 vGain = ctx.createGain();
                 vGain.gain.value = voiceVolume / 100;
                 
-                analyser = ctx.createAnalyser();
-                analyser.smoothingTimeConstant = 0.8;
+                visualizerAnalyser = ctx.createAnalyser();
+                visualizerAnalyser.smoothingTimeConstant = 0.8;
+                
+                // For auto ducking detection
+                duckingAnalyser = ctx.createAnalyser();
+                duckingAnalyser.fftSize = 1024; 
 
-                vSource.connect(vGain).connect(analyser).connect(ctx.destination);
+                vSource.connect(vGain).connect(visualizerAnalyser).connect(ctx.destination);
+                vSource.connect(duckingAnalyser); // Analyze voice before gain for ducking trigger
+                
                 vSource.start(0, playbackOffsetRef.current);
             }
             
@@ -342,9 +353,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                 mGain.gain.value = musicVolume / 100;
                 
                 // Connect music to same analyser if voice missing, else direct
-                if (!vSource && !analyser) {
-                     analyser = ctx.createAnalyser();
-                     mSource.connect(mGain).connect(analyser).connect(ctx.destination);
+                if (!vSource && !visualizerAnalyser) {
+                     visualizerAnalyser = ctx.createAnalyser();
+                     mSource.connect(mGain).connect(visualizerAnalyser).connect(ctx.destination);
                 } else {
                      mSource.connect(mGain).connect(ctx.destination);
                 }
@@ -358,7 +369,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             voiceGainRef.current = vGain;
             musicSourceRef.current = mSource;
             musicGainRef.current = mGain;
-            setAnalyserNode(analyser);
+            setAnalyserNode(visualizerAnalyser);
+            duckingAnalyserRef.current = duckingAnalyser;
             
             playbackStartTimeRef.current = ctx.currentTime;
             setIsPlaying(true);
@@ -371,23 +383,26 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
                     const totalDur = processedVoice ? processedVoice.duration : (musicBuffer ? musicBuffer.duration : 0);
                     
-                    // --- SIMULATED AUTO DUCKING FOR PLAYBACK (Visual/Auditory only) ---
-                    if (autoDucking && vGain && mGain && analyser) {
-                        // Simple amplitude check from analyser to duck music
-                        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                        analyser.getByteTimeDomainData(dataArray);
+                    // --- REAL-TIME AUTO DUCKING LOGIC ---
+                    if (autoDucking && duckingAnalyser && mGain) {
+                        const dataArray = new Uint8Array(duckingAnalyser.frequencyBinCount);
+                        duckingAnalyser.getByteTimeDomainData(dataArray);
+                        
                         let sum = 0;
                         for(let i = 0; i < dataArray.length; i++) {
                             const v = (dataArray[i] - 128) / 128;
                             sum += v*v;
                         }
                         const rms = Math.sqrt(sum / dataArray.length);
-                        const threshold = 0.05;
-                        // Target gain: if talking (rms > threshold), duck to 20%. Else user set volume.
+                        const threshold = 0.02; // Sensitivity
+                        
+                        // Duck down to 20% volume if talking
                         const targetMusicGain = rms > threshold ? (musicVolume / 100) * 0.2 : (musicVolume / 100);
-                        mGain.gain.setTargetAtTime(targetMusicGain, ctx.currentTime, 0.1);
+                        // Smooth transition (0.3s attack/release)
+                        mGain.gain.setTargetAtTime(targetMusicGain, ctx.currentTime, 0.3);
                     } else if (mGain && !autoDucking) {
-                        mGain.gain.setTargetAtTime(musicVolume / 100, ctx.currentTime, 0.1);
+                        // Reset to normal volume immediately if ducking disabled
+                         mGain.gain.setTargetAtTime(musicVolume / 100, ctx.currentTime, 0.1);
                     }
 
                     if (processedVoice && actualTime >= totalDur) {
@@ -417,6 +432,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     }, [voiceVolume]);
 
     useEffect(() => {
+        // Only update manually if auto-ducking is NOT controlling it
         if (musicGainRef.current && !autoDucking) {
             musicGainRef.current.gain.setTargetAtTime(musicVolume / 100, audioContextRef.current?.currentTime || 0, 0.1);
         }
@@ -431,7 +447,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             const ctx = getAudioContext();
             if (ctx.state === 'suspended') await ctx.resume();
             
-            // HQ Constraints
+            // HQ Constraints + Gain Boost Prep
             const constraints = {
                 audio: {
                     deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
@@ -465,6 +481,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                 const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
                 const arrayBuffer = await blob.arrayBuffer();
                 const decoded = await ctx.decodeAudioData(arrayBuffer);
+                
+                // --- BOOST MIC VOLUME (SOFTWARE GAIN) ---
+                // Raw mics without AGC are quiet. Multiply samples by 2.0
+                const rawData = decoded.getChannelData(0);
+                for (let i = 0; i < rawData.length; i++) {
+                    rawData[i] = Math.max(-1, Math.min(1, rawData[i] * 2.0));
+                }
                 
                 setMicAudioBuffer(decoded);
                 setVoiceBuffer(decoded); 
@@ -745,7 +768,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                              <div className="flex gap-6 h-full items-end justify-center pb-2 flex-grow">
                                 <Fader label="MONITOR" value={80} onChange={() => {}} height="h-40" disabled />
                                 <Fader label="MUSIC" value={musicVolume} onChange={setMusicVolume} color="amber" height="h-40" disabled={!musicFileName} />
-                                <Fader label="VOICE" value={voiceVolume} onChange={setVoiceVolume} height="h-40" disabled={!voiceBuffer} />
+                                <Fader label="SOUND" value={voiceVolume} onChange={setVoiceVolume} height="h-40" disabled={!voiceBuffer} />
                              </div>
                         </div>
 
@@ -755,10 +778,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest">PRESETS</div>
                                 <div className="w-1 h-4 bg-cyan-500 rounded-full"></div>
                              </div>
-                             <div className="grid grid-cols-1 gap-2">
+                             <div className="grid grid-cols-2 gap-2 h-full content-start">
                                  <button 
                                     onClick={() => {stopPlayback(); setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});}} 
-                                    className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all w-full text-center ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                    className={`col-span-2 px-2 py-2 rounded-lg text-[10px] font-bold border transition-all text-center ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                 >
                                     RESET
                                 </button>
@@ -766,7 +789,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                     <button 
                                         key={p.name} 
                                         onClick={() => {stopPlayback(); setPresetName(p.name); setSettings({...p.settings});}} 
-                                        className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all w-full text-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                        className={`px-1 py-2 rounded-lg text-[10px] font-bold border transition-all text-center truncate ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                        title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
                                     >
                                         {p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
                                     </button>
