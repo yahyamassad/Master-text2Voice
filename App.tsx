@@ -1126,7 +1126,7 @@ const App: React.FC = () => {
 
   const handleUpgrade = async (tier: 'gold' | 'platinum') => {
       if (!user) {
-          showToast(t('signInError', uiLanguage), 'error'); // Reuse sign in error or add "Please sign in"
+          showToast(t('signInError', uiLanguage), 'error'); 
           handleSignIn();
           return;
       }
@@ -1135,9 +1135,9 @@ const App: React.FC = () => {
           await addToWaitlist(user.uid, user.email, tier);
           setIsUpgradeOpen(false);
           showToast(t('waitlistSuccess', uiLanguage), 'success');
-      } catch (e) {
-          console.error("Failed to join waitlist", e);
-          showToast("Failed to join waitlist. Please try again.", 'error');
+      } catch (e: any) {
+          console.error("Failed to join waitlist:", e);
+          showToast(`Failed to join waitlist: ${e.message || 'Unknown error'}`, 'error');
       }
   };
 
