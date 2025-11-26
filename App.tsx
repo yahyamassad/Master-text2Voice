@@ -227,6 +227,9 @@ const App: React.FC = () => {
   const isTotalLimitReached = userTier !== 'admin' && userStats.totalCharsUsed >= effectiveTotalLimit;
   
   const isProOrAbove = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
+  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
+  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
+  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
 
   // --- CORE FUNCTIONS ---
   
@@ -343,6 +346,7 @@ const App: React.FC = () => {
     // INITIAL AUTH CHECK
     const { auth } = getFirebase();
     if (auth) {
+        // @ts-ignore
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser: any) => {
             setUser(currentUser);
             setIsAuthLoading(false);
@@ -371,7 +375,8 @@ const App: React.FC = () => {
             }
         });
         return () => {
-            unsubscribeAuth();
+            // @ts-ignore
+            if(typeof unsubscribeAuth === 'function') unsubscribeAuth();
              if (firestoreUnsubscribeRef.current) firestoreUnsubscribeRef.current();
         };
     } else {
@@ -828,6 +833,7 @@ const App: React.FC = () => {
       return;
     }
 
+    // ROBUST SPEECH RECOGNITION SETUP
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setMicError(t('errorMicNotSupported', uiLanguage));
@@ -854,7 +860,7 @@ const App: React.FC = () => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setMicError(t('errorMicPermission', uiLanguage));
       } else if (event.error === 'no-speech') {
-          // Ignore no-speech errors, just stop
+          // Ignore no-speech errors, just stop silently
       } else {
         setMicError(event.error);
       }
@@ -1043,7 +1049,6 @@ const App: React.FC = () => {
       setIsAudioStudioOpen(true);
   };
 
-
   const getButtonState = (target: 'source' | 'target') => {
       const isThisPlayerActive = activePlayer === target;
       
@@ -1185,14 +1190,6 @@ const App: React.FC = () => {
       setIsUpgradeOpen(false);
   };
 
-  // --- DERIVED UI STATE ---
-  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
-  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
-  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
-  const sourceButtonState = getButtonState('source');
-  const targetButtonState = getButtonState('target');
-
-
   // --- RENDER ---
 
   const QuotaIndicator = () => {
@@ -1330,6 +1327,9 @@ const App: React.FC = () => {
      </div>
   );
 
+  const sourceButtonState = getButtonState('source');
+  const targetButtonState = getButtonState('target');
+
   return (
     <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
       
@@ -1461,14 +1461,14 @@ const App: React.FC = () => {
                     onClick={handleShareLink} 
                 />
                 <ActionCard 
-                    icon={!planConfig.allowDownloads ? <LockIcon className="text-amber-500 w-10 h-10"/> : <DownloadIcon className="w-10 h-10" />} 
+                    icon={<DownloadIcon className="w-10 h-10" />} 
                     label={t('downloadButton', uiLanguage)} 
                     // HONEY POT: Always allow opening, check inside logic
                     onClick={() => setIsDownloadOpen(true)} 
                     disabled={isLoading || (!sourceText && !translatedText) || isUsingSystemVoice} 
                 />
                 <ActionCard 
-                    icon={!planConfig.allowStudio ? <LockIcon className="text-amber-500 w-10 h-10"/> : <SoundEnhanceIcon className="text-cyan-400 w-10 h-10" />} 
+                    icon={<SoundEnhanceIcon className="text-cyan-400 w-10 h-10" />} 
                     label={t('audioStudio', uiLanguage)} 
                     onClick={handleAudioStudioOpen} 
                     disabled={false} 

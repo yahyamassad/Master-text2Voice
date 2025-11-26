@@ -316,6 +316,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
             const ctx = getAudioContext();
             if (ctx.state === 'suspended') await ctx.resume();
             
+            // HIGH QUALITY MIC SETTINGS
             const constraints = {
                 audio: {
                     echoCancellation: false,
@@ -601,6 +602,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
     }, [monitorVolume]);
 
     const handleDownload = async () => {
+        // HONEY POT: ALLOWS CLICK, BUT CHECKS PERMISSION INSIDE
         if (!allowDownloads) {
             if (onUpgrade) onUpgrade();
             return;

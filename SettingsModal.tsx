@@ -148,7 +148,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 } else {
                     console.error("No PCM data returned for preview");
                     setPreviewingVoice(null);
-                    alert(uiLanguage === 'ar' ? 'فشل تحميل معاينة الصوت' : 'Failed to load voice preview');
                 }
             } catch (error) {
                 console.error("Failed to preview Gemini voice:", error);
