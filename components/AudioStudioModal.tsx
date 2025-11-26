@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
-import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon } from './icons';
+import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon } from './icons';
 import { AudioSettings, AudioPresetName } from '../types';
 import { AUDIO_PRESETS, processAudio, createMp3Blob, createWavBlob, rawPcmToAudioBuffer } from '../utils/audioUtils';
 
@@ -212,6 +212,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const [isMusicMuted, setIsMusicMuted] = useState(false);
     const [autoDucking, setAutoDucking] = useState(false);
     const [duckingActive, setDuckingActive] = useState(false); // Visual indicator
+    
+    // Export Settings
+    const [exportFormat, setExportFormat] = useState<'mp3' | 'wav'>('mp3');
+    const [exportSource, setExportSource] = useState<'mix' | 'voice'>('mix');
     
     // Buffers
     const [micAudioBuffer, setMicAudioBuffer] = useState<AudioBuffer | null>(null);
@@ -623,18 +627,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     };
 
     // --- EXPORT ---
-    const handleExportClick = (format: 'mp3' | 'wav' | 'flac', mode: 'mix' | 'voice-only') => {
+    const handleExportClick = () => {
         setShowExportMenu(false);
-        
         if (!allowDownloads) {
             if (onUpgrade) onUpgrade();
             return;
         }
-        
-        performDownload(format, mode);
+        performDownload();
     };
 
-    const performDownload = async (format: string, mode: 'mix' | 'voice-only') => {
+    const performDownload = async () => {
         if (!voiceBuffer && !musicBuffer) return;
         
         try {
@@ -642,13 +644,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             
             // Handle Mute state during export based on mode
             const finalVoiceVolume = isVoiceMuted ? 0 : voiceVolume;
-            const finalMusicVolume = (mode === 'voice-only' || isMusicMuted) ? 0 : musicVolume;
+            const finalMusicVolume = (exportSource === 'voice' || isMusicMuted) ? 0 : musicVolume;
 
             // Process with Mixing and Ducking
             const buffer = await processAudio(voiceBuffer, settings, musicBuffer, finalMusicVolume, autoDucking, finalVoiceVolume);
             
             let blob;
-            if (format === 'wav' || format === 'flac') {
+            if (exportFormat === 'wav') {
                  blob = createWavBlob(buffer, 1, buffer.sampleRate);
             } else {
                  blob = await createMp3Blob(buffer, 1, buffer.sampleRate);
@@ -657,8 +659,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            const suffix = mode === 'voice-only' ? '_voice' : '_mix';
-            a.download = `sawtli${suffix}.${format}`;
+            const suffix = exportSource === 'voice' ? '_voice' : '_mix';
+            a.download = `sawtli${suffix}.${exportFormat}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -791,10 +793,53 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         <span>{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span>
                                     </button>
                                     {showExportMenu && (
-                                        <div className="absolute top-full right-0 mt-2 w-56 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl z-[100]">
-                                            <button onClick={() => handleExportClick('mp3', 'mix')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold border-b border-slate-700 flex justify-between">MP3 Mix <span className="text-slate-400 text-[10px] font-normal">Voice+Music</span></button>
-                                            <button onClick={() => handleExportClick('wav', 'mix')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white text-sm font-bold border-b border-slate-700 flex justify-between">WAV Mix <span className="text-amber-500 text-[10px]">Pro</span></button>
-                                            <button onClick={() => handleExportClick('mp3', 'voice-only')} className="w-full text-left px-4 py-3 hover:bg-slate-700 text-cyan-400 text-sm font-bold flex justify-between">Voice Only <span className="text-slate-400 text-[10px] font-normal">No Music</span></button>
+                                        <div className="absolute top-full right-0 mt-2 w-64 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl z-[100] p-4">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-700 pb-1">Export Settings</div>
+                                            
+                                            <div className="mb-4">
+                                                <label className="text-xs font-bold text-slate-300 mb-1 block">SOURCE</label>
+                                                <div className="flex bg-slate-900 rounded p-1">
+                                                    <button 
+                                                        onClick={() => setExportSource('mix')} 
+                                                        className={`flex-1 py-1 text-[10px] font-bold rounded transition-colors ${exportSource === 'mix' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                                    >
+                                                        FULL MIX
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setExportSource('voice')} 
+                                                        className={`flex-1 py-1 text-[10px] font-bold rounded transition-colors ${exportSource === 'voice' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                                    >
+                                                        VOICE ONLY
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="mb-4">
+                                                <label className="text-xs font-bold text-slate-300 mb-1 block">FORMAT</label>
+                                                <div className="space-y-1">
+                                                    <button 
+                                                        onClick={() => setExportFormat('mp3')}
+                                                        className={`w-full text-left px-2 py-1.5 rounded text-xs font-mono flex justify-between items-center ${exportFormat === 'mp3' ? 'bg-slate-700 text-white border border-slate-600' : 'text-slate-400 hover:bg-slate-700/50'}`}
+                                                    >
+                                                        <span>MP3 <span className="opacity-50 ml-1">320kbps</span></span>
+                                                        {exportFormat === 'mp3' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setExportFormat('wav')}
+                                                        className={`w-full text-left px-2 py-1.5 rounded text-xs font-mono flex justify-between items-center ${exportFormat === 'wav' ? 'bg-slate-700 text-white border border-slate-600' : 'text-slate-400 hover:bg-slate-700/50'}`}
+                                                    >
+                                                        <span>WAV <span className="opacity-50 ml-1">48kHz 24-bit</span></span>
+                                                        {exportFormat === 'wav' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <button 
+                                                onClick={handleExportClick} 
+                                                className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <DownloadIcon className="w-3 h-3" /> Download
+                                            </button>
                                         </div>
                                     )}
                                 </div>
@@ -808,7 +853,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" dir="ltr">
                         
                         {/* LEFT: BAND EQ-5 (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-80">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96">
                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
@@ -823,7 +868,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         </div>
 
                         {/* CENTER: MIXER (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-80">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96">
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
                                 <div className="flex gap-2">
@@ -836,7 +881,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                              </div>
                              
                              {/* Music Info Display */}
-                             <div className="w-full bg-black/30 rounded border border-slate-800/50 p-2 mb-4 text-[10px] font-mono flex justify-between items-center text-slate-400 min-h-[32px]">
+                             <div className="w-full bg-black/30 rounded border border-slate-800/50 p-2 mb-4 text-[10px] font-mono flex justify-between items-center text-slate-400 min-h-[32px] shrink-0">
                                  {musicFileName ? (
                                      <>
                                         <span className="truncate text-amber-500/80 max-w-[180px]" title={musicFileName}>♪ {musicFileName}</span>
@@ -847,14 +892,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                  )}
                              </div>
 
-                             <div className="flex gap-8 h-full items-end justify-center pb-2 flex-grow">
-                                <Fader label="MONITOR" value={80} onChange={() => {}} height="h-32" disabled />
+                             <div className="flex gap-8 h-full items-end justify-center pb-2 flex-grow overflow-hidden">
+                                <Fader label="MONITOR" value={80} onChange={() => {}} height="h-full max-h-[180px]" disabled />
                                 <Fader 
                                     label="MUSIC" 
                                     value={musicVolume} 
                                     onChange={setMusicVolume} 
                                     color="amber" 
-                                    height="h-32" 
+                                    height="h-full max-h-[180px]" 
                                     disabled={!musicFileName} 
                                     muted={isMusicMuted}
                                     onMuteToggle={() => setIsMusicMuted(!isMusicMuted)}
@@ -863,7 +908,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     label="SOUND" 
                                     value={voiceVolume} 
                                     onChange={setVoiceVolume} 
-                                    height="h-32" 
+                                    height="h-full max-h-[180px]" 
                                     disabled={!voiceBuffer} 
                                     muted={isVoiceMuted}
                                     onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)}
@@ -872,7 +917,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         </div>
 
                         {/* RIGHT: PRESETS (4 Cols - 2x4 Grid) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-80">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96">
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
