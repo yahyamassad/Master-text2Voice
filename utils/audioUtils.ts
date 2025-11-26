@@ -6,13 +6,8 @@ import { AudioSettings, AudioPreset, AudioPresetName } from '../types';
 
 /**
  * Converts raw Int16 PCM data (bytes) into Float32Array (-1.0 to 1.0).
- * Gemini returns Linear-16 (16-bit signed integers).
- * We use Int16Array directly which handles system endianness automatically.
  */
 function convertInt16ToFloat32(incomingData: Uint8Array): Float32Array {
-    // Create an Int16 view of the buffer. 
-    // Note: This assumes the system endianness matches the stream (usually Little Endian).
-    // If incomingData offset is not aligned to 2 bytes, we must slice it.
     const buffer = incomingData.byteOffset % 2 === 0 
         ? incomingData.buffer 
         : incomingData.buffer.slice(incomingData.byteOffset, incomingData.byteOffset + incomingData.byteLength);
@@ -20,16 +15,12 @@ function convertInt16ToFloat32(incomingData: Uint8Array): Float32Array {
     const int16Data = new Int16Array(buffer, incomingData.byteOffset % 2 === 0 ? incomingData.byteOffset : 0, incomingData.byteLength / 2);
     const output = new Float32Array(int16Data.length);
 
-    // Normalize to range [-1.0, 1.0]
     for (let i = 0; i < int16Data.length; i++) {
         output[i] = int16Data[i] / 32768.0;
     }
     return output;
 }
 
-/**
- * Decodes a base64 string into a Uint8Array.
- */
 export function decode(base64: string): Uint8Array {
   try {
       const cleanBase64 = base64.replace(/[\r\n\s]/g, '');
@@ -55,10 +46,6 @@ export function encode(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/**
- * Plays raw PCM audio data by converting it to an AudioBuffer manually.
- * STRICTLY ENFORCES 24000Hz (Gemini Native).
- */
 export async function playAudio(
     pcmData: Uint8Array,
     existingContext: AudioContext | null,
@@ -79,19 +66,10 @@ export async function playAudio(
             await audioContext.resume();
         }
 
-        // 1. Convert raw Int16 bytes to Float32 audio data
         const float32Data = convertInt16ToFloat32(pcmData);
-
-        // 2. Create an AudioBuffer with strict 24000Hz sample rate
-        // If we don't specify 24000, the browser assumes 44100/48000 and plays it 2x speed (Chipmunk).
-        // If "Cow" sound happens, it usually means data corruption or extremely low rate interpretation.
-        // We explicitly set 24000 here.
         const buffer = audioContext.createBuffer(1, float32Data.length, 24000);
-        
-        // 3. Fill the buffer
         buffer.getChannelData(0).set(float32Data);
         
-        // 4. Create Source
         const source = audioContext.createBufferSource();
         source.buffer = buffer;
         
@@ -109,13 +87,11 @@ export async function playAudio(
             onEnded();
         };
         
-        // Handle offset for resuming
         let safeOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
         if (safeOffset >= buffer.duration) {
              safeOffset = 0; 
         }
         
-        // Start playback
         source.start(0, safeOffset);
         return source;
     } catch (e) {
@@ -128,12 +104,8 @@ export async function playAudio(
     }
 }
 
-/**
- * Helper to manually wrap Float32 data into a dummy AudioBuffer for offline processing.
- */
 export function rawPcmToAudioBuffer(pcmData: Uint8Array): AudioBuffer {
     const float32Data = convertInt16ToFloat32(pcmData);
-    // Offline context to create buffer instance
     const tempCtx = new OfflineAudioContext(1, float32Data.length || 1, 24000);
     const buffer = tempCtx.createBuffer(1, float32Data.length, 24000);
     buffer.getChannelData(0).set(float32Data);
@@ -146,21 +118,16 @@ export async function decodeAudioData(
   sampleRate: number = 24000, 
   numChannels: number = 1,
 ): Promise<AudioBuffer> {
-    // Try to decode as a file first (e.g. Uploaded MP3/WAV)
     try {
-        // We need a buffer copy because decodeAudioData detaches it
         const bufferCopy = data.slice(0).buffer;
         const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const decoded = await tempCtx.decodeAudioData(bufferCopy);
-        tempCtx.close();
         return decoded;
     } catch (e) {
-        // If decoding fails, assume it's raw PCM and convert manually
+        // Fallback for raw PCM
         return rawPcmToAudioBuffer(data);
     }
 }
-
-// --- REAL TIME DSP FUNCTIONS ---
 
 function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: number, reverse: boolean): AudioBuffer {
     const sampleRate = ctx.sampleRate;
@@ -180,9 +147,11 @@ function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: n
 
 export async function processAudio(
     input: Uint8Array | AudioBuffer,
-    settings: AudioSettings
+    settings: AudioSettings,
+    backgroundMusicBuffer: AudioBuffer | null = null,
+    musicVolume: number = 50
 ): Promise<AudioBuffer> {
-    const renderSampleRate = 44100;
+    const renderSampleRate = 44100; // Standard output rate
     let sourceBuffer: AudioBuffer;
 
     if (input instanceof Uint8Array) {
@@ -193,10 +162,18 @@ export async function processAudio(
     
     const speed = settings.speed || 1.0;
     const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
-    const outputDuration = (sourceBuffer.duration / speed) + reverbTail;
+    
+    // Determine Output Duration (Voice + Reverb vs Music)
+    let outputDuration = (sourceBuffer.duration / speed) + reverbTail;
+    if (backgroundMusicBuffer) {
+        // Extend if music is slightly longer, but cap reasonable max to avoid huge empty files if music is 5 mins
+        const voiceEnd = outputDuration;
+        outputDuration = Math.max(voiceEnd, Math.min(voiceEnd + 5, backgroundMusicBuffer.duration)); 
+    }
     
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
+    // --- VOICE CHAIN ---
     const source = offlineCtx.createBufferSource();
     source.buffer = sourceBuffer;
     source.playbackRate.value = speed;
@@ -242,12 +219,12 @@ export async function processAudio(
         dryGain.gain.value = 1;
     }
 
-    // -- Master Volume --
-    const masterGain = offlineCtx.createGain();
+    // -- Master Volume (Voice) --
+    const voiceMasterGain = offlineCtx.createGain();
     const makeupGain = settings.compression > 50 ? 1.2 : 1.0;
-    masterGain.gain.value = (settings.volume / 50) * makeupGain;
+    voiceMasterGain.gain.value = (settings.volume / 50) * makeupGain;
 
-    // Connect Graph
+    // Connect Voice Graph
     let currentNode: AudioNode = source;
     filters.forEach(f => {
         currentNode.connect(f);
@@ -258,47 +235,38 @@ export async function processAudio(
 
     compressor.connect(reverbNode);
     reverbNode.connect(reverbGain);
-    reverbGain.connect(masterGain);
+    reverbGain.connect(voiceMasterGain);
 
     compressor.connect(dryGain);
-    dryGain.connect(masterGain);
-
-    masterGain.connect(offlineCtx.destination);
+    dryGain.connect(voiceMasterGain);
+    
+    voiceMasterGain.connect(offlineCtx.destination);
+    
+    // --- MUSIC CHAIN ---
+    if (backgroundMusicBuffer) {
+        const musicSource = offlineCtx.createBufferSource();
+        musicSource.buffer = backgroundMusicBuffer;
+        
+        const musicGain = offlineCtx.createGain();
+        // Music volume logic: 0-100. Default 40 is good background.
+        // Normalize: 100 = 1.0 gain (loud).
+        const musicVol = musicVolume / 100;
+        musicGain.gain.value = musicVol;
+        
+        musicSource.connect(musicGain);
+        musicGain.connect(offlineCtx.destination);
+        
+        // Loop music if shorter than voice
+        if (backgroundMusicBuffer.duration < sourceBuffer.duration) {
+             musicSource.loop = true;
+        }
+        
+        musicSource.start(0);
+    }
 
     source.start(0);
     return await offlineCtx.startRendering();
 }
-
-export async function playProcessedAudio(
-    buffer: AudioBuffer,
-    existingContext: AudioContext | null,
-    onEnded: () => void
-): Promise<{ source: AudioBufferSourceNode, gainNode: GainNode }> {
-     let audioContext: AudioContext;
-     if (existingContext) {
-        audioContext = existingContext;
-    } else {
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    
-    if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-    }
-
-    const source = audioContext.createBufferSource();
-    const gainNode = audioContext.createGain();
-    
-    source.buffer = buffer;
-    source.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    source.onended = onEnded;
-    source.start(0);
-    
-    return { source, gainNode };
-}
-
-// --- FILE CREATION ---
 
 export function createWavBlob(data: Uint8Array | AudioBuffer, numChannels: number, sampleRate: number): Blob {
     let samples: Float32Array;
@@ -310,7 +278,6 @@ export function createWavBlob(data: Uint8Array | AudioBuffer, numChannels: numbe
         channels = data.numberOfChannels;
         rate = data.sampleRate;
     } else {
-        // If it's raw PCM (Uint8), convert to Float32 first
         samples = convertInt16ToFloat32(data);
         rate = 24000; 
         channels = 1;
@@ -373,8 +340,8 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
             let mp3encoder: any;
             let pcmData: Int16Array;
             let rate = sampleRate;
+            let channels = 1;
             
-            // Standardize to Int16 for LAME
             if (buffer instanceof AudioBuffer) {
                 const ch0 = buffer.getChannelData(0);
                 pcmData = new Int16Array(ch0.length);
@@ -383,21 +350,17 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
                     pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
                 rate = buffer.sampleRate;
-                mp3encoder = new lamejs.Mp3Encoder(1, rate, 128);
             } else {
-                // Raw PCM is ALREADY Int16, just mapped as Uint8 bytes
-                // Ensure byte alignment
                 const b = buffer.byteLength % 2 === 0 ? buffer : buffer.subarray(0, buffer.byteLength - 1);
                 pcmData = new Int16Array(b.buffer, b.byteOffset, b.byteLength / 2);
                 rate = 24000;
-                mp3encoder = new lamejs.Mp3Encoder(1, 24000, 128);
             }
 
             const mp3Data = [];
             const sampleBlockSize = 1152;
             for (let i = 0; i < pcmData.length; i += sampleBlockSize) {
                 const chunk = pcmData.subarray(i, i + sampleBlockSize);
-                const mp3buf = mp3encoder.encodeBuffer(chunk);
+                const mp3buf = mp3encoder ? mp3encoder.encodeBuffer(chunk) : (mp3encoder = new lamejs.Mp3Encoder(channels, rate, 128), mp3encoder.encodeBuffer(chunk));
                 if (mp3buf.length > 0) mp3Data.push(mp3buf);
             }
             
@@ -412,7 +375,6 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
     });
 }
 
-// --- PRESETS ---
 export const AUDIO_PRESETS: AudioPreset[] = [
     {
         name: 'Default',
