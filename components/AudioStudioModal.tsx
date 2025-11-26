@@ -138,11 +138,19 @@ const Fader: React.FC<{
         {onMuteToggle && (
              <button 
                 onClick={onMuteToggle}
-                className={`mb-2 w-4 h-4 rounded border flex items-center justify-center transition-colors ${muted ? 'bg-red-500 border-red-400' : 'bg-slate-800 border-slate-600 hover:border-slate-400'}`}
+                className={`mb-2 w-5 h-5 rounded border flex items-center justify-center transition-colors ${muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-white hover:border-slate-400'}`}
                 title="Mute"
              >
-                {muted && <div className="w-2 h-0.5 bg-white rotate-45 absolute"></div>}
-                {muted && <div className="w-2 h-0.5 bg-white -rotate-45 absolute"></div>}
+                {muted ? (
+                    <div className="relative w-3 h-3">
+                        <div className="absolute inset-0 border-l-2 border-red-500 rotate-45 left-1.5"></div>
+                         <div className="absolute inset-0 border-l-2 border-red-500 -rotate-45 left-1.5"></div>
+                    </div>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                        <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217z" />
+                    </svg>
+                )}
              </button>
         )}
 
@@ -170,7 +178,7 @@ const Fader: React.FC<{
             </div>
         </div>
         <div className="bg-slate-900 px-1 py-0.5 rounded border border-slate-800 min-w-[2rem] text-center">
-             <span className={`text-[10px] sm:text-xs font-mono font-bold ${muted ? 'text-red-500 line-through' : 'text-cyan-100'}`}>{Math.round(value)}</span>
+             <span className={`text-[10px] sm:text-xs font-mono font-bold ${muted ? 'text-red-500' : 'text-cyan-100'}`}>{muted ? 'OFF' : Math.round(value)}</span>
         </div>
         <span className={`${labelSize} font-bold text-slate-500 uppercase tracking-wider mt-1 text-center leading-tight`}>{label}</span>
     </div>
@@ -435,7 +443,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                         let targetMusicGain = currentMusicVol;
                         let isDucking = false;
 
-                        if (autoDuckingRef.current && duckingAnalyser && !isMusicMutedRef.current) {
+                        if (autoDuckingRef.current && duckingAnalyser && !isMusicMutedRef.current && !isVoiceMutedRef.current) {
                             const dataArray = new Uint8Array(duckingAnalyser.frequencyBinCount);
                             duckingAnalyser.getByteTimeDomainData(dataArray);
                             
@@ -446,7 +454,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                 sum += v*v;
                             }
                             const rms = Math.sqrt(sum / (dataArray.length / 4));
-                            const threshold = 0.01; // High sensitivity
+                            const threshold = 0.01; 
                             
                             if (rms > threshold) {
                                 targetMusicGain = currentMusicVol * 0.15; // Duck to 15%
@@ -454,7 +462,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                             }
                         }
                         
-                        // Use fast attack (0.05) and slower release (0.2)
                         mGain.gain.setTargetAtTime(targetMusicGain, ctx.currentTime, isDucking ? 0.05 : 0.3);
                         setDuckingActive(isDucking);
                     }
@@ -520,10 +527,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                 const arrayBuffer = await blob.arrayBuffer();
                 const decoded = await ctx.decodeAudioData(arrayBuffer);
                 
-                // --- BOOST MIC VOLUME (SOFTWARE GAIN 3.5x) ---
+                // --- BOOST MIC VOLUME (SOFTWARE GAIN 4.0x) ---
                 const rawData = decoded.getChannelData(0);
                 for (let i = 0; i < rawData.length; i++) {
-                    rawData[i] = Math.max(-1, Math.min(1, rawData[i] * 3.5));
+                    rawData[i] = Math.max(-1, Math.min(1, rawData[i] * 4.0));
                 }
                 
                 setMicAudioBuffer(decoded);
@@ -782,7 +789,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" dir="ltr">
                         
                         {/* LEFT: BAND EQ-5 (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-56">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-64">
                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
@@ -797,7 +804,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                         </div>
 
                         {/* CENTER: MIXER (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-56">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-64">
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="flex gap-2">
                                     <button onClick={onMusicUploadClick} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase">{musicFileName ? 'REPLACE MUSIC' : 'ADD MUSIC'}</button>
@@ -833,15 +840,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                         </div>
 
                         {/* RIGHT: PRESETS (4 Cols - 2x4 Grid) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-56">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-64">
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
                              </div>
-                             <div className="grid grid-cols-2 gap-2 h-full overflow-y-auto pr-1 custom-scrollbar">
+                             <div className="grid grid-cols-2 gap-2 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
                                  <button 
                                     onClick={() => {stopPlayback(); setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});}} 
-                                    className={`col-span-2 w-full px-2 py-2 rounded-lg text-xs font-bold border transition-all text-center uppercase tracking-wide ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                    className={`col-span-2 w-full px-2 py-3 rounded font-bold border transition-all text-center uppercase tracking-wide text-[10px] ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                 >
                                     RESET DEFAULT
                                 </button>
@@ -849,7 +856,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ onClose, uiL
                                     <button 
                                         key={p.name} 
                                         onClick={() => {stopPlayback(); setPresetName(p.name); setSettings({...p.settings});}} 
-                                        className={`w-full px-2 py-2 rounded-lg text-[9px] sm:text-[10px] font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
+                                        className={`w-full px-1 py-3 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-[9px] ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                         title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
                                     >
                                         {p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
