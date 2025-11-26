@@ -1,14 +1,13 @@
 
-import React, { useState, useEffect, useRef, useCallback, Suspense, lazy, ReactElement } from 'react';
-import { generateSpeech, translateText } from './services/geminiService';
+import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
+import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, WarningIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon
 } from './components/icons';
-import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
+import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig, GEMINI_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
-
 import firebase, { getFirebase } from './firebaseConfig';
 
 type User = firebase.User;
@@ -37,6 +36,7 @@ const soundEffects = [
     { emoji: '😘', tag: '[kiss]', labelKey: 'addKiss' },
 ];
 
+
 const getInitialLanguage = (): Language => {
     try {
         const savedSettings = localStorage.getItem('sawtli_settings');
@@ -46,10 +46,17 @@ const getInitialLanguage = (): Language => {
                 return settings.uiLanguage;
             }
         }
+        
         const browserLang = navigator.language.split('-')[0];
-        if (['ar', 'fr', 'es', 'pt'].includes(browserLang)) return browserLang as Language;
-    } catch (e) {}
-    return 'en';
+        if (browserLang === 'ar') return 'ar';
+        if (browserLang === 'fr') return 'fr';
+        if (browserLang === 'es') return 'es';
+        if (browserLang === 'pt') return 'pt';
+        
+    } catch (e) {
+        // Ignore errors and fall back to default
+    }
+    return 'en'; // Default to English
 };
 
 // --- TOAST NOTIFICATION SYSTEM ---
@@ -148,7 +155,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingTask, setLoadingTask] = useState<string>('');
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false); 
   const [error, setError] = useState<string | null>(null);
   
   // Auth State & Tiers
@@ -1235,7 +1242,7 @@ const App: React.FC = () => {
                     value={translatedText}
                     readOnly
                     placeholder={t('translationPlaceholder', uiLanguage)}
-                    className={`w-full h-48 sm:h-64 bg-slate-900/30 border-2 border-slate-800 rounded-2xl p-5 text-lg sm:text-xl text-cyan-100 placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default`}
+                    className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-800 rounded-2xl p-5 text-lg sm:text-xl text-cyan-100 placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default`}
                     dir={isTargetRtl ? 'rtl' : 'ltr'}
                 />
             </div>
@@ -1415,7 +1422,10 @@ const App: React.FC = () => {
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} onRefreshVoices={() => window.speechSynthesis.getVoices()} />}
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
-      {isAudioStudioOpen && <AudioStudioModal 
+      
+      {/* Keep AudioStudio mounted but hidden to persist state */}
+      <AudioStudioModal 
+          isOpen={isAudioStudioOpen}
           onClose={() => setIsAudioStudioOpen(false)} 
           uiLanguage={uiLanguage} 
           voice={voice} 
@@ -1423,7 +1433,8 @@ const App: React.FC = () => {
           allowDownloads={planConfig.allowDownloads} 
           allowStudio={planConfig.allowStudio} 
           onUpgrade={() => setIsUpgradeOpen(true)} 
-      />}
+      />
+
       {isTutorialOpen && <TutorialModal onClose={() => setIsTutorialOpen(false)} uiLanguage={uiLanguage} />}
       {isUpgradeOpen && <UpgradeModal onClose={() => setIsUpgradeOpen(false)} uiLanguage={uiLanguage} currentTier={userTier} onUpgrade={handleUpgrade} onSignIn={() => { setIsUpgradeOpen(false); handleSignIn(); }} />}
       {isGamificationOpen && <GamificationModal onClose={() => setIsGamificationOpen(false)} uiLanguage={uiLanguage} userStats={userStats} onBoost={handleBoost} />}
