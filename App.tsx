@@ -1158,7 +1158,7 @@ const App: React.FC = () => {
       
       if (userTier === 'visitor') {
           return (
-              <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden">
+              <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
                    <span className="text-cyan-500/70">VISITOR MODE</span>
                    <span className="text-amber-500 cursor-pointer hover:underline" onClick={() => setIsUpgradeOpen(true)}>
                        {uiLanguage === 'ar' ? 'سجل للحصول على 5000 حرف' : 'Sign In for 5000 chars'}
