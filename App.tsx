@@ -1191,10 +1191,11 @@ const App: React.FC = () => {
                      <div className="relative" ref={effectsDropdownRef}>
                         <button 
                             onClick={() => setIsEffectsOpen(!isEffectsOpen)}
-                            className={`p-2 rounded-lg transition-all ${isEffectsOpen ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-400 hover:text-cyan-400'}`}
+                            className={`p-2 rounded-lg transition-all flex items-center gap-2 font-bold text-xs ${isEffectsOpen ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-400 hover:text-cyan-400'}`}
                             title={t('soundEffects', uiLanguage)}
                         >
                             <SparklesIcon className="w-5 h-5" />
+                            <span className="hidden sm:inline">Sound FX</span>
                         </button>
                         {isEffectsOpen && (
                             <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
@@ -1451,6 +1452,7 @@ const App: React.FC = () => {
           sourceAudioPCM={lastGeneratedPCM}
           allowDownloads={planConfig.allowDownloads} 
           allowStudio={planConfig.allowStudio} 
+          userTier={userTier}
           onUpgrade={() => setIsUpgradeOpen(true)} 
       />
 
@@ -1468,6 +1470,8 @@ const App: React.FC = () => {
               onClearHistory={handleClearHistory}
               onDeleteAccount={handleDeleteAccount}
               currentTier={userTier}
+              userStats={userStats}
+              limits={planConfig}
               onUpgrade={() => { setIsAccountOpen(false); setIsUpgradeOpen(true); }}
               onSetDevMode={handleSetDevMode}
               onOpenOwnerGuide={() => { setIsAccountOpen(false); setShowSetupGuide(true); }}
