@@ -239,17 +239,10 @@ export async function processAudio(
         }
         
         const musicGain = offlineCtx.createGain();
-        musicGain.gain.value = musicVolume / 100;
-        
-        // Auto Ducking Logic (Approximate for Offline Render)
-        if (autoDucking && input) {
-             // We can't easily analyze real-time peaks in offline context without a lot of overhead.
-             // For simplicity in this version, we apply a slight static reduction to simulate "mixing under voice"
-             // if ducking is requested, or we assume the user set the volume appropriately.
-             // A true offline ducker requires analysing the voice buffer peaks and scheduling gain automation.
-             // Here we apply a 'safe' mix.
-             musicGain.gain.value = (musicVolume / 100) * 0.4; 
-        }
+        // Auto Ducking Logic for Export (Static approx)
+        // For export, we apply a moderate reduction if ducking is enabled to be safe
+        const exportVolume = autoDucking ? (musicVolume / 100) * 0.4 : (musicVolume / 100);
+        musicGain.gain.value = exportVolume;
         
         musicSource.connect(musicGain);
         musicGain.connect(offlineCtx.destination);
