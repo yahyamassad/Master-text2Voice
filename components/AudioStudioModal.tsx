@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
 import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon } from './icons';
-import { AudioSettings, AudioPresetName } from '../types';
+import { AudioSettings, AudioPresetName, UserTier } from '../types';
 import { AUDIO_PRESETS, processAudio, createMp3Blob, createWavBlob, rawPcmToAudioBuffer } from '../utils/audioUtils';
 
 interface AudioStudioModalProps {
@@ -13,6 +13,7 @@ interface AudioStudioModalProps {
     sourceAudioPCM?: Uint8Array | null;
     allowDownloads?: boolean;
     allowStudio?: boolean; 
+    userTier?: UserTier; // Added prop
     onUpgrade?: () => void;
 }
 
@@ -200,7 +201,7 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
     </div>
 );
 
-export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = true, onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, onUpgrade }) => {
+export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = true, onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, onUpgrade, userTier = 'visitor' }) => {
     const [activeTab, setActiveTab] = useState<'ai' | 'mic' | 'upload'>('ai');
     const [presetName, setPresetName] = useState<AudioPresetName>('Default');
     const [settings, setSettings] = useState<AudioSettings>(AUDIO_PRESETS[0].settings);
@@ -242,6 +243,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     
     // Menu
     const [showExportMenu, setShowExportMenu] = useState(false);
+    const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
     
     // Refs
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -448,6 +450,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
                     const totalDur = processedVoice ? processedVoice.duration : (musicBuffer ? musicBuffer.duration : 0);
                     
+                    // --- SECURITY CHECK: PREVIEW LIMIT (15s) ---
+                    const isPaidUser = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
+                    if (!isPaidUser && actualTime > 15) {
+                        stopPlayback();
+                        setCurrentTime(15); 
+                        setShowUpgradeAlert(true);
+                        setTimeout(() => setShowUpgradeAlert(false), 4000);
+                        return; 
+                    }
+
                     // REAL-TIME MIXING LOGIC (Using Refs to bypass stale closures)
                     const currentMusicVol = isMusicMutedRef.current ? 0 : (musicVolumeRef.current / 100);
                     const currentVoiceVol = isVoiceMutedRef.current ? 0 : (voiceVolumeRef.current / 100);
@@ -731,7 +743,18 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 <div className="max-w-7xl mx-auto space-y-6 pb-10">
 
                     {/* Visualizer & Timeline */}
-                    <div className="bg-[#020617] rounded-xl border border-slate-800 overflow-hidden relative shadow-2xl">
+                    <div className="bg-[#020617] rounded-xl border border-slate-800 overflow-hidden relative shadow-2xl group">
+                        {showUpgradeAlert && (
+                            <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-down">
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-white mb-2">Preview Limit Reached</div>
+                                    <button onClick={onUpgrade} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide">
+                                        Upgrade to Continue
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        
                         <div className="h-32 sm:h-40 relative w-full">
                              <AudioVisualizer analyser={analyserNode} isPlaying={isPlaying || isRecording} />
                              {isRecording && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="animate-pulse text-red-500 font-mono text-xl font-bold tracking-widest bg-black/30 px-4 py-1 rounded">RECORDING {Math.floor(recordingTime/60)}:{String(recordingTime%60).padStart(2,'0')}</div></div>}
