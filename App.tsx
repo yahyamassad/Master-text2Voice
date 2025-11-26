@@ -1242,7 +1242,7 @@ const App: React.FC = () => {
                     value={translatedText}
                     readOnly
                     placeholder={t('translationPlaceholder', uiLanguage)}
-                    className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-800 rounded-2xl p-5 text-lg sm:text-xl text-cyan-100 placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default`}
+                    className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`}
                     dir={isTargetRtl ? 'rtl' : 'ltr'}
                 />
             </div>
