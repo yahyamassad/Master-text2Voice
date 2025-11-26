@@ -3,16 +3,14 @@ import React, { useState, useEffect, useRef, useCallback, Suspense, lazy, ReactE
 import { generateSpeech, translateText } from './services/geminiService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, WarningIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, ReportIcon, PauseIcon, VideoCameraIcon, LockIcon, SparklesIcon, TrashIcon, InfoIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, WarningIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages } from './i18n/translations';
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig, GEMINI_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
 
-// FIX: Import Firebase Compat from config
 import firebase, { getFirebase } from './firebaseConfig';
 
-// Correct Type Definition using Namespace
 type User = firebase.User;
 
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument } from './services/firestoreService';
@@ -39,7 +37,6 @@ const soundEffects = [
     { emoji: '😘', tag: '[kiss]', labelKey: 'addKiss' },
 ];
 
-
 const getInitialLanguage = (): Language => {
     try {
         const savedSettings = localStorage.getItem('sawtli_settings');
@@ -49,17 +46,10 @@ const getInitialLanguage = (): Language => {
                 return settings.uiLanguage;
             }
         }
-        
         const browserLang = navigator.language.split('-')[0];
-        if (browserLang === 'ar') return 'ar';
-        if (browserLang === 'fr') return 'fr';
-        if (browserLang === 'es') return 'es';
-        if (browserLang === 'pt') return 'pt';
-        
-    } catch (e) {
-        // Ignore errors and fall back to default
-    }
-    return 'en'; // Default to English
+        if (['ar', 'fr', 'es', 'pt'].includes(browserLang)) return browserLang as Language;
+    } catch (e) {}
+    return 'en';
 };
 
 // --- TOAST NOTIFICATION SYSTEM ---
@@ -92,6 +82,61 @@ const ToastContainer: React.FC<{ toasts: ToastMsg[], removeToast: (id: number) =
     );
 };
 
+// --- QUOTA INDICATOR COMPONENT ---
+const QuotaIndicator: React.FC<{
+    stats: UserStats;
+    tier: UserTier;
+    limits: typeof PLAN_LIMITS['free'];
+    uiLanguage: Language;
+    onUpgrade: () => void;
+    onBoost: () => void;
+}> = ({ stats, tier, limits, uiLanguage, onUpgrade, onBoost }) => {
+    if (tier === 'admin' || tier === 'gold' || tier === 'platinum') return null;
+    
+    if (tier === 'visitor') {
+        return (
+            <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
+                 <span className="text-cyan-500/70">VISITOR MODE</span>
+                 <span className="text-amber-500 cursor-pointer hover:underline" onClick={onUpgrade}>
+                     {uiLanguage === 'ar' ? 'سجل للحصول على 5000 حرف' : 'Sign In for 5000 chars'}
+                 </span>
+            </div>
+        );
+    }
+
+    const dailyUsed = stats.dailyCharsUsed;
+    const dailyLimit = limits.dailyLimit;
+    const dailyPercent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
+    const isDailyLimitReached = dailyUsed >= dailyLimit;
+
+    let barColor = 'bg-cyan-500';
+    if (dailyPercent > 80) barColor = 'bg-amber-500';
+    if (dailyPercent >= 100) barColor = 'bg-red-500';
+
+    return (
+        <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
+            <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isDailyLimitReached ? 'bg-red-500' : 'bg-cyan-500'}`} 
+                style={{ width: `${dailyPercent}%` }}>
+            </div>
+            
+            <div className="flex items-center gap-3 z-10">
+                <span className={isDailyLimitReached ? 'text-red-500' : 'text-cyan-500'}>
+                    {t('dailyUsageLabel', uiLanguage)}: {dailyUsed} / {dailyLimit}
+                </span>
+                {isDailyLimitReached && (
+                    <button 
+                    onClick={onBoost} 
+                    className="bg-amber-600 text-white px-2 py-0.5 rounded text-[9px] animate-pulse hover:bg-amber-500"
+                    >
+                        {t('boostQuota', uiLanguage)}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
+
 // Main App Component
 const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
@@ -103,24 +148,18 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingTask, setLoadingTask] = useState<string>('');
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
-  const [isPaused, setIsPaused] = useState<boolean>(false); // New state for Pause/Resume
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   
   // Auth State & Tiers
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); 
-  
-  // Subscription State (Mock for Demo)
   const [userSubscription, setUserSubscription] = useState<'free' | 'gold' | 'platinum'>('free');
-  
-  // Owner/Dev State override
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
-  // Guide Visibility State
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
-  // Check for Setup Trigger in URL
   useEffect(() => {
       const params = new URLSearchParams(window.location.search);
       if (params.get('setup') === 'true') {
@@ -128,7 +167,6 @@ const App: React.FC = () => {
       }
   }, []);
 
-  // User Statistics for Quotas & Gamification
   const [userStats, setUserStats] = useState<UserStats>({
       trialStartDate: Date.now(),
       totalCharsUsed: 0,
@@ -140,7 +178,7 @@ const App: React.FC = () => {
       bonusChars: 0
   });
 
-  // Panels and Modals State
+  // Panels and Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
@@ -167,18 +205,13 @@ const App: React.FC = () => {
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
   const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-
-  // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
   
-  // Voice Input State
   const [isListening, setIsListening] = useState<boolean>(false);
   const [micError, setMicError] = useState<string | null>(null);
 
-  // Store the LAST generated PCM audio for editing in the Studio
   const [lastGeneratedPCM, setLastGeneratedPCM] = useState<Uint8Array | null>(null);
 
-  // Refs
   const apiAbortControllerRef = useRef<AbortController | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -186,19 +219,13 @@ const App: React.FC = () => {
   const sourceTextAreaRef = useRef<HTMLTextAreaElement>(null);
   const effectsDropdownRef = useRef<HTMLDivElement>(null);
   const firestoreUnsubscribeRef = useRef<(() => void) | null>(null);
-  
-  // Caching Ref - Stores PCM data
   const audioCacheRef = useRef<Map<string, Uint8Array>>(new Map());
-  
-  // Keep a reference to an AudioContext to reuse it and bypass autoplay blocks
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // --- PLAYBACK TRACKING ---
   const playbackStartTimeRef = useRef<number>(0);
   const playbackOffsetRef = useRef<number>(0);
   const isPausedRef = useRef<boolean>(false);
 
-  // --- TOAST STATE ---
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
       const id = Date.now();
@@ -209,29 +236,18 @@ const App: React.FC = () => {
   }, []);
   const removeToast = (id: number) => setToasts(prev => prev.filter(t => t.id !== id));
 
-
-  // --- DERIVED STATE FOR TIERS & LIMITS ---
   const userTier: UserTier = isDevMode ? 'admin' : (user ? userSubscription : 'visitor');
   const planConfig = PLAN_LIMITS[userTier];
   
-  // Calculate dynamic limits based on stats
   const currentDailyLimit = planConfig.dailyLimit;
   const effectiveTotalLimit = planConfig.totalTrialLimit + userStats.bonusChars;
   const daysSinceStart = Math.floor((Date.now() - userStats.trialStartDate) / (1000 * 60 * 60 * 24));
   const isTrialExpired = userTier === 'free' && daysSinceStart > planConfig.trialDays;
   
   const dailyCharsRemaining = Math.max(0, currentDailyLimit - userStats.dailyCharsUsed);
-  const totalCharsRemaining = Math.max(0, effectiveTotalLimit - userStats.totalCharsUsed);
   
   const isDailyLimitReached = userTier !== 'admin' && userStats.dailyCharsUsed >= currentDailyLimit;
   const isTotalLimitReached = userTier !== 'admin' && userStats.totalCharsUsed >= effectiveTotalLimit;
-  
-  const isProOrAbove = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
-  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
-  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
-  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
-
-  // --- CORE FUNCTIONS ---
   
   const loadUserStats = (userId: string) => {
       const key = `sawtli_stats_${userId}`;
@@ -343,7 +359,6 @@ const App: React.FC = () => {
         .then(data => setIsApiConfigured(!!data.configured))
         .catch(() => setIsApiConfigured(false));
 
-    // INITIAL AUTH CHECK
     const { auth } = getFirebase();
     if (auth) {
         // @ts-ignore
@@ -502,9 +517,8 @@ const App: React.FC = () => {
           return;
       }
 
-      // --- QUOTA CHECKING & SIP STRATEGY ---
       if (userTier === 'visitor') {
-          // Never block visitors here. We truncate text later ("The Sip").
+          // Allow
       } else {
           if (isTrialExpired) {
               showToast(t('trialExpired', uiLanguage), 'error');
@@ -586,13 +600,11 @@ const App: React.FC = () => {
                 isPausedRef.current = false;
             }
             
-            // --- "THE SIP" IMPLEMENTATION ---
             let textToProcess = text;
             let isTruncated = false;
             
-            if (userTier === 'visitor' && text.length > 100) {
-                // TRUNCATE SILENTLY FOR THE SIP
-                textToProcess = text.substring(0, 100); 
+            if (userTier === 'visitor' && text.length > 50) {
+                textToProcess = text.substring(0, 50); 
                 isTruncated = true;
             }
 
@@ -682,7 +694,6 @@ const App: React.FC = () => {
                              setLoadingTask('');
                              playbackOffsetRef.current = 0;
                              
-                             // THE SIP: Show toast after playback ends for visitors
                              if (isTruncated) {
                                  setTimeout(() => {
                                      const isRtl = uiLanguage === 'ar';
@@ -833,7 +844,6 @@ const App: React.FC = () => {
       return;
     }
 
-    // ROBUST SPEECH RECOGNITION SETUP
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setMicError(t('errorMicNotSupported', uiLanguage));
@@ -860,7 +870,7 @@ const App: React.FC = () => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setMicError(t('errorMicPermission', uiLanguage));
       } else if (event.error === 'no-speech') {
-          // Ignore no-speech errors, just stop silently
+          // Ignore
       } else {
         setMicError(event.error);
       }
@@ -927,7 +937,6 @@ const App: React.FC = () => {
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
     if (!text.trim()) return null;
 
-    // HONEY POT LOGIC: Don't block here for download button, block inside Modal or handleDownload
     if (!GEMINI_VOICES.includes(voice)) {
         showToast(t('errorDownloadSystemVoice', uiLanguage), 'error');
         return null;
@@ -1005,7 +1014,6 @@ const App: React.FC = () => {
   }, [voice, emotion, multiSpeaker, speakerA, speakerB, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
 
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
-    // HONEY POT: If visitor, block NOW
     if (userTier === 'visitor') {
         setIsUpgradeOpen(true);
         return;
@@ -1045,7 +1053,6 @@ const App: React.FC = () => {
   };
   
   const handleAudioStudioOpen = () => {
-      // HONEY POT: ALWAYS OPEN STUDIO
       setIsAudioStudioOpen(true);
   };
 
@@ -1071,7 +1078,6 @@ const App: React.FC = () => {
       const { auth } = getFirebase();
       if (auth) {
           auth.signOut().then(() => {
-              // User state listener will handle setUser(null)
               setIsAccountOpen(false);
               showToast("Signed out", 'info');
           });
@@ -1082,7 +1088,7 @@ const App: React.FC = () => {
       if (user) {
           try {
               await clearHistoryForUser(user.uid);
-              setHistory([]); // Update local state immediately
+              setHistory([]); 
               showToast(t('historyClearSuccess', uiLanguage), 'success');
           } catch (error) {
               showToast(t('historyClearError', uiLanguage), 'error');
@@ -1110,9 +1116,6 @@ const App: React.FC = () => {
   };
 
   const handleUpgrade = (tier: 'gold' | 'platinum') => {
-      // Mock logic for now
-      console.log(`Upgrading to ${tier}`);
-      // In real app, redirect to Stripe or set state
       setIsUpgradeOpen(false);
       showToast(`Redirecting to payment provider... (Mock)`, 'info');
   };
@@ -1123,128 +1126,134 @@ const App: React.FC = () => {
       showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), 'success');
   };
 
-  const sourceTextArea = (
-      <div className="flex-1 relative group h-full">
-          <div className="absolute top-0 left-0 w-full h-10 bg-gradient-to-b from-slate-900/90 to-transparent z-10 pointer-events-none rounded-t-2xl"></div>
-          <div className="absolute top-3 left-4 right-4 flex justify-between items-center z-20">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('sourceLanguage', uiLanguage)}</span>
-              <LanguageSelect value={sourceLang} onChange={setSourceLang} />
-          </div>
-          <textarea
-              ref={sourceTextAreaRef}
-              value={sourceText}
-              onChange={(e) => setSourceText(e.target.value)}
-              placeholder={t('placeholder', uiLanguage)}
-              dir={isSourceRtl ? 'rtl' : 'ltr'}
-              className={`w-full h-64 sm:h-80 p-6 pt-16 rounded-2xl resize-none text-lg sm:text-xl leading-relaxed shadow-inner transition-all border-2 focus:ring-2 focus:ring-cyan-500/50 outline-none
-              ${isSourceRtl ? 'text-right font-arabic' : 'text-left'}
-              bg-slate-900/50 border-slate-700 text-slate-200 placeholder-slate-500 focus:border-cyan-500/50 focus:bg-slate-900`}
-          />
-          
-          {/* RESTORED QUOTA INDICATOR HERE */}
-          <div className="absolute bottom-0 left-0 w-full">
-              <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} />
-          </div>
-
-          <div className="absolute bottom-14 right-4 flex gap-2 z-20">
-               <button onClick={() => setSourceText('')} disabled={!sourceText} className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors disabled:opacity-0" title="Clear">
-                  <TrashIcon className="w-5 h-5" />
-              </button>
-              <button onClick={() => handleCopy(sourceText, 'source')} disabled={!sourceText} className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-colors disabled:opacity-0" title={t('copy', uiLanguage)}>
-                  {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400"/> : <CopyIcon className="w-5 h-5" />}
-              </button>
-          </div>
-          <div className="absolute bottom-14 left-4 z-20">
-               <div className="relative">
-                  <button 
-                      onClick={() => setIsEffectsOpen(!isEffectsOpen)}
-                      className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-yellow-400 hover:bg-slate-800 transition-colors"
-                      title={t('soundEffects', uiLanguage)}
-                  >
-                      <SparklesIcon className="w-5 h-5" />
-                  </button>
-                  {isEffectsOpen && (
-                      <div ref={effectsDropdownRef} className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-slate-600 rounded-xl shadow-xl overflow-hidden grid grid-cols-3 gap-1 p-2 z-50">
-                          {soundEffects.map((effect) => (
-                              <button
-                                  key={effect.tag}
-                                  onClick={() => handleInsertTag(effect.tag)}
-                                  className="flex flex-col items-center justify-center p-2 hover:bg-slate-700 rounded-lg transition-colors group"
-                                  title={t(effect.labelKey as any, uiLanguage)}
-                              >
-                                  <span className="text-xl group-hover:scale-125 transition-transform">{effect.emoji}</span>
-                              </button>
-                          ))}
-                      </div>
-                  )}
-              </div>
-          </div>
-      </div>
-  );
-
-  const translatedTextArea = (
-      <div className="flex-1 relative group h-full">
-          <div className="absolute top-0 left-0 w-full h-10 bg-gradient-to-b from-slate-900/90 to-transparent z-10 pointer-events-none rounded-t-2xl"></div>
-          <div className="absolute top-3 left-4 right-4 flex justify-between items-center z-20">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('targetLanguage', uiLanguage)}</span>
-              <LanguageSelect value={targetLang} onChange={setTargetLang} />
-          </div>
-          <textarea
-              readOnly
-              value={translatedText}
-              placeholder={t('translationPlaceholder', uiLanguage)}
-              dir={isTargetRtl ? 'rtl' : 'ltr'}
-              className={`w-full h-64 sm:h-80 p-6 pt-16 rounded-2xl resize-none text-lg sm:text-xl leading-relaxed shadow-inner transition-all border-2 outline-none
-              ${isTargetRtl ? 'text-right font-arabic' : 'text-left'}
-              bg-black/20 border-slate-800 text-cyan-100 placeholder-slate-600/50 focus:border-cyan-500/30`}
-          />
-           <div className="absolute bottom-4 right-4 flex gap-2 z-20">
-              <button onClick={() => handleCopy(translatedText, 'target')} disabled={!translatedText} className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-colors disabled:opacity-0" title={t('copy', uiLanguage)}>
-                  {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400"/> : <CopyIcon className="w-5 h-5" />}
-              </button>
-          </div>
-      </div>
-  );
-
-  const swapButton = (
-      <div className="flex md:flex-col justify-center items-center gap-2 relative z-10 -my-4 md:my-0">
-          <button
-              onClick={swapLanguages}
-              className="p-3 rounded-full bg-slate-800 border-2 border-slate-600 text-slate-400 hover:text-cyan-400 hover:border-cyan-400 transition-all shadow-lg hover:shadow-cyan-500/20 hover:scale-110 active:rotate-180"
-              title={t('swapLanguages', uiLanguage)}
-          >
-              <SwapIcon className="w-6 h-6" />
-          </button>
-      </div>
-  );
-
   const getButtonState = (target: 'source' | 'target') => {
-      const isTargetPlaying = activePlayer === target;
-      const isTargetLoading = isLoading && activePlayer === target;
-      
-      if (isTargetPlaying) {
+      const isActive = activePlayer === target;
+      if (isActive) {
           if (isPaused) {
-              return { icon: <PlayCircleIcon className="h-8 w-8"/>, label: t('resumeSpeaking', uiLanguage), className: 'bg-amber-600 border-amber-400 text-white' };
+              return {
+                  icon: <PlayCircleIcon className="w-6 h-6" />,
+                  label: t('resumeSpeaking', uiLanguage),
+                  className: "bg-amber-600/90 border-amber-400 text-white hover:bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+              };
           }
-          // If active and not paused, it's playing. But if isLoading is set, it might be buffering.
-          // Actually handleSpeak sets isLoading false right before playing if successful (for Gemini).
-          // For system voice, isLoading isn't used for playback.
-          return { icon: <PauseIcon className="h-8 w-8"/>, label: t('pauseSpeaking', uiLanguage), className: 'bg-slate-800 border-cyan-500 text-cyan-400 animate-pulse' };
+          return {
+              icon: <PauseIcon className="w-6 h-6 animate-pulse" />,
+              label: t('pauseSpeaking', uiLanguage),
+              className: "bg-slate-800 border-cyan-400 text-cyan-400 hover:bg-slate-700 hover:text-white shadow-[0_0_20px_rgba(34,211,238,0.3)]"
+          };
       }
-      
-      if (isTargetLoading) {
-           return { icon: <LoaderIcon className="h-8 w-8"/>, label: loadingTask || t('generatingSpeech', uiLanguage), className: 'bg-cyan-900 border-cyan-700 text-cyan-200' };
-      }
-      
-      return { 
-          icon: <SpeakerIcon className="h-8 w-8"/>, 
-          label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage), 
-          className: 'bg-slate-800 border-slate-600 text-slate-400 hover:text-white hover:bg-slate-700 hover:border-cyan-500' 
+      return {
+          icon: <SpeakerIcon className="w-6 h-6" />,
+          label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage),
+          className: "bg-slate-800 border-cyan-500/30 text-cyan-500 hover:bg-slate-700 hover:border-cyan-400 hover:text-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]"
       };
   };
 
+  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
+  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
+  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
   const sourceButtonState = getButtonState('source');
   const targetButtonState = getButtonState('target');
+
+  const sourceTextArea = (
+        <div className="flex-1 relative group">
+            <div className="flex items-center justify-between mb-3">
+                <LanguageSelect value={sourceLang} onChange={setSourceLang} />
+                <div className="flex items-center gap-2">
+                     {sourceText && (
+                        <button onClick={() => {setSourceText(''); setTranslatedText('');}} className="p-2 text-slate-500 hover:text-red-400 transition-colors">
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
+                     )}
+                     <div className="relative" ref={effectsDropdownRef}>
+                        <button 
+                            onClick={() => setIsEffectsOpen(!isEffectsOpen)}
+                            className={`p-2 rounded-lg transition-all ${isEffectsOpen ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-400 hover:text-cyan-400'}`}
+                            title={t('soundEffects', uiLanguage)}
+                        >
+                            <SparklesIcon className="w-5 h-5" />
+                        </button>
+                        {isEffectsOpen && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+                                <div className="p-2 grid grid-cols-3 gap-1">
+                                    {soundEffects.map((effect) => (
+                                        <button
+                                            key={effect.tag}
+                                            onClick={() => handleInsertTag(effect.tag)}
+                                            className="aspect-square flex items-center justify-center text-xl hover:bg-slate-700 rounded-lg transition-colors"
+                                            title={t(effect.labelKey as any, uiLanguage)}
+                                        >
+                                            {effect.emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <button onClick={() => handleCopy(sourceText, 'source')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
+                        {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
+                    </button>
+                </div>
+            </div>
+            <div className="relative">
+                <textarea
+                    ref={sourceTextAreaRef}
+                    value={sourceText}
+                    onChange={(e) => setSourceText(e.target.value)}
+                    placeholder={t('placeholder', uiLanguage)}
+                    className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all resize-none ${isSourceRtl ? 'text-right' : 'text-left'} custom-scrollbar`}
+                    dir={isSourceRtl ? 'rtl' : 'ltr'}
+                    spellCheck="false"
+                />
+                <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-500 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
+                    {sourceText.length} chars
+                </div>
+            </div>
+             <QuotaIndicator 
+                stats={userStats} 
+                tier={userTier} 
+                limits={planConfig} 
+                uiLanguage={uiLanguage} 
+                onUpgrade={() => setIsUpgradeOpen(true)}
+                onBoost={() => setIsGamificationOpen(true)}
+            />
+        </div>
+    );
+
+    const translatedTextArea = (
+        <div className="flex-1 relative">
+            <div className="flex items-center justify-between mb-3">
+                <LanguageSelect value={targetLang} onChange={setTargetLang} />
+                <div className="flex items-center gap-2">
+                    <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
+                        {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
+                    </button>
+                </div>
+            </div>
+            <div className="relative">
+                <textarea
+                    value={translatedText}
+                    readOnly
+                    placeholder={t('translationPlaceholder', uiLanguage)}
+                    className={`w-full h-48 sm:h-64 bg-slate-900/30 border-2 border-slate-800 rounded-2xl p-5 text-lg sm:text-xl text-cyan-100 placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default`}
+                    dir={isTargetRtl ? 'rtl' : 'ltr'}
+                />
+            </div>
+        </div>
+    );
+
+    const swapButton = (
+        <div className="absolute top-[72px] left-1/2 -translate-x-1/2 z-10 md:static md:top-auto md:left-auto md:translate-x-0 md:flex md:items-center justify-center">
+            <button 
+                onClick={swapLanguages}
+                className="p-3 bg-slate-800 border-2 border-slate-600 rounded-xl text-slate-400 hover:text-cyan-400 hover:border-cyan-400 hover:bg-slate-700 transition-all shadow-lg hover:shadow-cyan-500/20 active:scale-95 group"
+                title={t('swapLanguages', uiLanguage)}
+            >
+                <SwapIcon className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />
+            </button>
+        </div>
+    );
+
 
   return (
     <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
@@ -1379,7 +1388,6 @@ const App: React.FC = () => {
                 <ActionCard 
                     icon={<DownloadIcon className="w-10 h-10" />} 
                     label={t('downloadButton', uiLanguage)} 
-                    // HONEY POT: Always allow opening, check inside logic
                     onClick={() => setIsDownloadOpen(true)} 
                     disabled={isLoading || (!sourceText && !translatedText) || isUsingSystemVoice} 
                 />
@@ -1396,7 +1404,8 @@ const App: React.FC = () => {
             <Suspense fallback={null}>
                 <Feedback language={uiLanguage} onOpenReport={() => setIsReportOpen(true)} />
             </Suspense>
-
+            
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
         </main>
         <footer className="w-full pt-4 pb-2 text-center text-slate-500 text-[10px] font-bold border-t border-slate-800 tracking-widest uppercase">
              <p>© {new Date().getFullYear()} Sawtli Pro • Audio Workstation v4.0</p>
@@ -1438,9 +1447,6 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-
-// --- SUB-COMPONENTS ---
 
 const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
     return (
@@ -1550,40 +1556,6 @@ const DownloadModal: React.FC<{
                      )}
                 </div>
             </div>
-        </div>
-    );
-};
-
-const QuotaIndicator: React.FC<{
-    stats: UserStats;
-    tier: UserTier;
-    limits: typeof PLAN_LIMITS['free'];
-}> = ({ stats, tier, limits }) => {
-    if (tier === 'admin') return null; 
-
-    const dailyUsed = stats.dailyCharsUsed;
-    const dailyLimit = limits.dailyLimit;
-    
-    const dailyPercent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
-
-    let barColor = 'bg-cyan-500';
-    if (dailyPercent > 80) barColor = 'bg-amber-500';
-    if (dailyPercent >= 100) barColor = 'bg-red-500';
-
-    return (
-        <div className="w-full bg-slate-900/90 backdrop-blur-sm border-t border-slate-800 px-6 py-2 flex flex-col gap-1 rounded-b-2xl">
-            <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                <span>Daily Quota</span>
-                <span>{dailyLimit === Infinity ? 'Unlimited' : `${dailyUsed} / ${dailyLimit}`}</span>
-            </div>
-            {dailyLimit !== Infinity && (
-                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                    <div 
-                        className={`h-full transition-all duration-500 ${barColor}`} 
-                        style={{ width: `${dailyPercent}%` }}
-                    ></div>
-                </div>
-            )}
         </div>
     );
 };
