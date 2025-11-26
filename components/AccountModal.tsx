@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-// Fix: Import User type from the main firebase/auth module for correct typing matching App.tsx
-import { User } from 'firebase/auth';
+// Fix: Import User type from firebase compat namespace
+import firebase from 'firebase/compat/app';
 import { t, Language } from '../i18n/translations';
-import { TrashIcon, CheckIcon, SparklesIcon, LockIcon } from './icons';
-import { UserTier } from '../types';
+import { TrashIcon, CheckIcon, SparklesIcon, LockIcon, InfoIcon } from './icons';
+import { UserTier, UserStats } from '../types';
+
+type User = firebase.User;
 
 interface AccountModalProps {
     onClose: () => void;
@@ -14,15 +16,35 @@ interface AccountModalProps {
     onClearHistory: () => void;
     onDeleteAccount: () => void;
     currentTier: UserTier;
+    userStats: UserStats;
+    limits: any;
     onUpgrade: () => void;
     onSetDevMode: (enabled: boolean) => void;
+    onOpenOwnerGuide: () => void;
 }
 
-// Safely access environment variables outside the component to prevent crashes.
-const env = (import.meta as any)?.env || {};
-const ownerUid = env.VITE_OWNER_UID;
+const QuotaProgressBar: React.FC<{ label: string, used: number, total: number, color?: string }> = ({ label, used, total, color = 'cyan' }) => {
+    const percent = total === Infinity ? 0 : Math.min(100, (used / total) * 100);
+    const displayTotal = total === Infinity ? '∞' : total;
+    
+    let barColor = `bg-${color}-500`;
+    if (percent > 90) barColor = 'bg-red-500';
+    else if (percent > 75) barColor = 'bg-amber-500';
 
-const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, onSignOut, onClearHistory, onDeleteAccount, currentTier, onUpgrade, onSetDevMode }) => {
+    return (
+        <div className="mb-3">
+            <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-400 font-semibold">{label}</span>
+                <span className="text-slate-300 font-mono">{used} / {displayTotal}</span>
+            </div>
+            <div className="h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                <div className={`h-full ${barColor} transition-all duration-500`} style={{ width: `${percent}%` }}></div>
+            </div>
+        </div>
+    );
+};
+
+const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, onSignOut, onClearHistory, onDeleteAccount, currentTier, userStats, limits, onUpgrade, onSetDevMode, onOpenOwnerGuide }) => {
     if (!user) return null;
 
     const [secretKeyInput, setSecretKeyInput] = useState('');
@@ -38,7 +60,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
         setIsDevMode(key === 'true');
     }, [user]);
 
-    const handleActivateDevMode = () => {
+    const handleRedeemCode = () => {
         const input = secretKeyInput.trim().toLowerCase();
         // Added 'friend', 'dinner' and 'صديق' as secret keys!
         if (input === MASTER_KEY || input === 'friend' || input === 'صديق' || input === 'dinner') {
@@ -47,7 +69,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
             alert(t('keySaved', uiLanguage));
             setSecretKeyInput('');
         } else {
-            alert("Incorrect Key");
+            alert("Invalid Coupon Code");
         }
     };
 
@@ -68,6 +90,8 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
         ? new Date(user.metadata.creationTime).toLocaleDateString(uiLanguage, { year: 'numeric', month: 'long', day: 'numeric' })
         : 'N/A';
     
+    const effectiveTotalLimit = limits.totalTrialLimit + (userStats.bonusChars || 0);
+
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
             <div className="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -92,22 +116,26 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                         </div>
                     </div>
                     
-                    {/* Subscription Status */}
+                    {/* Subscription & Quotas */}
                     <div className="bg-slate-900/30 rounded-lg p-4 border border-slate-700">
-                         <div className="flex justify-between items-center mb-2">
-                             <span className="text-slate-400 text-sm">Plan</span>
+                         <div className="flex justify-between items-center mb-4">
+                             <span className="text-slate-400 text-sm">Current Plan</span>
                              <span className={`font-bold ${currentTier === 'gold' ? 'text-amber-400' : (currentTier === 'platinum' ? 'text-cyan-400' : (currentTier === 'admin' ? 'text-red-500' : 'text-white'))}`}>
                                  {currentTier.toUpperCase()}
                              </span>
                          </div>
+
+                         {/* Usage Stats for Free/Visitor */}
+                         {(currentTier === 'free' || currentTier === 'visitor') && (
+                             <div className="mb-4 pt-2 border-t border-slate-800">
+                                 <QuotaProgressBar label={t('dailyUsageLabel', uiLanguage)} used={userStats.dailyCharsUsed} total={limits.dailyLimit} color="cyan" />
+                                 <QuotaProgressBar label={t('trialUsageLabel', uiLanguage)} used={userStats.totalCharsUsed} total={effectiveTotalLimit} color="amber" />
+                             </div>
+                         )}
+
                          {(currentTier === 'free' || currentTier === 'visitor') && (
                              <button onClick={onUpgrade} className="w-full py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold rounded-lg text-sm hover:from-amber-500 hover:to-orange-500 flex items-center justify-center gap-2">
-                                 <SparklesIcon /> {uiLanguage === 'ar' ? 'ترقية الخطة' : 'Upgrade Plan'}
-                             </button>
-                         )}
-                         {currentTier === 'gold' && (
-                             <button onClick={onUpgrade} className="w-full py-2 bg-slate-700 text-cyan-400 border border-cyan-500/30 font-bold rounded-lg text-sm hover:bg-slate-600 flex items-center justify-center gap-2">
-                                 {uiLanguage === 'ar' ? 'ترقية إلى بلاتينيوم' : 'Upgrade to Platinum'}
+                                 <SparklesIcon className="w-4 h-4" /> {uiLanguage === 'ar' ? 'ترقية الخطة' : 'Upgrade Plan'}
                              </button>
                          )}
                          {currentTier === 'admin' && (
@@ -131,37 +159,42 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                         </div>
                     </div>
                     
-                    {/* Developer Powers Section - Always visible to allow user to unlock themselves */}
-                    <div className="border-t-2 border-cyan-500/30 pt-4">
+                    {/* "Redeem Code" Section - Stealth Developer Entry */}
+                    <div className="border-t-2 border-slate-700/50 pt-4">
                         <div className="flex items-center gap-2 mb-2">
-                            <LockIcon className="text-cyan-400 w-5 h-5" />
-                            <h4 className="text-md font-bold text-cyan-400">{t('developerPowers', uiLanguage)}</h4>
+                            <SparklesIcon className="text-slate-500 w-4 h-4" />
+                            <h4 className="text-sm font-bold text-slate-400">{uiLanguage === 'ar' ? 'هل لديك قسيمة؟' : 'Have a Code?'}</h4>
                         </div>
                         
-                        <div className={`mt-3 p-3 rounded-lg text-sm mb-3 ${isDevMode ? 'bg-green-500/20 text-green-300 border border-green-500/50' : 'bg-slate-700 text-slate-300'}`}>
-                            {isDevMode ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage)}
-                        </div>
-                        
+                        {isDevMode && (
+                            <div className="mb-3 p-2 bg-green-900/30 border border-green-500/30 rounded text-xs text-green-400 text-center">
+                                {uiLanguage === 'ar' ? 'تم تفعيل وضع المطور' : 'Developer Mode Active'}
+                            </div>
+                        )}
+
                         {!isDevMode ? (
-                            <>
-                                <p className="text-xs text-slate-400 mb-2">{t('devModeInfo', uiLanguage)}</p>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="password"
-                                        value={secretKeyInput}
-                                        onChange={(e) => setSecretKeyInput(e.target.value)}
-                                        placeholder={t('enterSecretKey', uiLanguage)}
-                                        className="flex-grow p-2 bg-slate-900/50 border border-slate-600 rounded-md focus:ring-1 focus:ring-cyan-500 placeholder-slate-500 font-mono"
-                                    />
-                                    <button onClick={handleActivateDevMode} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-md text-sm transition-colors">
-                                        {t('activate', uiLanguage)}
-                                    </button>
-                                </div>
-                            </>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={secretKeyInput}
+                                    onChange={(e) => setSecretKeyInput(e.target.value)}
+                                    placeholder="Enter code..."
+                                    className="flex-grow p-2 bg-slate-900/50 border border-slate-600 rounded-md focus:ring-1 focus:ring-cyan-500 placeholder-slate-600 text-sm"
+                                />
+                                <button onClick={handleRedeemCode} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-sm transition-colors">
+                                    {uiLanguage === 'ar' ? 'تفعيل' : 'Redeem'}
+                                </button>
+                            </div>
                         ) : (
-                            <button onClick={handleDeactivateDevMode} className="w-full px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-md text-sm transition-colors">
-                                {t('deactivate', uiLanguage)}
-                            </button>
+                            <div className="space-y-2">
+                                <button onClick={onOpenOwnerGuide} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded border border-slate-600 flex items-center justify-center gap-2 transition-colors">
+                                    <InfoIcon className="w-4 h-4" />
+                                    {uiLanguage === 'ar' ? 'عرض دليل المالك' : 'Show Owner Guide'}
+                                </button>
+                                <button onClick={handleDeactivateDevMode} className="w-full px-4 py-2 bg-red-900/50 hover:bg-red-800 text-red-200 rounded-md text-sm transition-colors border border-red-800">
+                                    {uiLanguage === 'ar' ? 'إلغاء وضع المطور' : 'Deactivate Dev Mode'}
+                                </button>
+                            </div>
                         )}
                     </div>
                     
