@@ -12,7 +12,7 @@ import firebase, { getFirebase } from './firebaseConfig';
 
 type User = firebase.User;
 
-import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument } from './services/firestoreService';
+import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument, addToWaitlist } from './services/firestoreService';
 import { AudioStudioModal } from './components/AudioStudioModal'; 
 import SettingsModal from './components/SettingsModal';
 import TutorialModal from './components/TutorialModal';
@@ -1124,9 +1124,21 @@ const App: React.FC = () => {
       }
   };
 
-  const handleUpgrade = (tier: 'gold' | 'platinum') => {
-      setIsUpgradeOpen(false);
-      showToast(`Redirecting to payment provider... (Mock)`, 'info');
+  const handleUpgrade = async (tier: 'gold' | 'platinum') => {
+      if (!user) {
+          showToast(t('signInError', uiLanguage), 'error'); // Reuse sign in error or add "Please sign in"
+          handleSignIn();
+          return;
+      }
+      
+      try {
+          await addToWaitlist(user.uid, user.email, tier);
+          setIsUpgradeOpen(false);
+          showToast(t('waitlistSuccess', uiLanguage), 'success');
+      } catch (e) {
+          console.error("Failed to join waitlist", e);
+          showToast("Failed to join waitlist. Please try again.", 'error');
+      }
   };
 
   const handleSetDevMode = (enabled: boolean) => {
