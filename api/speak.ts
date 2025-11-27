@@ -29,8 +29,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        // SWITCHED TO STANDARD FLASH MODEL TO FIX QUOTA ISSUES
-        const model = "gemini-2.5-flash";
+        // REVERTED: gemini-2.5-flash standard does not support audio output.
+        // Now that the user fixed the quota (0 -> 500), we can use the correct TTS model.
+        const model = "gemini-2.5-flash-preview-tts";
         
         let speechConfig: any = {};
 
