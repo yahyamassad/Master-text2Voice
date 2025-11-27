@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
-import { StarIcon, LoaderIcon, CopyIcon, ExternalLinkIcon, ChevronDownIcon, ReportIcon } from './icons';
+import { StarIcon, LoaderIcon, ReportIcon } from './icons';
 
 interface FeedbackProps {
     language: Language;
@@ -13,7 +13,7 @@ interface FeedbackItem {
     name: string;
     comment: string;
     rating: number;
-    createdAt: number | null; // Represents milliseconds from epoch
+    createdAt: number | null;
 }
 
 const formatTimestamp = (timestamp: number | null, lang: string): string => {
@@ -40,6 +40,12 @@ const formatTimestamp = (timestamp: number | null, lang: string): string => {
     }
 };
 
+// Helper to detect if text contains Arabic/Persian/Hebrew characters
+const getDirection = (text: string): 'rtl' | 'ltr' => {
+    const rtlPattern = /[\u0600-\u06FF\u0750-\u077F\u0590-\u05FF\uFE70-\uFEFF]/;
+    return rtlPattern.test(text) ? 'rtl' : 'ltr';
+};
+
 const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
     const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -59,12 +65,9 @@ const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
         fetch('/api/feedback')
             .then(async res => {
                 if (!res.ok) {
-                     // If 404, it means the API is not deployed/running locally (Vite).
-                     // We treat this as "not configured" rather than an error.
                      if (res.status === 404) {
                          return { configured: false, feedbacks: [] };
                      }
-                     // Try to parse the specific error message from the backend
                     const errorData = await res.json().catch(() => ({ error: `Server responded with status: ${res.status}` }));
                     throw new Error(errorData.error || `An unknown error occurred while fetching feedback.`);
                 }
@@ -81,7 +84,6 @@ const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
             })
             .catch(err => {
                 console.error("Error fetching feedback:", err);
-                // Don't show error for local dev 404s, just disable submission
                 if (err.message && err.message.includes('404')) {
                      setIsSubmissionEnabled(false);
                 } else {
@@ -173,7 +175,6 @@ const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
                                 </div>
                             </div>
                             
-                            {/* Integrated Report Button */}
                              <button 
                                 type="button"
                                 onClick={onOpenReport}
@@ -189,7 +190,8 @@ const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
                         onChange={(e) => setComment(e.target.value)}
                         placeholder={t('yourComment', language)}
                         required
-                        className="w-full h-24 p-3 bg-slate-900/50 border-2 border-slate-600 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors placeholder-slate-500"
+                        className="w-full h-24 p-3 bg-slate-900/50 border-2 border-slate-600 rounded-lg resize-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors placeholder-slate-500 text-left"
+                        dir="auto"
                         disabled={isSubmitting || !isSubmissionEnabled}
                     />
                     <button
@@ -223,20 +225,27 @@ const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
                     <div className="text-center p-8 text-slate-500">{t('noFeedbackYet', language)}</div>
                 ) : (
                     <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                        {feedbacks.map(item => (
-                            <div key={item.id} className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 animate-fade-in">
-                                <div className="flex justify-between items-start">
-                                    <p className="font-bold text-cyan-400">{item.name || 'Anonymous'}</p>
-                                    <div className="flex items-center">
-                                        {[...Array(5)].map((_, i) => (
-                                            <StarIcon key={i} className={i < item.rating ? 'text-yellow-400' : 'text-slate-600'} />
-                                        ))}
+                        {feedbacks.map(item => {
+                            const direction = getDirection(item.comment);
+                            const alignClass = direction === 'rtl' ? 'text-right' : 'text-left';
+                            
+                            return (
+                                <div key={item.id} className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 animate-fade-in">
+                                    <div className="flex justify-between items-start">
+                                        <p className="font-bold text-cyan-400">{item.name || 'Anonymous'}</p>
+                                        <div className="flex items-center">
+                                            {[...Array(5)].map((_, i) => (
+                                                <StarIcon key={i} className={i < item.rating ? 'text-yellow-400' : 'text-slate-600'} />
+                                            ))}
+                                        </div>
                                     </div>
+                                    <p className={`text-slate-300 my-2 ${alignClass}`} dir={direction}>
+                                        {item.comment}
+                                    </p>
+                                    <p className="text-xs text-slate-500 text-right">{formatTimestamp(item.createdAt, language)}</p>
                                 </div>
-                                <p className="text-slate-300 my-2">{item.comment}</p>
-                                <p className="text-xs text-slate-500 text-right">{formatTimestamp(item.createdAt, language)}</p>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
