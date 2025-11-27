@@ -217,6 +217,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     // Export Settings
     const [exportFormat, setExportFormat] = useState<'mp3' | 'wav'>('mp3');
     const [exportSource, setExportSource] = useState<'mix' | 'voice'>('mix');
+    const [trimToVoice, setTrimToVoice] = useState(true); // Default: Trim music to voice
     
     // Buffers
     const [micAudioBuffer, setMicAudioBuffer] = useState<AudioBuffer | null>(null);
@@ -282,6 +283,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     
     // Analyser for Auto Ducking logic
     const duckingAnalyserRef = useRef<AnalyserNode | null>(null);
+
+    const isPaidUser = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
 
     // --- INIT & CLEANUP ---
     useEffect(() => {
@@ -385,7 +388,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             let duckingAnalyser: AnalyserNode | null = null;
 
             if (voiceBuffer) {
-                processedVoice = await processAudio(voiceBuffer, settings, null, 0, false); 
+                processedVoice = await processAudio(voiceBuffer, settings, null, 0, false, 80, true); 
                 
                 vSource = ctx.createBufferSource();
                 vSource.buffer = processedVoice;
@@ -450,8 +453,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
                     const totalDur = processedVoice ? processedVoice.duration : (musicBuffer ? musicBuffer.duration : 0);
                     
-                    // --- SECURITY CHECK: PREVIEW LIMIT (15s) ---
-                    const isPaidUser = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
+                    // --- SECURITY CHECK: PREVIEW LIMIT (15s) for non-paid ---
                     if (!isPaidUser && actualTime > 15) {
                         stopPlayback();
                         setCurrentTime(15); 
@@ -613,6 +615,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     };
 
     const onReplaceVoiceClick = () => { 
+        if (userTier === 'free' || userTier === 'visitor') {
+            setShowUpgradeAlert(true);
+            setTimeout(() => setShowUpgradeAlert(false), 3000);
+            return;
+        }
         if (fileInputRef.current) {
             fileInputRef.current.click(); 
         }
@@ -659,7 +666,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const finalMusicVolume = (exportSource === 'voice' || isMusicMuted) ? 0 : musicVolume;
 
             // Process with Mixing and Ducking
-            const buffer = await processAudio(voiceBuffer, settings, musicBuffer, finalMusicVolume, autoDucking, finalVoiceVolume);
+            const buffer = await processAudio(
+                voiceBuffer, 
+                settings, 
+                musicBuffer, 
+                finalMusicVolume, 
+                autoDucking, 
+                finalVoiceVolume,
+                trimToVoice // Pass the trim flag
+            );
             
             let blob;
             if (exportFormat === 'wav') {
@@ -696,6 +711,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     const handleTabSwitch = (tab: 'ai' | 'mic' | 'upload') => {
         if (activeTab === tab) return;
+        
+        // Block switch to Upload tab for non-paid
+        if (tab === 'upload' && !isPaidUser) {
+            setShowUpgradeAlert(true);
+            setTimeout(() => setShowUpgradeAlert(false), 3000);
+            return;
+        }
+
         stopPlayback();
         setActiveTab(tab);
         
@@ -745,11 +768,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     {/* Visualizer & Timeline */}
                     <div className="bg-[#020617] rounded-xl border border-slate-800 overflow-hidden relative shadow-2xl group">
                         {showUpgradeAlert && (
-                            <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-down">
-                                <div className="text-center">
-                                    <div className="text-2xl font-bold text-white mb-2">Preview Limit Reached</div>
+                            <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-down pointer-events-none">
+                                <div className="text-center bg-slate-900 border border-amber-500 p-6 rounded-xl shadow-2xl pointer-events-auto">
+                                    <div className="text-2xl font-bold text-white mb-2">Feature Locked</div>
+                                    <p className="text-slate-400 mb-4">File Upload and extended preview are Pro features.</p>
                                     <button onClick={onUpgrade} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide">
-                                        Upgrade to Continue
+                                        Upgrade
                                     </button>
                                 </div>
                             </div>
@@ -775,7 +799,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     <div className="bg-[#1e293b] p-3 rounded-2xl border border-slate-700 shadow-xl relative z-40" dir="ltr">
                         <div className="flex flex-col md:flex-row items-stretch gap-4">
                             <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-1">
-                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>FILE</button>
+                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+                                    <span>FILE</span>
+                                    {!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}
+                                </button>
                                 <button onClick={() => handleTabSwitch('mic')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>MIC</button>
                                 <button onClick={() => handleTabSwitch('ai')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>GEMINI</button>
                             </div>
@@ -836,6 +863,28 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                                     </button>
                                                 </div>
                                             </div>
+
+                                            {exportSource === 'mix' && (
+                                                <div className="mb-4">
+                                                    <label className="text-xs font-bold text-slate-300 mb-1 block">DURATION</label>
+                                                    <div className="space-y-1">
+                                                        <button 
+                                                            onClick={() => setTrimToVoice(true)}
+                                                            className={`w-full text-left px-2 py-1.5 rounded text-[10px] font-bold flex justify-between items-center ${trimToVoice ? 'bg-slate-700 text-white border border-slate-600' : 'text-slate-400 hover:bg-slate-700/50'}`}
+                                                        >
+                                                            <span>End when Voice ends</span>
+                                                            {trimToVoice && <CheckIcon className="w-3 h-3 text-cyan-400"/>}
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setTrimToVoice(false)}
+                                                            className={`w-full text-left px-2 py-1.5 rounded text-[10px] font-bold flex justify-between items-center ${!trimToVoice ? 'bg-slate-700 text-white border border-slate-600' : 'text-slate-400 hover:bg-slate-700/50'}`}
+                                                        >
+                                                            <span>Keep Full Music Length</span>
+                                                            {!trimToVoice && <CheckIcon className="w-3 h-3 text-cyan-400"/>}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="mb-4">
                                                 <label className="text-xs font-bold text-slate-300 mb-1 block">FORMAT</label>
