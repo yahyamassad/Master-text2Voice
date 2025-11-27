@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             config: {
                 systemInstruction: systemInstruction,
                 temperature: 0.3,
-                // Removed explicit safety settings to resolve TypeScript Enum errors on build.
+                // Safety settings removed to prevent build errors
             }
         });
 
@@ -71,6 +71,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error("Translation Error:", error);
+
+        // Handle Quota/Rate Limit Errors Gracefully
+        if (error.message && (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED') || error.message.includes('quota'))) {
+            return res.status(429).json({ 
+                error: "Translation service busy. Please try again later." 
+            });
+        }
+
         return res.status(500).json({ error: error.message || 'Translation failed' });
     }
 }

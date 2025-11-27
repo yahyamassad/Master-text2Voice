@@ -30,7 +30,7 @@ interface SettingsModalProps {
   targetLang: string;
   currentLimits: any; 
   onUpgrade: () => void;
-  onRefreshVoices?: () => void; // New prop
+  onRefreshVoices?: () => void; 
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -42,13 +42,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
     const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+    const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
+
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     const voicePreviewCache = useRef(new Map<string, Uint8Array>());
-    // Keep a reference to an AudioContext to reuse it and bypass autoplay blocks
+    
     const audioContextRef = useRef<AudioContext | null>(null);
 
-    // Force refresh on mount to catch late-loading voices
     useEffect(() => {
         if (onRefreshVoices) {
             onRefreshVoices();
@@ -56,6 +57,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }, []);
 
     const relevantSystemVoices = useMemo(() => {
+        if (showAllSystemVoices) return systemVoices;
+
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();
 
@@ -64,11 +67,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode) || vLang.includes(sourceLangCode) || vLang.includes(targetLangCode);
         });
 
-        // If no voices found for specific languages, return ALL voices to avoid empty list
         return filtered.length > 0 ? filtered : systemVoices;
-    }, [systemVoices, sourceLang, targetLang]);
+    }, [systemVoices, sourceLang, targetLang, showAllSystemVoices]);
 
-    // When switching modes, select the first voice from the new list if the current one doesn't belong.
     useEffect(() => {
         if (voiceMode === 'gemini' && !GEMINI_VOICES.includes(voice)) {
             setVoice(GEMINI_VOICES[0]);
@@ -81,7 +82,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     }, [voiceMode, voice, setVoice, systemVoices, relevantSystemVoices]);
 
-    // Cleanup on unmount or close
     useEffect(() => {
         return () => {
              if (audioSourceRef.current) {
@@ -101,7 +101,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 
     const handlePreview = async (voiceName: string) => {
-        if (previewingVoice) { // Stop any ongoing preview
+        if (previewingVoice) { 
             if (audioSourceRef.current) {
                 try { 
                     audioSourceRef.current.stop(); 
@@ -113,14 +113,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 window.speechSynthesis.cancel();
             }
             setPreviewingVoice(null);
-            if (previewingVoice === voiceName) return; // If it was a stop request, just stop.
+            if (previewingVoice === voiceName) return; 
         }
 
         setPreviewingVoice(voiceName);
         const previewText = t('voicePreviewText', uiLanguage);
 
         if (GEMINI_VOICES.includes(voiceName)) {
-             // Initialize AudioContext immediately on user interaction
             if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
                 audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
             }
@@ -131,7 +130,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             const cacheKey = `${voiceName}-${uiLanguage}`;
             if (voicePreviewCache.current.has(cacheKey)) {
                 const pcmData = voicePreviewCache.current.get(cacheKey)!;
-                // Use the current speed setting for preview
                 audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
                     setPreviewingVoice(null);
                     audioSourceRef.current = null;
@@ -142,8 +140,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             try {
                 const pcmData = await previewVoice(voiceName, previewText, 'Default');
                 if (pcmData) {
-                    voicePreviewCache.current.set(cacheKey, pcmData); // Cache the result
-                    // Use the current speed setting for preview
+                    voicePreviewCache.current.set(cacheKey, pcmData); 
                     audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
                         setPreviewingVoice(null);
                         audioSourceRef.current = null;
@@ -151,27 +148,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 } else {
                     console.error("No PCM data returned for preview");
                     setPreviewingVoice(null);
-                    // Feedback to user
-                    alert(uiLanguage === 'ar' ? 'فشل تحميل معاينة الصوت' : 'Failed to load voice preview');
                 }
             } catch (error) {
                 console.error("Failed to preview Gemini voice:", error);
                 setPreviewingVoice(null);
             }
         } else {
-            // System voice preview
             try {
-                window.speechSynthesis.cancel(); // Clear queue explicitly
+                window.speechSynthesis.cancel(); 
                 
                 const utterance = new SpeechSynthesisUtterance(previewText);
                 const selectedVoice = systemVoices.find(v => v.name === voiceName);
                 
                 if (selectedVoice) {
-                    // Explicitly set the voice object, not just name/lang
                     utterance.voice = selectedVoice;
                     utterance.lang = selectedVoice.lang; 
                 }
-                // Apply speed to system preview too
                 utterance.rate = speed;
                 
                 nativeUtteranceRef.current = utterance;
@@ -184,7 +176,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     setPreviewingVoice(null);
                 };
                 
-                // Short delay to ensure cancel takes effect in some browsers
                 setTimeout(() => {
                     window.speechSynthesis.speak(utterance);
                 }, 10);
@@ -265,11 +256,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                         ) : (
                              <div className="space-y-2">
+                                <div className="flex justify-between items-center mb-2">
+                                    <p className="text-xs text-slate-400">
+                                        {showAllSystemVoices 
+                                            ? (uiLanguage === 'ar' ? 'عرض كل الأصوات المتاحة' : 'Showing ALL available voices')
+                                            : t('noRelevantSystemVoices', uiLanguage)}
+                                    </p>
+                                    <button 
+                                        onClick={() => setShowAllSystemVoices(!showAllSystemVoices)} 
+                                        className={`text-xs font-bold px-2 py-1 rounded border ${showAllSystemVoices ? 'bg-cyan-900/50 border-cyan-500 text-cyan-300' : 'bg-slate-700 border-slate-600 text-slate-300'}`}
+                                    >
+                                        {uiLanguage === 'ar' ? 'إظهار الكل' : 'Show All'}
+                                    </button>
+                                </div>
+
                                 {relevantSystemVoices.length > 0 ? (
                                     relevantSystemVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />)
                                 ) : (
                                     <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3">
-                                        <p className="text-sm text-slate-400">{t('noRelevantSystemVoices', uiLanguage)}</p>
                                         {onRefreshVoices && (
                                             <button 
                                                 onClick={onRefreshVoices}
@@ -286,7 +290,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative ${voiceMode === 'system' ? 'opacity-40 pointer-events-none' : ''}`}>
-                         {/* Lock Overlay for Effects if not allowed */}
                          {voiceMode === 'gemini' && !currentLimits.allowEffects && (
                              <div className="absolute inset-0 bg-slate-900/70 rounded-lg z-10 flex items-center justify-center backdrop-blur-[1px] cursor-pointer border border-slate-700" onClick={onUpgrade}>
                                 <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-amber-500/50 shadow-lg hover:bg-slate-700 transition-colors">
@@ -309,7 +312,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                  </select>
                              </div>
                              
-                             {/* Seed Control */}
                              <div className={voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}>
                                     <label htmlFor="seed-input" className="block text-sm font-medium text-slate-300 mb-1">{t('seedLabel', uiLanguage)}</label>
                                     <div className="flex items-center gap-2">
@@ -343,7 +345,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative ${voiceMode === 'system' ? 'opacity-40 pointer-events-none' : ''}`}>
-                         {/* Lock Overlay for MultiSpeaker if not allowed */}
                          {voiceMode === 'gemini' && !currentLimits.allowMultiSpeaker && (
                              <div className="absolute inset-0 bg-slate-900/70 rounded-lg z-10 flex items-center justify-center backdrop-blur-[1px] cursor-pointer border border-slate-700" onClick={onUpgrade}>
                                 <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-amber-500/50 shadow-lg hover:bg-slate-700 transition-colors">

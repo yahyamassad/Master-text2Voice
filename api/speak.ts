@@ -66,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             config: {
                 responseModalities: ['AUDIO'], 
                 speechConfig: speechConfig,
-                // Removed safetySettings as they caused type errors and default behavior is usually sufficient for TTS
+                // Safety settings removed to prevent build errors (defaults are sufficient)
             },
         });
 
@@ -85,6 +85,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
     } catch (error: any) {
         console.error("Speech Generation Error:", error);
+        
+        // Handle Quota/Rate Limit Errors Gracefully
+        if (error.message && (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED') || error.message.includes('quota'))) {
+            return res.status(429).json({ 
+                error: "Server usage limit reached. Please check Google Cloud billing or try again later." 
+            });
+        }
+
         return res.status(500).json({ error: error.message || "Speech generation failed." });
     }
 }

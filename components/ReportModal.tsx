@@ -2,7 +2,10 @@
 import React, { useState, useRef } from 'react';
 import { t, Language } from '../i18n/translations';
 import { LoaderIcon, CheckIcon, WarningIcon } from './icons';
-import { User } from 'firebase/auth';
+// Fix: Import User type from firebase compat namespace
+import firebase from 'firebase/compat/app';
+
+type User = firebase.User;
 
 interface ReportModalProps {
     onClose: () => void;
