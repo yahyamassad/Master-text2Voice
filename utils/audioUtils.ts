@@ -145,7 +145,7 @@ export async function processAudio(
     musicVolume: number = 40,
     autoDucking: boolean = false,
     voiceVolume: number = 80,
-    trimToVoice: boolean = true // NEW PARAMETER: Defaults to trimming music to match voice length
+    trimToVoice: boolean = true 
 ): Promise<AudioBuffer> {
     const renderSampleRate = 48000; // High Quality 48kHz
     let sourceBuffer: AudioBuffer | null = null;
@@ -158,13 +158,17 @@ export async function processAudio(
     
     const speed = settings.speed || 1.0;
     const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
+    const FADE_OUT_DURATION = 3.0; // 3 Seconds Fade Out
     
     let outputDuration = 1.0;
+    let voiceEndTime = 0;
     
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: Duration = Voice duration (scaled) + reverb tail
-            outputDuration = (sourceBuffer.duration / speed) + reverbTail;
+            // Trim mode: Duration = Voice duration (scaled) + reverb tail + fade out time
+            const voiceDur = (sourceBuffer.duration / speed);
+            voiceEndTime = voiceDur + reverbTail;
+            outputDuration = voiceEndTime + FADE_OUT_DURATION;
         } else {
             // Full mode: Duration is the longest of either voice or music
             const voiceDur = (sourceBuffer.duration / speed) + reverbTail;
@@ -251,16 +255,25 @@ export async function processAudio(
         musicSource.buffer = backgroundMusicBuffer;
         
         // Only loop if we are in "Trim to Voice" mode or if the voice is longer than music
-        // If "Full Duration", we just play the music once (unless looped explicitly, but standard behavior is play through)
         if (trimToVoice && sourceBuffer && outputDuration > backgroundMusicBuffer.duration) {
              musicSource.loop = true;
         } else {
-             musicSource.loop = false; // Don't loop in full mode unless standard
+             musicSource.loop = false;
         }
         
         const musicGain = offlineCtx.createGain();
         const duckingFactor = (autoDucking && sourceBuffer && voiceVolume > 0) ? 0.2 : 1.0;
-        musicGain.gain.value = (musicVolume / 100) * duckingFactor;
+        const startVolume = (musicVolume / 100) * duckingFactor;
+        
+        musicGain.gain.setValueAtTime(startVolume, 0);
+
+        // Apply Fade Out if Trimming
+        if (trimToVoice && sourceBuffer) {
+            // Maintain volume until voice ends (plus reverb)
+            musicGain.gain.setValueAtTime(startVolume, Math.max(0, voiceEndTime));
+            // Linear fade to 0 over FADE_OUT_DURATION
+            musicGain.gain.linearRampToValueAtTime(0, outputDuration);
+        }
         
         musicSource.connect(musicGain);
         musicGain.connect(offlineCtx.destination);
