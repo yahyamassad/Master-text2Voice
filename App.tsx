@@ -1398,10 +1398,10 @@ const App: React.FC = () => {
                         {(activePlayer === 'source') && (
                             <button
                                 onClick={stopAll}
-                                className="h-16 w-16 bg-red-600 hover:bg-red-500 text-white rounded-xl border-2 border-red-400 shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in"
+                                className="h-16 w-16 bg-slate-800 hover:bg-slate-700 text-red-500 border-2 border-red-500/50 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group"
                                 title={t('stopSpeaking', uiLanguage)}
                             >
-                                <StopIcon className="w-8 h-8" />
+                                <div className="w-6 h-6 bg-red-500 rounded-sm group-hover:scale-110 transition-transform"></div>
                             </button>
                         )}
                      </div>
@@ -1430,10 +1430,10 @@ const App: React.FC = () => {
                         {(activePlayer === 'target') && (
                             <button
                                 onClick={stopAll}
-                                className="h-16 w-16 bg-red-600 hover:bg-red-500 text-white rounded-xl border-2 border-red-400 shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in"
+                                className="h-16 w-16 bg-slate-800 hover:bg-slate-700 text-red-500 border-2 border-red-500/50 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group"
                                 title={t('stopSpeaking', uiLanguage)}
                             >
-                                <StopIcon className="w-8 h-8" />
+                                <div className="w-6 h-6 bg-red-500 rounded-sm group-hover:scale-110 transition-transform"></div>
                             </button>
                         )}
                     </div>
