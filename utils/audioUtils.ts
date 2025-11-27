@@ -144,9 +144,10 @@ export async function processAudio(
     backgroundMusicBuffer: AudioBuffer | null = null,
     musicVolume: number = 40,
     autoDucking: boolean = false,
-    voiceVolume: number = 80
+    voiceVolume: number = 80,
+    trimToVoice: boolean = true // NEW PARAMETER: Defaults to trimming music to match voice length
 ): Promise<AudioBuffer> {
-    const renderSampleRate = 48000; // High Quality 48kHz as requested
+    const renderSampleRate = 48000; // High Quality 48kHz
     let sourceBuffer: AudioBuffer | null = null;
 
     if (input instanceof Uint8Array) {
@@ -160,27 +161,28 @@ export async function processAudio(
     
     let outputDuration = 1.0;
     
-    if (sourceBuffer) {
-        outputDuration = (sourceBuffer.duration / speed) + reverbTail;
-    }
-    
-    if (backgroundMusicBuffer) {
-        // Music track logic: length is at least music length, or voice length if voice is longer
-        const musicDur = backgroundMusicBuffer.duration;
-        if (sourceBuffer) {
-             outputDuration = Math.max(outputDuration, musicDur);
+    if (sourceBuffer && backgroundMusicBuffer) {
+        if (trimToVoice) {
+            // Trim mode: Duration = Voice duration (scaled) + reverb tail
+            outputDuration = (sourceBuffer.duration / speed) + reverbTail;
         } else {
-             outputDuration = musicDur;
+            // Full mode: Duration is the longest of either voice or music
+            const voiceDur = (sourceBuffer.duration / speed) + reverbTail;
+            outputDuration = Math.max(voiceDur, backgroundMusicBuffer.duration);
         }
+    } else if (sourceBuffer) {
+        outputDuration = (sourceBuffer.duration / speed) + reverbTail;
+    } else if (backgroundMusicBuffer) {
+        outputDuration = backgroundMusicBuffer.duration;
     }
     
-    // Ensure minimum duration to avoid empty rendering errors
+    // Ensure minimum duration
     if (outputDuration < 0.1) outputDuration = 1.0;
 
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
     // --- VOICE CHAIN ---
-    let voiceAnalyser: GainNode | null = null; // Used for ducking trigger
+    let voiceAnalyser: GainNode | null = null;
     
     if (sourceBuffer && voiceVolume > 0) {
         const source = offlineCtx.createBufferSource();
@@ -238,7 +240,7 @@ export async function processAudio(
         dryGain.connect(voiceGain);
         
         voiceGain.connect(offlineCtx.destination);
-        voiceGain.connect(voiceAnalyser); // Feed to analyzer/trigger path if we could sidechain
+        voiceGain.connect(voiceAnalyser); 
         
         source.start(0);
     }
@@ -247,13 +249,16 @@ export async function processAudio(
     if (backgroundMusicBuffer && musicVolume > 0) {
         const musicSource = offlineCtx.createBufferSource();
         musicSource.buffer = backgroundMusicBuffer;
-        musicSource.loop = true;
+        
+        // Only loop if we are in "Trim to Voice" mode or if the voice is longer than music
+        // If "Full Duration", we just play the music once (unless looped explicitly, but standard behavior is play through)
+        if (trimToVoice && sourceBuffer && outputDuration > backgroundMusicBuffer.duration) {
+             musicSource.loop = true;
+        } else {
+             musicSource.loop = false; // Don't loop in full mode unless standard
+        }
         
         const musicGain = offlineCtx.createGain();
-        // Simplified export ducking: If auto-ducking is on and we have a voice track, 
-        // we apply a static reduction to music for the whole clip to simulate the mix.
-        // For a perfect ducking, we'd need a ScriptProcessor in OfflineCtx (deprecated) or detailed curve automation.
-        // Here we choose a 'safe' mix level for export if ducking is active.
         const duckingFactor = (autoDucking && sourceBuffer && voiceVolume > 0) ? 0.2 : 1.0;
         musicGain.gain.value = (musicVolume / 100) * duckingFactor;
         
