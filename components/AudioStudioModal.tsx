@@ -78,11 +78,23 @@ const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: bool
     );
 };
 
-const Knob: React.FC<{ label: string, value: number, min?: number, max?: number, onChange: (val: number) => void, color?: string }> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan' }) => {
+const Knob: React.FC<{ 
+    label: string, 
+    value: number, 
+    min?: number, 
+    max?: number, 
+    onChange: (val: number) => void, 
+    color?: string,
+    onClickCapture?: (e: React.MouseEvent) => void 
+}> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan', onClickCapture }) => {
     const percentage = (value - min) / (max - min);
     const rotation = -135 + (percentage * 270); 
 
     const handleWheel = (e: React.WheelEvent) => {
+        if (onClickCapture) {
+            onClickCapture(e as any);
+            return; 
+        }
         e.preventDefault();
         const delta = e.deltaY > 0 ? -1 : 1; 
         const step = (max - min) / 50; 
@@ -94,7 +106,7 @@ const Knob: React.FC<{ label: string, value: number, min?: number, max?: number,
     const isPurple = color === 'purple';
 
     return (
-        <div className="flex flex-col items-center group" onWheel={handleWheel}>
+        <div className="flex flex-col items-center group cursor-pointer" onWheel={handleWheel} onClick={onClickCapture}>
              <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${isPurple ? 'border-purple-900/50 group-hover:border-purple-500/50' : 'border-cyan-900/50 group-hover:border-cyan-500/50'} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
                  <div className="absolute w-full h-full rounded-full pointer-events-none" style={{ transform: `rotate(${rotation}deg)` }}>
                      <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-2.5 rounded-full ${isPurple ? 'bg-purple-400 shadow-[0_0_8px_#a855f7]' : 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'}`}></div>
@@ -120,8 +132,9 @@ const Fader: React.FC<{
     labelSize?: string, 
     disabled?: boolean,
     muted?: boolean,
-    onMuteToggle?: () => void
-}> = ({ label, value, min=0, max=100, step=1, onChange, height="h-32", color='cyan', labelSize='text-xs sm:text-sm', disabled, muted, onMuteToggle }) => {
+    onMuteToggle?: () => void,
+    onClickCapture?: (e: React.MouseEvent) => void
+}> = ({ label, value, min=0, max=100, step=1, onChange, height="h-32", color='cyan', labelSize='text-xs sm:text-sm', disabled, muted, onMuteToggle, onClickCapture }) => {
     const isCyan = color === 'cyan';
     const isAmber = color === 'amber';
     
@@ -135,11 +148,11 @@ const Fader: React.FC<{
     if(isAmber) glowColor = 'bg-amber-500/20';
     
     return (
-    <div className={`flex flex-col items-center w-12 sm:w-16 group h-full justify-end ${disabled ? 'opacity-50 grayscale' : ''}`}>
+    <div className={`flex flex-col items-center w-12 sm:w-16 group h-full justify-end ${disabled ? 'opacity-50 grayscale' : ''}`} onClickCapture={onClickCapture}>
         {/* Mute Toggle */}
         {onMuteToggle && (
              <button 
-                onClick={onMuteToggle}
+                onClick={(e) => { e.stopPropagation(); if(onMuteToggle) onMuteToggle(); }}
                 className={`mb-2 w-5 h-5 rounded border flex items-center justify-center transition-colors ${muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-white hover:border-slate-400'}`}
                 title="Mute"
              >
@@ -186,8 +199,8 @@ const Fader: React.FC<{
     </div>
 )};
 
-const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number) => void }> = ({ value, label, onChange }) => (
-    <div className="flex flex-col items-center h-full group w-full">
+const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number) => void, onClickCapture?: (e: React.MouseEvent) => void }> = ({ value, label, onChange, onClickCapture }) => (
+    <div className="flex flex-col items-center h-full group w-full" onClickCapture={onClickCapture}>
          <div className="relative flex-grow w-full max-w-[30px] sm:max-w-[40px] flex justify-center bg-black/50 rounded-md mb-2 border border-slate-800 min-h-[120px]">
              <div className="absolute top-1/2 left-0 w-full h-px bg-slate-700"></div>
             <input type="range" min="-12" max="12" value={value} onChange={(e) => onChange(parseInt(e.target.value, 10))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ WebkitAppearance: 'slider-vertical' } as any} />
@@ -285,6 +298,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const duckingAnalyserRef = useRef<AnalyserNode | null>(null);
 
     const isPaidUser = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
+
+    // --- LOCK HANDLER ---
+    const handleRestrictedAction = (e: React.MouseEvent) => {
+        if (!isPaidUser) {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowUpgradeAlert(true);
+            setTimeout(() => setShowUpgradeAlert(false), 3000);
+        }
+    };
 
     // --- INIT & CLEANUP ---
     useEffect(() => {
@@ -454,13 +477,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     const totalDur = processedVoice ? processedVoice.duration : (musicBuffer ? musicBuffer.duration : 0);
                     
                     // --- SECURITY CHECK: PREVIEW LIMIT (15s) for non-paid ---
-                    if (!isPaidUser && actualTime > 15) {
-                        stopPlayback();
-                        setCurrentTime(15); 
-                        setShowUpgradeAlert(true);
-                        setTimeout(() => setShowUpgradeAlert(false), 4000);
-                        return; 
-                    }
+                    // REMOVED 15s CHECK TO AVOID CONFLICT WITH NEW LOCK STRATEGY
+                    // Non-paid users can preview AI voice fully, but cannot use other features.
 
                     // REAL-TIME MIXING LOGIC (Using Refs to bypass stale closures)
                     const currentMusicVol = isMusicMutedRef.current ? 0 : (musicVolumeRef.current / 100);
@@ -597,7 +615,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     };
 
     // --- FILE HANDLING ---
-    const onMusicUploadClick = () => { musicInputRef.current?.click(); };
+    const onMusicUploadClick = () => { 
+        if (!isPaidUser) {
+            setShowUpgradeAlert(true);
+            setTimeout(() => setShowUpgradeAlert(false), 3000);
+            return;
+        }
+        musicInputRef.current?.click(); 
+    };
     const handleMusicFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files?.[0]) {
              const file = e.target.files[0];
@@ -614,13 +639,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
     };
 
-    const onReplaceVoiceClick = () => { 
-        if (userTier === 'free' || userTier === 'visitor') {
-            setShowUpgradeAlert(true);
-            setTimeout(() => setShowUpgradeAlert(false), 3000);
-            return;
-        }
-        if (fileInputRef.current) {
+    const onReplaceVoiceClick = (e: React.MouseEvent) => { 
+        handleRestrictedAction(e);
+        if(isPaidUser && fileInputRef.current) {
             fileInputRef.current.click(); 
         }
     };
@@ -712,8 +733,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const handleTabSwitch = (tab: 'ai' | 'mic' | 'upload') => {
         if (activeTab === tab) return;
         
-        // Block switch to Upload tab for non-paid
-        if (tab === 'upload' && !isPaidUser) {
+        // Block switch to Upload or Mic tab for non-paid
+        if ((tab === 'upload' || tab === 'mic') && !isPaidUser) {
             setShowUpgradeAlert(true);
             setTimeout(() => setShowUpgradeAlert(false), 3000);
             return;
@@ -770,10 +791,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         {showUpgradeAlert && (
                             <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-down pointer-events-none">
                                 <div className="text-center bg-slate-900 border border-amber-500 p-6 rounded-xl shadow-2xl pointer-events-auto">
-                                    <div className="text-2xl font-bold text-white mb-2">Feature Locked</div>
-                                    <p className="text-slate-400 mb-4">File Upload and extended preview are Pro features.</p>
-                                    <button onClick={onUpgrade} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide">
-                                        Upgrade
+                                    <div className="text-2xl font-bold text-white mb-2">
+                                        {uiLanguage === 'ar' ? 'ميزة مقفلة' : 'Locked Feature'}
+                                    </div>
+                                    <p className="text-slate-400 mb-4">
+                                        {uiLanguage === 'ar' ? 'يتوفر استوديو الصوت الكامل للمشتركين فقط.' : 'Full Audio Studio access is available for subscribers only.'}
+                                    </p>
+                                    <button onClick={onUpgrade} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide transition-colors">
+                                        {uiLanguage === 'ar' ? 'ترقية الآن' : 'Upgrade Now'}
                                     </button>
                                 </div>
                             </div>
@@ -803,7 +828,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     <span>FILE</span>
                                     {!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}
                                 </button>
-                                <button onClick={() => handleTabSwitch('mic')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>MIC</button>
+                                <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) handleTabSwitch('mic'); }} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+                                    <span>MIC</span>
+                                    {!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}
+                                </button>
                                 <button onClick={() => handleTabSwitch('ai')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>GEMINI</button>
                             </div>
 
@@ -925,28 +953,30 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" dir="ltr">
                         
                         {/* LEFT: BAND EQ-5 (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
+                            {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
                             </div>
                             <div className="flex justify-between px-1 gap-2 flex-1 items-end bg-black/20 rounded-xl p-3 border border-slate-800/50">
-                                <EqSlider value={settings.eqBands[0]} label="60Hz" onChange={(v) => {const b=[...settings.eqBands]; b[0]=v; updateSetting('eqBands',b);}} />
-                                <EqSlider value={settings.eqBands[1]} label="250Hz" onChange={(v) => {const b=[...settings.eqBands]; b[1]=v; updateSetting('eqBands',b);}} />
-                                <EqSlider value={settings.eqBands[2]} label="1KHz" onChange={(v) => {const b=[...settings.eqBands]; b[2]=v; updateSetting('eqBands',b);}} />
-                                <EqSlider value={settings.eqBands[3]} label="4KHz" onChange={(v) => {const b=[...settings.eqBands]; b[3]=v; updateSetting('eqBands',b);}} />
-                                <EqSlider value={settings.eqBands[4]} label="12KHz" onChange={(v) => {const b=[...settings.eqBands]; b[4]=v; updateSetting('eqBands',b);}} />
+                                <EqSlider value={settings.eqBands[0]} label="60Hz" onChange={(v) => {const b=[...settings.eqBands]; b[0]=v; updateSetting('eqBands',b);}} onClickCapture={handleRestrictedAction} />
+                                <EqSlider value={settings.eqBands[1]} label="250Hz" onChange={(v) => {const b=[...settings.eqBands]; b[1]=v; updateSetting('eqBands',b);}} onClickCapture={handleRestrictedAction} />
+                                <EqSlider value={settings.eqBands[2]} label="1KHz" onChange={(v) => {const b=[...settings.eqBands]; b[2]=v; updateSetting('eqBands',b);}} onClickCapture={handleRestrictedAction} />
+                                <EqSlider value={settings.eqBands[3]} label="4KHz" onChange={(v) => {const b=[...settings.eqBands]; b[3]=v; updateSetting('eqBands',b);}} onClickCapture={handleRestrictedAction} />
+                                <EqSlider value={settings.eqBands[4]} label="12KHz" onChange={(v) => {const b=[...settings.eqBands]; b[4]=v; updateSetting('eqBands',b);}} onClickCapture={handleRestrictedAction} />
                             </div>
                         </div>
 
                         {/* CENTER: MIXER (4 Cols) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
+                             {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
                                 <div className="flex gap-2">
-                                    <button onClick={onMusicUploadClick} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors">{musicFileName ? 'REPLACE' : 'ADD MUSIC'}</button>
+                                    <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) onMusicUploadClick(); }} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors">{musicFileName ? 'REPLACE' : 'ADD MUSIC'}</button>
                                     <div className="relative flex items-center">
-                                        <button onClick={() => setAutoDucking(!autoDucking)} className={`text-[9px] px-2 py-1 rounded border font-bold uppercase transition-all ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>DUCKING</button>
+                                        <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setAutoDucking(!autoDucking); }} className={`text-[9px] px-2 py-1 rounded border font-bold uppercase transition-all ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>DUCKING</button>
                                         {duckingActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></div>}
                                     </div>
                                 </div>
@@ -972,9 +1002,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     onChange={setMusicVolume} 
                                     color="amber" 
                                     height="h-full max-h-[180px]" 
-                                    disabled={!musicFileName} 
+                                    disabled={!musicFileName && isPaidUser} 
                                     muted={isMusicMuted}
                                     onMuteToggle={() => setIsMusicMuted(!isMusicMuted)}
+                                    onClickCapture={handleRestrictedAction}
                                 />
                                 <Fader 
                                     label="SOUND" 
@@ -984,19 +1015,21 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     disabled={!voiceBuffer} 
                                     muted={isVoiceMuted}
                                     onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)}
+                                    onClickCapture={handleRestrictedAction}
                                 />
                              </div>
                         </div>
 
                         {/* RIGHT: PRESETS (4 Cols - 2x4 Grid) */}
-                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96">
+                        <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
+                             {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
                              </div>
                              <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
                                  <button 
-                                    onClick={() => {stopPlayback(); setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});}} 
+                                    onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) {stopPlayback(); setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});} }} 
                                     className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                 >
                                     RESET DEFAULT
@@ -1004,7 +1037,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 {AUDIO_PRESETS.slice(1).map(p => (
                                     <button 
                                         key={p.name} 
-                                        onClick={() => {stopPlayback(); setPresetName(p.name); setSettings({...p.settings});}} 
+                                        onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) {stopPlayback(); setPresetName(p.name); setSettings({...p.settings});} }} 
                                         className={`w-full px-1 py-4 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-[10px] flex items-center justify-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
                                         title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
                                     >
@@ -1017,17 +1050,20 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
                     {/* Bottom Knobs */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center">
+                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
+                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Time Stretch</div>
-                            <Knob label="SPEED" value={settings.speed * 50} min={25} max={100} onChange={(v) => updateSetting('speed', v/50)} />
+                            <Knob label="SPEED" value={settings.speed * 50} min={25} max={100} onChange={(v) => updateSetting('speed', v/50)} onClickCapture={handleRestrictedAction} />
                         </div>
-                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center">
+                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
+                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Ambience</div>
-                            <Knob label="REVERB" value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} />
+                            <Knob label="REVERB" value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} onClickCapture={handleRestrictedAction} />
                         </div>
-                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center">
+                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
+                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Dynamics</div>
-                            <Knob label="COMPRESSOR" value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" />
+                            <Knob label="COMPRESSOR" value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" onClickCapture={handleRestrictedAction} />
                         </div>
                     </div>
                 </div>
