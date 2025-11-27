@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error: any) {
         console.error("Translation Error:", error);
 
-        // Handle Quota/Rate Limit Errors Gracefully
+        // Graceful handling for Quota/Rate Limit Errors
         if (error.message && (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED') || error.message.includes('quota'))) {
             return res.status(429).json({ 
                 error: "Translation service busy. Please try again later." 
