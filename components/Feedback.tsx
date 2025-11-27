@@ -226,23 +226,31 @@ const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
                 ) : (
                     <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                         {feedbacks.map(item => {
-                            const direction = getDirection(item.comment);
-                            const alignClass = direction === 'rtl' ? 'text-right' : 'text-left';
+                            // Detect direction for EACH item individually
+                            const itemDirection = getDirection(item.comment);
                             
                             return (
-                                <div key={item.id} className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 animate-fade-in">
-                                    <div className="flex justify-between items-start">
-                                        <p className="font-bold text-cyan-400">{item.name || 'Anonymous'}</p>
-                                        <div className="flex items-center">
-                                            {[...Array(5)].map((_, i) => (
-                                                <StarIcon key={i} className={i < item.rating ? 'text-yellow-400' : 'text-slate-600'} />
-                                            ))}
+                                <div 
+                                    key={item.id} 
+                                    dir={itemDirection} // Set container direction based on content
+                                    className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 animate-fade-in"
+                                >
+                                    <div className="flex justify-between items-start gap-4">
+                                        <div className="flex flex-col">
+                                            <p className="font-bold text-cyan-400">{item.name || 'Anonymous'}</p>
+                                            <div className="flex items-center">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <StarIcon key={i} className={`w-4 h-4 ${i < item.rating ? 'text-yellow-400' : 'text-slate-600'}`} />
+                                                ))}
+                                            </div>
                                         </div>
+                                        <p className="text-xs text-slate-500 whitespace-nowrap pt-1" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                                            {formatTimestamp(item.createdAt, language)}
+                                        </p>
                                     </div>
-                                    <p className={`text-slate-300 my-2 ${alignClass}`} dir={direction}>
+                                    <p className="text-slate-300 mt-2 leading-relaxed">
                                         {item.comment}
                                     </p>
-                                    <p className="text-xs text-slate-500 text-right">{formatTimestamp(item.createdAt, language)}</p>
                                 </div>
                             );
                         })}
