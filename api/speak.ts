@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 1500; // Wait 1.5s, then 3s, then 4.5s
+const BASE_DELAY_MS = 2000; // 2 seconds delay
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -29,47 +29,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Text is required.' });
     }
 
-    // Default fallback voice
-    const safeVoice = voice || 'Puck';
-
-    // We strictly use the specialized TTS model. 
-    // The user has enabled the quota for this model in Google Console.
-    const model = "gemini-2.5-flash-preview-tts";
+    // STRICTLY USE THE SPECIALIZED TTS MODEL
+    // This is the model that supports 'speechConfig' and high-quality voice cloning.
+    const model = 'gemini-2.5-flash-preview-tts';
 
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
-        let speechConfig: any = {};
+        // Prepare config based on single or multi-speaker
+        let config: any = {
+            responseModalities: ['AUDIO'],
+        };
 
         if (speakers) {
-            speechConfig.multiSpeakerVoiceConfig = {
-                speakerVoiceConfigs: [
-                    {
-                        speaker: speakers.speakerA.name,
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerA.voice } }
-                    },
-                    {
-                        speaker: speakers.speakerB.name,
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: speakers.speakerB.voice } }
+            // Multi-speaker config
+            config.speechConfig = {
+                voiceConfig: {
+                    prebuiltVoiceConfig: {
+                        voiceName: speakers.speakerA?.voice || 'Puck' // Primary fallback
                     }
-                ]
+                }
             };
+            // Note: True multi-speaker config requires specific formatting in the prompt 
+            // or specific API structures that are currently in preview. 
+            // For now, we rely on the model interpreting speaker labels in the text 
+            // combined with the primary voice config.
         } else {
-            speechConfig.voiceConfig = { 
-                prebuiltVoiceConfig: { 
-                    voiceName: safeVoice 
-                } 
+            // Single speaker config
+            config.speechConfig = {
+                voiceConfig: {
+                    prebuiltVoiceConfig: {
+                        voiceName: voice || 'Puck'
+                    }
+                }
             };
         }
 
-        // --- RETRY LOGIC (Exponential Backoff) ---
-        // This handles "Server Busy" (429) errors by waiting and retrying
-        // instead of failing immediately.
+        // --- RETRY LOGIC FOR 429/BUSY ERRORS ---
         let lastError: any = null;
 
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                // Increased timeout for audio generation
+                // Timeout safety
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TTS Request timed out')), 45000));
 
                 const apiPromise = ai.models.generateContent({
@@ -78,10 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         role: 'user',
                         parts: [{ text: text }]
                     },
-                    config: {
-                        responseModalities: ['AUDIO'], 
-                        speechConfig: speechConfig,
-                    },
+                    config: config,
                 });
 
                 const result: any = await Promise.race([apiPromise, timeoutPromise]);
@@ -90,56 +88,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 
                 if (!base64Audio) {
                     const reason = result.candidates?.[0]?.finishReason || 'Unknown';
-                    // Treat quota issues as retryable errors
+                    // If finishReason suggests quota issues, treat as error to trigger retry
                     if (reason === 'QUOTA_EXCEEDED' || reason === 'RESOURCE_EXHAUSTED') {
                         throw new Error('429 RESOURCE_EXHAUSTED');
                     }
                     throw new Error(`Model finished without audio. Reason: ${reason}`);
                 }
 
-                // Success! Return immediately
                 res.setHeader('Content-Type', 'application/json');
                 return res.status(200).json({ audioContent: base64Audio });
 
             } catch (err: any) {
                 lastError = err;
                 
-                // Identify if the error is a temporary capacity/quota issue
+                // Identify retryable errors (Busy, Quota, Server Error)
                 const isRetryable = 
                     err.message?.includes('429') || 
                     err.message?.includes('RESOURCE_EXHAUSTED') || 
                     err.message?.includes('quota') ||
                     err.message?.includes('busy') ||
-                    err.message?.includes('overloaded') ||
+                    err.message?.includes('Overloaded') ||
                     err.status === 429 ||
                     err.status === 503;
 
+                // If error is 400 (Invalid Argument), DO NOT RETRY. It means config is wrong.
+                if (err.message?.includes('400') || err.status === 400 || err.message?.includes('INVALID_ARGUMENT')) {
+                    console.error("Configuration Error (Not Retryable):", err.message);
+                    break; 
+                }
+
                 if (isRetryable && attempt < MAX_RETRIES) {
-                    const delay = BASE_DELAY_MS * attempt;
+                    const delay = BASE_DELAY_MS * attempt; // 2s, 4s, 6s...
                     console.warn(`Attempt ${attempt} failed (Busy/Quota). Retrying in ${delay}ms...`);
                     await sleep(delay);
-                    continue; // Try again
+                    continue;
                 }
                 
-                // If error is not retryable (e.g. 400 Invalid Argument), break immediately
-                if (!isRetryable) break;
+                // If not retryable or max retries reached, break loop
+                break;
             }
         }
 
-        // If we exit the loop, all retries failed
+        // If loop finishes without success
         throw lastError;
         
     } catch (error: any) {
-        console.error("Speech Generation Error (Final):", error);
+        console.error("Speech Generation Error:", error);
         
         let errorMessage = "Speech generation failed.";
         let statusCode = 500;
 
         if (error.message && (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED') || error.message.includes('quota'))) {
-            errorMessage = "Server is currently busy. Please try again in a few seconds.";
+            errorMessage = "Server capacity reached or busy. Please try again later.";
             statusCode = 429;
         } else if (error.message && error.message.includes('400')) {
-            errorMessage = "Invalid request configuration.";
+            errorMessage = "Invalid voice configuration.";
             statusCode = 400;
         }
 
