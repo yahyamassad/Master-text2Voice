@@ -434,7 +434,8 @@ const App: React.FC = () => {
     window.speechSynthesis.onvoiceschanged = refreshVoices;
     const intervalId = setInterval(refreshVoices, 1000);
     const keepAliveInterval = setInterval(() => {
-        if (window.speechSynthesis && window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+        // FIX: Only resume if it was NOT explicitly paused by the user AND is currently playing
+        if (window.speechSynthesis && window.speechSynthesis.speaking && !window.speechSynthesis.paused && !isPausedRef.current && activePlayer) {
             window.speechSynthesis.pause();
             window.speechSynthesis.resume();
         }
@@ -447,7 +448,7 @@ const App: React.FC = () => {
         if (window.speechSynthesis) window.speechSynthesis.cancel();
          if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
     };
-  }, [refreshVoices]); 
+  }, [refreshVoices, activePlayer]); 
 
   useEffect(() => {
     try {
@@ -679,7 +680,35 @@ const App: React.FC = () => {
                     clearTimeout(warmUpTimer);
                     clearTimeout(clientTimeout);
                     if (err.message !== 'Aborted' && err.name !== 'AbortError') {
-                        console.error("Audio generation failed:", err);
+                        // Fallback logic for Quota or Server Errors:
+                        // If gemini fails, try to use System Voices automatically as a failover
+                        // so the user experience isn't completely broken.
+                        console.error("Audio generation failed, attempting fallback:", err);
+                        
+                        if (err.message && (err.message.includes('429') || err.message.includes('500') || err.message.includes('busy') || err.message.includes('quota'))) {
+                             showToast("Gemini AI busy. Falling back to System Voice.", 'info');
+                             
+                             // Switch to system voice temporarily for this request
+                             setIsLoading(false);
+                             setActivePlayer(null);
+                             
+                             // Find best matching system voice
+                             const langCode = target === 'source' ? sourceLang : targetLang;
+                             const fallbackVoice = systemVoices.find(v => v.lang.startsWith(langCode)) || systemVoices[0];
+                             
+                             if (fallbackVoice) {
+                                 // Trigger system speech manually
+                                 const utterance = new SpeechSynthesisUtterance(text);
+                                 utterance.voice = fallbackVoice;
+                                 utterance.rate = speed;
+                                 nativeUtteranceRef.current = utterance;
+                                 utterance.onstart = () => { setActivePlayer(target); setIsPaused(false); };
+                                 utterance.onend = () => { setActivePlayer(null); setIsPaused(false); nativeUtteranceRef.current = null; };
+                                 window.speechSynthesis.speak(utterance);
+                                 return; // Exit here, handled by fallback
+                             }
+                        }
+                        
                         showToast(err.message || t('errorUnexpected', uiLanguage), 'error');
                     }
                     setIsLoading(false);
@@ -1156,19 +1185,22 @@ const App: React.FC = () => {
               return {
                   icon: <PlayCircleIcon className="w-6 h-6" />,
                   label: t('resumeSpeaking', uiLanguage),
-                  className: "bg-amber-600/90 border-amber-400 text-white hover:bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+                  className: "bg-amber-600/90 border-amber-400 text-white hover:bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]",
+                  showStop: true
               };
           }
           return {
               icon: <PauseIcon className="w-6 h-6 animate-pulse" />,
               label: t('pauseSpeaking', uiLanguage),
-              className: "bg-slate-800 border-cyan-400 text-cyan-400 hover:bg-slate-700 hover:text-white shadow-[0_0_20px_rgba(34,211,238,0.3)]"
+              className: "bg-slate-800 border-cyan-400 text-cyan-400 hover:bg-slate-700 hover:text-white shadow-[0_0_20px_rgba(34,211,238,0.3)]",
+              showStop: true
           };
       }
       return {
           icon: <SpeakerIcon className="w-6 h-6" />,
           label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage),
-          className: "bg-slate-800 border-cyan-500/30 text-cyan-500 hover:bg-slate-700 hover:border-cyan-400 hover:text-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+          className: "bg-slate-800 border-cyan-500/30 text-cyan-500 hover:bg-slate-700 hover:border-cyan-400 hover:text-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]",
+          showStop: false
       };
   };
 
@@ -1355,12 +1387,24 @@ const App: React.FC = () => {
                 </div>
                 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-4 relative">
-                     <ActionButton
-                        icon={sourceButtonState.icon}
-                        onClick={() => handleSpeak(sourceText, 'source')}
-                        label={sourceButtonState.label}
-                        className={`w-full sm:w-auto flex-1 max-w-xs ${sourceButtonState.className}`}
-                    />
+                     <div className="flex-1 w-full flex items-center justify-end gap-2 max-w-xs">
+                        <ActionButton
+                            icon={sourceButtonState.icon}
+                            onClick={() => handleSpeak(sourceText, 'source')}
+                            label={sourceButtonState.label}
+                            className={`w-full ${sourceButtonState.className}`}
+                        />
+                        {/* DISTINCT STOP BUTTON */}
+                        {(activePlayer === 'source') && (
+                            <button
+                                onClick={stopAll}
+                                className="h-16 w-16 bg-red-600 hover:bg-red-500 text-white rounded-xl border-2 border-red-400 shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in"
+                                title={t('stopSpeaking', uiLanguage)}
+                            >
+                                <StopIcon className="w-8 h-8" />
+                            </button>
+                        )}
+                     </div>
                     
                     <button
                         onClick={handleToggleListening}
@@ -1374,13 +1418,25 @@ const App: React.FC = () => {
                         <MicrophoneIcon className="h-8 w-8" />
                     </button>
 
-                    <ActionButton
-                        icon={targetButtonState.icon}
-                        onClick={() => handleSpeak(translatedText, 'target')}
-                        label={targetButtonState.label}
-                        disabled={!translatedText.trim()}
-                        className={`w-full sm:w-auto flex-1 max-w-xs ${targetButtonState.className}`}
-                    />
+                    <div className="flex-1 w-full flex items-center justify-start gap-2 max-w-xs">
+                        <ActionButton
+                            icon={targetButtonState.icon}
+                            onClick={() => handleSpeak(translatedText, 'target')}
+                            label={targetButtonState.label}
+                            disabled={!translatedText.trim()}
+                            className={`w-full ${targetButtonState.className}`}
+                        />
+                        {/* DISTINCT STOP BUTTON */}
+                        {(activePlayer === 'target') && (
+                            <button
+                                onClick={stopAll}
+                                className="h-16 w-16 bg-red-600 hover:bg-red-500 text-white rounded-xl border-2 border-red-400 shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in"
+                                title={t('stopSpeaking', uiLanguage)}
+                            >
+                                <StopIcon className="w-8 h-8" />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
             </div>
@@ -1432,7 +1488,7 @@ const App: React.FC = () => {
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </main>
         <footer className="w-full pt-4 pb-2 text-center text-slate-500 text-[10px] font-bold border-t border-slate-800 tracking-widest uppercase flex flex-col gap-1">
-             <p>© {new Date().getFullYear()} Sawtli Pro • Audio Workstation v4.0</p>
+             <p>© 2025 Sawtli. All rights reserved.</p>
              <button onClick={() => setIsPrivacyOpen(true)} className="hover:text-slate-300 transition-colors underline decoration-slate-700">
                  {uiLanguage === 'ar' ? 'الخصوصية وشروط الاستخدام' : 'Privacy Policy & Terms'}
              </button>
