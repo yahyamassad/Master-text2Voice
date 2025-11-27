@@ -86,10 +86,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error: any) {
         console.error("Speech Generation Error:", error);
         
-        // Handle Quota/Rate Limit Errors Gracefully
+        // Graceful handling for Quota/Rate Limit Errors
+        // This prevents showing raw JSON to the user
         if (error.message && (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED') || error.message.includes('quota'))) {
             return res.status(429).json({ 
-                error: "Server usage limit reached. Please check Google Cloud billing or try again later." 
+                error: "Server capacity reached or busy. Please try again later." 
             });
         }
 
