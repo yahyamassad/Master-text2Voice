@@ -29,7 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const model = "gemini-2.5-flash-preview-tts";
+        // SWITCHED TO STANDARD FLASH MODEL TO FIX QUOTA ISSUES
+        const model = "gemini-2.5-flash";
         
         let speechConfig: any = {};
 
