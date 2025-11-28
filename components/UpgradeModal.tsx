@@ -37,7 +37,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
     };
 
     return (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[70] p-4 animate-fade-in-down" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[200] p-4 animate-fade-in-down" onClick={onClose}>
             <div className="bg-slate-900 border border-slate-700 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
                 
                 <div className="p-6 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
