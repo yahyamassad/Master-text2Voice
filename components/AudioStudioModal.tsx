@@ -305,7 +305,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             e.preventDefault();
             e.stopPropagation();
             setShowUpgradeAlert(true);
-            setTimeout(() => setShowUpgradeAlert(false), 3000);
+            // Removed timeout here as it conflicts with the "Upgrade Now" button
         }
     };
 
@@ -476,10 +476,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
                     const totalDur = processedVoice ? processedVoice.duration : (musicBuffer ? musicBuffer.duration : 0);
                     
-                    // --- SECURITY CHECK: PREVIEW LIMIT (15s) for non-paid ---
-                    // REMOVED 15s CHECK TO AVOID CONFLICT WITH NEW LOCK STRATEGY
-                    // Non-paid users can preview AI voice fully, but cannot use other features.
-
                     // REAL-TIME MIXING LOGIC (Using Refs to bypass stale closures)
                     const currentMusicVol = isMusicMutedRef.current ? 0 : (musicVolumeRef.current / 100);
                     const currentVoiceVol = isVoiceMutedRef.current ? 0 : (voiceVolumeRef.current / 100);
@@ -618,7 +614,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const onMusicUploadClick = () => { 
         if (!isPaidUser) {
             setShowUpgradeAlert(true);
-            setTimeout(() => setShowUpgradeAlert(false), 3000);
             return;
         }
         musicInputRef.current?.click(); 
@@ -736,7 +731,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         // Block switch to Upload or Mic tab for non-paid
         if ((tab === 'upload' || tab === 'mic') && !isPaidUser) {
             setShowUpgradeAlert(true);
-            setTimeout(() => setShowUpgradeAlert(false), 3000);
             return;
         }
 
@@ -789,15 +783,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     {/* Visualizer & Timeline */}
                     <div className="bg-[#020617] rounded-xl border border-slate-800 overflow-hidden relative shadow-2xl group">
                         {showUpgradeAlert && (
-                            <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-down pointer-events-none">
-                                <div className="text-center bg-slate-900 border border-amber-500 p-6 rounded-xl shadow-2xl pointer-events-auto">
+                            <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-down pointer-events-auto" onClick={(e) => {e.stopPropagation(); setShowUpgradeAlert(false);}}>
+                                <div className="text-center bg-slate-900 border border-amber-500 p-6 rounded-xl shadow-2xl" onClick={e => e.stopPropagation()}>
                                     <div className="text-2xl font-bold text-white mb-2">
                                         {uiLanguage === 'ar' ? 'ميزة مقفلة' : 'Locked Feature'}
                                     </div>
                                     <p className="text-slate-400 mb-4">
                                         {uiLanguage === 'ar' ? 'يتوفر استوديو الصوت الكامل للمشتركين فقط.' : 'Full Audio Studio access is available for subscribers only.'}
                                     </p>
-                                    <button onClick={onUpgrade} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide transition-colors">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (onUpgrade) onUpgrade();
+                                            setShowUpgradeAlert(false); // Close alert after triggering upgrade
+                                        }}
+                                        className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide transition-colors"
+                                    >
                                         {uiLanguage === 'ar' ? 'ترقية الآن' : 'Upgrade Now'}
                                     </button>
                                 </div>
