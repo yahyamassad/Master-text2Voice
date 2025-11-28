@@ -1,3 +1,4 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
@@ -7,8 +8,10 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
+        
         const config = {
-            apiKey: process.env.API_KEY,
+            apiKey: apiKey,
             firebaseConfig: {
                 apiKey: process.env.VITE_FIREBASE_API_KEY,
                 authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -23,7 +26,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
         const isFirebaseConfigured = Object.values(config.firebaseConfig).every(value => value && value.trim() !== '');
 
         if (!isApiKeyConfigured) {
-             return res.status(500).json({ error: 'Server configuration error: Gemini API_KEY is missing.' });
+             return res.status(500).json({ error: 'Server configuration error: SAWTLI_GEMINI_KEY is missing.' });
         }
 
         res.status(200).json({
