@@ -34,104 +34,110 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const client = new GoogleGenAI({ apiKey });
 
-    // USE GEMINI 2.0 FLASH EXPERIMENTAL
-    // This model supports native audio generation via responseModalities: ['AUDIO']
-    // It has separate quotas from the dedicated TTS models.
-    const MODEL_NAME = 'gemini-2.0-flash-exp';
+    // STRATEGY:
+    // 1. Try the Specialized TTS Model (Best Quality, restricted quota 15/day for free tier)
+    // 2. If Quota Exceeded (429), Fallback to Multimodal Model (Good Quality, separate quota)
+    
+    const MODEL_HQ = 'gemini-2.5-flash-preview-tts';
+    const MODEL_FALLBACK = 'gemini-2.0-flash-exp';
 
-    // Map legacy voice names to Prompt Instructions since 2.0 doesn't support 'speechConfig'
-    const getVoiceInstruction = (voiceName: string) => {
-        switch (voiceName) {
-            case 'Puck': return 'Use a clear, confident Male voice with a British undertone.';
-            case 'Charon': return 'Use a deep, authoritative Male voice.';
-            case 'Fenrir': return 'Use an energetic, fast-paced Male voice.';
-            case 'Kore': return 'Use a calm, soothing Female voice.';
-            case 'Zephyr': return 'Use a bright, cheerful Female voice.';
-            default: return 'Use a clear, professional narration voice.';
-        }
+    // Prepare Config for HQ Model
+    const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
+    const speechConfig = {
+        voiceConfig: {
+            prebuiltVoiceConfig: {
+                voiceName: selectedVoiceName,
+            },
+        },
     };
 
-    const selectedVoice = speakers?.speakerA?.voice || voice || 'Puck';
-    const voicePrompt = getVoiceInstruction(selectedVoice);
-    
-    // Construct the prompt to ensure audio output
-    // We wrap the user text to ensure the model reads it and doesn't just chat about it.
-    const finalPrompt = `
-    Task: Read the following text aloud.
-    Style: ${voicePrompt}
-    
-    Text to read:
-    "${text}"
-    `;
-
     // Retry configuration
-    const MAX_RETRIES = 2;
-    const BASE_DELAY = 1500;
+    const MAX_RETRIES = 1; // Keep low to failover quickly
+    
+    // --- ATTEMPT 1: HIGH QUALITY TTS ---
+    try {
+        const response = await client.models.generateContent({
+            model: MODEL_HQ,
+            contents: {
+                role: 'user',
+                parts: [{ text: text }]
+            },
+            config: {
+                responseModalities: ['AUDIO'],
+                speechConfig: speechConfig,
+            },
+        });
 
-    let lastError: any = null;
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        try {
-            if (attempt > 0) {
-                await delay(BASE_DELAY * attempt);
-            }
-
-            const response = await client.models.generateContent({
-                model: MODEL_NAME,
-                contents: {
-                    role: 'user',
-                    parts: [{ text: finalPrompt }]
-                },
-                config: {
-                    responseModalities: ['AUDIO'], // Critical for 2.0-flash-exp
-                    // NOTE: speechConfig is REMOVED as it causes 400 errors on this model
-                },
-            });
-
-            const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
-            if (audioData) {
-                res.setHeader('Content-Type', 'application/json');
-                return res.status(200).json({ audioContent: audioData, modelUsed: MODEL_NAME });
-            } else {
-                // If model returns text instead of audio (fallback behavior)
-                const textData = response.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (textData) {
-                    console.warn("Model returned text instead of audio:", textData);
-                    throw new Error("Model returned text instead of audio. Please try again.");
-                }
-                throw new Error("API returned no audio data.");
-            }
-
-        } catch (error: any) {
-            lastError = error;
-            const errMsg = error.message || error.toString();
-            console.log(`Attempt ${attempt + 1} failed: ${errMsg}`);
-            
-            const isRetryable = 
-                errMsg.includes('429') || 
-                errMsg.includes('503') || 
-                errMsg.includes('busy') || 
-                errMsg.includes('quota') ||
-                errMsg.includes('RESOURCE_EXHAUSTED');
-
-            if (!isRetryable) break;
+        const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (audioData) {
+            res.setHeader('Content-Type', 'application/json');
+            return res.status(200).json({ audioContent: audioData, modelUsed: MODEL_HQ });
+        }
+    } catch (error: any) {
+        const errMsg = error.message || error.toString();
+        console.warn(`HQ Model failed (${errMsg}). Attempting fallback...`);
+        
+        // Only fallback on specific errors that indicate the model is unavailable or quota exceeded
+        if (!errMsg.includes('429') && !errMsg.includes('quota') && !errMsg.includes('busy') && !errMsg.includes('503')) {
+             // If it's a logic error (like invalid key), fail immediately
+             return res.status(500).json({ error: "Generation failed.", details: errMsg });
         }
     }
 
-    console.error("Speak API Final Error:", lastError);
-    
-    let statusCode = 500;
-    let errorMessage = "Failed to generate speech.";
-    const errString = lastError?.message || lastError?.toString() || '';
+    // --- ATTEMPT 2: FALLBACK MULTIMODAL (Gemini 2.0) ---
+    // Critical: 2.0 Does NOT support speechConfig. We must use Prompt Engineering instead.
+    try {
+        await delay(1000); // Brief pause before fallback
 
-    if (errString.includes('429') || errString.includes('quota')) {
-        statusCode = 429;
-        errorMessage = "Server busy. Please try again in a moment.";
-    } else if (errString.includes('400')) {
-        statusCode = 400;
-        errorMessage = "Invalid Request. The 2.0 model might be temporarily unstable.";
+        // Map voice name to a text description for the model
+        const getVoicePrompt = (vName: string) => {
+            switch (vName) {
+                case 'Puck': return 'British Male';
+                case 'Charon': return 'Deep Male';
+                case 'Fenrir': return 'Fast Male';
+                case 'Kore': return 'Calm Female';
+                case 'Zephyr': return 'Cheerful Female';
+                default: return 'Professional';
+            }
+        };
+        
+        const voiceStyle = getVoicePrompt(selectedVoiceName);
+        const prompt = `Read the following text aloud with a ${voiceStyle} voice: "${text}"`;
+
+        const response = await client.models.generateContent({
+            model: MODEL_FALLBACK,
+            contents: {
+                role: 'user',
+                parts: [{ text: prompt }]
+            },
+            config: {
+                responseModalities: ['AUDIO'],
+                // speechConfig REMOVED for 2.0 compatibility
+            },
+        });
+
+        const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+
+        if (audioData) {
+            res.setHeader('Content-Type', 'application/json');
+            return res.status(200).json({ audioContent: audioData, modelUsed: MODEL_FALLBACK });
+        } else {
+             // Sometimes 2.0 returns text if it refuses to generate audio
+             throw new Error("Fallback model returned no audio.");
+        }
+
+    } catch (fallbackError: any) {
+        console.error("Fallback failed:", fallbackError);
+        
+        const errString = fallbackError.message || fallbackError.toString();
+        let statusCode = 500;
+        let clientMsg = "Server busy. Please try again later.";
+
+        if (errString.includes('429') || errString.includes('quota')) {
+            statusCode = 429;
+            clientMsg = "Server capacity reached. Please try again later.";
+        }
+
+        return res.status(statusCode).json({ error: clientMsg, details: errString });
     }
-
-    return res.status(statusCode).json({ error: errorMessage, details: errString });
 }
