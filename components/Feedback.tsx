@@ -226,29 +226,31 @@ const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
                 ) : (
                     <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                         {feedbacks.map(item => {
-                            // Detect direction for EACH item individually
+                            // Detect direction based on the comment's content
                             const itemDirection = getDirection(item.comment);
+                            // Detect direction for the name specifically
+                            const nameDirection = getDirection(item.name);
                             
                             return (
                                 <div 
                                     key={item.id} 
-                                    dir={itemDirection} // Set container direction based on content
+                                    dir={itemDirection} 
                                     className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 animate-fade-in"
                                 >
-                                    <div className="flex justify-between items-start gap-4">
+                                    <div className="flex justify-between items-start gap-4" dir={nameDirection}>
                                         <div className="flex flex-col">
-                                            <p className="font-bold text-cyan-400">{item.name || 'Anonymous'}</p>
-                                            <div className="flex items-center">
+                                            <p className="font-bold text-cyan-400 text-lg">{item.name || 'Anonymous'}</p>
+                                            <div className="flex items-center mt-1">
                                                 {[...Array(5)].map((_, i) => (
                                                     <StarIcon key={i} className={`w-4 h-4 ${i < item.rating ? 'text-yellow-400' : 'text-slate-600'}`} />
                                                 ))}
                                             </div>
                                         </div>
-                                        <p className="text-xs text-slate-500 whitespace-nowrap pt-1" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                                        <p className="text-xs text-slate-500 whitespace-nowrap pt-1">
                                             {formatTimestamp(item.createdAt, language)}
                                         </p>
                                     </div>
-                                    <p className="text-slate-300 mt-2 leading-relaxed">
+                                    <p className="text-slate-300 mt-3 leading-relaxed text-sm">
                                         {item.comment}
                                     </p>
                                 </div>
