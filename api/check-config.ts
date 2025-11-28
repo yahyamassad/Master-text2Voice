@@ -14,7 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const env = process.env;
   
-  const apiKey = env.API_KEY;
+  // Check for specific key first, then generic
+  const apiKey = env.SAWTLI_GEMINI_KEY || env.API_KEY;
   
   // Server-side Firebase Admin variables
   const firebaseProject = env.FIREBASE_PROJECT_ID;
@@ -43,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           responseData.details.gemini = `Invalid Format`;
       }
   } else {
-      responseData.details.gemini = 'Missing (Check API_KEY)';
+      responseData.details.gemini = 'Missing (Check SAWTLI_GEMINI_KEY)';
   }
 
   // 2. Check Firebase Project ID
