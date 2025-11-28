@@ -429,6 +429,7 @@ const App: React.FC = () => {
       }
   }, [voice]);
 
+  // Effect for system voices keep-alive - separated from AudioContext cleanup
   useEffect(() => {
     refreshVoices();
     window.speechSynthesis.onvoiceschanged = refreshVoices;
@@ -446,9 +447,17 @@ const App: React.FC = () => {
         clearInterval(intervalId);
         clearInterval(keepAliveInterval);
         if (window.speechSynthesis) window.speechSynthesis.cancel();
-         if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
     };
   }, [refreshVoices, activePlayer]); 
+
+  // Separate effect for AudioContext cleanup ONLY on unmount
+  useEffect(() => {
+      return () => {
+         if (audioContextRef.current) {
+             audioContextRef.current.close().catch(() => {});
+         }
+      };
+  }, []);
 
   useEffect(() => {
     try {
@@ -1398,10 +1407,10 @@ const App: React.FC = () => {
                         {(activePlayer === 'source') && (
                             <button
                                 onClick={stopAll}
-                                className="h-16 w-16 bg-slate-800 hover:bg-slate-700 text-red-500 border-2 border-red-500/50 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group"
+                                className="h-16 w-16 bg-red-600 hover:bg-red-500 text-white border-2 border-red-400 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group"
                                 title={t('stopSpeaking', uiLanguage)}
                             >
-                                <div className="w-6 h-6 bg-red-500 rounded-sm group-hover:scale-110 transition-transform"></div>
+                                <div className="w-6 h-6 bg-white rounded-sm group-hover:scale-110 transition-transform"></div>
                             </button>
                         )}
                      </div>
@@ -1430,10 +1439,10 @@ const App: React.FC = () => {
                         {(activePlayer === 'target') && (
                             <button
                                 onClick={stopAll}
-                                className="h-16 w-16 bg-slate-800 hover:bg-slate-700 text-red-500 border-2 border-red-500/50 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group"
+                                className="h-16 w-16 bg-red-600 hover:bg-red-500 text-white border-2 border-red-400 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group"
                                 title={t('stopSpeaking', uiLanguage)}
                             >
-                                <div className="w-6 h-6 bg-red-500 rounded-sm group-hover:scale-110 transition-transform"></div>
+                                <div className="w-6 h-6 bg-white rounded-sm group-hover:scale-110 transition-transform"></div>
                             </button>
                         )}
                     </div>
