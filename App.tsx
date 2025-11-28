@@ -1224,11 +1224,6 @@ const App: React.FC = () => {
             <div className="flex items-center justify-between mb-3">
                 <LanguageSelect value={sourceLang} onChange={setSourceLang} />
                 <div className="flex items-center gap-2">
-                     {sourceText && (
-                        <button onClick={() => {setSourceText(''); setTranslatedText('');}} className="p-2 text-slate-500 hover:text-red-400 transition-colors">
-                            <TrashIcon className="w-5 h-5" />
-                        </button>
-                     )}
                      <div className="relative" ref={effectsDropdownRef}>
                         <button 
                             onClick={() => setIsEffectsOpen(!isEffectsOpen)}
@@ -1270,6 +1265,19 @@ const App: React.FC = () => {
                     dir={isSourceRtl ? 'rtl' : 'ltr'}
                     spellCheck="false"
                 />
+                
+                {/* Trash Icon moved to bottom-left */}
+                {sourceText && (
+                    <button 
+                        onClick={() => {setSourceText(''); setTranslatedText('');}} 
+                        className="absolute bottom-4 left-4 p-2 bg-slate-800/80 hover:bg-red-900/80 text-slate-500 hover:text-red-400 rounded-lg transition-all border border-slate-700 hover:border-red-500/50"
+                        title={uiLanguage === 'ar' ? 'مسح النص' : 'Clear Text'}
+                    >
+                        <TrashIcon className="w-4 h-4" />
+                    </button>
+                )}
+
+                {/* Char Count bottom-right */}
                 <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-500 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
                     {sourceText.length} chars
                 </div>
@@ -1303,6 +1311,10 @@ const App: React.FC = () => {
                     className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`}
                     dir={isTargetRtl ? 'rtl' : 'ltr'}
                 />
+                {/* Translated Char Count added here */}
+                <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-600 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
+                    {translatedText.length} chars
+                </div>
             </div>
         </div>
     );
