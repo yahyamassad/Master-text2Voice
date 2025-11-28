@@ -25,7 +25,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        // Support specific naming convention first, fallback to generic
+        const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
+        const ai = new GoogleGenAI({ apiKey: apiKey });
         const model = 'gemini-2.5-flash';
 
         const systemInstruction = `You are a professional translator. Translate user input from ${sourceLang} to ${targetLang}. Output ONLY the translated text.`;
