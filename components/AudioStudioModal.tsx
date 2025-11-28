@@ -181,7 +181,7 @@ const Fader: React.FC<{
                 title={`${label}: ${value}`}
                 disabled={disabled}
                 {...({ orient: "vertical" } as any)}
-                style={{ WebkitAppearance: 'slider-vertical' } as any}
+                style={{ writingMode: 'vertical-lr', direction: 'rtl' } as any}
             />
             <div className={`absolute bottom-0 left-0 w-full rounded-full pointer-events-none ${glowColor}`} style={{ height: `${((value - min) / (max - min)) * 100}%` }}></div>
             <div 
@@ -203,7 +203,7 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
     <div className="flex flex-col items-center h-full group w-full" onClickCapture={onClickCapture}>
          <div className="relative flex-grow w-full max-w-[30px] sm:max-w-[40px] flex justify-center bg-black/50 rounded-md mb-2 border border-slate-800 min-h-[120px]">
              <div className="absolute top-1/2 left-0 w-full h-px bg-slate-700"></div>
-            <input type="range" min="-12" max="12" value={value} onChange={(e) => onChange(parseInt(e.target.value, 10))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ WebkitAppearance: 'slider-vertical' } as any} />
+            <input type="range" min="-12" max="12" value={value} onChange={(e) => onChange(parseInt(e.target.value, 10))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" style={{ writingMode: 'vertical-lr', direction: 'rtl' } as any} />
             <div className={`absolute w-1.5 rounded-full transition-all duration-75 ${value === 0 ? 'bg-slate-700 h-0.5 top-1/2' : 'bg-cyan-600/50 left-1/2 -translate-x-1/2'}`} style={ value !== 0 ? { bottom: value > 0 ? '50%' : `calc(50% - ${Math.abs(value)/24 * 100}%)`, height: `${Math.abs(value)/24 * 100}%` } : {}}></div>
             <div className="absolute left-1/2 -translate-x-1/2 w-6 sm:w-8 h-3 sm:h-4 bg-[#334155] rounded shadow-md border border-slate-600 pointer-events-none flex items-center justify-center" style={{ bottom: `calc(${((value + 12) / 24) * 100}% - 8px)` }}>
                 <div className={`w-3 sm:w-4 h-1 rounded-sm ${value > 0 ? 'bg-cyan-400' : (value < 0 ? 'bg-amber-500' : 'bg-slate-400')}`}></div>
