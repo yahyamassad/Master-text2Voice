@@ -24,16 +24,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Text is required.' });
     }
 
-    const apiKey = process.env.API_KEY;
+    // Support specific naming convention first (SAWTLI_GEMINI_KEY), fallback to generic API_KEY
+    const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
+    
     if (!apiKey) {
-        return res.status(500).json({ error: 'Server Error: API Key missing.' });
+        return res.status(500).json({ error: 'Server Error: SAWTLI_GEMINI_KEY is missing in Vercel Env Vars.' });
     }
 
     const client = new GoogleGenAI({ apiKey });
 
-    // STRATEGY: Use the specialized TTS models.
-    // Primary: 'gemini-2.5-flash-tts' (Production version, likely better quotas)
-    // Fallback: 'gemini-2.5-flash-preview-tts' (Preview version, stricter quotas)
+    // STRATEGY: Use the specialized TTS models identified in Google Console.
+    // 1. 'gemini-2.5-flash-tts' (Production version - User confirmed 100 quota)
+    // 2. 'gemini-2.5-flash-preview-tts' (Preview version - Fallback)
     const MODELS_TO_TRY = ['gemini-2.5-flash-tts', 'gemini-2.5-flash-preview-tts'];
     
     const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
@@ -81,18 +83,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.warn(`Attempt ${attempt} failed for ${modelName}: ${errMsg}`);
 
                     // If it's a 400/404 (Model not found/Invalid), don't retry this model, go to next model
-                    if (errMsg.includes('400') || errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('valid')) {
-                        throw err; // Break out of retry loop, catch in outer loop
+                    if (errMsg.includes('400') || errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('valid') || errMsg.includes('modality')) {
+                        throw err; // Break out of retry loop
                     }
 
                     // If it's a 429/503 (Busy/Quota), retry with backoff
                     if (errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota') || errMsg.includes('overloaded')) {
-                        if (attempt === MAX_RETRIES) throw err; // Exhausted retries for this model
-                        await delay(1500 * attempt); // 1.5s, 3s, 4.5s
+                        if (attempt === MAX_RETRIES) throw err;
+                        // Exponential backoff: 2s, 4s, 6s...
+                        await delay(2000 * attempt); 
                         continue;
                     }
 
-                    throw err; // Other errors, try next model
+                    throw err; // Other errors
                 }
             }
 
@@ -105,11 +108,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // If we reach here, all models failed
     const finalErrorMessage = lastError?.message || "Unknown error";
+    console.error("All TTS models failed. Final error:", finalErrorMessage);
     
     // Check for API Key restriction error specifically (403)
-    if (finalErrorMessage.includes('403') || finalErrorMessage.includes('permission')) {
+    if (finalErrorMessage.includes('403') || finalErrorMessage.includes('permission') || finalErrorMessage.includes('not have permission')) {
         return res.status(403).json({ 
-            error: "API Key Permission Error. Please remove 'Website Restrictions' from your API Key in Google Cloud Console.",
+            error: "API Key Permission Error. Please check Vercel Env Vars and ensure the Key has 'None' or correct Website Restrictions.",
             details: finalErrorMessage
         });
     }
