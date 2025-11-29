@@ -162,31 +162,28 @@ export async function processAudio(
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // Reverb tail padding
-    const reverbTail = settings.reverb > 0 ? 3.0 : 1.0; 
+    // Explicit padding to prevent cutoff - Generous 6s
+    const END_PADDING = 6.0; 
     
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
     
-    // Calculate effective voice end time
+    // Calculate effective voice end time accounting for DELAY AND SPEED
     if (sourceBuffer) {
-        // (Duration / Speed) + Start Delay
+        // Formula: Delay + (Real Voice Duration)
         absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
     }
-    
-    // Explicit padding to prevent cutoff
-    const END_PADDING = 4.0; 
 
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: Voice End + Reverb Tail + Explicit Padding
-            outputDuration = absoluteVoiceEnd + reverbTail + END_PADDING;
+            // Trim mode: Voice End + Padding
+            outputDuration = absoluteVoiceEnd + END_PADDING;
         } else {
             // Full mode: Longest of either (voice + padding) or music
-            outputDuration = Math.max(absoluteVoiceEnd + reverbTail + END_PADDING, backgroundMusicBuffer.duration);
+            outputDuration = Math.max(absoluteVoiceEnd + END_PADDING, backgroundMusicBuffer.duration);
         }
     } else if (sourceBuffer) {
-        outputDuration = absoluteVoiceEnd + reverbTail + END_PADDING;
+        outputDuration = absoluteVoiceEnd + END_PADDING;
     } else if (backgroundMusicBuffer) {
         outputDuration = backgroundMusicBuffer.duration;
     }
@@ -348,8 +345,8 @@ export async function processAudio(
         // Apply Fade Out at the very end if Trimming
         if (trimToVoice && sourceBuffer) {
             // Start fading out music significantly AFTER voice ends + reverb
-            // We use absoluteVoiceEnd + 1.0s to ensure full voice clarity before music fades
-            const safeFadeStart = absoluteVoiceEnd + 1.0; 
+            // We use absoluteVoiceEnd + 1.5s to ensure full voice clarity before music fades
+            const safeFadeStart = absoluteVoiceEnd + 1.5; 
             
             // Cancel any automations at this point to take control
             try { 
