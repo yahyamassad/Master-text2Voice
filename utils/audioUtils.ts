@@ -161,10 +161,12 @@ export async function processAudio(
     
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
-    const reverbTail = settings.reverb > 0 ? 3.0 : 0.5; // Increased padding
+    
+    // Increased reverb tail padding significantly to prevent cutoffs
+    const reverbTail = settings.reverb > 0 ? 5.0 : 2.5; 
     
     // Fade out duration for music
-    const FADE_OUT_DURATION = 2.0; 
+    const FADE_OUT_DURATION = 3.0; 
     
     let outputDuration = 1.0;
     let voiceEndTime = 0;
@@ -176,15 +178,15 @@ export async function processAudio(
     
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: Duration = Delay + Voice duration + tail + EXTRA BUFFER
-            // Crucial fix: Added ample padding to prevent cutoff
-            outputDuration = voiceEndTime + FADE_OUT_DURATION + 1.0; 
+            // Trim mode: Duration = End of voice + Fade Out + Safety Buffer
+            // We add extra 4 seconds to be absolutely sure no words are cut
+            outputDuration = voiceEndTime + FADE_OUT_DURATION + 4.0; 
         } else {
             // Full mode: Duration is the longest of either (voice + delay) or music
             outputDuration = Math.max(voiceEndTime, backgroundMusicBuffer.duration);
         }
     } else if (sourceBuffer) {
-        outputDuration = voiceEndTime;
+        outputDuration = voiceEndTime + 2.0; // Extra padding for voice only too
     } else if (backgroundMusicBuffer) {
         outputDuration = backgroundMusicBuffer.duration;
     }
@@ -330,14 +332,14 @@ export async function processAudio(
         // Apply Fade Out at the very end if Trimming
         if (trimToVoice && sourceBuffer) {
             // Fade out the music elegantly at the end of the calculated duration
-            // We use exponential ramp for natural fade
-            const fadeStart = Math.max(0, outputDuration - FADE_OUT_DURATION);
+            // Use outputDuration minus fade duration, ensuring we don't cut into the voice tail
+            const safeFadeStart = Math.max(0, outputDuration - FADE_OUT_DURATION);
             
             // Cancel automation to take control
             try { 
-                musicGain.gain.cancelScheduledValues(fadeStart); 
+                musicGain.gain.cancelScheduledValues(safeFadeStart); 
                 // Set value explicitly at fade start to ensure continuity from previous automation
-                musicGain.gain.setValueAtTime(musicGain.gain.value, fadeStart);
+                musicGain.gain.setValueAtTime(musicGain.gain.value, safeFadeStart);
             } catch(e){}
             
             musicGain.gain.linearRampToValueAtTime(0.0001, outputDuration);
