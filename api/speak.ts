@@ -33,10 +33,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const client = new GoogleGenAI({ apiKey });
 
-    // CONFIRMED MODEL: gemini-2.5-flash-tts
-    // Status: Paid Tier 1
-    // Quota: 10 RPM (Requests Per Minute) / 100 RPD (Requests Per Day)
-    const MODEL_NAME = 'gemini-2.5-flash-tts';
+    // REVERTED TO WORKING ENDPOINT: gemini-2.5-flash-preview-tts
+    // The name 'gemini-2.5-flash-tts' seen in quotas appears to be internal only and fails via API.
+    const MODEL_NAME = 'gemini-2.5-flash-preview-tts';
     
     const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
 
@@ -44,9 +43,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     try {
-        // Robust Retry Logic for 10 RPM Limit
-        // We try 5 times with increasing delays to handle the "speed limit"
-        const MAX_RETRIES = 5;
+        // Retry Logic
+        const MAX_RETRIES = 3;
         
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
@@ -75,19 +73,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             } catch (err: any) {
                 const errMsg = err.message || err.toString();
+                // 429: Too Many Requests, 503: Service Unavailable
                 const isRateLimit = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota');
 
                 if (isRateLimit) {
-                    console.warn(`Attempt ${attempt} hit rate limit (10 RPM). Retrying in ${attempt * 2}s...`);
+                    console.warn(`Attempt ${attempt} hit rate limit. Retrying in ${attempt * 1000}ms...`);
                     if (attempt === MAX_RETRIES) throw err;
-                    
-                    // Exponential backoff: 2s, 4s, 6s, 8s...
-                    // Essential for the strict 10 requests/minute limit
-                    await delay(2000 * attempt); 
+                    await delay(1000 * attempt); 
                     continue;
                 }
 
-                // If it's not a rate limit error (e.g. 400 Invalid Argument), fail immediately
+                // If it's a 404 (Model Not Found) or 400 (Invalid Argument), fail immediately
                 throw err;
             }
         }
@@ -95,17 +91,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error: any) {
         console.error(`Final Failure with ${MODEL_NAME}:`, error.message);
         
-        // Detailed error for client handling
-        if (error.message.includes('429') || error.message.includes('quota')) {
+        // Return the EXACT error from Google to help debugging
+        const errorMessage = error.message || "Unknown error";
+
+        if (errorMessage.includes('429') || errorMessage.includes('quota')) {
             return res.status(429).json({ 
-                error: "Server capacity reached (10 requests/min limit). Please wait a moment and try again.",
-                details: error.message
+                error: "Server capacity reached. Please wait a moment and try again.",
+                details: errorMessage
             });
         }
 
         return res.status(500).json({ 
             error: "Generation failed.", 
-            details: error.message 
+            details: errorMessage // Show the real reason (e.g., Model not found)
         });
     }
     
