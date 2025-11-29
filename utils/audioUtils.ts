@@ -158,14 +158,16 @@ export async function processAudio(
     
     const speed = settings.speed || 1.0;
     const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
-    const FADE_OUT_DURATION = 3.0; // 3 Seconds Fade Out
+    
+    // IMPORTANT: Add 3 seconds for music fade out to avoid abrupt cuts
+    const FADE_OUT_DURATION = 3.0; 
     
     let outputDuration = 1.0;
     let voiceEndTime = 0;
     
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: Duration = Voice duration (scaled) + reverb tail + fade out time
+            // Trim mode: Duration = Voice duration (scaled) + reverb tail + EXTRA FADE OUT TIME
             const voiceDur = (sourceBuffer.duration / speed);
             voiceEndTime = voiceDur + reverbTail;
             outputDuration = voiceEndTime + FADE_OUT_DURATION;
@@ -269,8 +271,9 @@ export async function processAudio(
 
         // Apply Fade Out if Trimming
         if (trimToVoice && sourceBuffer) {
-            // Maintain volume until voice ends (plus reverb)
-            musicGain.gain.setValueAtTime(startVolume, Math.max(0, voiceEndTime));
+            // Maintain volume until voice ends (plus reverb tail)
+            const fadeStart = Math.max(0, voiceEndTime);
+            musicGain.gain.setValueAtTime(startVolume, fadeStart);
             // Linear fade to 0 over FADE_OUT_DURATION
             musicGain.gain.linearRampToValueAtTime(0, outputDuration);
         }
@@ -353,33 +356,55 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
             if (!lamejs) throw new Error("lamejs not loaded");
 
             let mp3encoder: any;
-            let pcmData: Int16Array;
-            let rate = sampleRate;
-            let channels = 1;
             
-            if (buffer instanceof AudioBuffer) {
-                const ch0 = buffer.getChannelData(0);
-                pcmData = new Int16Array(ch0.length);
-                for (let i = 0; i < ch0.length; i++) {
-                    let s = Math.max(-1, Math.min(1, ch0[i]));
-                    pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            // LAMEJS configuration for Stereo
+            const channels = buffer instanceof AudioBuffer ? buffer.numberOfChannels : 1;
+            const rate = buffer instanceof AudioBuffer ? buffer.sampleRate : sampleRate;
+            
+            mp3encoder = new lamejs.Mp3Encoder(channels, rate, bitrate);
+
+            // Prepare Left/Right channels for LAME
+            let leftData: Int16Array;
+            let rightData: Int16Array | undefined;
+
+            const floatTo16BitPCM = (input: Float32Array) => {
+                const output = new Int16Array(input.length);
+                for (let i = 0; i < input.length; i++) {
+                    const s = Math.max(-1, Math.min(1, input[i]));
+                    output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
-                rate = buffer.sampleRate;
+                return output;
+            };
+
+            if (buffer instanceof AudioBuffer) {
+                leftData = floatTo16BitPCM(buffer.getChannelData(0));
+                if (channels > 1) {
+                    rightData = floatTo16BitPCM(buffer.getChannelData(1));
+                } else {
+                    // If source is Mono but we want Stereo output (rare but possible), duplicate left to right
+                    // However, LAME handles mono input fine if initialized with 1 channel.
+                    // Here we assume if buffer says 2 channels, it has 2.
+                }
             } else {
+                // PCM Uint8Array input (assumed mono)
                 const b = buffer.byteLength % 2 === 0 ? buffer : buffer.subarray(0, buffer.byteLength - 1);
-                pcmData = new Int16Array(b.buffer, b.byteOffset, b.byteLength / 2);
-                rate = 24000;
+                leftData = new Int16Array(b.buffer, b.byteOffset, b.byteLength / 2);
             }
 
             const mp3Data = [];
             const sampleBlockSize = 1152;
             
-            // Use the requested bitrate (e.g., 320)
-            mp3encoder = new lamejs.Mp3Encoder(channels, rate, bitrate);
-
-            for (let i = 0; i < pcmData.length; i += sampleBlockSize) {
-                const chunk = pcmData.subarray(i, i + sampleBlockSize);
-                const mp3buf = mp3encoder.encodeBuffer(chunk);
+            for (let i = 0; i < leftData.length; i += sampleBlockSize) {
+                const leftChunk = leftData.subarray(i, i + sampleBlockSize);
+                let mp3buf;
+                
+                if (rightData) {
+                    const rightChunk = rightData.subarray(i, i + sampleBlockSize);
+                    mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+                } else {
+                    mp3buf = mp3encoder.encodeBuffer(leftChunk);
+                }
+                
                 if (mp3buf.length > 0) mp3Data.push(mp3buf);
             }
             
