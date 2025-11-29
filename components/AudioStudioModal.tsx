@@ -192,7 +192,7 @@ const Fader: React.FC<{
              </button>
         )}
 
-        <div className={`relative w-3 sm:w-4 bg-black rounded-full border border-slate-800 ${height} mb-2 shadow-inner`}>
+        <div className={`relative w-4 sm:w-5 bg-black rounded-full border border-slate-800 ${height} mb-2 shadow-inner`}>
             <input
                 type="range"
                 min={min}
@@ -208,7 +208,7 @@ const Fader: React.FC<{
             />
             <div className={`absolute bottom-0 left-0 w-full rounded-full pointer-events-none ${glowColor}`} style={{ height: `${((value - min) / (max - min)) * 100}%` }}></div>
             <div 
-                className="absolute left-1/2 -translate-x-1/2 w-6 sm:w-8 h-4 sm:h-5 bg-gradient-to-b from-slate-600 to-slate-900 rounded shadow-lg border-t border-slate-500 border-b-2 border-black pointer-events-none flex items-center justify-center"
+                className="absolute left-1/2 -translate-x-1/2 w-8 sm:w-10 h-4 sm:h-5 bg-gradient-to-b from-slate-600 to-slate-900 rounded shadow-lg border-t border-slate-500 border-b-2 border-black pointer-events-none flex items-center justify-center"
                 style={{ bottom: `calc(${((value - min) / (max - min)) * 100}% - 10px)` }}
             >
                  <div className="w-full h-px bg-black opacity-50"></div>
@@ -1178,10 +1178,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                              
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
-                                <div className="flex gap-2">
-                                    <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) onMusicUploadClick(); }} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors">ADD</button>
-                                    <div className="relative flex items-center">
-                                        <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setAutoDucking(!autoDucking); }} className={`text-[9px] px-2 py-1 rounded border font-bold uppercase transition-all ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>DUCKING</button>
+                                <div className="grid grid-cols-2 gap-2 w-full max-w-[140px]">
+                                    <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) onMusicUploadClick(); }} className="text-[9px] bg-slate-800 h-6 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors flex items-center justify-center">ADD MUSIC</button>
+                                    <div className="relative w-full h-6">
+                                        <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setAutoDucking(!autoDucking); }} className={`w-full h-full text-[9px] rounded border font-bold uppercase transition-all flex items-center justify-center ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>DUCKING</button>
                                         {duckingActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></div>}
                                     </div>
                                 </div>
@@ -1192,7 +1192,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     label="VOICE" 
                                     value={voiceVolume} 
                                     onChange={setVoiceVolume} 
-                                    height="h-full max-h-[120px]" 
+                                    height="h-48" 
                                     disabled={!voiceBuffer} 
                                     muted={isVoiceMuted}
                                     onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)}
@@ -1200,7 +1200,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 />
                                 
                                 {/* Voice Delay Knob - CENTERED */}
-                                <div className="flex flex-col items-center justify-end pb-1 mx-2">
+                                <div className="flex flex-col items-center justify-center pb-6 mx-2 h-full">
                                     <Knob 
                                         label="DELAY" 
                                         value={voiceDelay} 
@@ -1212,34 +1212,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         displaySuffix="s"
                                         size="md"
                                     />
-                                    <div className="mt-4 w-full" ref={libraryMenuRef}>
-                                        <button 
-                                            onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setIsLibraryOpen(!isLibraryOpen); }}
-                                            className="w-full flex items-center justify-between text-[10px] bg-slate-900 border border-slate-700 px-2 py-1 rounded text-slate-400 hover:text-white hover:border-slate-500 transition-colors"
-                                        >
-                                            <span className="truncate max-w-[60px]">{activeMusicTrack ? activeMusicTrack.name : 'Select...'}</span>
-                                            <ChevronDownIcon className={`w-3 h-3 transition-transform ${isLibraryOpen ? 'rotate-180' : ''}`} />
-                                        </button>
-                                        
-                                        {isLibraryOpen && (
-                                            <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#0f172a] border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                                {musicLibrary.length > 0 ? (
-                                                    musicLibrary.map(track => (
-                                                        <div 
-                                                            key={track.id} 
-                                                            onClick={() => { setActiveMusicId(track.id); setIsLibraryOpen(false); }} 
-                                                            className={`flex items-center justify-between p-2 cursor-pointer rounded hover:bg-slate-800 transition-colors ${activeMusicId === track.id ? 'bg-slate-800 text-amber-400' : 'text-slate-400'}`}
-                                                        >
-                                                            <span className="text-[10px] truncate max-w-[100px] font-bold">{track.name}</span>
-                                                            <button onClick={(e) => removeTrackFromLibrary(e, track.id)} className="text-slate-600 hover:text-red-500 p-1"><TrashIcon className="w-3 h-3"/></button>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="text-[9px] text-center text-slate-500 py-2">No tracks</div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
                                 </div>
 
                                 <Fader 
@@ -1247,13 +1219,43 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     value={musicVolume} 
                                     onChange={setMusicVolume} 
                                     color="amber" 
-                                    height="h-full max-h-[120px]" 
+                                    height="h-48" 
                                     disabled={!musicFileName && isPaidUser} 
                                     muted={isMusicMuted}
                                     onMuteToggle={() => setIsMusicMuted(!isMusicMuted)}
                                     onClickCapture={handleRestrictedAction}
                                 />
                              </div>
+                             
+                             {/* Music Library Drop-up */}
+                             <div className="absolute bottom-4 left-0 right-0 px-5" ref={libraryMenuRef}>
+                                <button 
+                                    onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setIsLibraryOpen(!isLibraryOpen); }}
+                                    className="w-full flex items-center justify-between text-[10px] bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:border-slate-500 transition-colors shadow-lg"
+                                >
+                                    <span className="truncate flex-1 text-left font-bold">{activeMusicTrack ? activeMusicTrack.name : 'Select Music Track...'}</span>
+                                    <ChevronDownIcon className={`w-3 h-3 transition-transform ml-2 ${isLibraryOpen ? 'rotate-180' : ''}`} />
+                                </button>
+                                
+                                {isLibraryOpen && (
+                                    <div className="absolute bottom-full left-5 right-5 mb-2 bg-[#0f172a] border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1 animate-fade-in">
+                                        {musicLibrary.length > 0 ? (
+                                            musicLibrary.map(track => (
+                                                <div 
+                                                    key={track.id} 
+                                                    onClick={() => { setActiveMusicId(track.id); setIsLibraryOpen(false); }} 
+                                                    className={`flex items-center justify-between p-2 cursor-pointer rounded hover:bg-slate-800 transition-colors ${activeMusicId === track.id ? 'bg-slate-800 text-amber-400' : 'text-slate-400'}`}
+                                                >
+                                                    <span className="text-[10px] truncate max-w-[150px] font-bold">{track.name}</span>
+                                                    <button onClick={(e) => removeTrackFromLibrary(e, track.id)} className="text-slate-600 hover:text-red-500 p-1"><TrashIcon className="w-3 h-3"/></button>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-[10px] text-center text-slate-500 py-4 italic">No tracks loaded</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* RIGHT: PRESETS (4 Cols - 2x4 Grid) */}
