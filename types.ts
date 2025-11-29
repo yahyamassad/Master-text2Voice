@@ -50,6 +50,13 @@ export interface AudioPreset {
     settings: AudioSettings;
 }
 
+export interface MusicTrack {
+    id: string;
+    name: string;
+    buffer: AudioBuffer;
+    duration: number;
+}
+
 // --- STRATEGY: SMART TRIAL (14 Days / 5000 Chars / 350 Daily) ---
 
 export const PLAN_LIMITS = {
