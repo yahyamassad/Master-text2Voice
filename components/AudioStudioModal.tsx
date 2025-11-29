@@ -320,17 +320,20 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     // Update total file duration
     useEffect(() => {
         let total = 0;
-        const voiceEnd = voiceBuffer ? voiceBuffer.duration + voiceDelay : 0;
+        const currentSpeed = settings.speed || 1.0;
+        // CORRECTED: Calculate Voice End based on Delay + (Duration / Speed)
+        const voiceEnd = voiceBuffer ? voiceDelay + (voiceBuffer.duration / currentSpeed) : 0;
         const musicEnd = musicBuffer ? musicBuffer.duration : 0;
 
         if (trimToVoice && voiceBuffer) {
-            // Include tail buffer in the UI timeline
-            total = voiceEnd + 3.0; 
+            // Include tail buffer in the UI timeline. 
+            // Matching utils/audioUtils.ts calculation: absoluteVoiceEnd + 6.0s padding
+            total = voiceEnd + 6.0; 
         } else {
             total = Math.max(voiceEnd, musicEnd);
         }
         setFileDuration(Math.max(1, total));
-    }, [voiceBuffer, musicBuffer, voiceDelay, trimToVoice]);
+    }, [voiceBuffer, musicBuffer, voiceDelay, trimToVoice, settings.speed]);
 
     // Real-time Audio Graph Refs
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -520,12 +523,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         const requestId = playRequestIdRef.current + 1;
         playRequestIdRef.current = requestId;
 
-        // Calculate Limits
-        const voiceEnd = (voiceBuffer ? voiceBuffer.duration + voiceDelay : 0);
+        // Calculate Limits - CORRECTED FORMULA
+        const currentSpeed = settingsRef.current.speed || 1.0;
+        const vDelay = voiceDelayRef.current;
+        const voiceEnd = (voiceBuffer ? vDelay + (voiceBuffer.duration / currentSpeed) : 0);
         const musicEnd = musicBuffer ? musicBuffer.duration : 0;
         let primaryDuration = Math.max(voiceEnd, musicEnd);
+        
         if (trimToVoice && voiceBuffer) {
-            primaryDuration = voiceEnd + 3.0;
+            // Ensure visual playback follows the exact same 6s padding logic
+            primaryDuration = voiceEnd + 6.0;
         }
 
         // Loop if at end
@@ -538,7 +545,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const ctx = getAudioContext();
             if (ctx.state === 'suspended') await ctx.resume();
             
-            const vDelay = voiceDelayRef.current;
             const currentOffset = playbackOffsetRef.current;
 
             // --- VOICE GRAPH ---
@@ -550,7 +556,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             if (voiceBuffer) {
                 vSource = ctx.createBufferSource();
                 vSource.buffer = voiceBuffer;
-                vSource.playbackRate.value = settingsRef.current.speed;
+                vSource.playbackRate.value = currentSpeed;
                 
                 vGain = ctx.createGain();
                 vGain.gain.value = isVoiceMuted ? 0 : (voiceVolume / 100);
@@ -616,9 +622,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 if (currentOffset < vDelay) {
                     vSource.start(ctx.currentTime + (vDelay - currentOffset), 0);
                 } else {
-                    const startPos = currentOffset - vDelay;
-                    if (startPos < voiceBuffer.duration) {
-                        vSource.start(0, startPos);
+                    // Logic to handle skipping into the middle of the voice track accounting for speed
+                    // offsetInVoice = (elapsedTimeSinceDelay) * speed
+                    const timeIntoVoice = currentOffset - vDelay;
+                    const offsetInSample = timeIntoVoice * currentSpeed;
+                    
+                    if (offsetInSample < voiceBuffer.duration) {
+                        vSource.start(0, offsetInSample);
                     }
                 }
             }
@@ -664,11 +674,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     const currentSegmentTime = ctx.currentTime - playbackStartTimeRef.current;
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
                     
-                    // Duration Check
-                    const vEnd = (voiceBuffer) ? (voiceDelayRef.current + voiceBuffer.duration) : 0;
+                    // Duration Check (Real-time calculation to respect speed/delay changes)
+                    const curSpeed = settingsRef.current.speed || 1.0;
+                    const curDelay = voiceDelayRef.current;
+                    const vEnd = (voiceBuffer) ? (curDelay + (voiceBuffer.duration / curSpeed)) : 0;
                     const mEnd = musicBuffer ? musicBuffer.duration : 0;
                     let liveTotalDur = Math.max(vEnd, mEnd);
-                    if (trimToVoiceRef.current && voiceBuffer) liveTotalDur = vEnd + 3.0;
+                    
+                    if (trimToVoiceRef.current && voiceBuffer) {
+                        liveTotalDur = vEnd + 6.0; // Matching padding
+                    }
                     
                     // --- REAL-TIME DUCKING ---
                     if (mGain) {
@@ -678,7 +693,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
                         if (autoDuckingRef.current && duckingAnalyser && !isMusicMutedRef.current && !isVoiceMutedRef.current) {
                             // Only duck if we are past the delay point (voice is hypothetically active)
-                            if (actualTime >= voiceDelayRef.current) {
+                            if (actualTime >= curDelay) {
                                 const dataArray = new Uint8Array(duckingAnalyser.frequencyBinCount);
                                 duckingAnalyser.getByteTimeDomainData(dataArray);
                                 
@@ -1231,7 +1246,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 />
                              </div>
                              
-                             {/* Music Library - Push to bottom, Dropdown (Downwards) */}
+                             {/* Music Library - Push to bottom, Dropdown (DOWNWARDS) */}
                              <div className="mt-auto pt-2 w-full relative z-20" ref={libraryMenuRef}>
                                 <button 
                                     onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setIsLibraryOpen(!isLibraryOpen); }}
@@ -1242,7 +1257,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 </button>
                                 
                                 {isLibraryOpen && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f172a] border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1 animate-fade-in">
+                                    <div className="absolute top-full left-0 right-0 mt-4 bg-[#0f172a] border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1 animate-fade-in">
                                         {musicLibrary.length > 0 ? (
                                             musicLibrary.map(track => (
                                                 <div 
