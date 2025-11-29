@@ -251,8 +251,7 @@ export async function processAudio(
         const musicSource = offlineCtx.createBufferSource();
         musicSource.buffer = backgroundMusicBuffer;
         
-        // Loop logic: Always loop if music is shorter than output duration (which is based on voice in trim mode)
-        // OR if explicitly not trimming and music is shorter than voice.
+        // Loop logic: Always loop if music is shorter than output duration
         if (outputDuration > backgroundMusicBuffer.duration) {
              musicSource.loop = true;
         } else {
@@ -260,23 +259,20 @@ export async function processAudio(
         }
         
         const musicGain = offlineCtx.createGain();
-        // Ducking: if autoDucking is on AND we have voice, reduce music volume by default
-        // A simpler offline approach for ducking is fixed reduction, since dynamic analysis is hard offline without complex script processors.
-        // For accurate offline ducking, we assume "Voice Exists = Duck Everything".
         const duckingFactor = (autoDucking && sourceBuffer && voiceVolume > 0) ? 0.25 : 1.0;
         const startVolume = (musicVolume / 100) * duckingFactor;
         
+        // FIX: Explicitly set value property for T=0 to ensure initial volume is active
+        musicGain.gain.value = startVolume; 
         musicGain.gain.setValueAtTime(startVolume, 0);
 
         // Apply Fade Out if Trimming
         if (trimToVoice && sourceBuffer) {
-            // Ensure we don't try to schedule ramps in the past or beyond buffer end
             const safeFadeStart = Math.min(Math.max(0, voiceEndTime), outputDuration - 0.5);
-            // Ensure fade out happens within the buffer duration
             const safeFadeEnd = Math.min(outputDuration, safeFadeStart + FADE_OUT_DURATION);
             
-            // Only apply ramp if we have time
             if (safeFadeEnd > safeFadeStart) {
+                // Anchor the start point of the ramp to ensure steady volume before fade
                 musicGain.gain.setValueAtTime(startVolume, safeFadeStart);
                 musicGain.gain.linearRampToValueAtTime(0, safeFadeEnd);
             }
