@@ -85,8 +85,9 @@ const Knob: React.FC<{
     max?: number, 
     onChange: (val: number) => void, 
     color?: string,
-    onClickCapture?: (e: React.MouseEvent) => void 
-}> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan', onClickCapture }) => {
+    onClickCapture?: (e: React.MouseEvent) => void,
+    displaySuffix?: string
+}> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan', onClickCapture, displaySuffix = '' }) => {
     const percentage = (value - min) / (max - min);
     const rotation = -135 + (percentage * 270); 
 
@@ -104,15 +105,30 @@ const Knob: React.FC<{
     };
     
     const isPurple = color === 'purple';
+    const isGreen = color === 'green';
+
+    let borderColor = 'border-cyan-900/50 group-hover:border-cyan-500/50';
+    let tickColor = 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]';
+    let textColor = 'text-cyan-300';
+
+    if (isPurple) {
+        borderColor = 'border-purple-900/50 group-hover:border-purple-500/50';
+        tickColor = 'bg-purple-400 shadow-[0_0_8px_#a855f7]';
+        textColor = 'text-purple-300';
+    } else if (isGreen) {
+        borderColor = 'border-green-900/50 group-hover:border-green-500/50';
+        tickColor = 'bg-green-400 shadow-[0_0_8px_#4ade80]';
+        textColor = 'text-green-300';
+    }
 
     return (
         <div className="flex flex-col items-center group cursor-pointer" onWheel={handleWheel} onClick={onClickCapture}>
-             <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${isPurple ? 'border-purple-900/50 group-hover:border-purple-500/50' : 'border-cyan-900/50 group-hover:border-cyan-500/50'} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
+             <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${borderColor} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
                  <div className="absolute w-full h-full rounded-full pointer-events-none" style={{ transform: `rotate(${rotation}deg)` }}>
-                     <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-2.5 rounded-full ${isPurple ? 'bg-purple-400 shadow-[0_0_8px_#a855f7]' : 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'}`}></div>
+                     <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-2.5 rounded-full ${tickColor}`}></div>
                  </div>
                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0f172a] border border-slate-700 flex items-center justify-center shadow-inner">
-                     <span className={`text-xs sm:text-sm font-mono font-bold select-none pointer-events-none ${isPurple ? 'text-purple-300' : 'text-cyan-300'}`}>{Math.round(value)}</span>
+                     <span className={`text-[10px] sm:text-xs font-mono font-bold select-none pointer-events-none ${textColor}`}>{Math.round(value * 10) / 10}{displaySuffix}</span>
                  </div>
              </div>
              <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">{label}</span>
@@ -222,6 +238,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     // Volume & Mute Controls
     const [voiceVolume, setVoiceVolume] = useState(80);
     const [musicVolume, setMusicVolume] = useState(40);
+    const [voiceDelay, setVoiceDelay] = useState(0); // NEW: Delay in seconds
     const [isVoiceMuted, setIsVoiceMuted] = useState(false);
     const [isMusicMuted, setIsMusicMuted] = useState(false);
     const [autoDucking, setAutoDucking] = useState(false);
@@ -269,6 +286,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const isMusicMutedRef = useRef(isMusicMuted);
     const isVoiceMutedRef = useRef(isVoiceMuted);
     const autoDuckingRef = useRef(autoDucking);
+    const voiceDelayRef = useRef(voiceDelay);
     
     // Sync Refs with State
     useEffect(() => { musicVolumeRef.current = musicVolume; }, [musicVolume]);
@@ -276,6 +294,21 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     useEffect(() => { isMusicMutedRef.current = isMusicMuted; }, [isMusicMuted]);
     useEffect(() => { isVoiceMutedRef.current = isVoiceMuted; }, [isVoiceMuted]);
     useEffect(() => { autoDuckingRef.current = autoDucking; }, [autoDucking]);
+    useEffect(() => { voiceDelayRef.current = voiceDelay; }, [voiceDelay]);
+
+    // Update total file duration when Delay changes
+    useEffect(() => {
+        let total = 0;
+        if (voiceBuffer) {
+            total = voiceBuffer.duration + voiceDelay;
+        }
+        if (musicBuffer) {
+            // In playback, we usually scroll based on longest track or just logic
+            // Here, let's say total is max of voice end and music end
+            total = Math.max(total, musicBuffer.duration);
+        }
+        setFileDuration(total);
+    }, [voiceBuffer, musicBuffer, voiceDelay]);
 
     // Real-time Audio Graph Refs
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -348,7 +381,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         if (activeTab === 'ai' && sourceAudioPCM) {
             const buf = rawPcmToAudioBuffer(sourceAudioPCM);
             setVoiceBuffer(buf);
-            setFileDuration(buf.duration);
+            // Duration updates via effect above
             setFileName(`Gemini ${voice} Session`);
         }
     }, [activeTab, sourceAudioPCM, voice]);
@@ -391,7 +424,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
         if (!voiceBuffer && !musicBuffer) return;
         
-        const primaryDuration = voiceBuffer ? voiceBuffer.duration : (musicBuffer ? musicBuffer.duration : 0);
+        const primaryDuration = Math.max(
+            (voiceBuffer ? voiceBuffer.duration + voiceDelay : 0), 
+            (musicBuffer ? musicBuffer.duration : 0)
+        );
 
         if (playbackOffsetRef.current >= primaryDuration - 0.1) {
             playbackOffsetRef.current = 0;
@@ -410,7 +446,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             let duckingAnalyser: AnalyserNode | null = null;
 
             if (voiceBuffer) {
-                processedVoice = await processAudio(voiceBuffer, settings, null, 0, false, 80, true); 
+                // Apply DSP settings, pass 0 delay here since we schedule start
+                processedVoice = await processAudio(voiceBuffer, settings, null, 0, false, 80, true, 0); 
                 
                 vSource = ctx.createBufferSource();
                 vSource.buffer = processedVoice;
@@ -427,7 +464,19 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 vSource.connect(vGain).connect(visualizerAnalyser).connect(ctx.destination);
                 vSource.connect(duckingAnalyser); 
                 
-                vSource.start(0, playbackOffsetRef.current);
+                // Logic for Delay + Seek:
+                // We want to start the voice at `voiceDelay`.
+                // However, `playbackOffsetRef.current` is the seek position (absolute timeline).
+                // 1. If seek pos < delay: Schedule voice to start at `voiceDelay - seekPos` relative to now. Start buffer at 0.
+                // 2. If seek pos >= delay: Start voice immediately. Start buffer at `seekPos - voiceDelay`.
+                
+                const seekPos = playbackOffsetRef.current;
+                
+                if (seekPos < voiceDelay) {
+                    vSource.start(ctx.currentTime + (voiceDelay - seekPos), 0);
+                } else {
+                    vSource.start(0, seekPos - voiceDelay);
+                }
             }
             
             // --- MUSIC GRAPH ---
@@ -473,7 +522,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 if (ctx.state === 'running') {
                     const currentSegmentTime = ctx.currentTime - playbackStartTimeRef.current;
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
-                    const totalDur = processedVoice ? processedVoice.duration : (musicBuffer ? musicBuffer.duration : 0);
+                    
+                    const voiceEnd = (voiceBuffer && processedVoice) ? (voiceDelay + processedVoice.duration) : 0;
+                    const musicEnd = musicBuffer ? musicBuffer.duration : 0;
+                    const totalDur = Math.max(voiceEnd, musicEnd);
                     
                     // REAL-TIME MIXING LOGIC (Using Refs to bypass stale closures)
                     const currentMusicVol = isMusicMutedRef.current ? 0 : (musicVolumeRef.current / 100);
@@ -489,22 +541,26 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         let targetMusicGain = currentMusicVol;
                         let isDucking = false;
 
+                        // Only check ducking if we are actually past the voice delay
                         if (autoDuckingRef.current && duckingAnalyser && !isMusicMutedRef.current && !isVoiceMutedRef.current) {
-                            const dataArray = new Uint8Array(duckingAnalyser.frequencyBinCount);
-                            duckingAnalyser.getByteTimeDomainData(dataArray);
-                            
-                            let sum = 0;
-                            // Analyze only a portion for speed
-                            for(let i = 0; i < dataArray.length; i+=4) {
-                                const v = (dataArray[i] - 128) / 128;
-                                sum += v*v;
-                            }
-                            const rms = Math.sqrt(sum / (dataArray.length / 4));
-                            const threshold = 0.01; 
-                            
-                            if (rms > threshold) {
-                                targetMusicGain = currentMusicVol * 0.15; // Duck to 15%
-                                isDucking = true;
+                            // Check if voice is actually playing currently (timeline > delay)
+                            if (actualTime >= voiceDelayRef.current) {
+                                const dataArray = new Uint8Array(duckingAnalyser.frequencyBinCount);
+                                duckingAnalyser.getByteTimeDomainData(dataArray);
+                                
+                                let sum = 0;
+                                // Analyze only a portion for speed
+                                for(let i = 0; i < dataArray.length; i+=4) {
+                                    const v = (dataArray[i] - 128) / 128;
+                                    sum += v*v;
+                                }
+                                const rms = Math.sqrt(sum / (dataArray.length / 4));
+                                const threshold = 0.01; 
+                                
+                                if (rms > threshold) {
+                                    targetMusicGain = currentMusicVol * 0.15; // Duck to 15%
+                                    isDucking = true;
+                                }
                             }
                         }
                         
@@ -512,7 +568,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         setDuckingActive(isDucking);
                     }
 
-                    if (processedVoice && actualTime >= totalDur) {
+                    if (actualTime >= totalDur) {
                         setCurrentTime(totalDur);
                         stopPlayback();
                         playbackOffsetRef.current = 0;
@@ -581,7 +637,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 
                 setMicAudioBuffer(decoded);
                 setVoiceBuffer(decoded); 
-                setFileDuration(decoded.duration);
+                // Don't reset delay here, keep user preference
+                // setFileDuration calculated in Effect
                 setFileName(`Recording_${new Date().toLocaleTimeString()}`);
                 playbackOffsetRef.current = 0;
                 setCurrentTime(0);
@@ -651,7 +708,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                  setMicAudioBuffer(decoded);
                  setVoiceBuffer(decoded);
                  setFileName(file.name);
-                 setFileDuration(decoded.duration);
                  setActiveTab('upload');
                  playbackOffsetRef.current = 0;
                  setCurrentTime(0);
@@ -672,13 +728,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     const handleRemoveVoice = (e: React.MouseEvent) => {
         e.stopPropagation();
-        // If it's an uploaded file or recording, allow clearing.
-        // If it's AI audio, clearing it means switching to empty state.
         stopPlayback();
         setVoiceBuffer(null);
         setMicAudioBuffer(null);
         setFileName('No Audio');
-        setFileDuration(0);
         playbackOffsetRef.current = 0;
         setCurrentTime(0);
     };
@@ -704,6 +757,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const finalMusicVolume = (exportSource === 'voice' || isMusicMuted) ? 0 : musicVolume;
 
             // Process with Mixing and Ducking
+            // PASS voiceDelay here!
             const buffer = await processAudio(
                 voiceBuffer, 
                 settings, 
@@ -711,7 +765,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 finalMusicVolume, 
                 autoDucking, 
                 finalVoiceVolume,
-                trimToVoice // Pass the trim flag
+                trimToVoice,
+                voiceDelay // NEW Param
             );
             
             let blob;
@@ -763,18 +818,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             if (sourceAudioPCM) {
                 const buf = rawPcmToAudioBuffer(sourceAudioPCM);
                 setVoiceBuffer(buf);
-                setFileDuration(buf.duration);
                 setFileName(`Gemini ${voice} Session`);
             } else {
                 setVoiceBuffer(null);
             }
         } else if (tab === 'mic') {
              setVoiceBuffer(micAudioBuffer);
-             setFileDuration(micAudioBuffer?.duration || 0);
              setFileName(micAudioBuffer ? "Recording" : "Ready to Record");
         } else {
              setVoiceBuffer(micAudioBuffer);
-             setFileDuration(micAudioBuffer?.duration || 0);
              setFileName("Uploaded File");
         }
         playbackOffsetRef.current = 0;
@@ -1086,7 +1138,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     </div>
 
                     {/* Bottom Knobs */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
                             {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Time Stretch</div>
@@ -1101,6 +1153,21 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Dynamics</div>
                             <Knob label="COMPRESSOR" value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" onClickCapture={handleRestrictedAction} />
+                        </div>
+                        {/* New Voice Delay Knob */}
+                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
+                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Voice Start</div>
+                            <Knob 
+                                label="DELAY (SEC)" 
+                                value={voiceDelay} 
+                                min={0} 
+                                max={10} 
+                                onChange={setVoiceDelay} 
+                                color="green" 
+                                onClickCapture={handleRestrictedAction}
+                                displaySuffix="s"
+                            />
                         </div>
                     </div>
                 </div>
