@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
-import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon } from './icons';
+import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon } from './icons';
 import { AudioSettings, AudioPresetName, UserTier } from '../types';
 import { AUDIO_PRESETS, processAudio, createMp3Blob, createWavBlob, rawPcmToAudioBuffer } from '../utils/audioUtils';
 
@@ -13,7 +13,7 @@ interface AudioStudioModalProps {
     sourceAudioPCM?: Uint8Array | null;
     allowDownloads?: boolean;
     allowStudio?: boolean; 
-    userTier?: UserTier; // Added prop
+    userTier?: UserTier; 
     onUpgrade?: () => void;
 }
 
@@ -225,12 +225,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const [isVoiceMuted, setIsVoiceMuted] = useState(false);
     const [isMusicMuted, setIsMusicMuted] = useState(false);
     const [autoDucking, setAutoDucking] = useState(false);
-    const [duckingActive, setDuckingActive] = useState(false); // Visual indicator
+    const [duckingActive, setDuckingActive] = useState(false); 
     
     // Export Settings
     const [exportFormat, setExportFormat] = useState<'mp3' | 'wav'>('mp3');
     const [exportSource, setExportSource] = useState<'mix' | 'voice'>('mix');
-    const [trimToVoice, setTrimToVoice] = useState(true); // Default: Trim music to voice
+    const [trimToVoice, setTrimToVoice] = useState(true); 
     
     // Buffers
     const [micAudioBuffer, setMicAudioBuffer] = useState<AudioBuffer | null>(null);
@@ -263,7 +263,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const fileInputRef = useRef<HTMLInputElement>(null);
     const musicInputRef = useRef<HTMLInputElement>(null);
     
-    // REFS FOR REAL-TIME LOOP ACCESS (Fixes Slider Lag)
+    // REFS FOR REAL-TIME LOOP ACCESS
     const musicVolumeRef = useRef(musicVolume);
     const voiceVolumeRef = useRef(voiceVolume);
     const isMusicMutedRef = useRef(isMusicMuted);
@@ -305,7 +305,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             e.preventDefault();
             e.stopPropagation();
             setShowUpgradeAlert(true);
-            // Removed timeout here as it conflicts with the "Upgrade Now" button
         }
     };
 
@@ -661,6 +660,29 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
     };
 
+    // --- NEW: REMOVE TRACK HANDLERS ---
+    const handleRemoveMusic = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isPaidUser) return;
+        stopPlayback();
+        setMusicBuffer(null);
+        setMusicFileName(null);
+        setMusicDuration(0);
+    };
+
+    const handleRemoveVoice = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        // If it's an uploaded file or recording, allow clearing.
+        // If it's AI audio, clearing it means switching to empty state.
+        stopPlayback();
+        setVoiceBuffer(null);
+        setMicAudioBuffer(null);
+        setFileName('No Audio');
+        setFileDuration(0);
+        playbackOffsetRef.current = 0;
+        setCurrentTime(0);
+    };
+
     // --- EXPORT ---
     const handleExportClick = () => {
         setShowExportMenu(false);
@@ -795,7 +817,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             if (onUpgrade) onUpgrade();
-                                            setShowUpgradeAlert(false); // Close alert after triggering upgrade
+                                            setShowUpgradeAlert(false); 
                                         }}
                                         className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide transition-colors"
                                     >
@@ -817,7 +839,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 <input type="range" min="0" max={fileDuration || 1} step="0.01" value={currentTime} onChange={handleSeek} disabled={!voiceBuffer && !musicBuffer} className="w-full h-full opacity-0 cursor-pointer z-10" />
                                 <div className="absolute h-3 w-3 bg-white rounded-full shadow pointer-events-none" style={{ left: `calc(${((currentTime / (fileDuration || 1)) * 100)}% - 6px)` }}></div>
                             </div>
-                            <span className="text-slate-400 truncate max-w-[120px]" title={fileName}>{fileName}</span>
+                            <div className="flex items-center gap-2 max-w-[150px]">
+                                <span className="text-slate-400 truncate" title={fileName}>{fileName}</span>
+                                {/* Voice Trash Button */}
+                                {voiceBuffer && (
+                                    <button onClick={handleRemoveVoice} className="text-slate-500 hover:text-red-500 transition-colors" title="Remove Voice">
+                                        <TrashIcon className="w-3 h-3" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -984,11 +1014,17 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                              </div>
                              
                              {/* Music Info Display */}
-                             <div className="w-full bg-black/30 rounded border border-slate-800/50 p-2 mb-4 text-[10px] font-mono flex justify-between items-center text-slate-400 min-h-[32px] shrink-0">
+                             <div className="w-full bg-black/30 rounded border border-slate-800/50 p-2 mb-4 text-[10px] font-mono flex justify-between items-center text-slate-400 min-h-[32px] shrink-0 gap-2">
                                  {musicFileName ? (
                                      <>
-                                        <span className="truncate text-amber-500/80 max-w-[180px]" title={musicFileName}>♪ {musicFileName}</span>
-                                        <span>{Math.floor(musicDuration/60)}:{String(Math.floor(musicDuration%60)).padStart(2,'0')}</span>
+                                        <span className="truncate text-amber-500/80 max-w-[150px]" title={musicFileName}>♪ {musicFileName}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span>{Math.floor(musicDuration/60)}:{String(Math.floor(musicDuration%60)).padStart(2,'0')}</span>
+                                            {/* Music Trash Button */}
+                                            <button onClick={handleRemoveMusic} className="text-slate-600 hover:text-red-500 transition-colors" title="Remove Music">
+                                                <TrashIcon className="w-3 h-3" />
+                                            </button>
+                                        </div>
                                      </>
                                  ) : (
                                      <span className="italic text-slate-600 text-center w-full">No music track loaded</span>
