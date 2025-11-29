@@ -24,110 +24,90 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Text is required.' });
     }
 
-    // Support specific naming convention first (SAWTLI_GEMINI_KEY), fallback to generic API_KEY
+    // Use SAWTLI_GEMINI_KEY as verified in Vercel settings
     const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
     
     if (!apiKey) {
-        return res.status(500).json({ error: 'Server Error: SAWTLI_GEMINI_KEY is missing in Vercel Env Vars.' });
+        return res.status(500).json({ error: 'Server Error: API Key is missing.' });
     }
 
     const client = new GoogleGenAI({ apiKey });
 
-    // STRATEGY: Use the specialized TTS models identified in Google Console.
-    // 1. 'gemini-2.5-flash-tts' (Production version - User confirmed 100 quota)
-    // 2. 'gemini-2.5-flash-preview-tts' (Preview version - Fallback)
-    const MODELS_TO_TRY = ['gemini-2.5-flash-tts', 'gemini-2.5-flash-preview-tts'];
+    // CONFIRMED MODEL: gemini-2.5-flash-tts
+    // Status: Paid Tier 1
+    // Quota: 10 RPM (Requests Per Minute) / 100 RPD (Requests Per Day)
+    const MODEL_NAME = 'gemini-2.5-flash-tts';
     
     const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
 
     // Helper for delay
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    let lastError: any = null;
+    try {
+        // Robust Retry Logic for 10 RPM Limit
+        // We try 5 times with increasing delays to handle the "speed limit"
+        const MAX_RETRIES = 5;
+        
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                const response = await client.models.generateContent({
+                    model: MODEL_NAME,
+                    contents: {
+                        role: 'user',
+                        parts: [{ text: text }]
+                    },
+                    config: {
+                        responseModalities: ['AUDIO'],
+                        speechConfig: {
+                            voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoiceName } }
+                        }
+                    },
+                });
 
-    // Try models in sequence
-    for (const modelName of MODELS_TO_TRY) {
-        try {
-            console.log(`Attempting TTS with model: ${modelName}`);
-            
-            // Retry logic for 429/Busy errors on the CURRENT model
-            const MAX_RETRIES = 3;
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                try {
-                    const response = await client.models.generateContent({
-                        model: modelName,
-                        contents: {
-                            role: 'user',
-                            parts: [{ text: text }]
-                        },
-                        config: {
-                            responseModalities: ['AUDIO'],
-                            speechConfig: {
-                                voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoiceName } }
-                            }
-                        },
-                    });
+                const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
-                    const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
-                    if (audioData) {
-                        res.setHeader('Content-Type', 'application/json');
-                        return res.status(200).json({ audioContent: audioData, modelUsed: modelName });
-                    }
-                    
-                    // If no audio but no error, break retry loop to try next model
-                    break; 
-
-                } catch (err: any) {
-                    const errMsg = err.message || err.toString();
-                    console.warn(`Attempt ${attempt} failed for ${modelName}: ${errMsg}`);
-
-                    // If it's a 400/404 (Model not found/Invalid), don't retry this model, go to next model
-                    if (errMsg.includes('400') || errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('valid') || errMsg.includes('modality')) {
-                        throw err; // Break out of retry loop
-                    }
-
-                    // If it's a 429/503 (Busy/Quota), retry with backoff
-                    if (errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota') || errMsg.includes('overloaded')) {
-                        if (attempt === MAX_RETRIES) throw err;
-                        // Exponential backoff: 2s, 4s, 6s...
-                        await delay(2000 * attempt); 
-                        continue;
-                    }
-
-                    throw err; // Other errors
+                if (audioData) {
+                    res.setHeader('Content-Type', 'application/json');
+                    return res.status(200).json({ audioContent: audioData, modelUsed: MODEL_NAME });
                 }
+                
+                throw new Error("API returned no audio data.");
+
+            } catch (err: any) {
+                const errMsg = err.message || err.toString();
+                const isRateLimit = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota');
+
+                if (isRateLimit) {
+                    console.warn(`Attempt ${attempt} hit rate limit (10 RPM). Retrying in ${attempt * 2}s...`);
+                    if (attempt === MAX_RETRIES) throw err;
+                    
+                    // Exponential backoff: 2s, 4s, 6s, 8s...
+                    // Essential for the strict 10 requests/minute limit
+                    await delay(2000 * attempt); 
+                    continue;
+                }
+
+                // If it's not a rate limit error (e.g. 400 Invalid Argument), fail immediately
+                throw err;
             }
-
-        } catch (error: any) {
-            console.error(`Failed with model ${modelName}:`, error.message);
-            lastError = error;
-            // Continue to next model in the list
         }
-    }
 
-    // If we reach here, all models failed
-    const finalErrorMessage = lastError?.message || "Unknown error";
-    console.error("All TTS models failed. Final error:", finalErrorMessage);
+    } catch (error: any) {
+        console.error(`Final Failure with ${MODEL_NAME}:`, error.message);
+        
+        // Detailed error for client handling
+        if (error.message.includes('429') || error.message.includes('quota')) {
+            return res.status(429).json({ 
+                error: "Server capacity reached (10 requests/min limit). Please wait a moment and try again.",
+                details: error.message
+            });
+        }
+
+        return res.status(500).json({ 
+            error: "Generation failed.", 
+            details: error.message 
+        });
+    }
     
-    // Check for API Key restriction error specifically (403)
-    if (finalErrorMessage.includes('403') || finalErrorMessage.includes('permission') || finalErrorMessage.includes('not have permission')) {
-        return res.status(403).json({ 
-            error: "API Key Permission Error. Please check Vercel Env Vars and ensure the Key has 'None' or correct Website Restrictions.",
-            details: finalErrorMessage
-        });
-    }
-
-    // Check for Quota error (429)
-    if (finalErrorMessage.includes('429') || finalErrorMessage.includes('quota')) {
-        return res.status(429).json({ 
-            error: "Server capacity reached (Quota Exceeded). Please try again later.",
-            details: finalErrorMessage
-        });
-    }
-
-    return res.status(500).json({ 
-        error: "Generation failed. Server busy or model unavailable.", 
-        details: finalErrorMessage 
-    });
+    return res.status(500).json({ error: "Unexpected end of function" });
 }
