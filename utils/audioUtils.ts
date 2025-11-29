@@ -162,32 +162,31 @@ export async function processAudio(
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // Increased reverb tail padding
-    const reverbTail = settings.reverb > 0 ? 5.0 : 2.5; 
-    
-    // Fade out duration for music
-    const FADE_OUT_DURATION = 3.0; 
+    // Reverb tail padding
+    const reverbTail = settings.reverb > 0 ? 3.0 : 1.0; 
     
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
     
     // Calculate effective voice end time
     if (sourceBuffer) {
+        // (Duration / Speed) + Start Delay
         absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
     }
     
+    // Explicit padding to prevent cutoff
+    const END_PADDING = 4.0; 
+
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: 
-            // We ensure we cover voice + reverb + fadeout.
-            // Adding 5 seconds of HARD PADDING to ensure nothing is cut.
-            outputDuration = absoluteVoiceEnd + FADE_OUT_DURATION + 5.0; 
+            // Trim mode: Voice End + Reverb Tail + Explicit Padding
+            outputDuration = absoluteVoiceEnd + reverbTail + END_PADDING;
         } else {
-            // Full mode: Duration is the longest of either (voice + delay) or music
-            outputDuration = Math.max(absoluteVoiceEnd + reverbTail, backgroundMusicBuffer.duration);
+            // Full mode: Longest of either (voice + padding) or music
+            outputDuration = Math.max(absoluteVoiceEnd + reverbTail + END_PADDING, backgroundMusicBuffer.duration);
         }
     } else if (sourceBuffer) {
-        outputDuration = absoluteVoiceEnd + reverbTail + 2.0; // Voice only padding
+        outputDuration = absoluteVoiceEnd + reverbTail + END_PADDING;
     } else if (backgroundMusicBuffer) {
         outputDuration = backgroundMusicBuffer.duration;
     }
@@ -347,11 +346,10 @@ export async function processAudio(
         }
 
         // Apply Fade Out at the very end if Trimming
-        // CRITICAL FIX: Ensure we fade out AFTER voice ends completely
         if (trimToVoice && sourceBuffer) {
             // Start fading out music significantly AFTER voice ends + reverb
-            // Using absoluteVoiceEnd + 2.0s buffer before fade starts
-            const safeFadeStart = absoluteVoiceEnd + 2.0; 
+            // We use absoluteVoiceEnd + 1.0s to ensure full voice clarity before music fades
+            const safeFadeStart = absoluteVoiceEnd + 1.0; 
             
             // Cancel any automations at this point to take control
             try { 
@@ -359,8 +357,8 @@ export async function processAudio(
                 musicGain.gain.setValueAtTime(musicGain.gain.value, safeFadeStart);
             } catch(e){}
             
-            // Fade out over 3 seconds
-            musicGain.gain.linearRampToValueAtTime(0.0001, safeFadeStart + FADE_OUT_DURATION);
+            // Fade out over 2 seconds
+            musicGain.gain.linearRampToValueAtTime(0.0001, safeFadeStart + 2.0);
         }
         
         musicSource.connect(musicGain);
