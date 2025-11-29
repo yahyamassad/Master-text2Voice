@@ -162,31 +162,32 @@ export async function processAudio(
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // Increased reverb tail padding significantly to prevent cutoffs
+    // Increased reverb tail padding
     const reverbTail = settings.reverb > 0 ? 5.0 : 2.5; 
     
     // Fade out duration for music
     const FADE_OUT_DURATION = 3.0; 
     
     let outputDuration = 1.0;
-    let voiceEndTime = 0;
+    let absoluteVoiceEnd = 0;
     
-    // Calculate effective voice duration including speed changes
+    // Calculate effective voice end time
     if (sourceBuffer) {
-        voiceEndTime = voiceDelay + (sourceBuffer.duration / speed) + reverbTail;
+        absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
     }
     
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: Duration = End of voice + Fade Out + Safety Buffer
-            // We add extra 6 seconds (increased from 4) to be absolutely sure no words are cut
-            outputDuration = voiceEndTime + FADE_OUT_DURATION + 6.0; 
+            // Trim mode: 
+            // We ensure we cover voice + reverb + fadeout.
+            // Adding 5 seconds of HARD PADDING to ensure nothing is cut.
+            outputDuration = absoluteVoiceEnd + FADE_OUT_DURATION + 5.0; 
         } else {
             // Full mode: Duration is the longest of either (voice + delay) or music
-            outputDuration = Math.max(voiceEndTime, backgroundMusicBuffer.duration);
+            outputDuration = Math.max(absoluteVoiceEnd + reverbTail, backgroundMusicBuffer.duration);
         }
     } else if (sourceBuffer) {
-        outputDuration = voiceEndTime + 3.0; // Extra padding for voice only too
+        outputDuration = absoluteVoiceEnd + reverbTail + 2.0; // Voice only padding
     } else if (backgroundMusicBuffer) {
         outputDuration = backgroundMusicBuffer.duration;
     }
@@ -268,7 +269,6 @@ export async function processAudio(
         musicGain.gain.setValueAtTime(startVolume, 0);
 
         // --- BROADCAST QUALITY OFFLINE AUTO DUCKING ---
-        // Completely rewritten to match user expectation: High in pauses, Low in speech.
         if (autoDucking && sourceBuffer && voiceVolume > 0) {
             const channelData = sourceBuffer.getChannelData(0);
             const sampleRate = sourceBuffer.sampleRate;
@@ -279,17 +279,14 @@ export async function processAudio(
             const threshold = 0.015; // Silence threshold
             
             const attackTime = 0.4; // Time to fade music DOWN (speech starts)
-            const releaseTime = 0.8; // Time to fade music UP (speech ends)
-            const holdTime = 0.8; // How long silence must last before music rises
-
-            let isSpeaking = false;
-            let lastSpeechTime = -10.0;
-            let musicIsLow = false; // Tracks the current state of music automation
-
-            // We iterate through the timeline.
-            // We need to look ahead.
             
-            // 1. Build a simplified "Speech Presence" map
+            // INCREASED RELEASE & HOLD for smoother transitions
+            const releaseTime = 1.5; // Time to fade music UP (speech ends)
+            const holdTime = 1.5; // Wait 1.5s after speech ends before rising
+
+            let lastSpeechTime = -10.0;
+            let musicIsLow = false; 
+
             const timelineResolution = 0.1; // 100ms
             const timelineLength = Math.ceil(outputDuration / timelineResolution);
             const speechMap = new Array(timelineLength).fill(false);
@@ -314,9 +311,6 @@ export async function processAudio(
                 }
             }
 
-            // 2. Apply Automation based on Speech Map with Hysteresis
-            // We use SetTargetAtTime for smooth curves
-            
             let lastEventTime = 0;
 
             for (let t = 0; t < timelineLength; t++) {
@@ -327,7 +321,6 @@ export async function processAudio(
                     lastSpeechTime = currentTime;
                     if (!musicIsLow) {
                         // Speech started! Duck music immediately.
-                        // We schedule it slightly before if possible to anticipate
                         const rampTime = Math.max(lastEventTime, currentTime - 0.1);
                         musicGain.gain.setTargetAtTime(duckLevel, rampTime, attackTime / 3);
                         musicIsLow = true;
@@ -338,7 +331,7 @@ export async function processAudio(
                     if (musicIsLow) {
                         // Only release if silence has persisted longer than holdTime
                         if (currentTime - lastSpeechTime > holdTime) {
-                            // Release music UP
+                            // Release music UP slowly
                             musicGain.gain.setTargetAtTime(startVolume, currentTime, releaseTime / 3);
                             musicIsLow = false;
                             lastEventTime = currentTime;
@@ -348,26 +341,26 @@ export async function processAudio(
             }
             
             // Ensure volume returns to normal at end of voice regardless
-            const absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
             if (musicIsLow) {
                  musicGain.gain.setTargetAtTime(startVolume, absoluteVoiceEnd + 0.5, releaseTime / 3);
             }
         }
 
         // Apply Fade Out at the very end if Trimming
+        // CRITICAL FIX: Ensure we fade out AFTER voice ends completely
         if (trimToVoice && sourceBuffer) {
-            // Fade out music starting shortly after voice ends + reverb tail
-            const absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed) + reverbTail;
+            // Start fading out music significantly AFTER voice ends + reverb
+            // Using absoluteVoiceEnd + 2.0s buffer before fade starts
+            const safeFadeStart = absoluteVoiceEnd + 2.0; 
             
-            // Ensure we don't start fade before the voice is actually done
-            const safeFadeStart = Math.max(absoluteVoiceEnd + 1.0, outputDuration - FADE_OUT_DURATION);
-            
+            // Cancel any automations at this point to take control
             try { 
                 musicGain.gain.cancelScheduledValues(safeFadeStart); 
                 musicGain.gain.setValueAtTime(musicGain.gain.value, safeFadeStart);
             } catch(e){}
             
-            musicGain.gain.linearRampToValueAtTime(0.0001, outputDuration);
+            // Fade out over 3 seconds
+            musicGain.gain.linearRampToValueAtTime(0.0001, safeFadeStart + FADE_OUT_DURATION);
         }
         
         musicSource.connect(musicGain);
