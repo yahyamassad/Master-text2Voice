@@ -1,4 +1,5 @@
 
+
 import { AudioSettings, AudioPreset, AudioPresetName } from '../types';
 
 function convertInt16ToFloat32(incomingData: Uint8Array): Float32Array {
@@ -146,7 +147,7 @@ export async function processAudio(
     autoDucking: boolean = false,
     voiceVolume: number = 80,
     trimToVoice: boolean = true,
-    voiceDelay: number = 0 // NEW: Delay in seconds
+    voiceDelay: number = 0 // Delay in seconds
 ): Promise<AudioBuffer> {
     // USE 44100Hz for better compatibility with MP3 encoders and players
     const renderSampleRate = 44100; 
@@ -160,24 +161,24 @@ export async function processAudio(
     
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
-    const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
+    const reverbTail = settings.reverb > 0 ? 3.0 : 0.5; // Increased padding
     
     // Fade out duration for music
     const FADE_OUT_DURATION = 2.0; 
     
     let outputDuration = 1.0;
     let voiceEndTime = 0;
-    let effectiveVoiceDuration = 0;
-
+    
+    // Calculate effective voice duration including speed changes
     if (sourceBuffer) {
-        effectiveVoiceDuration = (sourceBuffer.duration / speed);
-        voiceEndTime = voiceDelay + effectiveVoiceDuration + reverbTail;
+        voiceEndTime = voiceDelay + (sourceBuffer.duration / speed) + reverbTail;
     }
     
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: Duration = Delay + Voice duration + reverb tail + EXTRA FADE OUT TIME
-            outputDuration = voiceEndTime + FADE_OUT_DURATION;
+            // Trim mode: Duration = Delay + Voice duration + tail + EXTRA BUFFER
+            // Crucial fix: Added ample padding to prevent cutoff
+            outputDuration = voiceEndTime + FADE_OUT_DURATION + 1.0; 
         } else {
             // Full mode: Duration is the longest of either (voice + delay) or music
             outputDuration = Math.max(voiceEndTime, backgroundMusicBuffer.duration);
@@ -188,8 +189,8 @@ export async function processAudio(
         outputDuration = backgroundMusicBuffer.duration;
     }
     
-    // Ensure minimum duration and handle potential NaN
-    if (!Number.isFinite(outputDuration) || outputDuration < 0.1) outputDuration = 1.0;
+    // Ensure minimum duration
+    if (!Number.isFinite(outputDuration) || outputDuration < 1.0) outputDuration = 1.0;
 
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
@@ -261,72 +262,85 @@ export async function processAudio(
         const musicGain = offlineCtx.createGain();
         const startVolume = (musicVolume / 100);
         
-        // Explicitly set initial volume
+        // Initialize music volume
         musicGain.gain.setValueAtTime(startVolume, 0);
 
-        // --- OFFLINE AUTO DUCKING LOGIC ---
-        // Since OfflineAudioContext renders instantly, we can't use real-time analysis.
-        // We must pre-calculate the gain curve based on the voice buffer data.
+        // --- BROADCAST QUALITY OFFLINE AUTO DUCKING ---
         if (autoDucking && sourceBuffer && voiceVolume > 0) {
             const channelData = sourceBuffer.getChannelData(0);
-            const bufferLen = channelData.length;
+            // Process voice data to find "active" regions
+            // We use a windowed RMS approach to detect speech
             const sampleRate = sourceBuffer.sampleRate;
+            const windowSize = Math.floor(sampleRate * 0.05); // 50ms window
+            const duckLevel = startVolume * 0.15; // Duck down to 15%
+            const threshold = 0.02; // Silence threshold
             
-            // Analyze in chunks (e.g., 0.1s)
-            const chunkSize = Math.floor(sampleRate * 0.1); 
-            const duckedVolume = startVolume * 0.20; // Drop to 20%
-            const attackTime = 0.2;
-            const releaseTime = 0.5;
-            
-            let isDucked = false;
-            // Iterate through the voice buffer time
-            for (let i = 0; i < bufferLen; i += chunkSize) {
-                // Calculate RMS of this chunk
+            // Time constants for smoothness
+            const attackTime = 0.3; // Time to fade music OUT (voice starts)
+            const releaseTime = 0.8; // Time to fade music IN (voice ends)
+            const holdTime = 0.2; // Keep music low for a bit after speech stops
+
+            let isSpeechActive = false;
+            let lastSpeechEndTime = -1.0;
+
+            // Pre-scan buffer to build an "envelope" of speech events
+            // This is much better than real-time chunk processing
+            for (let i = 0; i < channelData.length; i += windowSize) {
+                // Calculate RMS of current window
                 let sum = 0;
-                const end = Math.min(i + chunkSize, bufferLen);
+                const end = Math.min(i + windowSize, channelData.length);
                 for (let j = i; j < end; j++) {
-                    sum += channelData[j] * channelData[j];
+                    const sample = channelData[j];
+                    sum += sample * sample;
                 }
                 const rms = Math.sqrt(sum / (end - i));
                 
-                // Absolute time in the timeline (taking delay into account)
-                const currentTime = voiceDelay + (i / sampleRate);
-                
-                // Threshold for speech detection (experimental value)
-                const threshold = 0.015;
+                // Current time in output timeline (add voice delay)
+                const now = voiceDelay + (i / sampleRate);
 
-                if (rms > threshold && !isDucked) {
-                    // Voice detected: Duck Down
-                    musicGain.gain.setTargetAtTime(duckedVolume, currentTime, attackTime / 3);
-                    isDucked = true;
-                } else if (rms <= threshold && isDucked) {
-                    // Silence detected: Release Up
-                    musicGain.gain.setTargetAtTime(startVolume, currentTime, releaseTime / 3);
-                    isDucked = false;
+                if (rms > threshold) {
+                    if (!isSpeechActive) {
+                        // Speech JUST started
+                        // Ramp music DOWN before speech starts slightly if possible, or right now
+                        const duckStartTime = Math.max(0, now - 0.1); 
+                        musicGain.gain.setTargetAtTime(duckLevel, duckStartTime, attackTime / 4); // Quick ramp down
+                        isSpeechActive = true;
+                    }
+                    lastSpeechEndTime = now;
+                } else {
+                    // Silence
+                    if (isSpeechActive) {
+                        // Check if silence has persisted long enough to release
+                        if (now - lastSpeechEndTime > holdTime) {
+                            // Release music UP
+                            musicGain.gain.setTargetAtTime(startVolume, now, releaseTime / 3);
+                            isSpeechActive = false;
+                        }
+                    }
                 }
             }
             
-            // Ensure volume returns to normal after voice ends
-            const endVoiceTime = voiceDelay + (sourceBuffer.duration / speed);
-            if (isDucked) {
-                 musicGain.gain.setTargetAtTime(startVolume, endVoiceTime + 0.2, releaseTime / 3);
+            // Ensure volume returns to normal at the very end of voice track if still ducked
+            const absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
+            if (isSpeechActive || (absoluteVoiceEnd > lastSpeechEndTime)) {
+                 musicGain.gain.setTargetAtTime(startVolume, absoluteVoiceEnd + holdTime, releaseTime / 3);
             }
         }
 
         // Apply Fade Out at the very end if Trimming
         if (trimToVoice && sourceBuffer) {
-            const safeFadeStart = Math.max(0, outputDuration - FADE_OUT_DURATION);
-            // Cancel any automation scheduled after the fade start to ensure clean fade out
-            try { musicGain.gain.cancelScheduledValues(safeFadeStart); } catch(e){}
+            // Fade out the music elegantly at the end of the calculated duration
+            // We use exponential ramp for natural fade
+            const fadeStart = Math.max(0, outputDuration - FADE_OUT_DURATION);
             
-            // We need to set a value at fade start to ramp from, otherwise it might jump
-            // But we don't know the exact value due to setTargetAtTime. 
-            // A simplified linear fade from the *calculated* end time is safer.
+            // Cancel automation to take control
+            try { 
+                musicGain.gain.cancelScheduledValues(fadeStart); 
+                // Set value explicitly at fade start to ensure continuity from previous automation
+                musicGain.gain.setValueAtTime(musicGain.gain.value, fadeStart);
+            } catch(e){}
             
-            // Since setTargetAtTime is exponential, we set the fade out explicitly
-            // roughly where we expect the volume to be.
-            // A safer bet in WebAudio is just overlapping the fade.
-            musicGain.gain.linearRampToValueAtTime(0.001, outputDuration);
+            musicGain.gain.linearRampToValueAtTime(0.0001, outputDuration);
         }
         
         musicSource.connect(musicGain);
