@@ -156,7 +156,8 @@ export async function processAudio(
         sourceBuffer = input;
     }
     
-    const speed = settings.speed || 1.0;
+    // Safety check for speed to prevent division by zero
+    const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     const reverbTail = settings.reverb > 0 ? 2.0 : 0.1;
     
     // IMPORTANT: Add 3 seconds for music fade out to avoid abrupt cuts
@@ -182,14 +183,12 @@ export async function processAudio(
         outputDuration = backgroundMusicBuffer.duration;
     }
     
-    // Ensure minimum duration
-    if (outputDuration < 0.1) outputDuration = 1.0;
+    // Ensure minimum duration and handle potential NaN
+    if (!Number.isFinite(outputDuration) || outputDuration < 0.1) outputDuration = 1.0;
 
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
     // --- VOICE CHAIN ---
-    let voiceAnalyser: GainNode | null = null;
-    
     if (sourceBuffer && voiceVolume > 0) {
         const source = offlineCtx.createBufferSource();
         source.buffer = sourceBuffer;
@@ -233,9 +232,6 @@ export async function processAudio(
         const voiceGain = offlineCtx.createGain();
         voiceGain.gain.value = (voiceVolume / 100); 
         
-        // Used to detect signal for ducking
-        voiceAnalyser = offlineCtx.createGain(); 
-        
         let currentNode: AudioNode = source;
         filters.forEach(f => { currentNode.connect(f); currentNode = f; });
         currentNode.connect(compressor);
@@ -246,7 +242,6 @@ export async function processAudio(
         dryGain.connect(voiceGain);
         
         voiceGain.connect(offlineCtx.destination);
-        voiceGain.connect(voiceAnalyser); 
         
         source.start(0);
     }
@@ -256,26 +251,35 @@ export async function processAudio(
         const musicSource = offlineCtx.createBufferSource();
         musicSource.buffer = backgroundMusicBuffer;
         
-        // Only loop if we are in "Trim to Voice" mode or if the voice is longer than music
-        if (trimToVoice && sourceBuffer && outputDuration > backgroundMusicBuffer.duration) {
+        // Loop logic: Always loop if music is shorter than output duration (which is based on voice in trim mode)
+        // OR if explicitly not trimming and music is shorter than voice.
+        if (outputDuration > backgroundMusicBuffer.duration) {
              musicSource.loop = true;
         } else {
              musicSource.loop = false;
         }
         
         const musicGain = offlineCtx.createGain();
-        const duckingFactor = (autoDucking && sourceBuffer && voiceVolume > 0) ? 0.2 : 1.0;
+        // Ducking: if autoDucking is on AND we have voice, reduce music volume by default
+        // A simpler offline approach for ducking is fixed reduction, since dynamic analysis is hard offline without complex script processors.
+        // For accurate offline ducking, we assume "Voice Exists = Duck Everything".
+        const duckingFactor = (autoDucking && sourceBuffer && voiceVolume > 0) ? 0.25 : 1.0;
         const startVolume = (musicVolume / 100) * duckingFactor;
         
         musicGain.gain.setValueAtTime(startVolume, 0);
 
         // Apply Fade Out if Trimming
         if (trimToVoice && sourceBuffer) {
-            // Maintain volume until voice ends (plus reverb tail)
-            const fadeStart = Math.max(0, voiceEndTime);
-            musicGain.gain.setValueAtTime(startVolume, fadeStart);
-            // Linear fade to 0 over FADE_OUT_DURATION
-            musicGain.gain.linearRampToValueAtTime(0, outputDuration);
+            // Ensure we don't try to schedule ramps in the past or beyond buffer end
+            const safeFadeStart = Math.min(Math.max(0, voiceEndTime), outputDuration - 0.5);
+            // Ensure fade out happens within the buffer duration
+            const safeFadeEnd = Math.min(outputDuration, safeFadeStart + FADE_OUT_DURATION);
+            
+            // Only apply ramp if we have time
+            if (safeFadeEnd > safeFadeStart) {
+                musicGain.gain.setValueAtTime(startVolume, safeFadeStart);
+                musicGain.gain.linearRampToValueAtTime(0, safeFadeEnd);
+            }
         }
         
         musicSource.connect(musicGain);
@@ -349,19 +353,21 @@ function createWavBlobFromFloat32(samples: Float32Array, numChannels: number, sa
     return new Blob([view], { type: 'audio/wav' });
 }
 
-export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: number, sampleRate: number, bitrate: number = 128): Promise<Blob> {
+export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: number, sampleRate: number, bitrate: number = 192): Promise<Blob> {
     return new Promise((resolve, reject) => {
         try {
             const lamejs = (window as any).lamejs;
             if (!lamejs) throw new Error("lamejs not loaded");
 
-            let mp3encoder: any;
+            // --- CRITICAL FIX FOR STEREO ENCODING ---
+            // If input is AudioBuffer, use its properties directly.
+            // OfflineAudioContext usually returns 2 channels.
             
-            // LAMEJS configuration for Stereo
             const channels = buffer instanceof AudioBuffer ? buffer.numberOfChannels : 1;
             const rate = buffer instanceof AudioBuffer ? buffer.sampleRate : sampleRate;
             
-            mp3encoder = new lamejs.Mp3Encoder(channels, rate, bitrate);
+            // Note: lamejs expects channels, samplerate, bitrate
+            const mp3encoder = new lamejs.Mp3Encoder(channels, rate, bitrate);
 
             // Prepare Left/Right channels for LAME
             let leftData: Int16Array;
@@ -370,6 +376,7 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
             const floatTo16BitPCM = (input: Float32Array) => {
                 const output = new Int16Array(input.length);
                 for (let i = 0; i < input.length; i++) {
+                    // Clamp and scale
                     const s = Math.max(-1, Math.min(1, input[i]));
                     output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
@@ -380,10 +387,6 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
                 leftData = floatTo16BitPCM(buffer.getChannelData(0));
                 if (channels > 1) {
                     rightData = floatTo16BitPCM(buffer.getChannelData(1));
-                } else {
-                    // If source is Mono but we want Stereo output (rare but possible), duplicate left to right
-                    // However, LAME handles mono input fine if initialized with 1 channel.
-                    // Here we assume if buffer says 2 channels, it has 2.
                 }
             } else {
                 // PCM Uint8Array input (assumed mono)
@@ -392,13 +395,13 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
             }
 
             const mp3Data = [];
-            const sampleBlockSize = 1152;
+            const sampleBlockSize = 1152; // LAME standard block size
             
             for (let i = 0; i < leftData.length; i += sampleBlockSize) {
                 const leftChunk = leftData.subarray(i, i + sampleBlockSize);
                 let mp3buf;
                 
-                if (rightData) {
+                if (channels > 1 && rightData) {
                     const rightChunk = rightData.subarray(i, i + sampleBlockSize);
                     mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
                 } else {
@@ -414,6 +417,7 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
             resolve(new Blob(mp3Data, { type: 'audio/mpeg' }));
 
         } catch (e) {
+            console.error("MP3 Encoding failed:", e);
             reject(e);
         }
     });
