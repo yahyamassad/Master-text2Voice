@@ -1159,9 +1159,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         {/* LEFT: BAND EQ-5 (4 Cols) */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                             {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
-                            <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
-                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
+                            <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
+                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
                             </div>
                             <div className="flex justify-between px-1 gap-2 flex-1 items-end bg-black/20 rounded-xl p-3 border border-slate-800/50">
                                 <EqSlider value={settings.eqBands[0]} label="60Hz" onChange={(v) => {const b=[...settings.eqBands]; b[0]=v; updateSetting('eqBands',b);}} onClickCapture={handleRestrictedAction} />
@@ -1176,8 +1176,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                              {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                              
-                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
-                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
+                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
+                                    <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
+                                </div>
                                 <div className="grid grid-cols-2 gap-2 w-full max-w-[140px]">
                                     <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) onMusicUploadClick(); }} className="text-[9px] bg-slate-800 h-6 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors flex items-center justify-center">ADD MUSIC</button>
                                     <div className="relative w-full h-6">
@@ -1187,12 +1190,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 </div>
                              </div>
                              
-                             <div className="flex gap-4 h-full items-end justify-center pb-2 flex-grow overflow-hidden relative">
+                             {/* Faders Container - Flex Grow to take available space */}
+                             <div className="flex gap-4 items-end justify-center pb-2 flex-grow overflow-hidden relative">
                                 <Fader 
                                     label="VOICE" 
                                     value={voiceVolume} 
                                     onChange={setVoiceVolume} 
-                                    height="h-48" 
+                                    height="h-full max-h-48" 
                                     disabled={!voiceBuffer} 
                                     muted={isVoiceMuted}
                                     onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)}
@@ -1219,7 +1223,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     value={musicVolume} 
                                     onChange={setMusicVolume} 
                                     color="amber" 
-                                    height="h-48" 
+                                    height="h-full max-h-48" 
                                     disabled={!musicFileName && isPaidUser} 
                                     muted={isMusicMuted}
                                     onMuteToggle={() => setIsMusicMuted(!isMusicMuted)}
@@ -1227,8 +1231,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 />
                              </div>
                              
-                             {/* Music Library Drop-up */}
-                             <div className="absolute bottom-4 left-0 right-0 px-5" ref={libraryMenuRef}>
+                             {/* Music Library - Push to bottom, Dropdown (Downwards) */}
+                             <div className="mt-auto pt-2 w-full relative z-20" ref={libraryMenuRef}>
                                 <button 
                                     onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setIsLibraryOpen(!isLibraryOpen); }}
                                     className="w-full flex items-center justify-between text-[10px] bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:border-slate-500 transition-colors shadow-lg"
@@ -1238,7 +1242,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 </button>
                                 
                                 {isLibraryOpen && (
-                                    <div className="absolute bottom-full left-5 right-5 mb-2 bg-[#0f172a] border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1 animate-fade-in">
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f172a] border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1 animate-fade-in">
                                         {musicLibrary.length > 0 ? (
                                             musicLibrary.map(track => (
                                                 <div 
@@ -1261,9 +1265,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         {/* RIGHT: PRESETS (4 Cols - 2x4 Grid) */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                              {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
-                             <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
-                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
+                             <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
+                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
                              </div>
                              <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
                                  <button 
