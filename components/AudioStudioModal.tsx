@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
 import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon } from './icons';
@@ -87,19 +86,22 @@ const Knob: React.FC<{
     onChange: (val: number) => void, 
     color?: string,
     onClickCapture?: (e: React.MouseEvent) => void,
-    displaySuffix?: string
-}> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan', onClickCapture, displaySuffix = '' }) => {
+    displaySuffix?: string,
+    size?: 'sm' | 'md' | 'lg'
+}> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan', onClickCapture, displaySuffix = '', size = 'lg' }) => {
     const percentage = (value - min) / (max - min);
     const rotation = -135 + (percentage * 270); 
 
     const handleWheel = (e: React.WheelEvent) => {
         if (onClickCapture) {
-            onClickCapture(e as any);
-            return; 
+            // If strictly capture needed, return. But usually we want knobs to work.
+            // onClickCapture(e as any);
         }
+        e.stopPropagation();
         e.preventDefault();
         const delta = e.deltaY > 0 ? -1 : 1; 
-        const step = (max - min) / 50; 
+        const range = max - min;
+        const step = range / 50; 
         let newValue = value + (delta * step);
         newValue = Math.max(min, Math.min(max, newValue));
         onChange(newValue);
@@ -122,17 +124,20 @@ const Knob: React.FC<{
         textColor = 'text-green-300';
     }
 
+    const sizeClasses = size === 'sm' ? 'w-10 h-10' : (size === 'md' ? 'w-12 h-12' : 'w-14 h-14 sm:w-16 sm:h-16');
+    const innerSizeClasses = size === 'sm' ? 'w-6 h-6' : (size === 'md' ? 'w-8 h-8' : 'w-9 h-9 sm:w-10 sm:h-10');
+
     return (
-        <div className="flex flex-col items-center group cursor-pointer" onWheel={handleWheel} onClick={onClickCapture}>
-             <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${borderColor} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
+        <div className="flex flex-col items-center group cursor-pointer" onWheel={handleWheel} onClick={onClickCapture} title="Scroll to adjust">
+             <div className={`relative ${sizeClasses} rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${borderColor} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
                  <div className="absolute w-full h-full rounded-full pointer-events-none" style={{ transform: `rotate(${rotation}deg)` }}>
-                     <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-2.5 rounded-full ${tickColor}`}></div>
+                     <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-2 sm:w-1.5 sm:h-2.5 rounded-full ${tickColor}`}></div>
                  </div>
-                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0f172a] border border-slate-700 flex items-center justify-center shadow-inner">
-                     <span className={`text-[10px] sm:text-xs font-mono font-bold select-none pointer-events-none ${textColor}`}>{Math.round(value * 10) / 10}{displaySuffix}</span>
+                 <div className={`${innerSizeClasses} rounded-full bg-[#0f172a] border border-slate-700 flex items-center justify-center shadow-inner`}>
+                     <span className={`text-[8px] sm:text-[10px] sm:text-xs font-mono font-bold select-none pointer-events-none ${textColor}`}>{Math.round(value * 10) / 10}{displaySuffix}</span>
                  </div>
              </div>
-             <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">{label}</span>
+             <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors text-center leading-tight">{label}</span>
         </div>
     );
 };
@@ -836,8 +841,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     const removeTrackFromLibrary = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        setMusicLibrary(prev => prev.filter(t => t.id !== id));
-        if (activeMusicId === id) setActiveMusicId(null);
+        if(confirm("Are you sure you want to remove this track?")) {
+            setMusicLibrary(prev => prev.filter(t => t.id !== id));
+            if (activeMusicId === id) setActiveMusicId(null);
+        }
     };
 
     const onReplaceVoiceClick = (e: React.MouseEvent) => { 
@@ -870,17 +877,19 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const handleRemoveMusic = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!isPaidUser) return;
-        setActiveMusicId(null); // Just deselect, don't delete from library unless explicit
+        setActiveMusicId(null); 
     };
 
     const handleRemoveVoice = (e: React.MouseEvent) => {
         e.stopPropagation();
-        stopPlayback();
-        setVoiceBuffer(null);
-        setMicAudioBuffer(null);
-        setFileName('No Audio');
-        playbackOffsetRef.current = 0;
-        setCurrentTime(0);
+        if(confirm("Are you sure you want to clear the voice audio?")) {
+            stopPlayback();
+            setVoiceBuffer(null);
+            setMicAudioBuffer(null);
+            setFileName('No Audio');
+            playbackOffsetRef.current = 0;
+            setCurrentTime(0);
+        }
     };
 
     // --- EXPORT ---
@@ -1094,13 +1103,52 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         <span>{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span>
                                     </button>
                                     {showExportMenu && (
-                                        <div className="absolute top-full right-0 mt-2 w-64 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl z-[100] p-4">
-                                            {/* Export settings UI omitted for brevity - same as before */}
+                                        <div className="absolute top-full right-0 mt-2 w-72 bg-[#0f172a] border border-slate-600 rounded-xl shadow-2xl z-[100] p-4 flex flex-col gap-4">
+                                            <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+                                                <h4 className="text-xs font-bold text-cyan-400 tracking-widest uppercase">EXPORT SETTINGS</h4>
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Source</label>
+                                                <div className="flex bg-slate-800 rounded p-1">
+                                                    <button onClick={() => setExportSource('mix')} className={`flex-1 py-1.5 text-[10px] font-bold rounded ${exportSource === 'mix' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>FULL MIX</button>
+                                                    <button onClick={() => setExportSource('voice')} className={`flex-1 py-1.5 text-[10px] font-bold rounded ${exportSource === 'voice' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>VOICE ONLY</button>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Duration</label>
+                                                <div className="flex flex-col gap-2">
+                                                    <button onClick={() => setTrimToVoice(true)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>
+                                                        {trimToVoice && <CheckIcon className="w-3 h-3"/>}
+                                                        End when Voice ends
+                                                    </button>
+                                                    <button onClick={() => setTrimToVoice(false)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${!trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>
+                                                        {!trimToVoice && <CheckIcon className="w-3 h-3"/>}
+                                                        Keep Full Music Length
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Format</label>
+                                                <div className="flex flex-col gap-2">
+                                                    <button onClick={() => setExportFormat('mp3')} className={`flex items-center justify-between p-2 rounded border transition-colors ${exportFormat === 'mp3' ? 'bg-slate-800 border-cyan-500' : 'bg-transparent border-slate-700'}`}>
+                                                        <span className={`text-[10px] font-bold ${exportFormat === 'mp3' ? 'text-white' : 'text-slate-500'}`}>MP3 <span className="opacity-50">320kbps</span></span>
+                                                        {exportFormat === 'mp3' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}
+                                                    </button>
+                                                    <button onClick={() => setExportFormat('wav')} className={`flex items-center justify-between p-2 rounded border transition-colors ${exportFormat === 'wav' ? 'bg-slate-800 border-cyan-500' : 'bg-transparent border-slate-700'}`}>
+                                                        <span className={`text-[10px] font-bold ${exportFormat === 'wav' ? 'text-white' : 'text-slate-500'}`}>WAV <span className="opacity-50">48khz 24-bit</span></span>
+                                                        {exportFormat === 'wav' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}
+                                                    </button>
+                                                </div>
+                                            </div>
+
                                             <button 
                                                 onClick={handleExportClick} 
-                                                className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-2"
+                                                className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-2 shadow-lg mt-2"
                                             >
-                                                <DownloadIcon className="w-3 h-3" /> Download
+                                                <DownloadIcon className="w-4 h-4" /> DOWNLOAD
                                             </button>
                                         </div>
                                     )}
@@ -1133,6 +1181,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         {/* CENTER: MIXER (4 Cols) */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                              {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
+                             
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
                                 <div className="flex gap-2">
@@ -1144,33 +1193,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 </div>
                              </div>
                              
-                             {/* Music Library List */}
-                             <div className="w-full bg-black/30 rounded border border-slate-800/50 mb-4 h-16 overflow-y-auto custom-scrollbar">
-                                 {musicLibrary.length > 0 ? (
-                                     <div className="flex flex-col">
-                                         {musicLibrary.map(track => (
-                                             <div key={track.id} onClick={() => setActiveMusicId(track.id)} className={`flex items-center justify-between p-1.5 cursor-pointer border-b border-slate-800/50 last:border-0 ${activeMusicId === track.id ? 'bg-amber-900/30' : 'hover:bg-slate-800'}`}>
-                                                 <span className={`text-[10px] truncate max-w-[120px] ${activeMusicId === track.id ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
-                                                     {activeMusicId === track.id ? '▶ ' : ''}{track.name}
-                                                 </span>
-                                                 <div className="flex items-center gap-2">
-                                                     <span className="text-[9px] text-slate-600 font-mono">{Math.floor(track.duration/60)}:{String(Math.floor(track.duration%60)).padStart(2,'0')}</span>
-                                                     <button onClick={(e) => removeTrackFromLibrary(e, track.id)} className="text-slate-600 hover:text-red-500"><TrashIcon className="w-3 h-3"/></button>
-                                                 </div>
-                                             </div>
-                                         ))}
-                                     </div>
-                                 ) : (
-                                     <div className="h-full flex items-center justify-center text-[10px] text-slate-600 italic">No music tracks</div>
-                                 )}
-                             </div>
-
-                             <div className="flex gap-4 h-full items-end justify-center pb-2 flex-grow overflow-hidden">
+                             <div className="flex gap-4 h-full items-end justify-center pb-2 flex-grow overflow-hidden relative">
                                 <Fader 
                                     label="SOUND" 
                                     value={voiceVolume} 
                                     onChange={setVoiceVolume} 
-                                    height="h-full max-h-[140px]" 
+                                    height="h-full max-h-[120px]" 
                                     disabled={!voiceBuffer} 
                                     muted={isVoiceMuted}
                                     onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)}
@@ -1181,16 +1209,17 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     value={musicVolume} 
                                     onChange={setMusicVolume} 
                                     color="amber" 
-                                    height="h-full max-h-[140px]" 
+                                    height="h-full max-h-[120px]" 
                                     disabled={!musicFileName && isPaidUser} 
                                     muted={isMusicMuted}
                                     onMuteToggle={() => setIsMusicMuted(!isMusicMuted)}
                                     onClickCapture={handleRestrictedAction}
                                 />
-                                {/* MOVED VOICE DELAY KNOB HERE */}
-                                <div className="flex flex-col justify-end pb-2">
+                                
+                                {/* Voice Delay Knob - Integrated nicely */}
+                                <div className="flex flex-col justify-end pb-1 ml-2">
                                     <Knob 
-                                        label="VOICE DELAY" 
+                                        label="DELAY" 
                                         value={voiceDelay} 
                                         min={0} 
                                         max={10} 
@@ -1198,8 +1227,35 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         color="green" 
                                         onClickCapture={handleRestrictedAction}
                                         displaySuffix="s"
+                                        size="md"
                                     />
                                 </div>
+                             </div>
+
+                             {/* Music Library - Moved to Bottom, Styled */}
+                             <div className="mt-4 pt-3 border-t border-slate-800">
+                                 <div className="w-full bg-[#0f172a] rounded-lg border border-slate-700/50 h-24 overflow-y-auto custom-scrollbar relative">
+                                     <div className="sticky top-0 bg-[#0f172a] z-10 px-2 py-1 text-[8px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/50">Music Library</div>
+                                     {musicLibrary.length > 0 ? (
+                                         <div className="flex flex-col">
+                                             {musicLibrary.map(track => (
+                                                 <div key={track.id} onClick={() => setActiveMusicId(track.id)} className={`flex items-center justify-between p-2 cursor-pointer border-b border-slate-800 last:border-0 transition-colors ${activeMusicId === track.id ? 'bg-slate-800' : 'hover:bg-slate-800/50'}`}>
+                                                     <span className={`text-[10px] truncate max-w-[120px] ${activeMusicId === track.id ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
+                                                         {activeMusicId === track.id ? '▶ ' : ''}{track.name}
+                                                     </span>
+                                                     <div className="flex items-center gap-2">
+                                                         <span className="text-[9px] text-slate-600 font-mono">{Math.floor(track.duration/60)}:{String(Math.floor(track.duration%60)).padStart(2,'0')}</span>
+                                                         <button onClick={(e) => removeTrackFromLibrary(e, track.id)} className="text-slate-600 hover:text-red-500 transition-colors"><TrashIcon className="w-3 h-3"/></button>
+                                                     </div>
+                                                 </div>
+                                             ))}
+                                         </div>
+                                     ) : (
+                                         <div className="h-16 flex items-center justify-center text-[10px] text-slate-600 italic">
+                                             No music tracks added
+                                         </div>
+                                     )}
+                                 </div>
                              </div>
                         </div>
 
