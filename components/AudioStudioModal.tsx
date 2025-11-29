@@ -287,6 +287,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const isVoiceMutedRef = useRef(isVoiceMuted);
     const autoDuckingRef = useRef(autoDucking);
     const voiceDelayRef = useRef(voiceDelay);
+    const trimToVoiceRef = useRef(trimToVoice);
+    
+    // CRITICAL: Playback Request ID to prevent race conditions (Double Audio)
+    const playRequestIdRef = useRef<number>(0);
     
     // Sync Refs with State
     useEffect(() => { musicVolumeRef.current = musicVolume; }, [musicVolume]);
@@ -295,20 +299,26 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     useEffect(() => { isVoiceMutedRef.current = isVoiceMuted; }, [isVoiceMuted]);
     useEffect(() => { autoDuckingRef.current = autoDucking; }, [autoDucking]);
     useEffect(() => { voiceDelayRef.current = voiceDelay; }, [voiceDelay]);
+    useEffect(() => { trimToVoiceRef.current = trimToVoice; }, [trimToVoice]);
 
     // Update total file duration when Delay changes
     useEffect(() => {
         let total = 0;
-        if (voiceBuffer) {
-            total = voiceBuffer.duration + voiceDelay;
+        
+        const voiceEnd = voiceBuffer ? voiceBuffer.duration + voiceDelay : 0;
+        const musicEnd = musicBuffer ? musicBuffer.duration : 0;
+
+        if (trimToVoice && voiceBuffer) {
+            // If trimming to voice, duration is voice end + fade out
+            total = voiceEnd + 3.0; // 3s tail
+        } else {
+            // Full mode: Duration is the longest of either
+            total = Math.max(voiceEnd, musicEnd);
         }
-        if (musicBuffer) {
-            // In playback, we usually scroll based on longest track or just logic
-            // Here, let's say total is max of voice end and music end
-            total = Math.max(total, musicBuffer.duration);
-        }
-        setFileDuration(total);
-    }, [voiceBuffer, musicBuffer, voiceDelay]);
+        
+        // Ensure at least 1s for safety
+        setFileDuration(Math.max(1, total));
+    }, [voiceBuffer, musicBuffer, voiceDelay, trimToVoice]);
 
     // Real-time Audio Graph Refs
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -369,10 +379,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
+            // Resume context if suspended
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume();
+            }
         } else {
             document.body.style.overflow = 'unset';
-            if (isPlaying) stopPlayback();
-            if (isRecording) stopRecording();
+            // Just stop nodes but KEEP the offset so we can resume later (Issue 3)
+            stopPlayback(); 
+            // Also suspend context to stop any lingering processing/cpu
+            if (audioContextRef.current) audioContextRef.current.suspend();
         }
     }, [isOpen]);
 
@@ -395,12 +411,26 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     // --- PLAYBACK LOGIC (REAL-TIME MIXING) ---
     const stopPlayback = useCallback(() => {
+        // Increment request ID to invalidate any pending starts (Fixes Issue 2)
+        playRequestIdRef.current += 1;
+
         if (playAnimationFrameRef.current) {
             cancelAnimationFrame(playAnimationFrameRef.current);
         }
         
-        try { if (voiceSourceRef.current) voiceSourceRef.current.stop(); } catch(e){}
-        try { if (musicSourceRef.current) musicSourceRef.current.stop(); } catch(e){}
+        // Aggressive Disconnect
+        if (voiceSourceRef.current) {
+            try { 
+                voiceSourceRef.current.stop(); 
+                voiceSourceRef.current.disconnect();
+            } catch(e){}
+        }
+        if (musicSourceRef.current) {
+            try { 
+                musicSourceRef.current.stop(); 
+                musicSourceRef.current.disconnect();
+            } catch(e){}
+        }
         
         voiceSourceRef.current = null;
         musicSourceRef.current = null;
@@ -409,6 +439,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         if (!isRecording) setAnalyserNode(null);
         setIsPlaying(false);
         setDuckingActive(false);
+        setIsProcessing(false);
     }, [isRecording]);
 
     const handlePlayPause = async () => {
@@ -424,10 +455,19 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
         if (!voiceBuffer && !musicBuffer) return;
         
-        const primaryDuration = Math.max(
-            (voiceBuffer ? voiceBuffer.duration + voiceDelay : 0), 
-            (musicBuffer ? musicBuffer.duration : 0)
-        );
+        // Generate new Request ID
+        const requestId = playRequestIdRef.current + 1;
+        playRequestIdRef.current = requestId;
+
+        // Calculate Loop Limits (Issue 1)
+        const voiceEnd = (voiceBuffer ? voiceBuffer.duration + voiceDelay : 0);
+        const musicEnd = musicBuffer ? musicBuffer.duration : 0;
+        
+        // Logic for timeline limit
+        let primaryDuration = Math.max(voiceEnd, musicEnd);
+        if (trimToVoice && voiceBuffer) {
+            primaryDuration = voiceEnd + 3.0;
+        }
 
         if (playbackOffsetRef.current >= primaryDuration - 0.1) {
             playbackOffsetRef.current = 0;
@@ -449,6 +489,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 // Apply DSP settings, pass 0 delay here since we schedule start
                 processedVoice = await processAudio(voiceBuffer, settings, null, 0, false, 80, true, 0); 
                 
+                // RACE CONDITION CHECK (Issue 2)
+                if (playRequestIdRef.current !== requestId) {
+                    return; // Stopped or changed while processing
+                }
+
                 vSource = ctx.createBufferSource();
                 vSource.buffer = processedVoice;
                 
@@ -465,17 +510,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 vSource.connect(duckingAnalyser); 
                 
                 // Logic for Delay + Seek:
-                // We want to start the voice at `voiceDelay`.
-                // However, `playbackOffsetRef.current` is the seek position (absolute timeline).
-                // 1. If seek pos < delay: Schedule voice to start at `voiceDelay - seekPos` relative to now. Start buffer at 0.
-                // 2. If seek pos >= delay: Start voice immediately. Start buffer at `seekPos - voiceDelay`.
-                
                 const seekPos = playbackOffsetRef.current;
                 
                 if (seekPos < voiceDelay) {
                     vSource.start(ctx.currentTime + (voiceDelay - seekPos), 0);
                 } else {
-                    vSource.start(0, seekPos - voiceDelay);
+                    const offsetInVoice = seekPos - voiceDelay;
+                    if (offsetInVoice < processedVoice.duration) {
+                        vSource.start(0, offsetInVoice);
+                    }
                 }
             }
             
@@ -519,13 +562,21 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
             // Animation Loop (The Engine)
             const updateUI = () => {
+                // RACE CONDITION CHECK inside loop
+                if (playRequestIdRef.current !== requestId) return;
+
                 if (ctx.state === 'running') {
                     const currentSegmentTime = ctx.currentTime - playbackStartTimeRef.current;
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
                     
-                    const voiceEnd = (voiceBuffer && processedVoice) ? (voiceDelay + processedVoice.duration) : 0;
-                    const musicEnd = musicBuffer ? musicBuffer.duration : 0;
-                    const totalDur = Math.max(voiceEnd, musicEnd);
+                    // RE-CALCULATE DURATION LIMIT INSIDE LOOP (Issue 1 fix)
+                    const vEnd = (voiceBuffer && processedVoice) ? (voiceDelayRef.current + processedVoice.duration) : 0;
+                    const mEnd = musicBuffer ? musicBuffer.duration : 0;
+                    let liveTotalDur = Math.max(vEnd, mEnd);
+                    
+                    if (trimToVoiceRef.current && voiceBuffer) {
+                        liveTotalDur = vEnd + 3.0; // 3s Fade out buffer
+                    }
                     
                     // REAL-TIME MIXING LOGIC (Using Refs to bypass stale closures)
                     const currentMusicVol = isMusicMutedRef.current ? 0 : (musicVolumeRef.current / 100);
@@ -568,10 +619,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         setDuckingActive(isDucking);
                     }
 
-                    if (actualTime >= totalDur) {
-                        setCurrentTime(totalDur);
+                    // STOP CONDITION (Issue 1)
+                    if (actualTime >= liveTotalDur) {
+                        setCurrentTime(liveTotalDur);
                         stopPlayback();
-                        playbackOffsetRef.current = 0;
+                        // Optional: Reset to 0 or leave at end? User asked for "Stop", implying pause at end usually
+                        playbackOffsetRef.current = 0; 
                         setCurrentTime(0);
                     } else {
                         setCurrentTime(actualTime);
