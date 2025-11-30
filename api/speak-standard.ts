@@ -2,12 +2,16 @@ import { PollyClient, SynthesizeSpeechCommand, SynthesizeSpeechCommandInput } fr
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Initialize AWS Client outside the handler for connection reuse
-// We use environment variables: SAWTLI_AWS_ACCESS_KEY_ID, SAWTLI_AWS_SECRET_ACCESS_KEY, SAWTLI_AWS_REGION
+// We now check for BOTH naming conventions: SAWTLI_ prefix (custom) OR standard AWS_ prefix
+const accessKeyId = process.env.SAWTLI_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
+const secretAccessKey = process.env.SAWTLI_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
+const region = process.env.SAWTLI_AWS_REGION || process.env.AWS_REGION || "eu-west-1";
+
 const awsClient = new PollyClient({
-    region: process.env.SAWTLI_AWS_REGION || "eu-west-1", // Default to Ireland if not specified
+    region: region,
     credentials: {
-        accessKeyId: process.env.SAWTLI_AWS_ACCESS_KEY_ID || "",
-        secretAccessKey: process.env.SAWTLI_AWS_SECRET_ACCESS_KEY || ""
+        accessKeyId: accessKeyId || "",
+        secretAccessKey: secretAccessKey || ""
     }
 });
 
@@ -33,9 +37,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Text is required.' });
     }
 
-    // Check if AWS keys are configured
-    if (!process.env.SAWTLI_AWS_ACCESS_KEY_ID || !process.env.SAWTLI_AWS_SECRET_ACCESS_KEY) {
-        console.error("AWS Credentials missing");
+    // Check if AWS keys are configured (using the resolved variables)
+    if (!accessKeyId || !secretAccessKey) {
+        console.error("AWS Credentials missing. Checked both SAWTLI_AWS_... and AWS_... variables.");
         return res.status(503).json({ error: 'Standard voice service is not configured (Server Side).' });
     }
 
@@ -44,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             Text: text,
             OutputFormat: "mp3",
             VoiceId: voiceId || "Zeina", // Default to Arabic Voice if not specified
-            Engine: "standard", // Force Standard engine for cost efficiency ($4.00 per 1 million characters)
+            Engine: "standard", // Force Standard engine for cost efficiency
         };
 
         const command = new SynthesizeSpeechCommand(params);
