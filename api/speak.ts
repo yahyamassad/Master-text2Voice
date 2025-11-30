@@ -57,14 +57,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         responseModalities: ['AUDIO'],
                         speechConfig: {
                             voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoiceName } }
-                        },
-                        // CRITICAL STABILITY SETTINGS
-                        // 0.1 forces the model to be deterministic (fixes stuttering/hallucinations)
-                        temperature: 0.1, 
-                        topP: 0.95,
-                        topK: 40,
-                        // Explicit instructions to prevent skipping or repeating words
-                        systemInstruction: "You are a professional voice actor. Read the text exactly as written. Do not repeat words. Do not skip words. Pronounce names clearly and naturally."
+                        }
+                        // REMOVED: systemInstruction, temperature, topP, topK 
+                        // These parameters are not supported by the TTS model and cause 500 errors.
                     },
                 });
 
