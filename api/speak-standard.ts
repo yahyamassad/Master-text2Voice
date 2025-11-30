@@ -7,9 +7,7 @@ import { Buffer } from 'buffer';
 const accessKeyId = process.env.SAWTLI_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = process.env.SAWTLI_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
 
-// FORCE us-east-1 (N. Virginia)
-// This region supports ALL standard and neural voices (including Maged, Zeina, etc.).
-// Using this region universally prevents "Voice not found" errors that occur in fragmented regions like eu-west-1.
+// FORCE us-east-1 (N. Virginia) - The Universal Region
 const REGION = "us-east-1";
 
 // Initialize the client once (outside handler) for performance
@@ -53,8 +51,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const params: SynthesizeSpeechCommandInput = {
             Text: text,
             OutputFormat: "mp3",
-            VoiceId: voiceId || "Zeina", 
-            Engine: "standard", 
+            VoiceId: voiceId || "Zeina",
+            // REMOVED: Engine: "standard" 
+            // Letting AWS default it resolves compatibility issues where some voices strictly require omitting this param 
+            // or require specific combinations with LanguageCode. Standard is the default anyway.
+            TextType: "text",
         };
 
         const command = new SynthesizeSpeechCommand(params);
@@ -73,7 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 audioContent: base64Audio,
                 format: 'mp3',
                 engine: 'aws-polly-standard',
-                regionUsed: REGION
+                regionUsed: REGION,
+                voiceUsed: params.VoiceId
             });
         } else {
             throw new Error("AWS Polly did not return an audio stream.");
@@ -81,11 +83,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error("AWS Polly Error:", error);
-        // Return detailed error code from AWS to help debugging (e.g. UnrecognizedClientException)
+        
+        // Return detailed error code from AWS to help debugging
+        // This will now show up in the browser console network tab response
         return res.status(500).json({ 
             error: "Failed to generate standard speech.",
             details: error.message,
-            code: error.name || "UnknownError"
+            awsCode: error.name || "UnknownError",
+            voiceAttempted: voiceId,
+            regionAttempted: REGION
         });
     }
 }
