@@ -6,9 +6,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const accessKeyId = process.env.SAWTLI_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = process.env.SAWTLI_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
 
-// CRITICAL FIX: Default to 'us-east-1' because 'Maged' (Arabic Male) and some others are NOT available in 'eu-west-1'.
-// 'us-east-1' (N. Virginia) supports all standard voices.
-const region = process.env.SAWTLI_AWS_REGION || process.env.AWS_REGION || "us-east-1";
+// CRITICAL FIX: We HARDCODE 'us-east-1' here.
+// Why? Because if the user has set AWS_REGION in Vercel to 'eu-west-1' or 'eu-north-1',
+// the code would pick that up, and 'Maged' does NOT exist in those regions.
+// By forcing us-east-1, we guarantee all Standard voices (including Maged) are found.
+const region = "us-east-1";
 
 const awsClient = new PollyClient({
     region: region,
