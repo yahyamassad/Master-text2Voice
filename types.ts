@@ -3,6 +3,7 @@
 
 
 
+
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -29,42 +30,50 @@ export interface StandardVoice {
 }
 
 export const AWS_STANDARD_VOICES: StandardVoice[] = [
-    // Arabic
+    // Arabic - Only Zeina is reliably Standard
     { name: 'Zeina', label: 'Zeina (Arabic)', lang: 'ar', gender: 'Female' },
-    { name: 'Maged', label: 'Maged (Arabic)', lang: 'ar', gender: 'Male' },
     
-    // English (US) - Verified List
+    // English (US)
     { name: 'Joanna', label: 'Joanna (US English)', lang: 'en', gender: 'Female' },
+    { name: 'Joey', label: 'Joey (US English)', lang: 'en', gender: 'Male' },
     { name: 'Salli', label: 'Salli (US English)', lang: 'en', gender: 'Female' },
+    { name: 'Matthew', label: 'Matthew (US English)', lang: 'en', gender: 'Male' },
+    { name: 'Ivy', label: 'Ivy (US Child)', lang: 'en', gender: 'Female' },
+    { name: 'Justin', label: 'Justin (US Child)', lang: 'en', gender: 'Male' },
     { name: 'Kimberly', label: 'Kimberly (US English)', lang: 'en', gender: 'Female' },
     { name: 'Kendra', label: 'Kendra (US English)', lang: 'en', gender: 'Female' },
-    { name: 'Ivy', label: 'Ivy (US Child)', lang: 'en', gender: 'Female' },
-    { name: 'Matthew', label: 'Matthew (US English)', lang: 'en', gender: 'Male' },
-    { name: 'Justin', label: 'Justin (US Child)', lang: 'en', gender: 'Male' },
-    { name: 'Joey', label: 'Joey (US English)', lang: 'en', gender: 'Male' },
 
-    // French - Verified List
-    { name: 'Lea', label: 'Léa (French)', lang: 'fr', gender: 'Female' },
+    // English (British)
+    { name: 'Amy', label: 'Amy (British)', lang: 'en', gender: 'Female' },
+    { name: 'Brian', label: 'Brian (British)', lang: 'en', gender: 'Male' },
+    { name: 'Emma', label: 'Emma (British)', lang: 'en', gender: 'Female' },
+
+    // English (Indian)
+    { name: 'Aditi', label: 'Aditi (Indian English)', lang: 'en', gender: 'Female' },
+    { name: 'Raveena', label: 'Raveena (Indian English)', lang: 'en', gender: 'Female' },
+
+    // French
     { name: 'Celine', label: 'Celine (French)', lang: 'fr', gender: 'Female' },
     { name: 'Mathieu', label: 'Mathieu (French)', lang: 'fr', gender: 'Male' },
+    { name: 'Lea', label: 'Léa (French)', lang: 'fr', gender: 'Female' },
     
-    // Spanish - Verified List
-    { name: 'Lucia', label: 'Lucia (Spanish)', lang: 'es', gender: 'Female' },
+    // Spanish
     { name: 'Conchita', label: 'Conchita (Spanish)', lang: 'es', gender: 'Female' },
-    { name: 'Mia', label: 'Mia (Mexican Spanish)', lang: 'es', gender: 'Female' },
     { name: 'Enrique', label: 'Enrique (Spanish)', lang: 'es', gender: 'Male' },
+    { name: 'Lucia', label: 'Lucia (Spanish)', lang: 'es', gender: 'Female' },
+    { name: 'Mia', label: 'Mia (Mexican Spanish)', lang: 'es', gender: 'Female' },
     
-    // Portuguese - Verified List
-    { name: 'Vitoria', label: 'Vitória (Brazilian)', lang: 'pt', gender: 'Female' },
+    // Portuguese
     { name: 'Camila', label: 'Camila (Brazilian)', lang: 'pt', gender: 'Female' },
     { name: 'Ricardo', label: 'Ricardo (Brazilian)', lang: 'pt', gender: 'Male' },
-    { name: 'Ines', label: 'Inês (European)', lang: 'pt', gender: 'Female' },
+    { name: 'Vitoria', label: 'Vitória (Brazilian)', lang: 'pt', gender: 'Female' },
     { name: 'Cristiano', label: 'Cristiano (European)', lang: 'pt', gender: 'Male' },
+    { name: 'Ines', label: 'Inês (European)', lang: 'pt', gender: 'Female' },
     
-    // German (Keep standard robust ones)
+    // German
     { name: 'Marlene', label: 'Marlene (German)', lang: 'de', gender: 'Female' },
-    { name: 'Vicki', label: 'Vicki (German)', lang: 'de', gender: 'Female' },
     { name: 'Hans', label: 'Hans (German)', lang: 'de', gender: 'Male' },
+    { name: 'Vicki', label: 'Vicki (German)', lang: 'de', gender: 'Female' },
 
     // Italian
     { name: 'Carla', label: 'Carla (Italian)', lang: 'it', gender: 'Female' },
