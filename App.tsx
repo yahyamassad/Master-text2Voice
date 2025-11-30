@@ -1,13 +1,13 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
+import { generateStandardSpeech } from './services/standardVoiceService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
   SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
-import { HistoryItem, SpeakerConfig, GEMINI_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
+import { HistoryItem, SpeakerConfig, GEMINI_VOICES, AWS_STANDARD_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
 import firebase, { getFirebase } from './firebaseConfig';
 
 type User = firebase.User;
@@ -212,7 +212,11 @@ const App: React.FC = () => {
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
-  const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
+  
+  // We use this as a reference list for the Settings modal, but we don't query the browser anymore
+  // except for potential fallback or legacy reasons.
+  // The systemVoices state will now just hold our AWS list or be empty.
+  const [systemVoices, setSystemVoices] = useState<any[]>([]);
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
   
@@ -223,7 +227,6 @@ const App: React.FC = () => {
 
   const apiAbortControllerRef = useRef<AbortController | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const recognitionRef = useRef<any | null>(null);
   const sourceTextAreaRef = useRef<HTMLTextAreaElement>(null);
   const effectsDropdownRef = useRef<HTMLDivElement>(null);
@@ -338,9 +341,7 @@ const App: React.FC = () => {
     if (audioContextRef.current && audioContextRef.current.state === 'running') {
         audioContextRef.current.suspend().catch(() => {});
     }
-    if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-    }
+    // No more window.speechSynthesis cancellation needed as we removed it
     if (recognitionRef.current) {
         recognitionRef.current.abort();
         setIsListening(false);
@@ -412,43 +413,15 @@ const App: React.FC = () => {
     }
   }, []); 
 
-  const refreshVoices = useCallback(() => {
-      const voices = window.speechSynthesis.getVoices();
-      setSystemVoices(prev => {
-          if (voices.length !== prev.length || (prev.length === 0 && voices.length > 0)) {
-              return voices;
-          }
-          return prev;
-      });
-      
-      if (!voice || (!GEMINI_VOICES.includes(voice) && !voices.some(v => v.name === voice))) {
-           const defaultVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-           if (defaultVoice && !GEMINI_VOICES.includes(voice)) {
-               setVoice(defaultVoice.name);
-           }
-      }
-  }, [voice]);
-
-  // Effect for system voices keep-alive - separated from AudioContext cleanup
+  // Init Voices (Now uses the static AWS Standard List + Gemini List)
   useEffect(() => {
-    refreshVoices();
-    window.speechSynthesis.onvoiceschanged = refreshVoices;
-    const intervalId = setInterval(refreshVoices, 1000);
-    const keepAliveInterval = setInterval(() => {
-        // FIX: Only resume if it was NOT explicitly paused by the user AND is currently playing
-        if (window.speechSynthesis && window.speechSynthesis.speaking && !window.speechSynthesis.paused && !isPausedRef.current && activePlayer) {
-            window.speechSynthesis.pause();
-            window.speechSynthesis.resume();
-        }
-    }, 14000);
-
-    return () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        clearInterval(intervalId);
-        clearInterval(keepAliveInterval);
-        if (window.speechSynthesis) window.speechSynthesis.cancel();
-    };
-  }, [refreshVoices, activePlayer]); 
+      // Instead of getting browser voices, we map our AWS Standard voices
+      // to the format the settings modal expects, or pass them directly.
+      // SettingsModal now handles the static list directly, so we just set a default if voice is unset.
+      if (!voice) {
+          setVoice('Joanna');
+      }
+  }, []);
 
   // Separate effect for AudioContext cleanup ONLY on unmount
   useEffect(() => {
@@ -524,6 +497,7 @@ const App: React.FC = () => {
   }, []);
   
   const getCacheKey = (text: string) => {
+      // Standard voices don't use 'emotion' or 'seed', but we keep the key structure consistent
       const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}` : 'single';
       return `${text}_${voice}_${emotion}_${speed}_${seed}_${pauseDuration}_${speakers}`;
   };
@@ -568,250 +542,169 @@ const App: React.FC = () => {
           return;
       }
 
+      // Initialize Audio Context for both Gemini AND Standard (Since we now use API for both)
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (audioContextRef.current.state === 'suspended') {
+          await audioContextRef.current.resume();
+      }
+
+      // Check Pause State
       if (activePlayer === target && !isPaused) {
-          if (isGeminiVoice) {
-              if (audioContextRef.current && audioContextRef.current.state === 'running') {
-                  const currentTime = audioContextRef.current.currentTime;
-                  const elapsed = (currentTime - playbackStartTimeRef.current) * speed;
-                  playbackOffsetRef.current += elapsed;
-                  
-                  isPausedRef.current = true;
-                  setIsPaused(true);
-                  
-                  if (audioSourceRef.current) {
-                      try { audioSourceRef.current.stop(); } catch (e) { /* ignore */ }
-                      audioSourceRef.current = null;
-                  }
-              }
-          } else {
-              window.speechSynthesis.pause();
+          if (audioContextRef.current && audioContextRef.current.state === 'running') {
+              const currentTime = audioContextRef.current.currentTime;
+              const elapsed = (currentTime - playbackStartTimeRef.current) * speed;
+              playbackOffsetRef.current += elapsed;
+              
+              isPausedRef.current = true;
               setIsPaused(true);
+              
+              if (audioSourceRef.current) {
+                  try { audioSourceRef.current.stop(); } catch (e) { /* ignore */ }
+                  audioSourceRef.current = null;
+              }
           }
           return;
       }
 
+      // Resume
       if (activePlayer === target && isPaused) {
-           if (!isGeminiVoice) {
-               window.speechSynthesis.resume();
-               setIsPaused(false);
-               return;
-           }
+           setIsPaused(false);
+           isPausedRef.current = false;
       } else {
           stopAll(); 
+          setIsLoading(true);
+          setLoadingTask(t('generatingSpeech', uiLanguage));
+          setActivePlayer(target);
+          setError(null);
+          isPausedRef.current = false;
       }
 
-      if (isGeminiVoice) {
-            if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-            }
-            if (audioContextRef.current.state === 'suspended') {
-                await audioContextRef.current.resume();
-            }
+      let textToProcess = text;
+      let isTruncated = false;
+      
+      if (userTier === 'visitor' && text.length > 50) {
+          textToProcess = text.substring(0, 50); 
+          isTruncated = true;
+      }
 
-            if (!isPaused) {
-                setIsLoading(true);
-                setLoadingTask(t('generatingSpeech', uiLanguage));
-                setActivePlayer(target);
-                setError(null);
-                isPausedRef.current = false;
-            } else {
-                setIsPaused(false);
-                isPausedRef.current = false;
-            }
-            
-            let textToProcess = text;
-            let isTruncated = false;
-            
-            if (userTier === 'visitor' && text.length > 50) {
-                textToProcess = text.substring(0, 50); 
-                isTruncated = true;
-            }
+      const cacheKey = getCacheKey(textToProcess);
+      let pcmData: Uint8Array | null = null;
 
-            const cacheKey = getCacheKey(textToProcess);
-            let pcmData: Uint8Array | null = null;
+      if (audioCacheRef.current.has(cacheKey)) {
+           pcmData = audioCacheRef.current.get(cacheKey)!;
+           setLastGeneratedPCM(pcmData);
+      }
 
-            if (audioCacheRef.current.has(cacheKey)) {
-                 pcmData = audioCacheRef.current.get(cacheKey)!;
-                 setLastGeneratedPCM(pcmData);
-            }
+      // Generation Logic
+      if (!pcmData) {
+          const warmUpTimer = setTimeout(() => {
+              setLoadingTask(t('warmingUp', uiLanguage));
+          }, 2000);
+          
+          const clientTimeout = setTimeout(() => {
+               if(isLoading && activePlayer === target) {
+                   stopAll();
+                   showToast("Timeout: Generation took too long.", 'error');
+               }
+          }, 45000); 
 
-            if (!pcmData) {
-                const warmUpTimer = setTimeout(() => {
-                    setLoadingTask(t('warmingUp', uiLanguage));
-                }, 2000);
-                
-                const clientTimeout = setTimeout(() => {
-                     if(isLoading && activePlayer === target) {
-                         stopAll();
-                         showToast("Timeout: Generation took too long.", 'error');
-                     }
-                }, 45000); 
+          apiAbortControllerRef.current = new AbortController();
+          const signal = apiAbortControllerRef.current.signal;
 
-                apiAbortControllerRef.current = new AbortController();
-                const signal = apiAbortControllerRef.current.signal;
+          try {
+              if (isGeminiVoice) {
+                  // GEMINI (Pro)
+                  const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+                  // @ts-ignore
+                  const idToken = user ? await user.getIdToken() : undefined;
 
-                try {
-                    const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
-                    // @ts-ignore
-                    const idToken = user ? await user.getIdToken() : undefined;
+                  pcmData = await generateSpeech(
+                      textToProcess,
+                      voice,
+                      emotion,
+                      pauseDuration,
+                      speakersConfig,
+                      signal,
+                      idToken,
+                      speed,
+                      seed
+                  );
+              } else {
+                  // STANDARD (AWS) - The New Integration
+                  // We default language code based on current selection if needed
+                  const langCode = target === 'source' ? sourceLang : targetLang;
+                  // Map lang code to AWS compatible if needed (usually handled by backend defaulting or voiceId)
+                  
+                  pcmData = await generateStandardSpeech(
+                      textToProcess,
+                      voice, // This is now 'Zeina', 'Joanna', etc.
+                      langCode
+                  );
+              }
+              
+              clearTimeout(warmUpTimer);
+              clearTimeout(clientTimeout);
 
-                    pcmData = await generateSpeech(
-                        textToProcess,
-                        voice,
-                        emotion,
-                        pauseDuration,
-                        speakersConfig,
-                        signal,
-                        idToken,
-                        speed,
-                        seed
-                    );
-                    
-                    clearTimeout(warmUpTimer);
-                    clearTimeout(clientTimeout);
+              if (signal.aborted) return;
+              
+              if (pcmData) {
+                  if (audioCacheRef.current.size > 20) {
+                      const firstKey = audioCacheRef.current.keys().next().value;
+                      audioCacheRef.current.delete(firstKey);
+                  }
+                  audioCacheRef.current.set(cacheKey, pcmData);
+                  setLastGeneratedPCM(pcmData);
+                  
+                  if (userTier !== 'visitor' && userTier !== 'admin') {
+                      updateUserStats(textToProcess.length);
+                  }
+              }
 
-                    if (signal.aborted) return;
-                    
-                    if (pcmData) {
-                        if (audioCacheRef.current.size > 20) {
-                            const firstKey = audioCacheRef.current.keys().next().value;
-                            audioCacheRef.current.delete(firstKey);
-                        }
-                        audioCacheRef.current.set(cacheKey, pcmData);
-                        setLastGeneratedPCM(pcmData);
-                        
-                        if (userTier !== 'visitor' && userTier !== 'admin') {
-                            updateUserStats(textToProcess.length);
-                        }
-                    }
+          } catch (err: any) {
+              clearTimeout(warmUpTimer);
+              clearTimeout(clientTimeout);
+              if (err.message !== 'Aborted' && err.name !== 'AbortError') {
+                  console.error("Audio generation failed:", err);
+                  showToast(err.message || t('errorUnexpected', uiLanguage), 'error');
+              }
+              setIsLoading(false);
+              setActivePlayer(null);
+              return;
+          }
+      }
+      
+      // Playback Logic (Unified for both Standard and Gemini)
+      if (pcmData) {
+          const startOffset = playbackOffsetRef.current / speed;
+          playbackStartTimeRef.current = audioContextRef.current.currentTime;
 
-                } catch (err: any) {
-                    clearTimeout(warmUpTimer);
-                    clearTimeout(clientTimeout);
-                    if (err.message !== 'Aborted' && err.name !== 'AbortError') {
-                        // Fallback logic for Quota or Server Errors:
-                        // If gemini fails, try to use System Voices automatically as a failover
-                        // so the user experience isn't completely broken.
-                        console.error("Audio generation failed, attempting fallback:", err);
-                        
-                        if (err.message && (err.message.includes('429') || err.message.includes('500') || err.message.includes('busy') || err.message.includes('quota'))) {
-                             showToast("Gemini AI busy. Falling back to System Voice.", 'info');
-                             
-                             // Switch to system voice temporarily for this request
-                             setIsLoading(false);
-                             setActivePlayer(null);
-                             
-                             // Find best matching system voice
-                             const langCode = target === 'source' ? sourceLang : targetLang;
-                             const fallbackVoice = systemVoices.find(v => v.lang.startsWith(langCode)) || systemVoices[0];
-                             
-                             if (fallbackVoice) {
-                                 // Trigger system speech manually
-                                 const utterance = new SpeechSynthesisUtterance(text);
-                                 utterance.voice = fallbackVoice;
-                                 utterance.rate = speed;
-                                 nativeUtteranceRef.current = utterance;
-                                 utterance.onstart = () => { setActivePlayer(target); setIsPaused(false); };
-                                 utterance.onend = () => { setActivePlayer(null); setIsPaused(false); nativeUtteranceRef.current = null; };
-                                 window.speechSynthesis.speak(utterance);
-                                 return; // Exit here, handled by fallback
-                             }
-                        }
-                        
-                        showToast(err.message || t('errorUnexpected', uiLanguage), 'error');
-                    }
-                    setIsLoading(false);
-                    setActivePlayer(null);
-                    return;
-                }
-            }
-            
-            if (pcmData) {
-                const startOffset = playbackOffsetRef.current / speed;
-                playbackStartTimeRef.current = audioContextRef.current.currentTime;
-
-                audioSourceRef.current = await playAudio(
-                    pcmData, 
-                    audioContextRef.current, 
-                    () => {
-                         if (!isPausedRef.current) {
-                             setActivePlayer(null);
-                             audioSourceRef.current = null;
-                             setIsLoading(false);
-                             setLoadingTask('');
-                             playbackOffsetRef.current = 0;
-                             
-                             if (isTruncated) {
-                                 setTimeout(() => {
-                                     const isRtl = uiLanguage === 'ar';
-                                     showToast(isRtl ? "هذه معاينة مجانية. سجل للدخول لسماع النص كاملاً." : "Free preview ended. Sign in to hear full text.", 'info');
-                                     setIsUpgradeOpen(true);
-                                 }, 500);
-                             }
-                         }
-                    }, 
-                    speed,
-                    startOffset
-                );
-                
-                setIsLoading(false);
-            }
-
-      } else {
-        try {
-            window.speechSynthesis.cancel();
-            if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-            
-            setTimeout(() => {
-                const utterance = new SpeechSynthesisUtterance(text);
-                let selectedVoice = systemVoices.find(v => v.name === voice);
-                
-                if (!selectedVoice) {
-                    const targetLangCode = target === 'source' ? sourceLang : targetLang;
-                    selectedVoice = systemVoices.find(v => v.lang.toLowerCase().includes(targetLangCode.toLowerCase())) 
-                                 || systemVoices[0];
-                }
-
-                if (selectedVoice) {
-                    utterance.voice = selectedVoice;
-                    utterance.lang = selectedVoice.lang;
-                } else {
-                    const textLangCode = target === 'source' ? sourceLang : targetLang;
-                    utterance.lang = translationLanguages.find(l => l.code === textLangCode)?.speechCode || textLangCode;
-                }
-
-                utterance.rate = speed;
-                nativeUtteranceRef.current = utterance;
-                
-                utterance.onstart = () => {
-                    setActivePlayer(target);
-                    setIsPaused(false);
-                };
-                
-                utterance.onend = () => {
-                    setActivePlayer(null);
-                    setIsPaused(false);
-                    nativeUtteranceRef.current = null;
-                };
-                
-                utterance.onerror = (e) => {
-                    if (e.error !== 'interrupted' && e.error !== 'canceled') {
-                        showToast(t('errorSpeechGenerationSystem', uiLanguage).replace('{voiceName}', voice), 'error');
-                    }
-                    if(e.error !== 'interrupted') {
-                         setActivePlayer(null);
-                         nativeUtteranceRef.current = null;
-                    }
-                };
-                
-                window.speechSynthesis.speak(utterance);
-            }, 50);
-
-        } catch (e) {
-            console.error("Failed to initiate speech synthesis:", e);
-            showToast(t('errorSpeechGeneration', uiLanguage), 'error');
-            setActivePlayer(null);
-        }
+          audioSourceRef.current = await playAudio(
+              pcmData, 
+              audioContextRef.current, 
+              () => {
+                   if (!isPausedRef.current) {
+                       setActivePlayer(null);
+                       audioSourceRef.current = null;
+                       setIsLoading(false);
+                       setLoadingTask('');
+                       playbackOffsetRef.current = 0;
+                       
+                       if (isTruncated) {
+                           setTimeout(() => {
+                               const isRtl = uiLanguage === 'ar';
+                               showToast(isRtl ? "هذه معاينة مجانية. سجل للدخول لسماع النص كاملاً." : "Free preview ended. Sign in to hear full text.", 'info');
+                               setIsUpgradeOpen(true);
+                           }, 500);
+                       }
+                   }
+              }, 
+              speed,
+              startOffset
+          );
+          
+          setIsLoading(false);
       }
   };
   
@@ -984,8 +877,14 @@ const App: React.FC = () => {
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
     if (!text.trim()) return null;
 
-    if (!GEMINI_VOICES.includes(voice)) {
-        showToast(t('errorDownloadSystemVoice', uiLanguage), 'error');
+    // Both Standard (AWS) and Gemini are now valid "API" voices.
+    // We check if the voice exists in either list.
+    const isGemini = GEMINI_VOICES.includes(voice);
+    const isStandard = AWS_STANDARD_VOICES.some(v => v.name === voice);
+
+    if (!isGemini && !isStandard) {
+        // Fallback for edge cases where voice state might be stale
+        showToast("Invalid voice selected", 'error');
         return null;
     }
     
@@ -1010,17 +909,27 @@ const App: React.FC = () => {
              // @ts-ignore
              const idToken = user ? await user.getIdToken() : undefined;
 
-             const pcmData = await generateSpeech(
-                text,
-                voice,
-                emotion,
-                pauseDuration,
-                speakersConfig,
-                signal,
-                idToken,
-                speed,
-                seed
-             );
+             let pcmData;
+             
+             if (isGemini) {
+                 pcmData = await generateSpeech(
+                    text,
+                    voice,
+                    emotion,
+                    pauseDuration,
+                    speakersConfig,
+                    signal,
+                    idToken,
+                    speed,
+                    seed
+                 );
+             } else {
+                 // AWS Standard Generation
+                 pcmData = await generateStandardSpeech(
+                     text,
+                     voice
+                 );
+             }
 
             if (!pcmData) {
                 throw new Error(t('errorApiNoAudio', uiLanguage));
@@ -1100,6 +1009,8 @@ const App: React.FC = () => {
   };
   
   const handleAudioStudioOpen = () => {
+      // Silence the main app playback before opening the studio
+      stopAll();
       setIsAudioStudioOpen(true);
   };
 
@@ -1213,7 +1124,6 @@ const App: React.FC = () => {
       };
   };
 
-  const isUsingSystemVoice = !GEMINI_VOICES.includes(voice);
   const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
   const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
   const sourceButtonState = getButtonState('source');
@@ -1266,7 +1176,7 @@ const App: React.FC = () => {
                     spellCheck="false"
                 />
                 
-                {/* Trash Icon moved to bottom-left */}
+                {/* Trash Icon - Positioned bottom-left inside textarea container */}
                 {sourceText && (
                     <button 
                         onClick={() => {setSourceText(''); setTranslatedText('');}} 
@@ -1277,7 +1187,7 @@ const App: React.FC = () => {
                     </button>
                 )}
 
-                {/* Char Count bottom-right */}
+                {/* Char Count - Positioned bottom-right inside textarea container */}
                 <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-500 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
                     {sourceText.length} chars
                 </div>
@@ -1311,7 +1221,8 @@ const App: React.FC = () => {
                     className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`}
                     dir={isTargetRtl ? 'rtl' : 'ltr'}
                 />
-                {/* Translated Char Count added here */}
+                
+                {/* Translated Char Count - Added bottom-right */}
                 <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-600 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
                     {translatedText.length} chars
                 </div>
@@ -1415,14 +1326,14 @@ const App: React.FC = () => {
                             label={sourceButtonState.label}
                             className={`w-full ${sourceButtonState.className}`}
                         />
-                        {/* DISTINCT STOP BUTTON */}
+                        {/* DISTINCT STOP BUTTON - REDESIGNED */}
                         {(activePlayer === 'source') && (
                             <button
                                 onClick={stopAll}
-                                className="h-16 w-16 bg-red-600 hover:bg-red-500 text-white border-2 border-red-400 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group"
+                                className="h-16 w-16 bg-slate-800 hover:bg-rose-900/20 border-2 border-rose-500 text-rose-500 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group hover:shadow-[0_0_15px_rgba(244,63,94,0.3)]"
                                 title={t('stopSpeaking', uiLanguage)}
                             >
-                                <div className="w-6 h-6 bg-white rounded-sm group-hover:scale-110 transition-transform"></div>
+                                <StopIcon className="w-8 h-8 group-hover:scale-110 transition-transform" />
                             </button>
                         )}
                      </div>
@@ -1447,14 +1358,14 @@ const App: React.FC = () => {
                             disabled={!translatedText.trim()}
                             className={`w-full ${targetButtonState.className}`}
                         />
-                        {/* DISTINCT STOP BUTTON */}
+                        {/* DISTINCT STOP BUTTON - REDESIGNED */}
                         {(activePlayer === 'target') && (
                             <button
                                 onClick={stopAll}
-                                className="h-16 w-16 bg-red-600 hover:bg-red-500 text-white border-2 border-red-400 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group"
+                                className="h-16 w-16 bg-slate-800 hover:bg-rose-900/20 border-2 border-rose-500 text-rose-500 rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95 animate-fade-in group hover:shadow-[0_0_15px_rgba(244,63,94,0.3)]"
                                 title={t('stopSpeaking', uiLanguage)}
                             >
-                                <div className="w-6 h-6 bg-white rounded-sm group-hover:scale-110 transition-transform"></div>
+                                <StopIcon className="w-8 h-8 group-hover:scale-110 transition-transform" />
                             </button>
                         )}
                     </div>
@@ -1490,7 +1401,7 @@ const App: React.FC = () => {
                     icon={<DownloadIcon className="w-10 h-10" />} 
                     label={t('downloadButton', uiLanguage)} 
                     onClick={() => setIsDownloadOpen(true)} 
-                    disabled={isLoading || (!sourceText && !translatedText) || isUsingSystemVoice} 
+                    disabled={isLoading || (!sourceText && !translatedText) } 
                 />
                 <ActionCard 
                     icon={<SoundEnhanceIcon className="text-cyan-400 w-10 h-10" />} 
@@ -1516,7 +1427,7 @@ const App: React.FC = () => {
         </footer>
       </div>
 
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} onRefreshVoices={() => window.speechSynthesis.getVoices()} />}
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices: AWS_STANDARD_VOICES as any}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} />}
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
       

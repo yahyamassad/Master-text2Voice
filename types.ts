@@ -16,6 +16,40 @@ export interface SpeakerConfig {
 
 export const GEMINI_VOICES = ['Puck', 'Kore', 'Charon', 'Zephyr', 'Fenrir'];
 
+// Defines the reliable "Standard" voices from AWS Polly
+// This replaces the unreliable window.speechSynthesis voices
+export interface StandardVoice {
+    name: string;
+    label: string; // Display name
+    lang: string;  // 'ar', 'en', 'fr', etc.
+    gender: 'Female' | 'Male';
+}
+
+export const AWS_STANDARD_VOICES: StandardVoice[] = [
+    // Arabic
+    { name: 'Zeina', label: 'Zeina (Arabic)', lang: 'ar', gender: 'Female' },
+    
+    // English
+    { name: 'Joanna', label: 'Joanna (US English)', lang: 'en', gender: 'Female' },
+    { name: 'Joey', label: 'Joey (US English)', lang: 'en', gender: 'Male' },
+    { name: 'Matthew', label: 'Matthew (US English)', lang: 'en', gender: 'Male' },
+    { name: 'Ivy', label: 'Ivy (US Child)', lang: 'en', gender: 'Female' },
+    { name: 'Brian', label: 'Brian (British)', lang: 'en', gender: 'Male' },
+    { name: 'Amy', label: 'Amy (British)', lang: 'en', gender: 'Female' },
+    
+    // French
+    { name: 'Celine', label: 'Celine (French)', lang: 'fr', gender: 'Female' },
+    { name: 'Mathieu', label: 'Mathieu (French)', lang: 'fr', gender: 'Male' },
+    
+    // Spanish
+    { name: 'Conchita', label: 'Conchita (Spanish)', lang: 'es', gender: 'Female' },
+    { name: 'Enrique', label: 'Enrique (Spanish)', lang: 'es', gender: 'Male' },
+    
+    // Portuguese
+    { name: 'Camila', label: 'Camila (Brazilian)', lang: 'pt', gender: 'Female' },
+    { name: 'Ricardo', label: 'Ricardo (Brazilian)', lang: 'pt', gender: 'Male' },
+];
+
 export type UserTier = 'visitor' | 'free' | 'gold' | 'platinum' | 'admin';
 
 // --- USER STATS FOR GAMIFICATION ---

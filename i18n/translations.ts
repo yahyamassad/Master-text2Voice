@@ -1,4 +1,5 @@
 
+
 export type Language = 'ar' | 'en' | 'fr' | 'es' | 'pt';
 export type Direction = 'rtl' | 'ltr';
 export interface LanguageListItem {
@@ -124,11 +125,11 @@ export const translations = {
     pt: 'Essas vozes de alta qualidade são otimizadas para árabe padrão. Dialetos adicionais podem estar disponíveis no futuro.',
   },
   systemVoices: {
-    ar: 'أصوات النظام (مجاني)',
-    en: 'System Voices (Free)',
-    fr: 'Voix du Système (Gratuit)',
-    es: 'Voces del Sistema (Gratis)',
-    pt: 'Vozes do Sistema (Grátis)',
+    ar: 'أصوات قياسية (Standard)',
+    en: 'Standard Voices',
+    fr: 'Voix Standard',
+    es: 'Voces Estándar',
+    pt: 'Vozes Padrão',
   },
   suggestedVoices: {
     ar: 'الأصوات المقترحة',
@@ -138,18 +139,18 @@ export const translations = {
     pt: 'Vozes Sugeridas',
   },
   otherSystemVoices: {
-    ar: 'أصوات النظام الأخرى',
-    en: 'Other System Voices',
-    fr: 'Autres Voix du Système',
-    es: 'Otras Voces del Sistema',
-    pt: 'Outras Vozes do Sistema',
+    ar: 'أصوات أخرى',
+    en: 'Other Voices',
+    fr: 'Autres Voix',
+    es: 'Otras Voces',
+    pt: 'Outras Vozes',
   },
   noRelevantSystemVoices: {
-    ar: 'لا توجد أصوات نظام ذات صلة للغات المحددة.',
-    en: 'No relevant system voices found for the selected languages.',
-    fr: 'Aucune voix système pertinente trouvée pour les langues sélectionnées.',
-    es: 'No se encontraron voces del sistema relevantes.',
-    pt: 'Nenhuma voz de sistema relevante encontrada para os idiomas selecionados.',
+    ar: 'لا توجد أصوات قياسية للغة المحددة.',
+    en: 'No standard voices found for this language.',
+    fr: 'Aucune voix standard trouvée.',
+    es: 'No se encontraron voces estándar.',
+    pt: 'Nenhuma voz padrão encontrada.',
   },
   selectVoice: {
     ar: 'اختر صوتاً...',
@@ -215,11 +216,11 @@ export const translations = {
     pt: 'Pré-visualizar esta voz',
   },
   previewSystemVoice: {
-    ar: 'معاينة صوت النظام',
-    en: 'Preview System Voice',
-    fr: 'Aperçu de la voix du système',
-    es: 'Vista previa de voz del sistema',
-    pt: 'Pré-visualizar voz do sistema',
+    ar: 'معاينة صوت قياسي',
+    en: 'Preview Standard Voice',
+    fr: 'Aperçu de la voix standard',
+    es: 'Vista previa de voz estándar',
+    pt: 'Pré-visualizar voz padrão',
   },
   voicePreviewText: {
     ar: 'مَرْحَبًا، أَنَا جَاهِز.',
@@ -1849,11 +1850,11 @@ export const translations = {
       pt: 'Geração Ilimitada',
   },
   featureSystemVoices: {
-      ar: 'أصوات النظام (مجاني)',
-      en: 'System Voices (Free)',
-      fr: 'Voix système',
-      es: 'Voces del sistema',
-      pt: 'Vozes do Sistema',
+      ar: 'أصوات قياسية (Standard)',
+      en: 'Standard Voices',
+      fr: 'Voix Standard',
+      es: 'Voces Estándar',
+      pt: 'Vozes Padrão',
   },
   featureGeminiVoices: {
       ar: 'أصوات ذكية (Gemini)',

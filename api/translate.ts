@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        // Support specific naming convention first, fallback to generic
+        // CRITICAL UPDATE: Support SAWTLI_GEMINI_KEY
         const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
         const ai = new GoogleGenAI({ apiKey: apiKey });
         const model = 'gemini-2.5-flash';

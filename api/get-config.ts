@@ -8,6 +8,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        // Prioritize custom key name
         const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
         
         const config = {

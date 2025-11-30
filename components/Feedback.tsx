@@ -237,6 +237,7 @@ const Feedback: React.FC<FeedbackProps> = ({ language, onOpenReport }) => {
                                     dir={itemDirection} 
                                     className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 animate-fade-in"
                                 >
+                                    {/* Force name/header to follow Name language */}
                                     <div className="flex justify-between items-start gap-4" dir={nameDirection}>
                                         <div className="flex flex-col">
                                             <p className="font-bold text-cyan-400 text-lg">{item.name || 'Anonymous'}</p>

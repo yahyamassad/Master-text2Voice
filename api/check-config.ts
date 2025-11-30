@@ -35,10 +35,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. Check Gemini
   if (apiKey && apiKey.trim() !== '') {
       const last4 = apiKey.length > 4 ? apiKey.slice(-4) : '****';
+      const keySource = env.SAWTLI_GEMINI_KEY ? '(SAWTLI_KEY)' : '(API_KEY)';
+      
       try {
           // Simple instantiation check
           new GoogleGenAI({ apiKey });
-          responseData.details.gemini = `Present (Ends in ...${last4})`;
+          responseData.details.gemini = `Present ${keySource} ...${last4}`;
           responseData.configured = true;
       } catch (e) {
           responseData.details.gemini = `Invalid Format`;

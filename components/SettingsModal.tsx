@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translationLanguages, translations } from '../i18n/translations';
-import { SpeakerConfig, GEMINI_VOICES } from '../types';
+import { SpeakerConfig, GEMINI_VOICES, AWS_STANDARD_VOICES, StandardVoice } from '../types';
 import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon, ReplayIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
+import { generateStandardSpeech } from '../services/standardVoiceService';
 import { playAudio } from '../utils/audioUtils';
 
 interface SettingsModalProps {
@@ -25,7 +25,8 @@ interface SettingsModalProps {
   setSpeakerA: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   speakerB: SpeakerConfig;
   setSpeakerB: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
-  systemVoices: SpeechSynthesisVoice[];
+  // Removed systemVoices prop as we use static list
+  systemVoices: any[]; 
   sourceLang: string;
   targetLang: string;
   currentLimits: any; 
@@ -36,8 +37,8 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, uiLanguage, voice, setVoice, emotion, setEmotion, 
     pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed,
-    multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices, sourceLang, targetLang,
-    currentLimits, onUpgrade, onRefreshVoices
+    multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, sourceLang, targetLang,
+    currentLimits, onUpgrade
 }) => {
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
     const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
@@ -45,42 +46,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
 
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     const voicePreviewCache = useRef(new Map<string, Uint8Array>());
     
     const audioContextRef = useRef<AudioContext | null>(null);
 
-    useEffect(() => {
-        if (onRefreshVoices) {
-            onRefreshVoices();
-        }
-    }, []);
-
-    const relevantSystemVoices = useMemo(() => {
-        if (showAllSystemVoices) return systemVoices;
+    // Filter Standard Voices based on language
+    const relevantStandardVoices = useMemo(() => {
+        if (showAllSystemVoices) return AWS_STANDARD_VOICES;
 
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();
 
-        const filtered = systemVoices.filter(v => {
-            const vLang = v.lang.toLowerCase().replace('_', '-');
+        const filtered = AWS_STANDARD_VOICES.filter(v => {
+            const vLang = v.lang.toLowerCase();
             return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode) || vLang.includes(sourceLangCode) || vLang.includes(targetLangCode);
         });
 
-        return filtered.length > 0 ? filtered : systemVoices;
-    }, [systemVoices, sourceLang, targetLang, showAllSystemVoices]);
+        return filtered.length > 0 ? filtered : AWS_STANDARD_VOICES;
+    }, [sourceLang, targetLang, showAllSystemVoices]);
 
+    // Auto-select voice when switching modes if current voice is invalid for mode
     useEffect(() => {
         if (voiceMode === 'gemini' && !GEMINI_VOICES.includes(voice)) {
             setVoice(GEMINI_VOICES[0]);
         } else if (voiceMode === 'system' && GEMINI_VOICES.includes(voice)) {
-            if (relevantSystemVoices.length > 0) {
-                setVoice(relevantSystemVoices[0].name);
-            } else if(systemVoices.length > 0) {
-                 setVoice(systemVoices[0].name);
+            // Pick first relevant standard voice
+            if (relevantStandardVoices.length > 0) {
+                setVoice(relevantStandardVoices[0].name);
             }
         }
-    }, [voiceMode, voice, setVoice, systemVoices, relevantSystemVoices]);
+    }, [voiceMode, voice, setVoice, relevantStandardVoices]);
 
     useEffect(() => {
         return () => {
@@ -89,9 +84,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     audioSourceRef.current.stop(); 
                     audioSourceRef.current.disconnect();
                 } catch (e) { /* ignore */ }
-            }
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
             }
              if (audioContextRef.current) {
                 audioContextRef.current.close().catch(() => {});
@@ -109,9 +101,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 } catch (e) { /* ignore */ }
                 audioSourceRef.current = null;
             }
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-            }
             setPreviewingVoice(null);
             if (previewingVoice === voiceName) return; 
         }
@@ -119,71 +108,46 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setPreviewingVoice(voiceName);
         const previewText = t('voicePreviewText', uiLanguage);
 
-        if (GEMINI_VOICES.includes(voiceName)) {
-            if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-            }
-            if (audioContextRef.current.state === 'suspended') {
-                await audioContextRef.current.resume();
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        if (audioContextRef.current.state === 'suspended') {
+            await audioContextRef.current.resume();
+        }
+
+        const cacheKey = `${voiceName}-${uiLanguage}`;
+        if (voicePreviewCache.current.has(cacheKey)) {
+            const pcmData = voicePreviewCache.current.get(cacheKey)!;
+            audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
+                setPreviewingVoice(null);
+                audioSourceRef.current = null;
+            }, speed);
+            return;
+        }
+
+        try {
+            let pcmData;
+            
+            if (GEMINI_VOICES.includes(voiceName)) {
+                pcmData = await previewVoice(voiceName, previewText, 'Default');
+            } else {
+                // AWS Standard Preview
+                pcmData = await generateStandardSpeech(previewText, voiceName);
             }
 
-            const cacheKey = `${voiceName}-${uiLanguage}`;
-            if (voicePreviewCache.current.has(cacheKey)) {
-                const pcmData = voicePreviewCache.current.get(cacheKey)!;
+            if (pcmData) {
+                voicePreviewCache.current.set(cacheKey, pcmData); 
                 audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
                     setPreviewingVoice(null);
                     audioSourceRef.current = null;
                 }, speed);
-                return;
-            }
-
-            try {
-                const pcmData = await previewVoice(voiceName, previewText, 'Default');
-                if (pcmData) {
-                    voicePreviewCache.current.set(cacheKey, pcmData); 
-                    audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
-                        setPreviewingVoice(null);
-                        audioSourceRef.current = null;
-                    }, speed);
-                } else {
-                    console.error("No PCM data returned for preview");
-                    setPreviewingVoice(null);
-                }
-            } catch (error) {
-                console.error("Failed to preview Gemini voice:", error);
+            } else {
+                console.error("No PCM data returned for preview");
                 setPreviewingVoice(null);
             }
-        } else {
-            try {
-                window.speechSynthesis.cancel(); 
-                
-                const utterance = new SpeechSynthesisUtterance(previewText);
-                const selectedVoice = systemVoices.find(v => v.name === voiceName);
-                
-                if (selectedVoice) {
-                    utterance.voice = selectedVoice;
-                    utterance.lang = selectedVoice.lang; 
-                }
-                utterance.rate = speed;
-                
-                nativeUtteranceRef.current = utterance;
-                utterance.onend = () => {
-                    setPreviewingVoice(null);
-                    nativeUtteranceRef.current = null;
-                };
-                utterance.onerror = (e) => {
-                    console.error("System voice preview failed:", e);
-                    setPreviewingVoice(null);
-                };
-                
-                setTimeout(() => {
-                    window.speechSynthesis.speak(utterance);
-                }, 10);
-                
-            } catch (e) {
-                console.error("Failed to initiate system voice preview:", e);
-                setPreviewingVoice(null);
-            }
+        } catch (error) {
+            console.error("Failed to preview voice:", error);
+            setPreviewingVoice(null);
         }
     };
     
@@ -259,7 +223,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <div className="flex justify-between items-center mb-2">
                                     <p className="text-xs text-slate-400">
                                         {showAllSystemVoices 
-                                            ? (uiLanguage === 'ar' ? 'عرض كل الأصوات المتاحة' : 'Showing ALL available voices')
+                                            ? (uiLanguage === 'ar' ? 'عرض كل الأصوات القياسية' : 'Showing ALL Standard voices')
                                             : t('noRelevantSystemVoices', uiLanguage)}
                                     </p>
                                     <button 
@@ -270,19 +234,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </button>
                                 </div>
 
-                                {relevantSystemVoices.length > 0 ? (
-                                    relevantSystemVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />)
+                                {relevantStandardVoices.length > 0 ? (
+                                    relevantStandardVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.label} sublabel={`${v.lang} • ${v.gender}`} />)
                                 ) : (
-                                    <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3">
-                                        {onRefreshVoices && (
-                                            <button 
-                                                onClick={onRefreshVoices}
-                                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-cyan-400 rounded-full text-xs font-bold flex items-center gap-2 transition-colors"
-                                            >
-                                                <ReplayIcon className="w-4 h-4" />
-                                                {uiLanguage === 'ar' ? 'تحديث القائمة' : 'Refresh Voices'}
-                                            </button>
-                                        )}
+                                    <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3 text-slate-500 italic">
+                                        No standard voices available for this language.
                                     </div>
                                 )}
                             </div>
