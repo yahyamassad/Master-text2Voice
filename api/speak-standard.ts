@@ -8,7 +8,7 @@ import { Buffer } from 'buffer';
 const accessKeyId = process.env.SAWTLI_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = process.env.SAWTLI_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
 
-// FORCE us-east-1 (N. Virginia) - The Universal Region
+// FORCE us-east-1 (N. Virginia) - The Universal Region for Standard Voices
 const REGION = "us-east-1";
 
 // Initialize the client once (outside handler) for performance
@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // SIMPLIFIED REQUEST:
         // We DO NOT send LanguageCode. AWS Polly infers the correct language from the VoiceId.
-        // Sending the wrong LanguageCode (e.g. 'ar-SA' vs 'arb') causes 500 errors.
+        // Sending the wrong LanguageCode (e.g. 'ar-SA' vs 'arb') causes 500 errors for voices like Maged.
         // We KEEP Engine: 'standard' because Maged does not support Neural.
         const params: SynthesizeSpeechCommandInput = {
             Text: text,
