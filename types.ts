@@ -1,6 +1,7 @@
 
 
 
+
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -27,7 +28,7 @@ export interface StandardVoice {
 }
 
 export const AWS_STANDARD_VOICES: StandardVoice[] = [
-    // Arabic
+    // Arabic (Standard engine supports only Zeina and Maged)
     { name: 'Zeina', label: 'Zeina (Arabic)', lang: 'ar', gender: 'Female' },
     { name: 'Maged', label: 'Maged (Arabic)', lang: 'ar', gender: 'Male' },
     
@@ -46,6 +47,10 @@ export const AWS_STANDARD_VOICES: StandardVoice[] = [
     { name: 'Amy', label: 'Amy (British)', lang: 'en', gender: 'Female' },
     { name: 'Emma', label: 'Emma (British)', lang: 'en', gender: 'Female' },
 
+    // English (Indian)
+    { name: 'Aditi', label: 'Aditi (Indian English)', lang: 'en', gender: 'Female' },
+    { name: 'Raveena', label: 'Raveena (Indian English)', lang: 'en', gender: 'Female' },
+
     // French
     { name: 'Celine', label: 'Celine (French)', lang: 'fr', gender: 'Female' },
     { name: 'Mathieu', label: 'Mathieu (French)', lang: 'fr', gender: 'Male' },
@@ -55,11 +60,14 @@ export const AWS_STANDARD_VOICES: StandardVoice[] = [
     { name: 'Conchita', label: 'Conchita (Spanish)', lang: 'es', gender: 'Female' },
     { name: 'Enrique', label: 'Enrique (Spanish)', lang: 'es', gender: 'Male' },
     { name: 'Lucia', label: 'Lucia (Spanish)', lang: 'es', gender: 'Female' },
+    { name: 'Mia', label: 'Mia (Mexican Spanish)', lang: 'es', gender: 'Female' },
     
     // Portuguese
     { name: 'Camila', label: 'Camila (Brazilian)', lang: 'pt', gender: 'Female' },
     { name: 'Ricardo', label: 'Ricardo (Brazilian)', lang: 'pt', gender: 'Male' },
     { name: 'Vitoria', label: 'Vitória (Brazilian)', lang: 'pt', gender: 'Female' },
+    { name: 'Cristiano', label: 'Cristiano (European)', lang: 'pt', gender: 'Male' },
+    { name: 'Ines', label: 'Inês (European)', lang: 'pt', gender: 'Female' },
     
     // German
     { name: 'Marlene', label: 'Marlene (German)', lang: 'de', gender: 'Female' },
