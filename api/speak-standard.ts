@@ -1,24 +1,30 @@
 import { PollyClient, SynthesizeSpeechCommand, SynthesizeSpeechCommandInput } from "@aws-sdk/client-polly";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { Buffer } from 'buffer';
 
-// Initialize AWS Client outside the handler for connection reuse
+// Initialize credentials
 // We check for BOTH naming conventions: SAWTLI_ prefix (custom) OR standard AWS_ prefix
 const accessKeyId = process.env.SAWTLI_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = process.env.SAWTLI_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
 
-// CRITICAL FIX: We HARDCODE 'us-east-1' here.
-// Why? Because if the user has set AWS_REGION in Vercel to 'eu-west-1' or 'eu-north-1',
-// the code would pick that up, and 'Maged' does NOT exist in those regions.
-// By forcing us-east-1, we guarantee all Standard voices (including Maged) are found.
-const region = "us-east-1";
+// Get the user's configured region, defaulting to us-east-1 if not set
+const configuredRegion = process.env.SAWTLI_AWS_REGION || process.env.AWS_REGION || "us-east-1";
 
-const awsClient = new PollyClient({
-    region: region,
-    credentials: {
-        accessKeyId: accessKeyId || "",
-        secretAccessKey: secretAccessKey || ""
-    }
-});
+/**
+ * Helper to attempt generation with a specific region.
+ * We create a new client per request logic to handle dynamic region switching.
+ */
+async function generateWithRegion(region: string, params: SynthesizeSpeechCommandInput) {
+    const client = new PollyClient({
+        region: region,
+        credentials: {
+            accessKeyId: accessKeyId || "",
+            secretAccessKey: secretAccessKey || ""
+        }
+    });
+    const command = new SynthesizeSpeechCommand(params);
+    return await client.send(command);
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -44,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Check if AWS keys are configured
     if (!accessKeyId || !secretAccessKey) {
-        console.error("AWS Credentials missing. Checked both SAWTLI_AWS_... and AWS_... variables.");
+        console.error("AWS Credentials missing.");
         return res.status(503).json({ error: 'Standard voice service is not configured (Server Side).' });
     }
 
@@ -52,14 +58,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const params: SynthesizeSpeechCommandInput = {
             Text: text,
             OutputFormat: "mp3",
-            VoiceId: voiceId || "Zeina", // Default to Arabic Voice if not specified
-            Engine: "standard", // Force Standard engine for cost efficiency
+            VoiceId: voiceId || "Zeina", 
+            Engine: "standard", 
         };
 
-        const command = new SynthesizeSpeechCommand(params);
-        const data = await awsClient.send(command);
+        let data;
+        let usedRegion = configuredRegion;
 
-        if (data.AudioStream) {
+        try {
+            // Attempt 1: Try with the configured region (e.g., eu-north-1)
+            data = await generateWithRegion(configuredRegion, params);
+        } catch (firstError: any) {
+            console.warn(`Attempt with region ${configuredRegion} failed for voice ${voiceId}: ${firstError.message}`);
+            
+            // Attempt 2: Auto-Healing Fallback
+            // If the first attempt failed, and we weren't already using us-east-1, try us-east-1.
+            // voices like 'Maged' only exist in specific regions (like us-east-1).
+            if (configuredRegion !== 'us-east-1') {
+                console.log(`Retrying with fallback region: us-east-1...`);
+                usedRegion = 'us-east-1';
+                data = await generateWithRegion('us-east-1', params);
+            } else {
+                // If we were already in us-east-1 and it failed, throw the original error
+                throw firstError;
+            }
+        }
+
+        if (data && data.AudioStream) {
             // AWS returns a ReadableStream. We need to convert it to a Buffer to send to the client.
             const byteArray = await data.AudioStream.transformToByteArray();
             const buffer = Buffer.from(byteArray);
@@ -71,14 +96,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ 
                 audioContent: base64Audio,
                 format: 'mp3',
-                engine: 'aws-polly-standard' 
+                engine: 'aws-polly-standard',
+                regionUsed: usedRegion
             });
         } else {
             throw new Error("AWS Polly did not return an audio stream.");
         }
 
     } catch (error: any) {
-        console.error("AWS Polly Error:", error);
+        console.error("AWS Polly Final Error:", error);
         return res.status(500).json({ 
             error: "Failed to generate standard speech.",
             details: error.message 
