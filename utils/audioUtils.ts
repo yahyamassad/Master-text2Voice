@@ -41,8 +41,11 @@ export function encode(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/**
+ * Plays audio data handling both MP3 (AWS) and Raw PCM (Gemini).
+ */
 export async function playAudio(
-    pcmData: Uint8Array,
+    inputData: Uint8Array,
     existingContext: AudioContext | null,
     onEnded: () => void,
     speed: number = 1.0, 
@@ -61,9 +64,20 @@ export async function playAudio(
             await audioContext.resume();
         }
 
-        const float32Data = convertInt16ToFloat32(pcmData);
-        const buffer = audioContext.createBuffer(1, float32Data.length, 24000);
-        buffer.getChannelData(0).set(float32Data);
+        let buffer: AudioBuffer;
+
+        try {
+            // STRATEGY: Try to decode as a standard audio file first (MP3/WAV from AWS)
+            // We must create a copy of the buffer because decodeAudioData detaches the array buffer
+            const bufferCopy = inputData.slice(0).buffer;
+            buffer = await audioContext.decodeAudioData(bufferCopy);
+        } catch (e) {
+            // FALLBACK: If decoding fails, assume it is Raw PCM (Gemini 24kHz 16-bit Mono)
+            // Gemini sends raw PCM without headers, which decodeAudioData rejects.
+            const float32Data = convertInt16ToFloat32(inputData);
+            buffer = audioContext.createBuffer(1, float32Data.length, 24000);
+            buffer.getChannelData(0).set(float32Data);
+        }
         
         const source = audioContext.createBufferSource();
         source.buffer = buffer;
@@ -114,11 +128,14 @@ export async function decodeAudioData(
   numChannels: number = 1,
 ): Promise<AudioBuffer> {
     try {
+        // Try decoding as file format first (MP3/WAV)
         const bufferCopy = data.slice(0).buffer;
+        // OfflineContext doesn't always have decodeAudioData in all envs, fallback to main ctx
         const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const decoded = await tempCtx.decodeAudioData(bufferCopy);
         return decoded;
     } catch (e) {
+        // Fallback to Raw PCM assumption
         return rawPcmToAudioBuffer(data);
     }
 }
@@ -154,7 +171,14 @@ export async function processAudio(
     let sourceBuffer: AudioBuffer | null = null;
 
     if (input instanceof Uint8Array) {
-        sourceBuffer = rawPcmToAudioBuffer(input);
+        // Use the smart decoder logic
+        try {
+             const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+             const bufferCopy = input.slice(0).buffer;
+             sourceBuffer = await tempCtx.decodeAudioData(bufferCopy);
+        } catch(e) {
+             sourceBuffer = rawPcmToAudioBuffer(input);
+        }
     } else if (input instanceof AudioBuffer) {
         sourceBuffer = input;
     }
@@ -376,6 +400,7 @@ export function createWavBlob(data: Uint8Array | AudioBuffer, numChannels: numbe
         channels = data.numberOfChannels;
         rate = data.sampleRate;
     } else {
+        // Fallback for Gemini Raw PCM
         samples = convertInt16ToFloat32(data);
         rate = 24000; 
         channels = 1;
@@ -435,11 +460,13 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
             const lamejs = (window as any).lamejs;
             if (!lamejs) throw new Error("lamejs not loaded");
 
-            const channels = buffer instanceof AudioBuffer ? buffer.numberOfChannels : 1;
-            const rate = buffer instanceof AudioBuffer ? buffer.sampleRate : sampleRate;
+            // If it's already a Uint8Array but NOT an AudioBuffer, it might be raw PCM from Gemini.
+            // OR it could be an MP3 file bytes from AWS. 
+            // NOTE: This function expects RAW AUDIO DATA (samples), not file bytes.
+            // If we are passing AWS MP3 bytes here, we should have decoded them to AudioBuffer first using processAudio.
             
-            const mp3encoder = new lamejs.Mp3Encoder(channels, rate, bitrate);
-
+            let channels = numChannels;
+            let rate = sampleRate;
             let leftData: Int16Array;
             let rightData: Int16Array | undefined;
 
@@ -453,15 +480,22 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
             };
 
             if (buffer instanceof AudioBuffer) {
+                channels = buffer.numberOfChannels;
+                rate = buffer.sampleRate;
                 leftData = floatTo16BitPCM(buffer.getChannelData(0));
                 if (channels > 1) {
                     rightData = floatTo16BitPCM(buffer.getChannelData(1));
                 }
             } else {
+                // Fallback for Raw PCM (Gemini)
+                // Assume 24kHz Mono
+                rate = 24000;
+                channels = 1;
                 const b = buffer.byteLength % 2 === 0 ? buffer : buffer.subarray(0, buffer.byteLength - 1);
                 leftData = new Int16Array(b.buffer, b.byteOffset, b.byteLength / 2);
             }
 
+            const mp3encoder = new lamejs.Mp3Encoder(channels, rate, bitrate);
             const mp3Data = [];
             const sampleBlockSize = 1152; 
             
