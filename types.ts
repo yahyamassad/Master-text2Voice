@@ -1,5 +1,6 @@
 
 
+
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -30,25 +31,52 @@ export const AWS_STANDARD_VOICES: StandardVoice[] = [
     { name: 'Zeina', label: 'Zeina (Arabic)', lang: 'ar', gender: 'Female' },
     { name: 'Maged', label: 'Maged (Arabic)', lang: 'ar', gender: 'Male' },
     
-    // English
+    // English (US)
     { name: 'Joanna', label: 'Joanna (US English)', lang: 'en', gender: 'Female' },
     { name: 'Joey', label: 'Joey (US English)', lang: 'en', gender: 'Male' },
     { name: 'Matthew', label: 'Matthew (US English)', lang: 'en', gender: 'Male' },
     { name: 'Ivy', label: 'Ivy (US Child)', lang: 'en', gender: 'Female' },
+    { name: 'Salli', label: 'Salli (US English)', lang: 'en', gender: 'Female' },
+    { name: 'Kimberly', label: 'Kimberly (US English)', lang: 'en', gender: 'Female' },
+    { name: 'Justin', label: 'Justin (US Child)', lang: 'en', gender: 'Male' },
+    { name: 'Kendra', label: 'Kendra (US English)', lang: 'en', gender: 'Female' },
+
+    // English (British)
     { name: 'Brian', label: 'Brian (British)', lang: 'en', gender: 'Male' },
     { name: 'Amy', label: 'Amy (British)', lang: 'en', gender: 'Female' },
-    
+    { name: 'Emma', label: 'Emma (British)', lang: 'en', gender: 'Female' },
+
     // French
     { name: 'Celine', label: 'Celine (French)', lang: 'fr', gender: 'Female' },
     { name: 'Mathieu', label: 'Mathieu (French)', lang: 'fr', gender: 'Male' },
+    { name: 'Lea', label: 'Léa (French)', lang: 'fr', gender: 'Female' },
     
     // Spanish
     { name: 'Conchita', label: 'Conchita (Spanish)', lang: 'es', gender: 'Female' },
     { name: 'Enrique', label: 'Enrique (Spanish)', lang: 'es', gender: 'Male' },
+    { name: 'Lucia', label: 'Lucia (Spanish)', lang: 'es', gender: 'Female' },
     
     // Portuguese
     { name: 'Camila', label: 'Camila (Brazilian)', lang: 'pt', gender: 'Female' },
     { name: 'Ricardo', label: 'Ricardo (Brazilian)', lang: 'pt', gender: 'Male' },
+    { name: 'Vitoria', label: 'Vitória (Brazilian)', lang: 'pt', gender: 'Female' },
+    
+    // German
+    { name: 'Marlene', label: 'Marlene (German)', lang: 'de', gender: 'Female' },
+    { name: 'Hans', label: 'Hans (German)', lang: 'de', gender: 'Male' },
+    { name: 'Vicki', label: 'Vicki (German)', lang: 'de', gender: 'Female' },
+
+    // Italian
+    { name: 'Carla', label: 'Carla (Italian)', lang: 'it', gender: 'Female' },
+    { name: 'Giorgio', label: 'Giorgio (Italian)', lang: 'it', gender: 'Male' },
+    { name: 'Bianca', label: 'Bianca (Italian)', lang: 'it', gender: 'Female' },
+
+    // Russian
+    { name: 'Tatyana', label: 'Tatyana (Russian)', lang: 'ru', gender: 'Female' },
+    { name: 'Maxim', label: 'Maxim (Russian)', lang: 'ru', gender: 'Male' },
+
+    // Turkish
+    { name: 'Filiz', label: 'Filiz (Turkish)', lang: 'tr', gender: 'Female' },
 ];
 
 export type UserTier = 'visitor' | 'free' | 'gold' | 'platinum' | 'admin';
