@@ -1,4 +1,5 @@
-import { PollyClient, SynthesizeSpeechCommand, SynthesizeSpeechCommandInput } from "@aws-sdk/client-polly";
+
+import { PollyClient, SynthesizeSpeechCommand, SynthesizeSpeechCommandInput, LanguageCode } from "@aws-sdk/client-polly";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Buffer } from 'buffer';
 
@@ -18,6 +19,47 @@ const awsClient = new PollyClient({
         secretAccessKey: secretAccessKey || ""
     }
 });
+
+// Map specific voices to their required Language Codes to prevent errors.
+// 'Maged' specifically fails if 'ar-SA' is not provided explicitly.
+const VOICE_LANGUAGE_MAP: Record<string, string> = {
+    'Maged': 'ar-SA',
+    'Zeina': 'arb',
+    'Joanna': 'en-US',
+    'Joey': 'en-US',
+    'Matthew': 'en-US',
+    'Ivy': 'en-US',
+    'Justin': 'en-US',
+    'Kendra': 'en-US',
+    'Kimberly': 'en-US',
+    'Salli': 'en-US',
+    'Brian': 'en-GB',
+    'Amy': 'en-GB',
+    'Emma': 'en-GB',
+    'Aditi': 'en-IN',
+    'Raveena': 'en-IN',
+    'Celine': 'fr-FR',
+    'Mathieu': 'fr-FR',
+    'Lea': 'fr-FR',
+    'Conchita': 'es-ES',
+    'Enrique': 'es-ES',
+    'Lucia': 'es-ES',
+    'Mia': 'es-MX',
+    'Camila': 'pt-BR',
+    'Ricardo': 'pt-BR',
+    'Vitoria': 'pt-BR',
+    'Cristiano': 'pt-PT',
+    'Ines': 'pt-PT',
+    'Marlene': 'de-DE',
+    'Hans': 'de-DE',
+    'Vicki': 'de-DE',
+    'Carla': 'it-IT',
+    'Giorgio': 'it-IT',
+    'Bianca': 'it-IT',
+    'Tatyana': 'ru-RU',
+    'Maxim': 'ru-RU',
+    'Filiz': 'tr-TR'
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -48,15 +90,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        const selectedVoice = voiceId || "Zeina";
+        
         const params: SynthesizeSpeechCommandInput = {
             Text: text,
             OutputFormat: "mp3",
-            VoiceId: voiceId || "Zeina",
-            // REMOVED: Engine: "standard" 
-            // Letting AWS default it resolves compatibility issues where some voices strictly require omitting this param 
-            // or require specific combinations with LanguageCode. Standard is the default anyway.
+            VoiceId: selectedVoice,
+            Engine: "standard", 
             TextType: "text",
         };
+
+        // CRITICAL FIX: Explicitly set LanguageCode.
+        // Some voices (like Maged) throw 500/ValidationException if this is missing or inferred incorrectly.
+        if (VOICE_LANGUAGE_MAP[selectedVoice]) {
+            params.LanguageCode = VOICE_LANGUAGE_MAP[selectedVoice] as LanguageCode;
+        }
 
         const command = new SynthesizeSpeechCommand(params);
         const data = await awsClient.send(command);
@@ -75,7 +123,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 format: 'mp3',
                 engine: 'aws-polly-standard',
                 regionUsed: REGION,
-                voiceUsed: params.VoiceId
+                voiceUsed: selectedVoice,
+                languageCodeUsed: params.LanguageCode
             });
         } else {
             throw new Error("AWS Polly did not return an audio stream.");
@@ -85,7 +134,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error("AWS Polly Error:", error);
         
         // Return detailed error code from AWS to help debugging
-        // This will now show up in the browser console network tab response
         return res.status(500).json({ 
             error: "Failed to generate standard speech.",
             details: error.message,
