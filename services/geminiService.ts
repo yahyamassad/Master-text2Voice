@@ -61,6 +61,13 @@ async function generateAudioChunk(
 }
 
 /**
+ * Helper to escape special characters for Regex
+ */
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Generates speech from text by calling the backend API.
  */
 export async function generateSpeech(
@@ -79,19 +86,50 @@ export async function generateSpeech(
         // We handle paragraph splitting here to manage pauses correctly
         const PARAGRAPH_DELIMITER = /\r?\n\s*\r?\n/;
 
-        if (pauseDuration <= 0.1 || !PARAGRAPH_DELIMITER.test(text)) {
-             return await generateAudioChunk(text, voice, emotion, speakers, signal, seed);
-        }
-
-        const paragraphs = text.split(PARAGRAPH_DELIMITER)
+        // Split paragraphs first
+        let paragraphs = text.split(PARAGRAPH_DELIMITER)
                                .map(p => p.trim())
                                .filter(p => p.length > 0);
 
-        if (paragraphs.length <= 1) {
-             return await generateAudioChunk(text, voice, emotion, speakers, signal, seed);
-        }
+        if (paragraphs.length === 0) return null;
 
-        const audioPromises = paragraphs.map(p => generateAudioChunk(p, voice, emotion, speakers, signal, seed));
+        // MULTI-SPEAKER LOGIC
+        // If speakers are defined, we process each paragraph to see if it matches a speaker name
+        const audioPromises = paragraphs.map(p => {
+            let currentText = p;
+            let currentVoice = voice;
+            
+            // By default, pass undefined speakers to chunk if we determine the voice here,
+            // so backend uses 'currentVoice'.
+            // Only pass 'speakers' if we fail to match and want default behavior.
+            let chunkSpeakers = speakers; 
+
+            if (speakers) {
+                const nameA = speakers.speakerA.name.trim();
+                const nameB = speakers.speakerB.name.trim();
+                
+                // Regex to match "Name:" or "Name :" at start of string, case insensitive
+                const regexA = new RegExp(`^${escapeRegExp(nameA)}\\s*:\\s*`, 'i');
+                const regexB = new RegExp(`^${escapeRegExp(nameB)}\\s*:\\s*`, 'i');
+
+                if (regexA.test(p)) {
+                    currentVoice = speakers.speakerA.voice;
+                    // Remove the "Name:" prefix so it is not spoken
+                    currentText = p.replace(regexA, '').trim(); 
+                    chunkSpeakers = undefined; // We handled the switch manually
+                } else if (regexB.test(p)) {
+                    currentVoice = speakers.speakerB.voice;
+                    // Remove the "Name:" prefix so it is not spoken
+                    currentText = p.replace(regexB, '').trim();
+                    chunkSpeakers = undefined; // We handled the switch manually
+                }
+            }
+
+            if (!currentText) return Promise.resolve(null);
+
+            return generateAudioChunk(currentText, currentVoice, emotion, chunkSpeakers, signal, seed);
+        });
+
         const audioChunks = await Promise.all(audioPromises);
 
         // Gemini is strictly 24000Hz
