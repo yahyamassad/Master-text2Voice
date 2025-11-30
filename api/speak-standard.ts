@@ -2,10 +2,13 @@ import { PollyClient, SynthesizeSpeechCommand, SynthesizeSpeechCommandInput } fr
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Initialize AWS Client outside the handler for connection reuse
-// We now check for BOTH naming conventions: SAWTLI_ prefix (custom) OR standard AWS_ prefix
+// We check for BOTH naming conventions: SAWTLI_ prefix (custom) OR standard AWS_ prefix
 const accessKeyId = process.env.SAWTLI_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = process.env.SAWTLI_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
-const region = process.env.SAWTLI_AWS_REGION || process.env.AWS_REGION || "eu-west-1";
+
+// CRITICAL FIX: Default to 'us-east-1' because 'Maged' (Arabic Male) and some others are NOT available in 'eu-west-1'.
+// 'us-east-1' (N. Virginia) supports all standard voices.
+const region = process.env.SAWTLI_AWS_REGION || process.env.AWS_REGION || "us-east-1";
 
 const awsClient = new PollyClient({
     region: region,
@@ -37,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Text is required.' });
     }
 
-    // Check if AWS keys are configured (using the resolved variables)
+    // Check if AWS keys are configured
     if (!accessKeyId || !secretAccessKey) {
         console.error("AWS Credentials missing. Checked both SAWTLI_AWS_... and AWS_... variables.");
         return res.status(503).json({ error: 'Standard voice service is not configured (Server Side).' });
