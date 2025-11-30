@@ -28,6 +28,7 @@ export interface StandardVoice {
 export const AWS_STANDARD_VOICES: StandardVoice[] = [
     // Arabic
     { name: 'Zeina', label: 'Zeina (Arabic)', lang: 'ar', gender: 'Female' },
+    { name: 'Maged', label: 'Maged (Arabic)', lang: 'ar', gender: 'Male' },
     
     // English
     { name: 'Joanna', label: 'Joanna (US English)', lang: 'en', gender: 'Female' },
