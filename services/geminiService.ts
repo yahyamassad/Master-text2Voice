@@ -83,8 +83,16 @@ export async function generateSpeech(
 ): Promise<Uint8Array | null> {
     
     try {
-        // We handle paragraph splitting here to manage pauses correctly
-        const PARAGRAPH_DELIMITER = /\r?\n\s*\r?\n/;
+        // CRITICAL FIX FOR MULTI-SPEAKER PARSING:
+        // If multi-speaker mode is active (`speakers` is defined), we MUST split by SINGLE newline (\n).
+        // This ensures that adjacent lines like:
+        // "Yazan: Hello"
+        // "Lana: Hi"
+        // ...are treated as separate chunks, allowing the code to detect the speaker at the start of the line.
+        //
+        // If it's single speaker mode, we stick to the Double Newline (\n\n) rule to allow users 
+        // to format paragraphs without forcing a pause at every line break.
+        const PARAGRAPH_DELIMITER = speakers ? /\r?\n/ : /\r?\n\s*\r?\n/;
 
         // Split paragraphs first
         let paragraphs = text.split(PARAGRAPH_DELIMITER)
@@ -101,7 +109,6 @@ export async function generateSpeech(
             
             // By default, pass undefined speakers to chunk if we determine the voice here,
             // so backend uses 'currentVoice'.
-            // Only pass 'speakers' if we fail to match and want default behavior.
             let chunkSpeakers = speakers; 
 
             if (speakers) {
@@ -109,6 +116,7 @@ export async function generateSpeech(
                 const nameB = speakers.speakerB.name.trim();
                 
                 // Regex to match "Name:" or "Name :" at start of string, case insensitive
+                // We use \s* to be flexible with spaces around the colon
                 const regexA = new RegExp(`^${escapeRegExp(nameA)}\\s*:\\s*`, 'i');
                 const regexB = new RegExp(`^${escapeRegExp(nameB)}\\s*:\\s*`, 'i');
 
@@ -125,6 +133,7 @@ export async function generateSpeech(
                 }
             }
 
+            // If a line was just a name with no text (e.g. "Yazan: "), currentText might be empty. Skip it.
             if (!currentText) return Promise.resolve(null);
 
             return generateAudioChunk(currentText, currentVoice, emotion, chunkSpeakers, signal, seed);
