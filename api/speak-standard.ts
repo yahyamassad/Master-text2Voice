@@ -51,10 +51,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         const selectedVoice = voiceId || "Zeina";
         
-        // SIMPLIFIED REQUEST:
-        // We DO NOT send LanguageCode. AWS Polly infers the correct language from the VoiceId.
-        // Sending the wrong LanguageCode (e.g. 'ar-SA' vs 'arb') causes 500 errors for voices like Maged.
-        // We KEEP Engine: 'standard' because Maged does not support Neural.
+        // SIMPLIFIED REQUEST (THE FIX):
+        // 1. Engine: 'standard' (Must be explicit to avoid Neural errors on Standard-only voices)
+        // 2. TextType: 'text'
+        // 3. NO LanguageCode. AWS auto-detects based on VoiceId. Sending it explicitly caused the 500 errors for voices like Maged, Brian, etc.
         const params: SynthesizeSpeechCommandInput = {
             Text: text,
             OutputFormat: "mp3",
