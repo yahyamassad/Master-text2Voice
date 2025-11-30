@@ -7,24 +7,19 @@ import { Buffer } from 'buffer';
 const accessKeyId = process.env.SAWTLI_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = process.env.SAWTLI_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
 
-// Get the user's configured region, defaulting to us-east-1 if not set
-const configuredRegion = process.env.SAWTLI_AWS_REGION || process.env.AWS_REGION || "us-east-1";
+// FORCE us-east-1 (N. Virginia)
+// This region supports ALL standard and neural voices (including Maged, Zeina, etc.).
+// Using this region universally prevents "Voice not found" errors that occur in fragmented regions like eu-west-1.
+const REGION = "us-east-1";
 
-/**
- * Helper to attempt generation with a specific region.
- * We create a new client per request logic to handle dynamic region switching.
- */
-async function generateWithRegion(region: string, params: SynthesizeSpeechCommandInput) {
-    const client = new PollyClient({
-        region: region,
-        credentials: {
-            accessKeyId: accessKeyId || "",
-            secretAccessKey: secretAccessKey || ""
-        }
-    });
-    const command = new SynthesizeSpeechCommand(params);
-    return await client.send(command);
-}
+// Initialize the client once (outside handler) for performance
+const awsClient = new PollyClient({
+    region: REGION,
+    credentials: {
+        accessKeyId: accessKeyId || "",
+        secretAccessKey: secretAccessKey || ""
+    }
+});
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -62,29 +57,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             Engine: "standard", 
         };
 
-        let data;
-        let usedRegion = configuredRegion;
+        const command = new SynthesizeSpeechCommand(params);
+        const data = await awsClient.send(command);
 
-        try {
-            // Attempt 1: Try with the configured region (e.g., eu-north-1)
-            data = await generateWithRegion(configuredRegion, params);
-        } catch (firstError: any) {
-            console.warn(`Attempt with region ${configuredRegion} failed for voice ${voiceId}: ${firstError.message}`);
-            
-            // Attempt 2: Auto-Healing Fallback
-            // If the first attempt failed, and we weren't already using us-east-1, try us-east-1.
-            // voices like 'Maged' only exist in specific regions (like us-east-1).
-            if (configuredRegion !== 'us-east-1') {
-                console.log(`Retrying with fallback region: us-east-1...`);
-                usedRegion = 'us-east-1';
-                data = await generateWithRegion('us-east-1', params);
-            } else {
-                // If we were already in us-east-1 and it failed, throw the original error
-                throw firstError;
-            }
-        }
-
-        if (data && data.AudioStream) {
+        if (data.AudioStream) {
             // AWS returns a ReadableStream. We need to convert it to a Buffer to send to the client.
             const byteArray = await data.AudioStream.transformToByteArray();
             const buffer = Buffer.from(byteArray);
@@ -97,17 +73,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 audioContent: base64Audio,
                 format: 'mp3',
                 engine: 'aws-polly-standard',
-                regionUsed: usedRegion
+                regionUsed: REGION
             });
         } else {
             throw new Error("AWS Polly did not return an audio stream.");
         }
 
     } catch (error: any) {
-        console.error("AWS Polly Final Error:", error);
+        console.error("AWS Polly Error:", error);
+        // Return detailed error code from AWS to help debugging (e.g. UnrecognizedClientException)
         return res.status(500).json({ 
             error: "Failed to generate standard speech.",
-            details: error.message 
+            details: error.message,
+            code: error.name || "UnknownError"
         });
     }
 }
