@@ -212,10 +212,10 @@ const App: React.FC = () => {
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
+  // ADDED: Additional speakers for Platinum plan
+  const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Zephyr' });
+  const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Charon' });
   
-  // We use this as a reference list for the Settings modal, but we don't query the browser anymore
-  // except for potential fallback or legacy reasons.
-  // The systemVoices state will now just hold our AWS list or be empty.
   const [systemVoices, setSystemVoices] = useState<any[]>([]);
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -341,7 +341,6 @@ const App: React.FC = () => {
     if (audioContextRef.current && audioContextRef.current.state === 'running') {
         audioContextRef.current.suspend().catch(() => {});
     }
-    // No more window.speechSynthesis cancellation needed as we removed it
     if (recognitionRef.current) {
         recognitionRef.current.abort();
         setIsListening(false);
@@ -361,7 +360,7 @@ const App: React.FC = () => {
       if (activePlayer || isPaused) {
           stopAll();
       }
-  }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
+  }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, speakerC, speakerD, stopAll]);
 
   useEffect(() => {
     fetch('/api/check-config')
@@ -413,17 +412,12 @@ const App: React.FC = () => {
     }
   }, []); 
 
-  // Init Voices (Now uses the static AWS Standard List + Gemini List)
   useEffect(() => {
-      // Instead of getting browser voices, we map our AWS Standard voices
-      // to the format the settings modal expects, or pass them directly.
-      // SettingsModal now handles the static list directly, so we just set a default if voice is unset.
       if (!voice) {
           setVoice('Joanna');
       }
   }, []);
 
-  // Separate effect for AudioContext cleanup ONLY on unmount
   useEffect(() => {
       return () => {
          if (audioContextRef.current) {
@@ -445,6 +439,8 @@ const App: React.FC = () => {
         if (settings.multiSpeaker) setMultiSpeaker(settings.multiSpeaker);
         if (settings.speakerA) setSpeakerA(settings.speakerA);
         if (settings.speakerB) setSpeakerB(settings.speakerB);
+        if (settings.speakerC) setSpeakerC(settings.speakerC);
+        if (settings.speakerD) setSpeakerD(settings.speakerD);
         if (settings.sourceLang) setSourceLang(settings.sourceLang);
         if (settings.targetLang) setTargetLang(settings.targetLang);
       }
@@ -468,7 +464,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, sourceLang, targetLang, uiLanguage };
+      const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
       localStorage.setItem('sawtli_settings', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
@@ -476,7 +472,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Failed to save state", e);
     }
-  }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, history, sourceLang, targetLang, uiLanguage, user]);
+  }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, history, sourceLang, targetLang, uiLanguage, user]);
 
   useEffect(() => {
     document.documentElement.lang = uiLanguage;
@@ -497,8 +493,7 @@ const App: React.FC = () => {
   }, []);
   
   const getCacheKey = (text: string) => {
-      // Standard voices don't use 'emotion' or 'seed', but we keep the key structure consistent
-      const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}` : 'single';
+      const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}-${speakerC.voice}-${speakerD.voice}` : 'single';
       return `${text}_${voice}_${emotion}_${speed}_${seed}_${pauseDuration}_${speakers}`;
   };
 
@@ -616,7 +611,8 @@ const App: React.FC = () => {
           try {
               if (isGeminiVoice) {
                   // GEMINI (Pro)
-                  const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+                  // Pass ALL speakers including C and D
+                  const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
 
@@ -632,14 +628,12 @@ const App: React.FC = () => {
                       seed
                   );
               } else {
-                  // STANDARD (AWS) - The New Integration
-                  // We default language code based on current selection if needed
+                  // AWS Standard Generation
                   const langCode = target === 'source' ? sourceLang : targetLang;
-                  // Map lang code to AWS compatible if needed (usually handled by backend defaulting or voiceId)
                   
                   pcmData = await generateStandardSpeech(
                       textToProcess,
-                      voice, // This is now 'Zeina', 'Joanna', etc.
+                      voice, 
                       langCode
                   );
               }
@@ -877,13 +871,10 @@ const App: React.FC = () => {
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
     if (!text.trim()) return null;
 
-    // Both Standard (AWS) and Gemini are now valid "API" voices.
-    // We check if the voice exists in either list.
     const isGemini = GEMINI_VOICES.includes(voice);
     const isStandard = AWS_STANDARD_VOICES.some(v => v.name === voice);
 
     if (!isGemini && !isStandard) {
-        // Fallback for edge cases where voice state might be stale
         showToast("Invalid voice selected", 'error');
         return null;
     }
@@ -905,7 +896,7 @@ const App: React.FC = () => {
                 blob = await createMp3Blob(pcmData, 1, 24000);
              }
         } else {
-             const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+             const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
              // @ts-ignore
              const idToken = user ? await user.getIdToken() : undefined;
 
@@ -924,7 +915,6 @@ const App: React.FC = () => {
                     seed
                  );
              } else {
-                 // AWS Standard Generation
                  pcmData = await generateStandardSpeech(
                      text,
                      voice
@@ -967,7 +957,7 @@ const App: React.FC = () => {
         }
     }
     return blob;
-  }, [voice, emotion, multiSpeaker, speakerA, speakerB, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
+  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
 
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
     if (userTier === 'visitor') {
@@ -1176,7 +1166,6 @@ const App: React.FC = () => {
                     spellCheck="false"
                 />
                 
-                {/* Trash Icon - Positioned bottom-left inside textarea container */}
                 {sourceText && (
                     <button 
                         onClick={() => {setSourceText(''); setTranslatedText('');}} 
@@ -1187,7 +1176,6 @@ const App: React.FC = () => {
                     </button>
                 )}
 
-                {/* Char Count - Positioned bottom-right inside textarea container */}
                 <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-500 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
                     {sourceText.length} chars
                 </div>
@@ -1222,7 +1210,6 @@ const App: React.FC = () => {
                     dir={isTargetRtl ? 'rtl' : 'ltr'}
                 />
                 
-                {/* Translated Char Count - Added bottom-right */}
                 <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-600 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
                     {translatedText.length} chars
                 </div>
@@ -1326,7 +1313,6 @@ const App: React.FC = () => {
                             label={sourceButtonState.label}
                             className={`w-full ${sourceButtonState.className}`}
                         />
-                        {/* DISTINCT STOP BUTTON - REDESIGNED */}
                         {(activePlayer === 'source') && (
                             <button
                                 onClick={stopAll}
@@ -1358,7 +1344,6 @@ const App: React.FC = () => {
                             disabled={!translatedText.trim()}
                             className={`w-full ${targetButtonState.className}`}
                         />
-                        {/* DISTINCT STOP BUTTON - REDESIGNED */}
                         {(activePlayer === 'target') && (
                             <button
                                 onClick={stopAll}
@@ -1427,11 +1412,18 @@ const App: React.FC = () => {
         </footer>
       </div>
 
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices: AWS_STANDARD_VOICES as any}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} />}
+      {isSettingsOpen && <SettingsModal 
+          onClose={() => setIsSettingsOpen(false)} 
+          uiLanguage={uiLanguage} 
+          {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, 
+              speakerA, setSpeakerA, speakerB, setSpeakerB, speakerC, setSpeakerC, speakerD, setSpeakerD, // PASSED NEW SPEAKERS
+              systemVoices: AWS_STANDARD_VOICES as any}} 
+          currentLimits={planConfig} 
+          onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
+      />}
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
       
-      {/* Keep AudioStudio mounted but hidden to persist state */}
       <AudioStudioModal 
           isOpen={isAudioStudioOpen}
           onClose={() => setIsAudioStudioOpen(false)} 

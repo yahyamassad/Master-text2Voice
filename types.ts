@@ -1,9 +1,5 @@
 
 
-
-
-
-
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -30,7 +26,7 @@ export interface StandardVoice {
 }
 
 export const AWS_STANDARD_VOICES: StandardVoice[] = [
-    // Arabic - Only Zeina is reliably Standard
+    // Arabic
     { name: 'Zeina', label: 'Zeina (Arabic)', lang: 'ar', gender: 'Female' },
     
     // English (US)
@@ -143,6 +139,7 @@ export const PLAN_LIMITS = {
         allowGemini: true, // Allowed but capped at 50 chars effectively by logic
         allowStudio: false, // LOCKED: No Studio for visitors
         allowMultiSpeaker: false,
+        maxSpeakers: 1,
         allowEffects: false,
     },
     free: {
@@ -156,6 +153,7 @@ export const PLAN_LIMITS = {
         allowGemini: true,       // The main hook
         allowStudio: false,      // LOCKED: Upsell for Gold/Platinum
         allowMultiSpeaker: false,
+        maxSpeakers: 1,
         allowEffects: false,     // Upsell
     },
     gold: {
@@ -169,6 +167,7 @@ export const PLAN_LIMITS = {
         allowGemini: true,
         allowStudio: true,
         allowMultiSpeaker: true,
+        maxSpeakers: 2, // Gold Standard
         allowEffects: true,
     },
     platinum: {
@@ -182,6 +181,7 @@ export const PLAN_LIMITS = {
         allowGemini: true,
         allowStudio: true,
         allowMultiSpeaker: true,
+        maxSpeakers: 4, // Quad Speakers
         allowEffects: true,
     },
     admin: {
@@ -195,6 +195,7 @@ export const PLAN_LIMITS = {
         allowGemini: true,
         allowStudio: true,
         allowMultiSpeaker: true,
+        maxSpeakers: 4,
         allowEffects: true,
     }
 };

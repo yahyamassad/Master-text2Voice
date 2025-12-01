@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translationLanguages, translations } from '../i18n/translations';
-import { SpeakerConfig, GEMINI_VOICES } from '../types';
-import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon, ReplayIcon } from './icons';
+import { SpeakerConfig, GEMINI_VOICES, AWS_STANDARD_VOICES, StandardVoice } from '../types';
+import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon, ReplayIcon, UserIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
+import { generateStandardSpeech } from '../services/standardVoiceService';
 import { playAudio } from '../utils/audioUtils';
 
 interface SettingsModalProps {
@@ -25,7 +25,12 @@ interface SettingsModalProps {
   setSpeakerA: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   speakerB: SpeakerConfig;
   setSpeakerB: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
-  systemVoices: SpeechSynthesisVoice[];
+  speakerC?: SpeakerConfig;
+  setSpeakerC?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  speakerD?: SpeakerConfig;
+  setSpeakerD?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  
+  systemVoices: any[]; 
   sourceLang: string;
   targetLang: string;
   currentLimits: any; 
@@ -36,8 +41,13 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, uiLanguage, voice, setVoice, emotion, setEmotion, 
     pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed,
-    multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices, sourceLang, targetLang,
-    currentLimits, onUpgrade, onRefreshVoices
+    multiSpeaker, setMultiSpeaker, 
+    speakerA, setSpeakerA, 
+    speakerB, setSpeakerB,
+    speakerC, setSpeakerC,
+    speakerD, setSpeakerD,
+    sourceLang, targetLang,
+    currentLimits, onUpgrade
 }) => {
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
     const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
@@ -45,42 +55,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
 
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const nativeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     const voicePreviewCache = useRef(new Map<string, Uint8Array>());
     
     const audioContextRef = useRef<AudioContext | null>(null);
 
-    useEffect(() => {
-        if (onRefreshVoices) {
-            onRefreshVoices();
-        }
-    }, []);
-
-    const relevantSystemVoices = useMemo(() => {
-        if (showAllSystemVoices) return systemVoices;
+    // Filter Standard Voices based on language
+    const relevantStandardVoices = useMemo(() => {
+        if (showAllSystemVoices) return AWS_STANDARD_VOICES;
 
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();
 
-        const filtered = systemVoices.filter(v => {
-            const vLang = v.lang.toLowerCase().replace('_', '-');
+        const filtered = AWS_STANDARD_VOICES.filter(v => {
+            const vLang = v.lang.toLowerCase();
             return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode) || vLang.includes(sourceLangCode) || vLang.includes(targetLangCode);
         });
 
-        return filtered.length > 0 ? filtered : systemVoices;
-    }, [systemVoices, sourceLang, targetLang, showAllSystemVoices]);
+        return filtered.length > 0 ? filtered : AWS_STANDARD_VOICES;
+    }, [sourceLang, targetLang, showAllSystemVoices]);
 
+    // Auto-select voice when switching modes if current voice is invalid for mode
     useEffect(() => {
         if (voiceMode === 'gemini' && !GEMINI_VOICES.includes(voice)) {
             setVoice(GEMINI_VOICES[0]);
         } else if (voiceMode === 'system' && GEMINI_VOICES.includes(voice)) {
-            if (relevantSystemVoices.length > 0) {
-                setVoice(relevantSystemVoices[0].name);
-            } else if(systemVoices.length > 0) {
-                 setVoice(systemVoices[0].name);
+            // Pick first relevant standard voice
+            if (relevantStandardVoices.length > 0) {
+                setVoice(relevantStandardVoices[0].name);
             }
         }
-    }, [voiceMode, voice, setVoice, systemVoices, relevantSystemVoices]);
+    }, [voiceMode, voice, setVoice, relevantStandardVoices]);
 
     useEffect(() => {
         return () => {
@@ -89,9 +93,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     audioSourceRef.current.stop(); 
                     audioSourceRef.current.disconnect();
                 } catch (e) { /* ignore */ }
-            }
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
             }
              if (audioContextRef.current) {
                 audioContextRef.current.close().catch(() => {});
@@ -109,9 +110,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 } catch (e) { /* ignore */ }
                 audioSourceRef.current = null;
             }
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-            }
             setPreviewingVoice(null);
             if (previewingVoice === voiceName) return; 
         }
@@ -119,71 +117,46 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setPreviewingVoice(voiceName);
         const previewText = t('voicePreviewText', uiLanguage);
 
-        if (GEMINI_VOICES.includes(voiceName)) {
-            if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-            }
-            if (audioContextRef.current.state === 'suspended') {
-                await audioContextRef.current.resume();
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        if (audioContextRef.current.state === 'suspended') {
+            await audioContextRef.current.resume();
+        }
+
+        const cacheKey = `${voiceName}-${uiLanguage}`;
+        if (voicePreviewCache.current.has(cacheKey)) {
+            const pcmData = voicePreviewCache.current.get(cacheKey)!;
+            audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
+                setPreviewingVoice(null);
+                audioSourceRef.current = null;
+            }, speed);
+            return;
+        }
+
+        try {
+            let pcmData;
+            
+            if (GEMINI_VOICES.includes(voiceName)) {
+                pcmData = await previewVoice(voiceName, previewText, 'Default');
+            } else {
+                // AWS Standard Preview
+                pcmData = await generateStandardSpeech(previewText, voiceName);
             }
 
-            const cacheKey = `${voiceName}-${uiLanguage}`;
-            if (voicePreviewCache.current.has(cacheKey)) {
-                const pcmData = voicePreviewCache.current.get(cacheKey)!;
+            if (pcmData) {
+                voicePreviewCache.current.set(cacheKey, pcmData); 
                 audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
                     setPreviewingVoice(null);
                     audioSourceRef.current = null;
                 }, speed);
-                return;
-            }
-
-            try {
-                const pcmData = await previewVoice(voiceName, previewText, 'Default');
-                if (pcmData) {
-                    voicePreviewCache.current.set(cacheKey, pcmData); 
-                    audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
-                        setPreviewingVoice(null);
-                        audioSourceRef.current = null;
-                    }, speed);
-                } else {
-                    console.error("No PCM data returned for preview");
-                    setPreviewingVoice(null);
-                }
-            } catch (error) {
-                console.error("Failed to preview Gemini voice:", error);
+            } else {
+                console.error("No PCM data returned for preview");
                 setPreviewingVoice(null);
             }
-        } else {
-            try {
-                window.speechSynthesis.cancel(); 
-                
-                const utterance = new SpeechSynthesisUtterance(previewText);
-                const selectedVoice = systemVoices.find(v => v.name === voiceName);
-                
-                if (selectedVoice) {
-                    utterance.voice = selectedVoice;
-                    utterance.lang = selectedVoice.lang; 
-                }
-                utterance.rate = speed;
-                
-                nativeUtteranceRef.current = utterance;
-                utterance.onend = () => {
-                    setPreviewingVoice(null);
-                    nativeUtteranceRef.current = null;
-                };
-                utterance.onerror = (e) => {
-                    console.error("System voice preview failed:", e);
-                    setPreviewingVoice(null);
-                };
-                
-                setTimeout(() => {
-                    window.speechSynthesis.speak(utterance);
-                }, 10);
-                
-            } catch (e) {
-                console.error("Failed to initiate system voice preview:", e);
-                setPreviewingVoice(null);
-            }
+        } catch (error) {
+            console.error("Failed to preview voice:", error);
+            setPreviewingVoice(null);
         }
     };
     
@@ -212,6 +185,54 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             >
                 {previewingVoice === voiceName ? <LoaderIcon /> : <PlayCircleIcon />}
             </button>
+        </div>
+    );
+
+    // Component for individual speaker input
+    const SpeakerInput = ({ 
+        index, 
+        config, 
+        setConfig, 
+        locked = false 
+    }: { 
+        index: number, 
+        config: SpeakerConfig, 
+        setConfig: (c: SpeakerConfig) => void, 
+        locked?: boolean 
+    }) => (
+        <div className={`relative ${locked ? 'opacity-70' : ''}`}>
+            {locked && (
+                <div 
+                    className="absolute inset-0 z-10 bg-slate-900/50 flex items-center justify-center cursor-pointer rounded-lg border border-transparent hover:border-cyan-400 transition-colors"
+                    onClick={onUpgrade}
+                >
+                    <div className="bg-slate-800 p-2 rounded-full shadow-lg border border-slate-600 flex items-center gap-2">
+                        <LockIcon className="w-4 h-4 text-cyan-400" />
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">Platinum</span>
+                    </div>
+                </div>
+            )}
+            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                    <UserIcon className="w-3 h-3" /> Speaker {index}
+                </label>
+                <div className="space-y-2">
+                    <input 
+                        type="text" 
+                        value={config.name} 
+                        onChange={e => setConfig({...config, name: e.target.value})} 
+                        placeholder={`Name (e.g. Speaker ${index})`}
+                        className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-cyan-500 focus:outline-none"
+                    />
+                    <select 
+                        value={config.voice} 
+                        onChange={e => setConfig({...config, voice: e.target.value})} 
+                        className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-cyan-500 focus:outline-none"
+                    >
+                        {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                </div>
+            </div>
         </div>
     );
 
@@ -259,7 +280,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <div className="flex justify-between items-center mb-2">
                                     <p className="text-xs text-slate-400">
                                         {showAllSystemVoices 
-                                            ? (uiLanguage === 'ar' ? 'عرض كل الأصوات المتاحة' : 'Showing ALL available voices')
+                                            ? (uiLanguage === 'ar' ? 'عرض كل الأصوات القياسية' : 'Showing ALL Standard voices')
                                             : t('noRelevantSystemVoices', uiLanguage)}
                                     </p>
                                     <button 
@@ -270,19 +291,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </button>
                                 </div>
 
-                                {relevantSystemVoices.length > 0 ? (
-                                    relevantSystemVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.name} sublabel={v.lang} />)
+                                {relevantStandardVoices.length > 0 ? (
+                                    relevantStandardVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.label} sublabel={`${v.lang} • ${v.gender}`} />)
                                 ) : (
-                                    <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3">
-                                        {onRefreshVoices && (
-                                            <button 
-                                                onClick={onRefreshVoices}
-                                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-cyan-400 rounded-full text-xs font-bold flex items-center gap-2 transition-colors"
-                                            >
-                                                <ReplayIcon className="w-4 h-4" />
-                                                {uiLanguage === 'ar' ? 'تحديث القائمة' : 'Refresh Voices'}
-                                            </button>
-                                        )}
+                                    <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3 text-slate-500 italic">
+                                        No standard voices available for this language.
                                     </div>
                                 )}
                             </div>
@@ -366,23 +379,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                             <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={voiceMode === 'system'} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
                          </div>
+                        
+                        {/* QUAD SPEAKER GRID */}
                         <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker || voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}`}>
-                             <div>
-                                 <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 1</label>
-                                 <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} placeholder={t('speaker1', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" />
-                                 <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 1</label>
-                                 <select value={speakerA.voice} onChange={e => setSpeakerA({...speakerA, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
-                                     {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
-                                 </select>
-                             </div>
-                             <div>
-                                 <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 2</label>
-                                 <input type="text" value={speakerB.name} onChange={e => setSpeakerB({...speakerB, name: e.target.value})} placeholder={t('speaker2', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" />
-                                 <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 2</label>
-                                 <select value={speakerB.voice} onChange={e => setSpeakerB({...speakerB, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
-                                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
-                                 </select>
-                             </div>
+                             <SpeakerInput index={1} config={speakerA} setConfig={setSpeakerA} />
+                             <SpeakerInput index={2} config={speakerB} setConfig={setSpeakerB} />
+                             
+                             {/* Speaker 3 & 4 (Platinum Locked) */}
+                             {speakerC && setSpeakerC && (
+                                 <SpeakerInput 
+                                    index={3} 
+                                    config={speakerC} 
+                                    setConfig={setSpeakerC} 
+                                    locked={currentLimits.maxSpeakers < 3} 
+                                 />
+                             )}
+                             {speakerD && setSpeakerD && (
+                                 <SpeakerInput 
+                                    index={4} 
+                                    config={speakerD} 
+                                    setConfig={setSpeakerD} 
+                                    locked={currentLimits.maxSpeakers < 4} 
+                                 />
+                             )}
                         </div>
                     </div>
                 </div>
