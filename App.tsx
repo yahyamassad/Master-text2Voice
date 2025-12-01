@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { generateStandardSpeech } from './services/standardVoiceService';
@@ -40,7 +41,7 @@ const soundEffects = [
 
 const getInitialLanguage = (): Language => {
     try {
-        const savedSettings = localStorage.getItem('sawtli_settings_v2'); // UPDATED KEY
+        const savedSettings = localStorage.getItem('sawtli_settings_v3'); // UPDATED KEY v3
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
             if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
@@ -212,6 +213,7 @@ const App: React.FC = () => {
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   
   // Speaker Configurations - UPDATED FOR 4 SPEAKERS
+  // Default names: Yazan, Lana, Rana, Haya
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
   const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Zephyr' });
@@ -429,8 +431,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      // CHANGED KEY TO v2 to force reset settings
-      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v2');
+      // CHANGED KEY TO v3 to force reset settings
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v3');
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -467,7 +469,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
-      localStorage.setItem('sawtli_settings_v2', JSON.stringify(settings));
+      localStorage.setItem('sawtli_settings_v3', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
@@ -1401,7 +1403,6 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 pb-4">
-                {/* Passed updated speakers state to SettingsModal */}
                 <ActionCard icon={<GearIcon className="w-10 h-10" />} label={t('speechSettings', uiLanguage)} onClick={() => setIsSettingsOpen(true)} />
                 <ActionCard icon={<HistoryIcon className="w-10 h-10" />} label={t('historyButton', uiLanguage)} onClick={() => setIsHistoryOpen(true)} />
                 <ActionCard 
@@ -1442,9 +1443,29 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
       {isSettingsOpen && <SettingsModal 
           onClose={() => setIsSettingsOpen(false)} 
           uiLanguage={uiLanguage} 
-          {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, 
-              speakerA, setSpeakerA, speakerB, setSpeakerB, speakerC, setSpeakerC, speakerD, setSpeakerD, // PASSED NEW SPEAKERS
-              systemVoices: AWS_STANDARD_VOICES as any}} 
+          sourceLang={sourceLang}
+          targetLang={targetLang}
+          voice={voice}
+          setVoice={setVoice}
+          emotion={emotion}
+          setEmotion={setEmotion}
+          pauseDuration={pauseDuration}
+          setPauseDuration={setPauseDuration}
+          speed={speed}
+          setSpeed={setSpeed}
+          seed={seed}
+          setSeed={setSeed}
+          multiSpeaker={multiSpeaker}
+          setMultiSpeaker={setMultiSpeaker}
+          speakerA={speakerA}
+          setSpeakerA={setSpeakerA}
+          speakerB={speakerB}
+          setSpeakerB={setSpeakerB}
+          speakerC={speakerC}
+          setSpeakerC={setSpeakerC}
+          speakerD={speakerD}
+          setSpeakerD={setSpeakerD}
+          systemVoices={AWS_STANDARD_VOICES as any}
           currentLimits={planConfig} 
           onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
       />}

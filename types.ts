@@ -1,5 +1,6 @@
 
 
+
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -139,7 +140,7 @@ export const PLAN_LIMITS = {
         allowGemini: true, // Allowed but capped at 50 chars effectively by logic
         allowStudio: false, // LOCKED: No Studio for visitors
         allowMultiSpeaker: false,
-        maxSpeakers: 1,
+        maxSpeakers: 4, // UNLOCKED: Allow visitors to see 4 speakers (though might be limited by other factors)
         allowEffects: false,
     },
     free: {

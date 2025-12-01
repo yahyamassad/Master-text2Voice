@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translationLanguages, translations } from '../i18n/translations';
 import { SpeakerConfig, GEMINI_VOICES, AWS_STANDARD_VOICES, StandardVoice } from '../types';
@@ -25,10 +26,10 @@ interface SettingsModalProps {
   setSpeakerA: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   speakerB: SpeakerConfig;
   setSpeakerB: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
-  speakerC?: SpeakerConfig;
-  setSpeakerC?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
-  speakerD?: SpeakerConfig;
-  setSpeakerD?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  speakerC: SpeakerConfig;
+  setSpeakerC: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  speakerD: SpeakerConfig;
+  setSpeakerD: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   
   systemVoices: any[]; 
   sourceLang: string;
@@ -385,23 +386,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              <SpeakerInput index={1} config={speakerA} setConfig={setSpeakerA} />
                              <SpeakerInput index={2} config={speakerB} setConfig={setSpeakerB} />
                              
-                             {/* Speaker 3 & 4 (Platinum Locked) */}
-                             {speakerC && setSpeakerC && (
-                                 <SpeakerInput 
-                                    index={3} 
-                                    config={speakerC} 
-                                    setConfig={setSpeakerC} 
-                                    locked={currentLimits.maxSpeakers < 3} 
-                                 />
-                             )}
-                             {speakerD && setSpeakerD && (
-                                 <SpeakerInput 
-                                    index={4} 
-                                    config={speakerD} 
-                                    setConfig={setSpeakerD} 
-                                    locked={currentLimits.maxSpeakers < 4} 
-                                 />
-                             )}
+                             {/* Speaker 3 & 4 (Unlocked) */}
+                             <SpeakerInput 
+                                index={3} 
+                                config={speakerC} 
+                                setConfig={setSpeakerC} 
+                                locked={currentLimits.maxSpeakers < 3} 
+                             />
+                             <SpeakerInput 
+                                index={4} 
+                                config={speakerD} 
+                                setConfig={setSpeakerD} 
+                                locked={currentLimits.maxSpeakers < 4} 
+                             />
                         </div>
                     </div>
                 </div>
