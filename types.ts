@@ -167,7 +167,7 @@ export const PLAN_LIMITS = {
         allowGemini: true,
         allowStudio: true,
         allowMultiSpeaker: true,
-        maxSpeakers: 2, // Gold Standard
+        maxSpeakers: 2, // Standard Multi-Speaker
         allowEffects: true,
     },
     platinum: {
@@ -181,7 +181,7 @@ export const PLAN_LIMITS = {
         allowGemini: true,
         allowStudio: true,
         allowMultiSpeaker: true,
-        maxSpeakers: 4, // Quad Speakers
+        maxSpeakers: 4, // COMPETITIVE EDGE: Quad Speaker Support
         allowEffects: true,
     },
     admin: {

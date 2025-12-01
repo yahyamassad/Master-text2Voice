@@ -210,9 +210,10 @@ const App: React.FC = () => {
   const [speed, setSpeed] = useState(1.0);
   const [seed, setSeed] = useState(42);
   const [multiSpeaker, setMultiSpeaker] = useState(false);
+  
+  // Speaker Configurations - Now Supporting 4 Speakers
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
-  // ADDED: Additional speakers for Platinum plan
   const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Zephyr' });
   const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Charon' });
   
@@ -493,6 +494,7 @@ const App: React.FC = () => {
   }, []);
   
   const getCacheKey = (text: string) => {
+      // Include C and D speakers in cache key
       const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}-${speakerC.voice}-${speakerD.voice}` : 'single';
       return `${text}_${voice}_${emotion}_${speed}_${seed}_${pauseDuration}_${speakers}`;
   };
@@ -611,7 +613,7 @@ const App: React.FC = () => {
           try {
               if (isGeminiVoice) {
                   // GEMINI (Pro)
-                  // Pass ALL speakers including C and D
+                  // Pass speakers C and D
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
@@ -896,6 +898,7 @@ const App: React.FC = () => {
                 blob = await createMp3Blob(pcmData, 1, 24000);
              }
         } else {
+             // Pass ALL 4 speakers to generation logic for cache/processing
              const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
              // @ts-ignore
              const idToken = user ? await user.getIdToken() : undefined;
@@ -1375,6 +1378,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 pb-4">
+                {/* Passed updated speakers state to SettingsModal */}
                 <ActionCard icon={<GearIcon className="w-10 h-10" />} label={t('speechSettings', uiLanguage)} onClick={() => setIsSettingsOpen(true)} />
                 <ActionCard icon={<HistoryIcon className="w-10 h-10" />} label={t('historyButton', uiLanguage)} onClick={() => setIsHistoryOpen(true)} />
                 <ActionCard 
