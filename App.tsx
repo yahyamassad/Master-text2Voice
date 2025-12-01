@@ -41,7 +41,7 @@ const soundEffects = [
 
 const getInitialLanguage = (): Language => {
     try {
-        const savedSettings = localStorage.getItem('sawtli_settings_v3'); // UPDATED KEY v3
+        const savedSettings = localStorage.getItem('sawtli_settings_v4'); // UPDATED KEY v4
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
             if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
@@ -210,7 +210,7 @@ const App: React.FC = () => {
   const [pauseDuration, setPauseDuration] = useState(1.0);
   const [speed, setSpeed] = useState(1.0);
   const [seed, setSeed] = useState(42);
-  const [multiSpeaker, setMultiSpeaker] = useState(false);
+  const [multiSpeaker, setMultiSpeaker] = useState(true); // Default to true for better visibility
   
   // Speaker Configurations - UPDATED FOR 4 SPEAKERS
   // Default names: Yazan, Lana, Rana, Haya
@@ -431,8 +431,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      // CHANGED KEY TO v3 to force reset settings
-      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v3');
+      // CHANGED KEY TO v4 to force reset settings
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v4');
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -440,7 +440,7 @@ const App: React.FC = () => {
         if (settings.pauseDuration) setPauseDuration(settings.pauseDuration);
         if (settings.speed) setSpeed(settings.speed);
         if (settings.seed) setSeed(settings.seed);
-        if (settings.multiSpeaker) setMultiSpeaker(settings.multiSpeaker);
+        if (settings.multiSpeaker !== undefined) setMultiSpeaker(settings.multiSpeaker);
         if (settings.speakerA) setSpeakerA(settings.speakerA);
         if (settings.speakerB) setSpeakerB(settings.speakerB);
         if (settings.speakerC) setSpeakerC(settings.speakerC);
@@ -469,7 +469,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
-      localStorage.setItem('sawtli_settings_v3', JSON.stringify(settings));
+      localStorage.setItem('sawtli_settings_v4', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }

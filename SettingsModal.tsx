@@ -201,38 +201,41 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setConfig: (c: SpeakerConfig) => void, 
         locked?: boolean 
     }) => (
-        <div className={`relative ${locked ? 'opacity-70' : ''}`}>
+        <div className={`relative bg-slate-900/50 p-3 rounded-xl border ${locked ? 'border-slate-800 opacity-50' : 'border-slate-700 hover:border-cyan-500/50'} transition-all group`}>
             {locked && (
                 <div 
-                    className="absolute inset-0 z-10 bg-slate-900/50 flex items-center justify-center cursor-pointer rounded-lg border border-transparent hover:border-cyan-400 transition-colors"
+                    className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer rounded-xl"
                     onClick={onUpgrade}
                 >
                     <div className="bg-slate-800 p-2 rounded-full shadow-lg border border-slate-600 flex items-center gap-2">
                         <LockIcon className="w-4 h-4 text-cyan-400" />
-                        <span className="text-xs font-bold text-white uppercase tracking-wider">Platinum</span>
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">Locked</span>
                     </div>
                 </div>
             )}
-            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
-                    <UserIcon className="w-3 h-3" /> Speaker {index}
-                </label>
-                <div className="space-y-2">
-                    <input 
-                        type="text" 
-                        value={config.name} 
-                        onChange={e => setConfig({...config, name: e.target.value})} 
-                        placeholder={`Name (e.g. Speaker ${index})`}
-                        className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-cyan-500 focus:outline-none"
-                    />
-                    <select 
-                        value={config.voice} 
-                        onChange={e => setConfig({...config, voice: e.target.value})} 
-                        className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-cyan-500 focus:outline-none"
-                    >
-                        {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
+            <div className="flex items-center gap-2 mb-2">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${['bg-blue-500', 'bg-pink-500', 'bg-purple-500', 'bg-orange-500'][index-1]} text-white shadow-sm`}>
+                    {index}
                 </div>
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    {uiLanguage === 'ar' ? `المتحدث ${index}` : `Speaker ${index}`}
+                </span>
+            </div>
+            <div className="space-y-2">
+                <input 
+                    type="text" 
+                    value={config.name} 
+                    onChange={e => setConfig({...config, name: e.target.value})} 
+                    placeholder={uiLanguage === 'ar' ? 'الاسم (مثل: يزن)' : 'Name (e.g. Yazan)'}
+                    className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white focus:border-cyan-500 focus:outline-none placeholder-slate-600"
+                />
+                <select 
+                    value={config.voice} 
+                    onChange={e => setConfig({...config, voice: e.target.value})} 
+                    className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white focus:border-cyan-500 focus:outline-none"
+                >
+                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
             </div>
         </div>
     );
