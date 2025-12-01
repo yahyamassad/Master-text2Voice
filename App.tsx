@@ -40,7 +40,7 @@ const soundEffects = [
 
 const getInitialLanguage = (): Language => {
     try {
-        const savedSettings = localStorage.getItem('sawtli_settings');
+        const savedSettings = localStorage.getItem('sawtli_settings_v2'); // UPDATED KEY
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
             if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
@@ -211,11 +211,11 @@ const App: React.FC = () => {
   const [seed, setSeed] = useState(42);
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   
-  // Speaker Configurations - Now Supporting 4 Speakers
+  // Speaker Configurations - UPDATED FOR 4 SPEAKERS
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
   const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Zephyr' });
-  const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Charon' });
+  const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Fenrir' });
   
   const [systemVoices, setSystemVoices] = useState<any[]>([]);
 
@@ -429,7 +429,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      const savedSettingsRaw = localStorage.getItem('sawtli_settings');
+      // CHANGED KEY TO v2 to force reset settings
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v2');
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -466,7 +467,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
-      localStorage.setItem('sawtli_settings', JSON.stringify(settings));
+      localStorage.setItem('sawtli_settings_v2', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
@@ -1000,6 +1001,20 @@ const App: React.FC = () => {
         }, 0);
     }
   };
+
+  // Helper to insert the 4-Speaker Demo Script
+  const handleInsertDemoScript = () => {
+      const demoScript = 
+`Yazan: Hello everyone! Today we have a very special episode.
+Lana: That's right Yazan. We are joined by our new friends, Rana and Haya.
+Rana: Hi! I'm so excited to be here with you both. [laugh]
+Haya: Thank you for inviting us. It's a pleasure to join the team.
+Yazan: The pleasure is ours. Let's make something amazing together!`;
+      setSourceText(demoScript);
+      setMultiSpeaker(true);
+      setIsEffectsOpen(false);
+      showToast("Demo script inserted & Multi-Speaker enabled", 'success');
+  };
   
   const handleAudioStudioOpen = () => {
       // Silence the main app playback before opening the studio
@@ -1138,7 +1153,7 @@ const App: React.FC = () => {
                         </button>
                         {isEffectsOpen && (
                             <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-                                <div className="p-2 grid grid-cols-3 gap-1">
+                                <div className="p-2 grid grid-cols-3 gap-1 border-b border-slate-700 pb-2">
                                     {soundEffects.map((effect) => (
                                         <button
                                             key={effect.tag}
@@ -1149,6 +1164,14 @@ const App: React.FC = () => {
                                             {effect.emoji}
                                         </button>
                                     ))}
+                                </div>
+                                <div className="p-2">
+                                    <button 
+                                        onClick={handleInsertDemoScript}
+                                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded uppercase transition-colors"
+                                    >
+                                        Insert 4-Speaker Demo
+                                    </button>
                                 </div>
                             </div>
                         )}

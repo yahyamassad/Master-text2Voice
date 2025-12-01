@@ -152,8 +152,8 @@ export const PLAN_LIMITS = {
         allowWav: false,
         allowGemini: true,       // The main hook
         allowStudio: false,      // LOCKED: Upsell for Gold/Platinum
-        allowMultiSpeaker: false,
-        maxSpeakers: 1,
+        allowMultiSpeaker: true, // UNLOCKED FOR TESTING: Was false
+        maxSpeakers: 4,          // UNLOCKED FOR TESTING: Was 1
         allowEffects: false,     // Upsell
     },
     gold: {
@@ -167,7 +167,7 @@ export const PLAN_LIMITS = {
         allowGemini: true,
         allowStudio: true,
         allowMultiSpeaker: true,
-        maxSpeakers: 2, // Standard Multi-Speaker
+        maxSpeakers: 4, // UNLOCKED FOR TESTING: Was 2
         allowEffects: true,
     },
     platinum: {
