@@ -14,7 +14,7 @@ import firebase, { getFirebase } from './firebaseConfig';
 type User = firebase.User;
 
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument, addToWaitlist } from './services/firestoreService';
-import { AudioStudioModal } from './components/AudioStudioModal'; 
+import AudioStudioModal from './components/AudioStudioModal'; 
 import SettingsModal from './components/SettingsModal';
 import TutorialModal from './components/TutorialModal';
 import UpgradeModal from './components/UpgradeModal';
@@ -28,6 +28,7 @@ const ReportModal = lazy(() => import('./components/ReportModal'));
 
 const soundEffects = [
     { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
+// ... rest of file (no changes needed below imports)
     { emoji: '🤣', tag: '[laughter]', labelKey: 'addLaughter' },
     { emoji: '😮‍💨', tag: '[sigh]', labelKey: 'addSigh' },
     { emoji: '😭', tag: '[sob]', labelKey: 'addSob' },
