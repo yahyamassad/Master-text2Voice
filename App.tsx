@@ -41,7 +41,7 @@ const soundEffects = [
 
 const getInitialLanguage = (): Language => {
     try {
-        const savedSettings = localStorage.getItem('sawtli_settings_v7'); // UPDATED KEY v7
+        const savedSettings = localStorage.getItem('sawtli_settings_v8'); // UPDATED KEY v8
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
             if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
@@ -152,8 +152,11 @@ const App: React.FC = () => {
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
-  const [sourceLang, setSourceLang] = useState<string>(uiLanguage);
+  
+  // FIX: Provide explicit defaults to prevent undefined state if uiLanguage is slow to load
+  const [sourceLang, setSourceLang] = useState<string>(uiLanguage || 'en');
   const [targetLang, setTargetLang] = useState<string>(uiLanguage === 'ar' ? 'en' : 'ar');
+  
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingTask, setLoadingTask] = useState<string>('');
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
@@ -431,8 +434,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      // CHANGED KEY TO v7 to force reset settings again
-      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v7');
+      // CHANGED KEY TO v8 to force reset settings again
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v8');
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -469,7 +472,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
-      localStorage.setItem('sawtli_settings_v7', JSON.stringify(settings));
+      localStorage.setItem('sawtli_settings_v8', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
