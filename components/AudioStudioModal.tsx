@@ -119,11 +119,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const relevantStandardVoices = useMemo(() => {
         if (showAllSystemVoices) return AWS_STANDARD_VOICES;
 
-        const sourceLangCode = sourceLang.toLowerCase();
-        const targetLangCode = targetLang.toLowerCase();
+        // CRITICAL FIX: Add null checks to prevent crashes
+        const sourceLangCode = (sourceLang || '').toLowerCase();
+        const targetLangCode = (targetLang || '').toLowerCase();
 
         const filtered = AWS_STANDARD_VOICES.filter(v => {
-            const vLang = v.lang.toLowerCase();
+            const vLang = (v.lang || '').toLowerCase();
             return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode) || vLang.includes(sourceLangCode) || vLang.includes(targetLangCode);
         });
 
@@ -249,7 +250,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6 flex-shrink-0">
                     <h3 className="text-xl font-semibold text-cyan-400">
-                        {uiLanguage === 'ar' ? 'إعدادات النطق (v6.0 - 4 أصوات)' : 'Speech Settings (v6.0 - 4 Voices)'}
+                        {uiLanguage === 'ar' ? 'إعدادات النطق (v8.0 - 4 أصوات)' : 'Speech Settings (v8.0 - 4 Voices)'}
                     </h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors" aria-label={t('closeButton', uiLanguage)}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
