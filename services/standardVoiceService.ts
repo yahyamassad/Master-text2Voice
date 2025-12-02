@@ -23,7 +23,12 @@ export async function generateStandardSpeech(
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Studio voice error: ${response.status}`);
+            // Surface the specific 'details' from the backend if available
+            const errorMessage = errorData.details 
+                ? `${errorData.error}: ${errorData.details}` 
+                : (errorData.error || `Studio voice error: ${response.status}`);
+            
+            throw new Error(errorMessage);
         }
 
         const data = await response.json();
