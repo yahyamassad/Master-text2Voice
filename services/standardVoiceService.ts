@@ -1,16 +1,17 @@
+
 import { decode } from '../utils/audioUtils';
 
 /**
- * Calls the backend API to generate speech using AWS Polly Standard engine.
- * This is the robust alternative to browser SpeechSynthesis.
+ * Calls the backend API to generate speech using Google Cloud TTS (WaveNet/Standard).
+ * High reliability, industry standard quality.
  */
 export async function generateStandardSpeech(
     text: string,
-    voiceId: string, // e.g., 'Zeina', 'Joanna'
-    languageCode?: string // optional
+    voiceId: string, // e.g., 'ar-XA-Wavenet-A'
+    languageCode?: string // optional, e.g., 'ar-XA'
 ): Promise<Uint8Array | null> {
     try {
-        const response = await fetch('/api/speak-standard', {
+        const response = await fetch('/api/speak-google', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -22,20 +23,20 @@ export async function generateStandardSpeech(
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Standard voice error: ${response.status}`);
+            throw new Error(errorData.error || `Studio voice error: ${response.status}`);
         }
 
         const data = await response.json();
         
         if (!data.audioContent) {
-            console.warn("Standard API returned no audio content.");
+            console.warn("Studio API returned no audio content.");
             return null;
         }
         
         return decode(data.audioContent);
 
     } catch (error) {
-        console.error("Standard Speech Generation Failed:", error);
+        console.error("Studio Speech Generation Failed:", error);
         throw error;
     }
 }

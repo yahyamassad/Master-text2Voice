@@ -1,5 +1,7 @@
 
 
+
+
 export type Language = 'ar' | 'en' | 'fr' | 'es' | 'pt';
 export type Direction = 'rtl' | 'ltr';
 export interface LanguageListItem {
@@ -125,11 +127,11 @@ export const translations = {
     pt: 'Essas vozes de alta qualidade são otimizadas para árabe padrão. Dialetos adicionais podem estar disponíveis no futuro.',
   },
   systemVoices: {
-    ar: 'أصوات قياسية (Standard)',
-    en: 'Standard Voices',
-    fr: 'Voix Standard',
-    es: 'Voces Estándar',
-    pt: 'Vozes Padrão',
+    ar: 'أصوات ستوديو (WaveNet)',
+    en: 'Studio Voices (WaveNet)',
+    fr: 'Voix Studio',
+    es: 'Voces de Estudio',
+    pt: 'Vozes de Estúdio',
   },
   suggestedVoices: {
     ar: 'الأصوات المقترحة',
@@ -216,11 +218,11 @@ export const translations = {
     pt: 'Pré-visualizar esta voz',
   },
   previewSystemVoice: {
-    ar: 'معاينة صوت قياسي',
-    en: 'Preview Standard Voice',
-    fr: 'Aperçu de la voix standard',
-    es: 'Vista previa de voz estándar',
-    pt: 'Pré-visualizar voz padrão',
+    ar: 'معاينة الصوت',
+    en: 'Preview Voice',
+    fr: 'Aperçu de la voix',
+    es: 'Vista previa',
+    pt: 'Pré-visualizar',
   },
   voicePreviewText: {
     ar: 'مَرْحَبًا، أَنَا جَاهِز.',
@@ -368,6 +370,27 @@ export const translations = {
     fr: 'ex: Lana',
     es: 'ej: Lana',
     pt: 'ex: Lana',
+  },
+  speaker3: {
+    ar: 'مثال: هيا',
+    en: 'e.g., Haya',
+    fr: 'ex: Haya',
+    es: 'ej: Haya',
+    pt: 'ex: Haya',
+  },
+  speaker4: {
+    ar: 'مثال: رنا',
+    en: 'e.g., Rana',
+    fr: 'ex: Rana',
+    es: 'ej: Rana',
+    pt: 'ex: Rana',
+  },
+  unlockMoreSpeakers: {
+      ar: 'قم بالترقية لفتح المتحدثين 3 و 4',
+      en: 'Upgrade to unlock Speakers 3 & 4',
+      fr: 'Mettez à niveau pour débloquer les locuteurs 3 et 4',
+      es: 'Actualiza para desbloquear hablantes 3 y 4',
+      pt: 'Atualize para desbloquear falantes 3 e 4',
   },
   soundEffects: {
     ar: 'مؤثرات صوتية',
@@ -1472,8 +1495,8 @@ export const translations = {
       pt: 'Problema com vozes Gemini',
   },
   issueSystemVoices: {
-      ar: 'مشكلة في اصوات النظام',
-      en: 'Issue with System voices',
+      ar: 'مشكلة في أصوات الاستوديو',
+      en: 'Issue with Studio voices',
       fr: 'Problème avec les voix système',
       es: 'Problema con voces del sistema',
       pt: 'Problema com vozes do sistema',
@@ -1803,7 +1826,7 @@ export const translations = {
   upgradeNow: {
       ar: 'ترقية الآن',
       en: 'Upgrade Now',
-      fr: 'Mettre à niveau',
+      fr: 'Mettre à Niveau',
       es: 'Mejorar Ahora',
       pt: 'Atualizar Agora',
   },

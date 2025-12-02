@@ -4,6 +4,8 @@
 
 
 
+
+
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -20,73 +22,54 @@ export interface SpeakerConfig {
 
 export const GEMINI_VOICES = ['Puck', 'Kore', 'Charon', 'Zephyr', 'Fenrir'];
 
-// Defines the reliable "Standard" voices from AWS Polly
-// This replaces the unreliable window.speechSynthesis voices
+// Defines the "Studio" voices (Google Cloud TTS - WaveNet/Standard)
 export interface StandardVoice {
-    name: string;
+    name: string; // The API name (e.g., ar-XA-Wavenet-A)
     label: string; // Display name
     lang: string;  // 'ar', 'en', 'fr', etc.
     gender: 'Female' | 'Male';
+    type: 'WaveNet' | 'Standard' | 'Neural2';
 }
 
-export const AWS_STANDARD_VOICES: StandardVoice[] = [
-    // Arabic - Only Zeina is reliably Standard
-    { name: 'Zeina', label: 'Zeina (Arabic)', lang: 'ar', gender: 'Female' },
+export const GOOGLE_STUDIO_VOICES: StandardVoice[] = [
+    // --- ARABIC (The Core) ---
+    { name: 'ar-XA-Wavenet-A', label: 'Fatima (Studio)', lang: 'ar', gender: 'Female', type: 'WaveNet' },
+    { name: 'ar-XA-Wavenet-B', label: 'Ahmed (Studio)', lang: 'ar', gender: 'Male', type: 'WaveNet' },
+    { name: 'ar-XA-Wavenet-C', label: 'Omar (Studio)', lang: 'ar', gender: 'Male', type: 'WaveNet' },
+    { name: 'ar-XA-Wavenet-D', label: 'Layla (Studio)', lang: 'ar', gender: 'Female', type: 'WaveNet' },
+    { name: 'ar-XA-Standard-A', label: 'Salma (Standard)', lang: 'ar', gender: 'Female', type: 'Standard' },
+    { name: 'ar-XA-Standard-B', label: 'Karim (Standard)', lang: 'ar', gender: 'Male', type: 'Standard' },
+
+    // --- ENGLISH US ---
+    { name: 'en-US-Journey-D', label: 'Journey (US Male)', lang: 'en', gender: 'Male', type: 'Neural2' },
+    { name: 'en-US-Journey-F', label: 'Journey (US Female)', lang: 'en', gender: 'Female', type: 'Neural2' },
+    { name: 'en-US-Wavenet-D', label: 'David (US Studio)', lang: 'en', gender: 'Male', type: 'WaveNet' },
+    { name: 'en-US-Wavenet-F', label: 'Sarah (US Studio)', lang: 'en', gender: 'Female', type: 'WaveNet' },
+    { name: 'en-US-Studio-O', label: 'Emma (Pro)', lang: 'en', gender: 'Female', type: 'WaveNet' }, // Studio voice often requires special access, fallback to Wavenet if fails, but 'Studio' class is generally available now
+
+    // --- ENGLISH UK ---
+    { name: 'en-GB-Wavenet-B', label: 'George (UK Studio)', lang: 'en', gender: 'Male', type: 'WaveNet' },
+    { name: 'en-GB-Wavenet-C', label: 'Charlotte (UK Studio)', lang: 'en', gender: 'Female', type: 'WaveNet' },
+
+    // --- FRENCH ---
+    { name: 'fr-FR-Wavenet-C', label: 'Marie (FR Studio)', lang: 'fr', gender: 'Female', type: 'WaveNet' },
+    { name: 'fr-FR-Wavenet-D', label: 'Jean (FR Studio)', lang: 'fr', gender: 'Male', type: 'WaveNet' },
+
+    // --- SPANISH ---
+    { name: 'es-ES-Wavenet-C', label: 'Laura (ES Studio)', lang: 'es', gender: 'Female', type: 'WaveNet' },
+    { name: 'es-ES-Wavenet-B', label: 'Pedro (ES Studio)', lang: 'es', gender: 'Male', type: 'WaveNet' },
+
+    // --- PORTUGUESE ---
+    { name: 'pt-BR-Wavenet-A', label: 'Maria (BR Studio)', lang: 'pt', gender: 'Female', type: 'WaveNet' },
+    { name: 'pt-BR-Wavenet-B', label: 'Joao (BR Studio)', lang: 'pt', gender: 'Male', type: 'WaveNet' },
     
-    // English (US)
-    { name: 'Joanna', label: 'Joanna (US English)', lang: 'en', gender: 'Female' },
-    { name: 'Joey', label: 'Joey (US English)', lang: 'en', gender: 'Male' },
-    { name: 'Salli', label: 'Salli (US English)', lang: 'en', gender: 'Female' },
-    { name: 'Matthew', label: 'Matthew (US English)', lang: 'en', gender: 'Male' },
-    { name: 'Ivy', label: 'Ivy (US Child)', lang: 'en', gender: 'Female' },
-    { name: 'Justin', label: 'Justin (US Child)', lang: 'en', gender: 'Male' },
-    { name: 'Kimberly', label: 'Kimberly (US English)', lang: 'en', gender: 'Female' },
-    { name: 'Kendra', label: 'Kendra (US English)', lang: 'en', gender: 'Female' },
-
-    // English (British)
-    { name: 'Amy', label: 'Amy (British)', lang: 'en', gender: 'Female' },
-    { name: 'Brian', label: 'Brian (British)', lang: 'en', gender: 'Male' },
-    { name: 'Emma', label: 'Emma (British)', lang: 'en', gender: 'Female' },
-
-    // English (Indian)
-    { name: 'Aditi', label: 'Aditi (Indian English)', lang: 'en', gender: 'Female' },
-    { name: 'Raveena', label: 'Raveena (Indian English)', lang: 'en', gender: 'Female' },
-
-    // French
-    { name: 'Celine', label: 'Celine (French)', lang: 'fr', gender: 'Female' },
-    { name: 'Mathieu', label: 'Mathieu (French)', lang: 'fr', gender: 'Male' },
-    { name: 'Lea', label: 'Léa (French)', lang: 'fr', gender: 'Female' },
-    
-    // Spanish
-    { name: 'Conchita', label: 'Conchita (Spanish)', lang: 'es', gender: 'Female' },
-    { name: 'Enrique', label: 'Enrique (Spanish)', lang: 'es', gender: 'Male' },
-    { name: 'Lucia', label: 'Lucia (Spanish)', lang: 'es', gender: 'Female' },
-    { name: 'Mia', label: 'Mia (Mexican Spanish)', lang: 'es', gender: 'Female' },
-    
-    // Portuguese
-    { name: 'Camila', label: 'Camila (Brazilian)', lang: 'pt', gender: 'Female' },
-    { name: 'Ricardo', label: 'Ricardo (Brazilian)', lang: 'pt', gender: 'Male' },
-    { name: 'Vitoria', label: 'Vitória (Brazilian)', lang: 'pt', gender: 'Female' },
-    { name: 'Cristiano', label: 'Cristiano (European)', lang: 'pt', gender: 'Male' },
-    { name: 'Ines', label: 'Inês (European)', lang: 'pt', gender: 'Female' },
-    
-    // German
-    { name: 'Marlene', label: 'Marlene (German)', lang: 'de', gender: 'Female' },
-    { name: 'Hans', label: 'Hans (German)', lang: 'de', gender: 'Male' },
-    { name: 'Vicki', label: 'Vicki (German)', lang: 'de', gender: 'Female' },
-
-    // Italian
-    { name: 'Carla', label: 'Carla (Italian)', lang: 'it', gender: 'Female' },
-    { name: 'Bianca', label: 'Bianca (Italian)', lang: 'it', gender: 'Female' },
-    { name: 'Giorgio', label: 'Giorgio (Italian)', lang: 'it', gender: 'Male' },
-
-    // Russian
-    { name: 'Tatyana', label: 'Tatyana (Russian)', lang: 'ru', gender: 'Female' },
-    { name: 'Maxim', label: 'Maxim (Russian)', lang: 'ru', gender: 'Male' },
-
-    // Turkish
-    { name: 'Filiz', label: 'Filiz (Turkish)', lang: 'tr', gender: 'Female' },
+    // --- GERMAN ---
+    { name: 'de-DE-Wavenet-C', label: 'Hanna (DE Studio)', lang: 'de', gender: 'Female', type: 'WaveNet' },
+    { name: 'de-DE-Wavenet-B', label: 'Klaus (DE Studio)', lang: 'de', gender: 'Male', type: 'WaveNet' },
 ];
+
+// Alias for backward compatibility in components
+export const AWS_STANDARD_VOICES = GOOGLE_STUDIO_VOICES;
 
 export type UserTier = 'visitor' | 'free' | 'gold' | 'platinum' | 'admin';
 

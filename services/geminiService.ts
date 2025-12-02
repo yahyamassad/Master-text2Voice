@@ -1,4 +1,6 @@
 
+
+
 import { SpeakerConfig } from '../types';
 import { decode } from '../utils/audioUtils';
 
@@ -13,7 +15,7 @@ async function generateAudioChunk(
     text: string,
     voice: string,
     emotion: string,
-    speakers?: { speakerA: SpeakerConfig, speakerB: SpeakerConfig },
+    speakers?: { speakerA: SpeakerConfig, speakerB: SpeakerConfig, speakerC?: SpeakerConfig, speakerD?: SpeakerConfig },
     signal?: AbortSignal,
     seed?: number
 ): Promise<Uint8Array | null> {
@@ -75,7 +77,7 @@ export async function generateSpeech(
     voice: string,
     emotion: string,
     pauseDuration: number,
-    speakers?: { speakerA: SpeakerConfig, speakerB: SpeakerConfig },
+    speakers?: { speakerA: SpeakerConfig, speakerB: SpeakerConfig, speakerC?: SpeakerConfig, speakerD?: SpeakerConfig },
     signal?: AbortSignal,
     idToken?: string, 
     speed: number = 1.0, 
@@ -114,22 +116,31 @@ export async function generateSpeech(
             if (speakers) {
                 const nameA = speakers.speakerA.name.trim();
                 const nameB = speakers.speakerB.name.trim();
+                const nameC = speakers.speakerC?.name.trim();
+                const nameD = speakers.speakerD?.name.trim();
                 
                 // Regex to match "Name:" or "Name :" at start of string, case insensitive
-                // We use \s* to be flexible with spaces around the colon
                 const regexA = new RegExp(`^${escapeRegExp(nameA)}\\s*:\\s*`, 'i');
                 const regexB = new RegExp(`^${escapeRegExp(nameB)}\\s*:\\s*`, 'i');
+                const regexC = nameC ? new RegExp(`^${escapeRegExp(nameC)}\\s*:\\s*`, 'i') : null;
+                const regexD = nameD ? new RegExp(`^${escapeRegExp(nameD)}\\s*:\\s*`, 'i') : null;
 
                 if (regexA.test(p)) {
                     currentVoice = speakers.speakerA.voice;
-                    // Remove the "Name:" prefix so it is not spoken
                     currentText = p.replace(regexA, '').trim(); 
-                    chunkSpeakers = undefined; // We handled the switch manually
+                    chunkSpeakers = undefined; 
                 } else if (regexB.test(p)) {
                     currentVoice = speakers.speakerB.voice;
-                    // Remove the "Name:" prefix so it is not spoken
                     currentText = p.replace(regexB, '').trim();
-                    chunkSpeakers = undefined; // We handled the switch manually
+                    chunkSpeakers = undefined; 
+                } else if (regexC && regexC.test(p) && speakers.speakerC) {
+                    currentVoice = speakers.speakerC.voice;
+                    currentText = p.replace(regexC, '').trim();
+                    chunkSpeakers = undefined;
+                } else if (regexD && regexD.test(p) && speakers.speakerD) {
+                    currentVoice = speakers.speakerD.voice;
+                    currentText = p.replace(regexD, '').trim();
+                    chunkSpeakers = undefined;
                 }
             }
 
