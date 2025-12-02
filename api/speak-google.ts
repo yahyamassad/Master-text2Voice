@@ -101,7 +101,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ 
             error: "Failed to generate studio speech.",
             details: error.message || error.toString(),
-            voiceAttempted: voiceId
+            voiceAttempted: voiceId,
+            projectId: process.env.FIREBASE_PROJECT_ID // Return the ID being used to help debug mismatches
         });
     }
 }
