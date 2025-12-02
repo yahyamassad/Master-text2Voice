@@ -41,7 +41,7 @@ const soundEffects = [
 
 const getInitialLanguage = (): Language => {
     try {
-        const savedSettings = localStorage.getItem('sawtli_settings_v4'); // UPDATED KEY v4
+        const savedSettings = localStorage.getItem('sawtli_settings_v5'); // UPDATED KEY v5
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
             if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
@@ -431,8 +431,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      // CHANGED KEY TO v4 to force reset settings
-      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v4');
+      // CHANGED KEY TO v5 to force reset settings
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v5');
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -469,7 +469,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
-      localStorage.setItem('sawtli_settings_v4', JSON.stringify(settings));
+      localStorage.setItem('sawtli_settings_v5', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
@@ -1441,6 +1441,7 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
       </div>
 
       {isSettingsOpen && <SettingsModal 
+          key={Date.now()} // FORCE RE-RENDER EVERY OPEN to ensure props are fresh
           onClose={() => setIsSettingsOpen(false)} 
           uiLanguage={uiLanguage} 
           sourceLang={sourceLang}
