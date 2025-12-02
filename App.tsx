@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { generateStandardSpeech } from './services/standardVoiceService';
@@ -14,7 +13,7 @@ import firebase, { getFirebase } from './firebaseConfig';
 type User = firebase.User;
 
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument, addToWaitlist } from './services/firestoreService';
-import AudioStudioModal from './components/AudioStudioModal'; 
+import { AudioStudioModal } from './components/AudioStudioModal'; 
 import SettingsModal from './components/SettingsModal';
 import TutorialModal from './components/TutorialModal';
 import UpgradeModal from './components/UpgradeModal';
@@ -41,7 +40,7 @@ const soundEffects = [
 
 const getInitialLanguage = (): Language => {
     try {
-        const savedSettings = localStorage.getItem('sawtli_settings_v8'); // UPDATED KEY v8
+        const savedSettings = localStorage.getItem('sawtli_settings');
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
             if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
@@ -152,11 +151,8 @@ const App: React.FC = () => {
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
-  
-  // FIX: Provide explicit defaults to prevent undefined state if uiLanguage is slow to load
-  const [sourceLang, setSourceLang] = useState<string>(uiLanguage || 'en');
+  const [sourceLang, setSourceLang] = useState<string>(uiLanguage);
   const [targetLang, setTargetLang] = useState<string>(uiLanguage === 'ar' ? 'en' : 'ar');
-  
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingTask, setLoadingTask] = useState<string>('');
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
@@ -213,15 +209,13 @@ const App: React.FC = () => {
   const [pauseDuration, setPauseDuration] = useState(1.0);
   const [speed, setSpeed] = useState(1.0);
   const [seed, setSeed] = useState(42);
-  const [multiSpeaker, setMultiSpeaker] = useState(true); // Default to true for better visibility
-  
-  // Speaker Configurations - UPDATED FOR 4 SPEAKERS
-  // Default names: Yazan, Lana, Rana, Haya
+  const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
-  const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Zephyr' });
-  const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Fenrir' });
   
+  // We use this as a reference list for the Settings modal, but we don't query the browser anymore
+  // except for potential fallback or legacy reasons.
+  // The systemVoices state will now just hold our AWS list or be empty.
   const [systemVoices, setSystemVoices] = useState<any[]>([]);
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -347,6 +341,7 @@ const App: React.FC = () => {
     if (audioContextRef.current && audioContextRef.current.state === 'running') {
         audioContextRef.current.suspend().catch(() => {});
     }
+    // No more window.speechSynthesis cancellation needed as we removed it
     if (recognitionRef.current) {
         recognitionRef.current.abort();
         setIsListening(false);
@@ -366,7 +361,7 @@ const App: React.FC = () => {
       if (activePlayer || isPaused) {
           stopAll();
       }
-  }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, speakerC, speakerD, stopAll]);
+  }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
 
   useEffect(() => {
     fetch('/api/check-config')
@@ -418,12 +413,17 @@ const App: React.FC = () => {
     }
   }, []); 
 
+  // Init Voices (Now uses the static AWS Standard List + Gemini List)
   useEffect(() => {
+      // Instead of getting browser voices, we map our AWS Standard voices
+      // to the format the settings modal expects, or pass them directly.
+      // SettingsModal now handles the static list directly, so we just set a default if voice is unset.
       if (!voice) {
           setVoice('Joanna');
       }
   }, []);
 
+  // Separate effect for AudioContext cleanup ONLY on unmount
   useEffect(() => {
       return () => {
          if (audioContextRef.current) {
@@ -434,8 +434,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      // CHANGED KEY TO v8 to force reset settings again
-      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v8');
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings');
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -443,11 +442,9 @@ const App: React.FC = () => {
         if (settings.pauseDuration) setPauseDuration(settings.pauseDuration);
         if (settings.speed) setSpeed(settings.speed);
         if (settings.seed) setSeed(settings.seed);
-        if (settings.multiSpeaker !== undefined) setMultiSpeaker(settings.multiSpeaker);
+        if (settings.multiSpeaker) setMultiSpeaker(settings.multiSpeaker);
         if (settings.speakerA) setSpeakerA(settings.speakerA);
         if (settings.speakerB) setSpeakerB(settings.speakerB);
-        if (settings.speakerC) setSpeakerC(settings.speakerC);
-        if (settings.speakerD) setSpeakerD(settings.speakerD);
         if (settings.sourceLang) setSourceLang(settings.sourceLang);
         if (settings.targetLang) setTargetLang(settings.targetLang);
       }
@@ -471,15 +468,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
-      localStorage.setItem('sawtli_settings_v8', JSON.stringify(settings));
+      const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, sourceLang, targetLang, uiLanguage };
+      localStorage.setItem('sawtli_settings', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
     } catch (e) {
       console.error("Failed to save state", e);
     }
-  }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, history, sourceLang, targetLang, uiLanguage, user]);
+  }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, history, sourceLang, targetLang, uiLanguage, user]);
 
   useEffect(() => {
     document.documentElement.lang = uiLanguage;
@@ -500,8 +497,8 @@ const App: React.FC = () => {
   }, []);
   
   const getCacheKey = (text: string) => {
-      // Include C and D speakers in cache key
-      const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}-${speakerC.voice}-${speakerD.voice}` : 'single';
+      // Standard voices don't use 'emotion' or 'seed', but we keep the key structure consistent
+      const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}` : 'single';
       return `${text}_${voice}_${emotion}_${speed}_${seed}_${pauseDuration}_${speakers}`;
   };
 
@@ -619,8 +616,7 @@ const App: React.FC = () => {
           try {
               if (isGeminiVoice) {
                   // GEMINI (Pro)
-                  // Pass speakers C and D
-                  const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
+                  const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
 
@@ -636,12 +632,14 @@ const App: React.FC = () => {
                       seed
                   );
               } else {
-                  // AWS Standard Generation
+                  // STANDARD (AWS) - The New Integration
+                  // We default language code based on current selection if needed
                   const langCode = target === 'source' ? sourceLang : targetLang;
+                  // Map lang code to AWS compatible if needed (usually handled by backend defaulting or voiceId)
                   
                   pcmData = await generateStandardSpeech(
                       textToProcess,
-                      voice, 
+                      voice, // This is now 'Zeina', 'Joanna', etc.
                       langCode
                   );
               }
@@ -879,10 +877,13 @@ const App: React.FC = () => {
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
     if (!text.trim()) return null;
 
+    // Both Standard (AWS) and Gemini are now valid "API" voices.
+    // We check if the voice exists in either list.
     const isGemini = GEMINI_VOICES.includes(voice);
     const isStandard = AWS_STANDARD_VOICES.some(v => v.name === voice);
 
     if (!isGemini && !isStandard) {
+        // Fallback for edge cases where voice state might be stale
         showToast("Invalid voice selected", 'error');
         return null;
     }
@@ -904,8 +905,7 @@ const App: React.FC = () => {
                 blob = await createMp3Blob(pcmData, 1, 24000);
              }
         } else {
-             // Pass ALL 4 speakers to generation logic for cache/processing
-             const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
+             const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
              // @ts-ignore
              const idToken = user ? await user.getIdToken() : undefined;
 
@@ -924,6 +924,7 @@ const App: React.FC = () => {
                     seed
                  );
              } else {
+                 // AWS Standard Generation
                  pcmData = await generateStandardSpeech(
                      text,
                      voice
@@ -966,7 +967,7 @@ const App: React.FC = () => {
         }
     }
     return blob;
-  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
+  }, [voice, emotion, multiSpeaker, speakerA, speakerB, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
 
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
     if (userTier === 'visitor') {
@@ -1005,20 +1006,6 @@ const App: React.FC = () => {
             textarea.selectionStart = textarea.selectionEnd = newCursorPos;
         }, 0);
     }
-  };
-
-  // Helper to insert the 4-Speaker Demo Script
-  const handleInsertDemoScript = () => {
-      const demoScript = 
-`Yazan: Hello everyone! Today we have a very special episode.
-Lana: That's right Yazan. We are joined by our new friends, Rana and Haya.
-Rana: Hi! I'm so excited to be here with you both. [laugh]
-Haya: Thank you for inviting us. It's a pleasure to join the team.
-Yazan: The pleasure is ours. Let's make something amazing together!`;
-      setSourceText(demoScript);
-      setMultiSpeaker(true);
-      setIsEffectsOpen(false);
-      showToast("Demo script inserted & Multi-Speaker enabled", 'success');
   };
   
   const handleAudioStudioOpen = () => {
@@ -1158,7 +1145,7 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
                         </button>
                         {isEffectsOpen && (
                             <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-                                <div className="p-2 grid grid-cols-3 gap-1 border-b border-slate-700 pb-2">
+                                <div className="p-2 grid grid-cols-3 gap-1">
                                     {soundEffects.map((effect) => (
                                         <button
                                             key={effect.tag}
@@ -1169,14 +1156,6 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
                                             {effect.emoji}
                                         </button>
                                     ))}
-                                </div>
-                                <div className="p-2">
-                                    <button 
-                                        onClick={handleInsertDemoScript}
-                                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded uppercase transition-colors"
-                                    >
-                                        Insert 4-Speaker Demo
-                                    </button>
                                 </div>
                             </div>
                         )}
@@ -1197,6 +1176,7 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
                     spellCheck="false"
                 />
                 
+                {/* Trash Icon - Positioned bottom-left inside textarea container */}
                 {sourceText && (
                     <button 
                         onClick={() => {setSourceText(''); setTranslatedText('');}} 
@@ -1207,6 +1187,7 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
                     </button>
                 )}
 
+                {/* Char Count - Positioned bottom-right inside textarea container */}
                 <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-500 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
                     {sourceText.length} chars
                 </div>
@@ -1241,6 +1222,7 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
                     dir={isTargetRtl ? 'rtl' : 'ltr'}
                 />
                 
+                {/* Translated Char Count - Added bottom-right */}
                 <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-600 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">
                     {translatedText.length} chars
                 </div>
@@ -1344,6 +1326,7 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
                             label={sourceButtonState.label}
                             className={`w-full ${sourceButtonState.className}`}
                         />
+                        {/* DISTINCT STOP BUTTON - REDESIGNED */}
                         {(activePlayer === 'source') && (
                             <button
                                 onClick={stopAll}
@@ -1375,6 +1358,7 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
                             disabled={!translatedText.trim()}
                             className={`w-full ${targetButtonState.className}`}
                         />
+                        {/* DISTINCT STOP BUTTON - REDESIGNED */}
                         {(activePlayer === 'target') && (
                             <button
                                 onClick={stopAll}
@@ -1443,39 +1427,11 @@ Yazan: The pleasure is ours. Let's make something amazing together!`;
         </footer>
       </div>
 
-      {isSettingsOpen && <SettingsModal 
-          key={Date.now()} // FORCE RE-RENDER EVERY OPEN to ensure props are fresh
-          onClose={() => setIsSettingsOpen(false)} 
-          uiLanguage={uiLanguage} 
-          sourceLang={sourceLang}
-          targetLang={targetLang}
-          voice={voice}
-          setVoice={setVoice}
-          emotion={emotion}
-          setEmotion={setEmotion}
-          pauseDuration={pauseDuration}
-          setPauseDuration={setPauseDuration}
-          speed={speed}
-          setSpeed={setSpeed}
-          seed={seed}
-          setSeed={setSeed}
-          multiSpeaker={multiSpeaker}
-          setMultiSpeaker={setMultiSpeaker}
-          speakerA={speakerA}
-          setSpeakerA={setSpeakerA}
-          speakerB={speakerB}
-          setSpeakerB={setSpeakerB}
-          speakerC={speakerC}
-          setSpeakerC={setSpeakerC}
-          speakerD={speakerD}
-          setSpeakerD={setSpeakerD}
-          systemVoices={AWS_STANDARD_VOICES as any}
-          currentLimits={planConfig} 
-          onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
-      />}
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices: AWS_STANDARD_VOICES as any}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} />}
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
       
+      {/* Keep AudioStudio mounted but hidden to persist state */}
       <AudioStudioModal 
           isOpen={isAudioStudioOpen}
           onClose={() => setIsAudioStudioOpen(false)} 
