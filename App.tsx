@@ -41,7 +41,7 @@ const soundEffects = [
 
 const getInitialLanguage = (): Language => {
     try {
-        const savedSettings = localStorage.getItem('sawtli_settings_v6'); // UPDATED KEY v6
+        const savedSettings = localStorage.getItem('sawtli_settings_v7'); // UPDATED KEY v7
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
             if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
@@ -431,8 +431,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      // CHANGED KEY TO v6 to force reset settings again
-      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v6');
+      // CHANGED KEY TO v7 to force reset settings again
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v7');
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -469,7 +469,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
-      localStorage.setItem('sawtli_settings_v6', JSON.stringify(settings));
+      localStorage.setItem('sawtli_settings_v7', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
