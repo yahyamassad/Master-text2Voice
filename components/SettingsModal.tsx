@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { t, Language, translationLanguages, translations } from '../i18n/translations';
-import { SpeakerConfig, GEMINI_VOICES, AWS_STANDARD_VOICES, StandardVoice } from '../types';
-import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon, ReplayIcon } from './icons';
+import { t, Language, translations } from '../i18n/translations';
+import { SpeakerConfig, GEMINI_VOICES, AWS_STANDARD_VOICES } from '../types';
+import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
 import { playAudio } from '../utils/audioUtils';
@@ -25,6 +26,10 @@ interface SettingsModalProps {
   setSpeakerA: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   speakerB: SpeakerConfig;
   setSpeakerB: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  speakerC?: SpeakerConfig;
+  setSpeakerC?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  speakerD?: SpeakerConfig;
+  setSpeakerD?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   // Removed systemVoices prop as we use static list
   systemVoices: any[]; 
   sourceLang: string;
@@ -37,7 +42,7 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, uiLanguage, voice, setVoice, emotion, setEmotion, 
     pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed,
-    multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, sourceLang, targetLang,
+    multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, speakerC, setSpeakerC, speakerD, setSpeakerD, sourceLang, targetLang,
     currentLimits, onUpgrade
 }) => {
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
@@ -49,6 +54,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const voicePreviewCache = useRef(new Map<string, Uint8Array>());
     
     const audioContextRef = useRef<AudioContext | null>(null);
+
+    // Is Platinum or Admin? (Checks if limits are Infinity, simple proxy check)
+    const isPlatinumOrAdmin = currentLimits.dailyLimit === Infinity;
 
     // Filter Standard Voices based on language
     const relevantStandardVoices = useMemo(() => {
@@ -339,6 +347,60 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
                                  </select>
                              </div>
+                             
+                             {/* Speaker 3 & 4 (Platinum/Admin Only) */}
+                             {/* REMOVED CONDITIONAL CHECK - ALWAYS RENDER INPUTS */}
+                             <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
+                                <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
+                                    {t('speakerName', uiLanguage)} 3
+                                    {!isPlatinumOrAdmin && <LockIcon className="w-3 h-3 text-amber-400"/>}
+                                </label>
+                                <input 
+                                    type="text" 
+                                    value={speakerC?.name || 'Haya'} 
+                                    onChange={e => setSpeakerC && setSpeakerC({...speakerC!, name: e.target.value})} 
+                                    placeholder={t('speaker3', uiLanguage)} 
+                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" 
+                                />
+                                <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 3</label>
+                                <select 
+                                    value={speakerC?.voice || 'Zephyr'} 
+                                    onChange={e => setSpeakerC && setSpeakerC({...speakerC!, voice: e.target.value})} 
+                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                >
+                                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                            </div>
+
+                            <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
+                                <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
+                                    {t('speakerName', uiLanguage)} 4
+                                    {!isPlatinumOrAdmin && <LockIcon className="w-3 h-3 text-amber-400"/>}
+                                </label>
+                                <input 
+                                    type="text" 
+                                    value={speakerD?.name || 'Rana'} 
+                                    onChange={e => setSpeakerD && setSpeakerD({...speakerD!, name: e.target.value})} 
+                                    placeholder={t('speaker4', uiLanguage)} 
+                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" 
+                                />
+                                <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 4</label>
+                                <select 
+                                    value={speakerD?.voice || 'Fenrir'} 
+                                    onChange={e => setSpeakerD && setSpeakerD({...speakerD!, voice: e.target.value})} 
+                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                >
+                                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                            </div>
+
+                            {!isPlatinumOrAdmin && (
+                                <div className="col-span-1 sm:col-span-2 text-center">
+                                    <p className="text-[10px] text-amber-400 bg-amber-900/20 p-1.5 rounded inline-block cursor-pointer font-bold border border-amber-500/30" onClick={onUpgrade}>
+                                        {uiLanguage === 'ar' ? 'قم بالترقية لفتح المزيد من المتحدثين' : 'Upgrade to unlock more speakers'}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
