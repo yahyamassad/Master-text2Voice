@@ -28,7 +28,6 @@ const ReportModal = lazy(() => import('./components/ReportModal'));
 
 const soundEffects = [
     { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
-// ... rest of file (no changes needed below imports)
     { emoji: '🤣', tag: '[laughter]', labelKey: 'addLaughter' },
     { emoji: '😮‍💨', tag: '[sigh]', labelKey: 'addSigh' },
     { emoji: '😭', tag: '[sob]', labelKey: 'addSob' },
@@ -42,7 +41,7 @@ const soundEffects = [
 
 const getInitialLanguage = (): Language => {
     try {
-        const savedSettings = localStorage.getItem('sawtli_settings_v5'); // UPDATED KEY v5
+        const savedSettings = localStorage.getItem('sawtli_settings_v6'); // UPDATED KEY v6
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
             if (settings.uiLanguage && languageOptions.some(l => l.value === settings.uiLanguage)) {
@@ -432,8 +431,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      // CHANGED KEY TO v5 to force reset settings
-      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v5');
+      // CHANGED KEY TO v6 to force reset settings again
+      const savedSettingsRaw = localStorage.getItem('sawtli_settings_v6');
       if (savedSettingsRaw) {
         const settings = JSON.parse(savedSettingsRaw);
         if (settings.voice) setVoice(settings.voice);
@@ -470,7 +469,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
-      localStorage.setItem('sawtli_settings_v5', JSON.stringify(settings));
+      localStorage.setItem('sawtli_settings_v6', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
