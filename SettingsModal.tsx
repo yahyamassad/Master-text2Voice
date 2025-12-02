@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translationLanguages, translations } from '../i18n/translations';
 import { SpeakerConfig, GEMINI_VOICES, AWS_STANDARD_VOICES, StandardVoice } from '../types';
-import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon, ReplayIcon, UserIcon } from './icons';
+import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon, ReplayIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
 import { playAudio } from '../utils/audioUtils';
@@ -26,11 +27,11 @@ interface SettingsModalProps {
   setSpeakerA: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   speakerB: SpeakerConfig;
   setSpeakerB: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
-  speakerC: SpeakerConfig;
-  setSpeakerC: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
-  speakerD: SpeakerConfig;
-  setSpeakerD: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
-  
+  speakerC?: SpeakerConfig;
+  setSpeakerC?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  speakerD?: SpeakerConfig;
+  setSpeakerD?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
+  // Removed systemVoices prop as we use static list
   systemVoices: any[]; 
   sourceLang: string;
   targetLang: string;
@@ -42,12 +43,7 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, uiLanguage, voice, setVoice, emotion, setEmotion, 
     pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed,
-    multiSpeaker, setMultiSpeaker, 
-    speakerA, setSpeakerA, 
-    speakerB, setSpeakerB,
-    speakerC, setSpeakerC,
-    speakerD, setSpeakerD,
-    sourceLang, targetLang,
+    multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, speakerC, setSpeakerC, speakerD, setSpeakerD, sourceLang, targetLang,
     currentLimits, onUpgrade
 }) => {
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
@@ -59,6 +55,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const voicePreviewCache = useRef(new Map<string, Uint8Array>());
     
     const audioContextRef = useRef<AudioContext | null>(null);
+
+    // Is Platinum or Admin? (Checks if limits are Infinity, simple proxy check)
+    const isPlatinumOrAdmin = currentLimits.dailyLimit === Infinity;
 
     // Filter Standard Voices based on language
     const relevantStandardVoices = useMemo(() => {
@@ -186,57 +185,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             >
                 {previewingVoice === voiceName ? <LoaderIcon /> : <PlayCircleIcon />}
             </button>
-        </div>
-    );
-
-    // Component for individual speaker input
-    const SpeakerInput = ({ 
-        index, 
-        config, 
-        setConfig, 
-        locked = false 
-    }: { 
-        index: number, 
-        config: SpeakerConfig, 
-        setConfig: (c: SpeakerConfig) => void, 
-        locked?: boolean 
-    }) => (
-        <div className={`relative bg-slate-900/50 p-3 rounded-xl border ${locked ? 'border-slate-800 opacity-50' : 'border-slate-700 hover:border-cyan-500/50'} transition-all group`}>
-            {locked && (
-                <div 
-                    className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer rounded-xl"
-                    onClick={onUpgrade}
-                >
-                    <div className="bg-slate-800 p-2 rounded-full shadow-lg border border-slate-600 flex items-center gap-2">
-                        <LockIcon className="w-4 h-4 text-cyan-400" />
-                        <span className="text-xs font-bold text-white uppercase tracking-wider">Locked</span>
-                    </div>
-                </div>
-            )}
-            <div className="flex items-center gap-2 mb-2">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${['bg-blue-500', 'bg-pink-500', 'bg-purple-500', 'bg-orange-500'][index-1]} text-white shadow-sm`}>
-                    {index}
-                </div>
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    {uiLanguage === 'ar' ? `المتحدث ${index}` : `Speaker ${index}`}
-                </span>
-            </div>
-            <div className="space-y-2">
-                <input 
-                    type="text" 
-                    value={config.name} 
-                    onChange={e => setConfig({...config, name: e.target.value})} 
-                    placeholder={uiLanguage === 'ar' ? 'الاسم (مثل: يزن)' : 'Name (e.g. Yazan)'}
-                    className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white focus:border-cyan-500 focus:outline-none placeholder-slate-600"
-                />
-                <select 
-                    value={config.voice} 
-                    onChange={e => setConfig({...config, voice: e.target.value})} 
-                    className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white focus:border-cyan-500 focus:outline-none"
-                >
-                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-            </div>
         </div>
     );
 
@@ -383,25 +331,58 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                             <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={voiceMode === 'system'} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
                          </div>
-                        
-                        {/* QUAD SPEAKER GRID */}
                         <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker || voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}`}>
-                             <SpeakerInput index={1} config={speakerA} setConfig={setSpeakerA} />
-                             <SpeakerInput index={2} config={speakerB} setConfig={setSpeakerB} />
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 1</label>
+                                 <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} placeholder={t('speaker1', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" />
+                                 <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 1</label>
+                                 <select value={speakerA.voice} onChange={e => setSpeakerA({...speakerA, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
+                                     {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                 </select>
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 2</label>
+                                 <input type="text" value={speakerB.name} onChange={e => setSpeakerB({...speakerB, name: e.target.value})} placeholder={t('speaker2', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" />
+                                 <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 2</label>
+                                 <select value={speakerB.voice} onChange={e => setSpeakerB({...speakerB, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
+                                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                 </select>
+                             </div>
                              
-                             {/* Speaker 3 & 4 (Unlocked) */}
-                             <SpeakerInput 
-                                index={3} 
-                                config={speakerC} 
-                                setConfig={setSpeakerC} 
-                                locked={currentLimits.maxSpeakers < 3} 
-                             />
-                             <SpeakerInput 
-                                index={4} 
-                                config={speakerD} 
-                                setConfig={setSpeakerD} 
-                                locked={currentLimits.maxSpeakers < 4} 
-                             />
+                             {/* Speaker 3 & 4 (Platinum Only) */}
+                             {setSpeakerC && setSpeakerD && (
+                                <>
+                                    <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
+                                            {t('speakerName', uiLanguage)} 3
+                                            {!isPlatinumOrAdmin && <LockIcon className="w-3 h-3 text-amber-400"/>}
+                                        </label>
+                                        <input type="text" value={speakerC?.name || ''} onChange={e => setSpeakerC!({...speakerC!, name: e.target.value})} placeholder={t('speaker3', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" />
+                                        <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 3</label>
+                                        <select value={speakerC?.voice || 'Puck'} onChange={e => setSpeakerC!({...speakerC!, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
+                                            {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
+                                        <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
+                                            {t('speakerName', uiLanguage)} 4
+                                            {!isPlatinumOrAdmin && <LockIcon className="w-3 h-3 text-amber-400"/>}
+                                        </label>
+                                        <input type="text" value={speakerD?.name || ''} onChange={e => setSpeakerD!({...speakerD!, name: e.target.value})} placeholder={t('speaker4', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" />
+                                        <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 4</label>
+                                        <select value={speakerD?.voice || 'Puck'} onChange={e => setSpeakerD!({...speakerD!, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
+                                            {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                        </select>
+                                    </div>
+                                    {!isPlatinumOrAdmin && (
+                                        <div className="col-span-2 text-center">
+                                            <p className="text-[10px] text-amber-400 bg-amber-900/20 p-1 rounded inline-block cursor-pointer" onClick={onUpgrade}>
+                                                {uiLanguage === 'ar' ? 'قم بالترقية لفتح المزيد من المتحدثين' : 'Upgrade to unlock more speakers'}
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
+                             )}
                         </div>
                     </div>
                 </div>

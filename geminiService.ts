@@ -1,3 +1,5 @@
+
+
 import { SpeakerConfig } from '../types';
 import { decode } from '../utils/audioUtils';
 
@@ -30,8 +32,8 @@ async function generateAudioChunk(
             body: JSON.stringify({
                 text: promptText,
                 voice: voice,
-                speakers: speakers, // Pass full speakers config to backend (legacy, mainly for debugging context)
-                seed: seed 
+                speakers: speakers, // Pass speakers config to backend
+                seed: seed // Pass seed if supported by backend
             }),
             signal: signal
         });
@@ -82,8 +84,15 @@ export async function generateSpeech(
 ): Promise<Uint8Array | null> {
     
     try {
-        // Multi-speaker: split by Single Newline to capture every turn.
-        // Single speaker: split by Double Newline to preserve flow.
+        // CRITICAL FIX FOR MULTI-SPEAKER PARSING:
+        // If multi-speaker mode is active (`speakers` is defined), we MUST split by SINGLE newline (\n).
+        // This ensures that adjacent lines like:
+        // "Yazan: Hello"
+        // "Lana: Hi"
+        // ...are treated as separate chunks, allowing the code to detect the speaker at the start of the line.
+        //
+        // If it's single speaker mode, we stick to the Double Newline (\n\n) rule to allow users 
+        // to format paragraphs without forcing a pause at every line break.
         const PARAGRAPH_DELIMITER = speakers ? /\r?\n/ : /\r?\n\s*\r?\n/;
 
         // Split paragraphs first
@@ -93,10 +102,14 @@ export async function generateSpeech(
 
         if (paragraphs.length === 0) return null;
 
-        // MULTI-SPEAKER LOGIC (Updated for 4 Speakers)
+        // MULTI-SPEAKER LOGIC
+        // If speakers are defined, we process each paragraph to see if it matches a speaker name
         const audioPromises = paragraphs.map(p => {
             let currentText = p;
-            let currentVoice = voice; // Default to main voice if no match
+            let currentVoice = voice;
+            
+            // By default, pass undefined speakers to chunk if we determine the voice here,
+            // so backend uses 'currentVoice'.
             let chunkSpeakers = speakers; 
 
             if (speakers) {
@@ -105,10 +118,9 @@ export async function generateSpeech(
                 const nameC = speakers.speakerC?.name.trim();
                 const nameD = speakers.speakerD?.name.trim();
                 
-                // Regex to match "Name:" at start of string (case insensitive)
+                // Regex to match "Name:" or "Name :" at start of string, case insensitive
                 const regexA = new RegExp(`^${escapeRegExp(nameA)}\\s*:\\s*`, 'i');
                 const regexB = new RegExp(`^${escapeRegExp(nameB)}\\s*:\\s*`, 'i');
-                // Check C and D only if they exist
                 const regexC = nameC ? new RegExp(`^${escapeRegExp(nameC)}\\s*:\\s*`, 'i') : null;
                 const regexD = nameD ? new RegExp(`^${escapeRegExp(nameD)}\\s*:\\s*`, 'i') : null;
 
@@ -119,7 +131,7 @@ export async function generateSpeech(
                 } else if (regexB.test(p)) {
                     currentVoice = speakers.speakerB.voice;
                     currentText = p.replace(regexB, '').trim();
-                    chunkSpeakers = undefined;
+                    chunkSpeakers = undefined; 
                 } else if (regexC && regexC.test(p) && speakers.speakerC) {
                     currentVoice = speakers.speakerC.voice;
                     currentText = p.replace(regexC, '').trim();
@@ -131,7 +143,7 @@ export async function generateSpeech(
                 }
             }
 
-            // Skip empty lines
+            // If a line was just a name with no text (e.g. "Yazan: "), currentText might be empty. Skip it.
             if (!currentText) return Promise.resolve(null);
 
             return generateAudioChunk(currentText, currentVoice, emotion, chunkSpeakers, signal, seed);

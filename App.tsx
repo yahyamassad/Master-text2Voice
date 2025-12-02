@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
 import { generateStandardSpeech } from './services/standardVoiceService';
@@ -149,6 +151,8 @@ const QuotaIndicator: React.FC<{
 const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
+  
+  // Initialize Source Language to match UI Language unless URL param overrides
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
   const [sourceLang, setSourceLang] = useState<string>(uiLanguage);
@@ -212,6 +216,9 @@ const App: React.FC = () => {
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
+  // Add Speaker C and D state
+  const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Zephyr' });
+  const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Fenrir' });
   
   // We use this as a reference list for the Settings modal, but we don't query the browser anymore
   // except for potential fallback or legacy reasons.
@@ -361,7 +368,7 @@ const App: React.FC = () => {
       if (activePlayer || isPaused) {
           stopAll();
       }
-  }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, stopAll]);
+  }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, speakerC, speakerD, stopAll]);
 
   useEffect(() => {
     fetch('/api/check-config')
@@ -445,6 +452,8 @@ const App: React.FC = () => {
         if (settings.multiSpeaker) setMultiSpeaker(settings.multiSpeaker);
         if (settings.speakerA) setSpeakerA(settings.speakerA);
         if (settings.speakerB) setSpeakerB(settings.speakerB);
+        if (settings.speakerC) setSpeakerC(settings.speakerC);
+        if (settings.speakerD) setSpeakerD(settings.speakerD);
         if (settings.sourceLang) setSourceLang(settings.sourceLang);
         if (settings.targetLang) setTargetLang(settings.targetLang);
       }
@@ -455,7 +464,14 @@ const App: React.FC = () => {
       const urlTargetLang = urlParams.get('targetLang');
       
       if(urlSourceText) setSourceText(decodeURIComponent(urlSourceText));
-      if(urlSourceLang) setSourceLang(urlSourceLang);
+      // Prioritize URL, then stored settings, then UI Language (from browser)
+      if(urlSourceLang) {
+          setSourceLang(urlSourceLang);
+      } else if (!savedSettingsRaw) {
+          // If no settings saved, ensure source matches browser/ui
+          setSourceLang(uiLanguage);
+      }
+      
       if(urlTargetLang) setTargetLang(urlTargetLang);
       
       const devModeActive = sessionStorage.getItem('sawtli_dev_mode') === 'true';
@@ -464,11 +480,11 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Failed to load state", e);
     }
-  }, []);
+  }, [uiLanguage]); // Added uiLanguage dependency to trigger if it resolves late
 
   useEffect(() => {
     try {
-      const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, sourceLang, targetLang, uiLanguage };
+      const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
       localStorage.setItem('sawtli_settings', JSON.stringify(settings));
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
@@ -476,7 +492,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Failed to save state", e);
     }
-  }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, history, sourceLang, targetLang, uiLanguage, user]);
+  }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, history, sourceLang, targetLang, uiLanguage, user]);
 
   useEffect(() => {
     document.documentElement.lang = uiLanguage;
@@ -498,7 +514,7 @@ const App: React.FC = () => {
   
   const getCacheKey = (text: string) => {
       // Standard voices don't use 'emotion' or 'seed', but we keep the key structure consistent
-      const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}` : 'single';
+      const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}-${speakerC.voice}-${speakerD.voice}` : 'single';
       return `${text}_${voice}_${emotion}_${speed}_${seed}_${pauseDuration}_${speakers}`;
   };
 
@@ -616,7 +632,8 @@ const App: React.FC = () => {
           try {
               if (isGeminiVoice) {
                   // GEMINI (Pro)
-                  const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+                  // Pass all 4 speakers
+                  const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
 
@@ -905,7 +922,7 @@ const App: React.FC = () => {
                 blob = await createMp3Blob(pcmData, 1, 24000);
              }
         } else {
-             const speakersConfig = multiSpeaker ? { speakerA, speakerB } : undefined;
+             const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
              // @ts-ignore
              const idToken = user ? await user.getIdToken() : undefined;
 
@@ -967,7 +984,7 @@ const App: React.FC = () => {
         }
     }
     return blob;
-  }, [voice, emotion, multiSpeaker, speakerA, speakerB, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
+  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
 
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
     if (userTier === 'visitor') {
@@ -1427,7 +1444,7 @@ const App: React.FC = () => {
         </footer>
       </div>
 
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, systemVoices: AWS_STANDARD_VOICES as any}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} />}
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} uiLanguage={uiLanguage} {...{sourceLang, targetLang, voice, setVoice, emotion, setEmotion, pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed, multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, speakerC, setSpeakerC, speakerD, setSpeakerD, systemVoices: AWS_STANDARD_VOICES as any}} currentLimits={planConfig} onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} />}
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
       
