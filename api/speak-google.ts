@@ -41,9 +41,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        // Default to a high-quality Arabic voice if not specified
+        // Default voice if none specified
         const selectedVoice = voiceId || "ar-XA-Wavenet-B";
-        const selectedLang = languageCode || "ar-XA";
+        
+        // INTELLIGENT LANGUAGE DETECTION
+        // If languageCode is not provided, try to extract it from the voiceId.
+        // e.g., "en-US-Journey-D" -> "en-US", "ar-XA-Wavenet-A" -> "ar-XA"
+        let selectedLang = languageCode;
+        
+        if (!selectedLang) {
+            const parts = selectedVoice.split('-');
+            if (parts.length >= 2) {
+                // Combine the first two parts to form the locale (e.g., "en" + "US" = "en-US")
+                selectedLang = `${parts[0]}-${parts[1]}`;
+            } else {
+                selectedLang = "ar-XA"; // Fallback default
+            }
+        }
 
         const [response] = await client.synthesizeSpeech({
             input: { text: text },
@@ -72,7 +86,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 audioContent: base64Audio,
                 format: 'mp3',
                 engine: 'google-cloud-tts',
-                voiceUsed: selectedVoice
+                voiceUsed: selectedVoice,
+                langUsed: selectedLang
             });
         } else {
             throw new Error("Google Cloud TTS did not return audio content.");
@@ -81,9 +96,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error: any) {
         console.error("Google Cloud TTS Error:", error);
         
+        // Return the specific error message from Google to aid debugging
+        // e.g. "Voice 'X' does not exist" or "Cloud Text-to-Speech API is not enabled"
         return res.status(500).json({ 
             error: "Failed to generate studio speech.",
-            details: error.message,
+            details: error.message || error.toString(),
             voiceAttempted: voiceId
         });
     }
