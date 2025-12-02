@@ -23,6 +23,17 @@ export async function generateStandardSpeech(
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
+            
+            // Check for Project ID mismatch specifically
+            // Google error format: "Cloud Text-to-Speech API has not been used in project 12345..."
+            if (errorData.details && errorData.details.includes('PERMISSION_DENIED') && errorData.details.includes('API has not been used')) {
+                 const match = errorData.details.match(/project (\d+)/);
+                 const usedProjectNum = match ? match[1] : 'UNKNOWN';
+                 const configuredProject = errorData.projectId || 'UNKNOWN';
+                 
+                 throw new Error(`CRITICAL CONFIG ERROR: Your Private Key belongs to Project ID/Num '${usedProjectNum}', but you are trying to use Project '${configuredProject}'. Please go to Vercel and update FIREBASE_PRIVATE_KEY with the key from '${configuredProject}'.`);
+            }
+
             // Surface the specific 'details' from the backend if available
             const errorMessage = errorData.details 
                 ? `${errorData.error}: ${errorData.details}` 
