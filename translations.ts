@@ -383,6 +383,13 @@ export const translations = {
     es: 'ej: Rana',
     pt: 'ex: Rana',
   },
+  unlockMoreSpeakers: {
+      ar: 'قم بالترقية لفتح المتحدثين 3 و 4',
+      en: 'Upgrade to unlock Speakers 3 & 4',
+      fr: 'Mettez à niveau pour débloquer les locuteurs 3 et 4',
+      es: 'Actualiza para desbloquear hablantes 3 y 4',
+      pt: 'Atualize para desbloquear falantes 3 e 4',
+  },
   soundEffects: {
     ar: 'مؤثرات صوتية',
     en: 'Sound Effects',
