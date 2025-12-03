@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translations } from '../i18n/translations';
-import { SpeakerConfig, GEMINI_VOICES, AWS_STANDARD_VOICES } from '../types';
+import { SpeakerConfig, GEMINI_VOICES, GOOGLE_STUDIO_VOICES } from '../types';
 import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
@@ -60,17 +59,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
     // Filter Standard Voices based on language
     const relevantStandardVoices = useMemo(() => {
-        if (showAllSystemVoices) return AWS_STANDARD_VOICES;
+        if (showAllSystemVoices) return GOOGLE_STUDIO_VOICES;
 
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();
 
-        const filtered = AWS_STANDARD_VOICES.filter(v => {
+        const filtered = GOOGLE_STUDIO_VOICES.filter(v => {
             const vLang = v.lang.toLowerCase();
             return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode) || vLang.includes(sourceLangCode) || vLang.includes(targetLangCode);
         });
 
-        return filtered.length > 0 ? filtered : AWS_STANDARD_VOICES;
+        return filtered.length > 0 ? filtered : GOOGLE_STUDIO_VOICES;
     }, [sourceLang, targetLang, showAllSystemVoices]);
 
     // Auto-select voice when switching modes if current voice is invalid for mode
@@ -114,7 +113,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         }
 
         setPreviewingVoice(voiceName);
-        const previewText = t('voicePreviewText', uiLanguage);
+        
+        // Smart Preview Text: Detect language from voice config
+        let langCode: string = uiLanguage; // Default for Gemini
+        
+        if (!GEMINI_VOICES.includes(voiceName)) {
+            // It's a Studio Voice, look it up in the definitions
+            const voiceObj = GOOGLE_STUDIO_VOICES.find(v => v.name === voiceName);
+            if (voiceObj) {
+                langCode = voiceObj.lang;
+            } else if (voiceName.includes('-')) {
+                // Fallback detection
+                langCode = voiceName.split('-')[0];
+            }
+        }
+
+        // Construct key like 'previewText_en', 'previewText_fr'
+        const previewKey = `previewText_${langCode}` as keyof typeof translations;
+        // Fallback to English 'Hello' if specific translation missing
+        const previewText = t(previewKey, uiLanguage) || "Hello, I am ready.";
 
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -123,7 +140,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             await audioContextRef.current.resume();
         }
 
-        const cacheKey = `${voiceName}-${uiLanguage}`;
+        const cacheKey = `${voiceName}-${langCode}`;
         if (voicePreviewCache.current.has(cacheKey)) {
             const pcmData = voicePreviewCache.current.get(cacheKey)!;
             audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
@@ -139,7 +156,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             if (GEMINI_VOICES.includes(voiceName)) {
                 pcmData = await previewVoice(voiceName, previewText, 'Default');
             } else {
-                // AWS Standard Preview
+                // Studio Preview
+                // Note: The backend now auto-detects language code from voiceName, so we don't strictly need to pass it,
+                // but passing the text in the correct language is critical.
                 pcmData = await generateStandardSpeech(previewText, voiceName);
             }
 
