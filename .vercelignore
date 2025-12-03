@@ -1,0 +1,5 @@
+api/speak-standard.ts
+api/speak-debug.ts
+api/firebase-config.ts
+api/get-config.ts
+api/speak-stable.ts
