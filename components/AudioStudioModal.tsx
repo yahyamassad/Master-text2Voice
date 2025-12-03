@@ -414,12 +414,26 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
     }, [isOpen]);
 
-    // --- LOAD AI AUDIO ---
+    // --- LOAD AI AUDIO (SMART DECODE for MP3 support) ---
     useEffect(() => {
         if (activeTab === 'ai' && sourceAudioPCM) {
-            const buf = rawPcmToAudioBuffer(sourceAudioPCM);
-            setVoiceBuffer(buf);
-            setFileName(`Gemini ${voice} Session`);
+            const loadAudio = async () => {
+                const ctx = getAudioContext();
+                try {
+                    // Try to decode as file (MP3 from Studio Voices)
+                    // We must slice to create a copy because decodeAudioData detaches the buffer
+                    const bufferCopy = sourceAudioPCM.slice(0).buffer;
+                    const decoded = await ctx.decodeAudioData(bufferCopy);
+                    setVoiceBuffer(decoded);
+                    setFileName(`Gemini ${voice} Session`);
+                } catch (e) {
+                    // Fallback to Raw PCM (Gemini Original)
+                    const buf = rawPcmToAudioBuffer(sourceAudioPCM);
+                    setVoiceBuffer(buf);
+                    setFileName(`Gemini ${voice} Session`);
+                }
+            };
+            loadAudio();
         }
     }, [activeTab, sourceAudioPCM, voice]);
 
@@ -975,9 +989,20 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         
         if (tab === 'ai') {
             if (sourceAudioPCM) {
-                const buf = rawPcmToAudioBuffer(sourceAudioPCM);
-                setVoiceBuffer(buf);
-                setFileName(`Gemini ${voice} Session`);
+                const loadAudio = async () => {
+                    const ctx = getAudioContext();
+                    try {
+                        const bufferCopy = sourceAudioPCM.slice(0).buffer;
+                        const decoded = await ctx.decodeAudioData(bufferCopy);
+                        setVoiceBuffer(decoded);
+                        setFileName(`Gemini ${voice} Session`);
+                    } catch (e) {
+                        const buf = rawPcmToAudioBuffer(sourceAudioPCM);
+                        setVoiceBuffer(buf);
+                        setFileName(`Gemini ${voice} Session`);
+                    }
+                };
+                loadAudio();
             } else {
                 setVoiceBuffer(null);
             }
