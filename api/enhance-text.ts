@@ -33,27 +33,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let systemInstruction = "";
         
         if (type === 'tashkeel') {
-            systemInstruction = `You are a strict Arabic Voiceover Director.
-            Your task is to add Diacritics (Tashkeel) to the text so it sounds like a NATIVE NEWS ANCHOR, not a robot.
+            systemInstruction = `You are an elite Arabic Voiceover Director. Your job is to diacritize text for AUDIO RECORDING, NOT for a grammar exam.
 
-            !!! CRITICAL RULE: THE LAW OF SILENCE (WAQF) !!!
-            1. **NEVER** pronounce the vowel on the last letter of a phrase or sentence.
-            2. **FORCE SUKUN (ْ)** on the last letter of ANY word that is followed by punctuation (.,?!،؛:) or a new line.
-            3. **FORBIDDEN:** Do NOT put Damma (ُ), Kasra (ِ), Fatha (َ), or Tanween (ًٌٍ) on the last letter before a stop.
+            !!! THE GOLDEN RULE OF WAQF (PAUSE) !!!
+            When a speaker pauses (at a comma, dot, or end of line), the last letter MUST BE SILENT (Sukun).
+            
+            Strict Instructions:
+            1. **END OF SENTENCE:** The last letter of ANY sentence or phrase ending in punctuation (.,?!،؛) MUST have a SUKUN (ْ).
+            2. **IGNORE GRAMMAR AT STOPS:** Even if the word is Marfu' (Damma) or Majrur (Kasra) grammatically, you MUST write it with a SUKUN if it's at a stop.
+            3. **TANWEEN:** Remove Tanween at the end of sentences. "Kitaban" becomes "Kitaba" (or just Sukun). "Kitabun" becomes "Kitab".
+            4. **TA MARBUTA (ة):** At a stop, pronounce/write it as 'ah' with Sukun (ـَةْ) or just Ha with Sukun (ـَهْ).
 
-            EXAMPLES:
-            - Input: "في عصر المحتوى الذي لا يتوقف،"
-            - WRONG (School Style): "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفُ،" (Ends with Damma - BAD)
-            - CORRECT (Pro Style): "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفْ،" (Ends with Sukun - GOOD)
+            EXAMPLES (Study these carefully):
+            
+            Input: "في عصر المحتوى الذي لا يتوقف،"
+            WRONG: "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفُ،" (Ends with Damma? NO!)
+            CORRECT: "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفْ،" (Ends with Sukun - YES!)
 
-            - Input: "أهلاً بكم في صوتلي."
-            - WRONG: "أَهْلًا بِكُمْ فِي صَوْتْلِي." (Ends with Kasra on Ya? No)
-            - CORRECT: "أَهْلًا بِكُمْ فِي صَوْتْلِيْ." (Sukun on Ya)
+            Input: "أهلاً بكم في صوتلي"
+            WRONG: "أَهْلًا بِكُمْ فِي صَوْتْلِي" (No Sukun on Ya?)
+            CORRECT: "أَهْلًا بِكُمْ فِي صَوْتْلِيْ" (Force Sukun on Ya)
 
-            - Input: "هذه مدرسة."
-            - CORRECT: "هَذِهِ مَدْرَسَهْ." (Ta Marbuta pronounced as Ha with Sukun at stop is preferred, or just Sukun 'ةْ')
+            Input: "هذه تجربة."
+            WRONG: "هَذِهِ تَجْرِبَةٌ." (Tanween at end? NO!)
+            CORRECT: "هَذِهِ تَجْرِبَهْ." (Ta Marbuta -> Ha Sukun)
 
-            Output ONLY the diacritized text. Do not explain.`;
+            Input: "شكرا لكم"
+            CORRECT: "شُكْرًا لَكُمْْ" (Double check the Meem has Sukun)
+
+            Output ONLY the diacritized text. No explanations.`;
         } else {
             return res.status(400).json({ error: 'Invalid enhancement type' });
         }
