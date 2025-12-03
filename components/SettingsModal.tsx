@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translations } from '../i18n/translations';
 import { SpeakerConfig, GEMINI_VOICES, GOOGLE_STUDIO_VOICES } from '../types';
@@ -38,6 +39,41 @@ interface SettingsModalProps {
   onRefreshVoices?: () => void; 
 }
 
+// Extracted outside to prevent re-renders losing scroll position
+const VoiceListItem: React.FC<{ 
+    voiceName: string; 
+    label: string; 
+    sublabel?: string; 
+    isLocked?: boolean; 
+    isSelected: boolean;
+    previewingVoice: string | null;
+    onSelect: (v: string) => void;
+    onPreview: (v: string) => void;
+    t: (key: string) => string;
+}> = React.memo(({ voiceName, label, sublabel, isLocked, isSelected, previewingVoice, onSelect, onPreview, t }) => (
+    <div
+        onClick={() => onSelect(voiceName)}
+        className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors cursor-pointer border ${isSelected ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg' : 'bg-slate-700 border-slate-600 hover:bg-slate-600 text-slate-300'}`}
+    >
+        <div className="flex items-center gap-2">
+            <div>
+                <span className="font-semibold flex items-center gap-2">
+                    {label}
+                    {isLocked && <LockIcon className="w-3 h-3 text-amber-400" />}
+                </span>
+                {sublabel && <span className="text-xs text-slate-400 block">{sublabel}</span>}
+            </div>
+        </div>
+        <button
+            onClick={(e) => { e.stopPropagation(); onPreview(voiceName); }}
+            title={t('previewVoiceTooltip')}
+            className="p-2 rounded-full bg-slate-800/50 hover:bg-cyan-500 hover:text-white text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400"
+        >
+            {previewingVoice === voiceName ? <LoaderIcon /> : <PlayCircleIcon />}
+        </button>
+    </div>
+));
+
 const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, uiLanguage, voice, setVoice, emotion, setEmotion, 
     pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed,
@@ -56,6 +92,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
     // Is Platinum or Admin? (Checks if limits are Infinity, simple proxy check)
     const isPlatinumOrAdmin = currentLimits.dailyLimit === Infinity;
+
+    const voiceNameMap: Record<string, keyof typeof translations> = {
+        'Puck': 'voiceMale1', 'Kore': 'voiceFemale1', 'Charon': 'voiceMale2', 'Zephyr': 'voiceFemale2', 'Fenrir': 'voiceMale3',
+    };
 
     // Filter Standard Voices based on language
     const relevantStandardVoices = useMemo(() => {
@@ -115,22 +155,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setPreviewingVoice(voiceName);
         
         // Smart Preview Text: Detect language from voice config
-        let langCode: string = uiLanguage; // Default for Gemini
+        let langCode: string = uiLanguage; 
         
         if (!GEMINI_VOICES.includes(voiceName)) {
-            // It's a Studio Voice, look it up in the definitions
             const voiceObj = GOOGLE_STUDIO_VOICES.find(v => v.name === voiceName);
             if (voiceObj) {
                 langCode = voiceObj.lang;
             } else if (voiceName.includes('-')) {
-                // Fallback detection
                 langCode = voiceName.split('-')[0];
             }
         }
 
-        // Construct key like 'previewText_en', 'previewText_fr'
         const previewKey = `previewText_${langCode}` as keyof typeof translations;
-        // Fallback to English 'Hello' if specific translation missing
         const previewText = t(previewKey, uiLanguage) || "Hello, I am ready.";
 
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
@@ -156,9 +192,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             if (GEMINI_VOICES.includes(voiceName)) {
                 pcmData = await previewVoice(voiceName, previewText, 'Default');
             } else {
-                // Studio Preview
-                // Note: The backend now auto-detects language code from voiceName, so we don't strictly need to pass it,
-                // but passing the text in the correct language is critical.
                 pcmData = await generateStandardSpeech(previewText, voiceName);
             }
 
@@ -169,7 +202,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     audioSourceRef.current = null;
                 }, speed);
             } else {
-                console.error("No PCM data returned for preview");
                 setPreviewingVoice(null);
             }
         } catch (error) {
@@ -178,33 +210,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
     
-    const voiceNameMap: Record<string, keyof typeof translations> = {
-        'Puck': 'voiceMale1', 'Kore': 'voiceFemale1', 'Charon': 'voiceMale2', 'Zephyr': 'voiceFemale2', 'Fenrir': 'voiceMale3',
-    };
+    // Memoized wrapper for t to pass to VoiceListItem
+    const tWrapper = (key: string) => t(key as any, uiLanguage);
 
-    const VoiceListItem: React.FC<{ voiceName: string; label: string; sublabel?: string; isLocked?: boolean }> = ({ voiceName, label, sublabel, isLocked }) => (
-        <div
-            onClick={() => setVoice(voiceName)}
-            className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors cursor-pointer border ${voice === voiceName ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg' : 'bg-slate-700 border-slate-600 hover:bg-slate-600 text-slate-300'}`}
-        >
-            <div className="flex items-center gap-2">
-                <div>
-                    <span className="font-semibold flex items-center gap-2">
-                        {label}
-                        {isLocked && <LockIcon className="w-3 h-3 text-amber-400" />}
-                    </span>
-                    {sublabel && <span className="text-xs text-slate-400 block">{sublabel}</span>}
-                </div>
-            </div>
-            <button
-                onClick={(e) => { e.stopPropagation(); handlePreview(voiceName); }}
-                title={t('previewVoiceTooltip', uiLanguage)}
-                className="p-2 rounded-full bg-slate-800/50 hover:bg-cyan-500 hover:text-white text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400"
-            >
-                {previewingVoice === voiceName ? <LoaderIcon /> : <PlayCircleIcon />}
-            </button>
-        </div>
-    );
+    // Dynamic Options for Speaker Selectors
+    const speakerOptions = voiceMode === 'gemini' 
+        ? GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)
+        : relevantStandardVoices.map(v => <option key={v.name} value={v.name}>{v.label}</option>);
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
@@ -240,7 +252,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             key={vName} 
                                             voiceName={vName} 
                                             label={t(voiceNameMap[vName], uiLanguage)} 
-                                            isLocked={!currentLimits.allowGemini} 
+                                            isLocked={!currentLimits.allowGemini}
+                                            isSelected={voice === vName}
+                                            previewingVoice={previewingVoice}
+                                            onSelect={setVoice}
+                                            onPreview={handlePreview}
+                                            t={tWrapper}
                                         />
                                     ))}
                                 </div>
@@ -262,7 +279,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </div>
 
                                 {relevantStandardVoices.length > 0 ? (
-                                    relevantStandardVoices.map(v => <VoiceListItem key={v.name} voiceName={v.name} label={v.label} sublabel={`${v.lang} • ${v.gender}`} />)
+                                    relevantStandardVoices.map(v => (
+                                        <VoiceListItem 
+                                            key={v.name} 
+                                            voiceName={v.name} 
+                                            label={v.label} 
+                                            sublabel={`${v.lang} • ${v.gender}`} 
+                                            isSelected={voice === v.name}
+                                            previewingVoice={previewingVoice}
+                                            onSelect={setVoice}
+                                            onPreview={handlePreview}
+                                            t={tWrapper}
+                                        />
+                                    ))
                                 ) : (
                                     <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3 text-slate-500 italic">
                                         No standard voices available for this language.
@@ -327,8 +356,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </div>
 
-                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative ${voiceMode === 'system' ? 'opacity-40 pointer-events-none' : ''}`}>
-                         {voiceMode === 'gemini' && !currentLimits.allowMultiSpeaker && (
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative`}>
+                         {!currentLimits.allowMultiSpeaker && (
                              <div className="absolute inset-0 bg-slate-900/70 rounded-lg z-10 flex items-center justify-center backdrop-blur-[1px] cursor-pointer border border-slate-700" onClick={onUpgrade}>
                                 <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-amber-500/50 shadow-lg hover:bg-slate-700 transition-colors">
                                      <LockIcon className="text-amber-400 w-5 h-5" />
@@ -347,15 +376,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </div>
                                 </div>
                             </div>
-                            <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} disabled={voiceMode === 'system'} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500 disabled:cursor-not-allowed" />
+                            {/* ENABLED FOR BOTH GEMINI AND STUDIO NOW */}
+                            <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded focus:ring-cyan-500" />
                          </div>
-                        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker || voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker ? 'opacity-50 pointer-events-none' : ''}`}>
                              <div>
                                  <label className="block text-sm font-medium text-slate-300 mb-1">{t('speakerName', uiLanguage)} 1</label>
                                  <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} placeholder={t('speaker1', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" />
                                  <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 1</label>
                                  <select value={speakerA.voice} onChange={e => setSpeakerA({...speakerA, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
-                                     {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                     {speakerOptions}
                                  </select>
                              </div>
                              <div>
@@ -363,12 +393,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                  <input type="text" value={speakerB.name} onChange={e => setSpeakerB({...speakerB, name: e.target.value})} placeholder={t('speaker2', uiLanguage)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" />
                                  <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 2</label>
                                  <select value={speakerB.voice} onChange={e => setSpeakerB({...speakerB, voice: e.target.value})} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
-                                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                    {speakerOptions}
                                  </select>
                              </div>
                              
-                             {/* Speaker 3 & 4 (Platinum/Admin Only) */}
-                             {/* REMOVED CONDITIONAL CHECK - ALWAYS RENDER INPUTS */}
+                             {/* Speaker 3 & 4 */}
                              <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
                                 <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
                                     {t('speakerName', uiLanguage)} 3
@@ -387,7 +416,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     onChange={e => setSpeakerC && setSpeakerC({...speakerC!, voice: e.target.value})} 
                                     className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                 >
-                                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                    {speakerOptions}
                                 </select>
                             </div>
 
@@ -409,7 +438,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     onChange={e => setSpeakerD && setSpeakerD({...speakerD!, voice: e.target.value})} 
                                     className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                 >
-                                    {GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                                    {speakerOptions}
                                 </select>
                             </div>
 
