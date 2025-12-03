@@ -223,52 +223,80 @@ export async function processAudio(
         source.buffer = sourceBuffer;
         source.playbackRate.value = speed;
 
-        const frequencies = [60, 250, 1000, 4000, 12000];
-        const filters = frequencies.map((freq, i) => {
-            const filter = offlineCtx.createBiquadFilter();
-            if (i === 0) filter.type = 'lowshelf';
-            else if (i === 4) filter.type = 'highshelf';
-            else filter.type = 'peaking';
-            
-            filter.frequency.value = freq;
-            filter.gain.value = settings.eqBands[i] || 0;
-            filter.Q.value = 1.0;
-            return filter;
-        });
-
-        const compressor = offlineCtx.createDynamicsCompressor();
-        const compAmount = settings.compression / 100; 
-        compressor.threshold.value = -10 - (compAmount * 40); 
-        compressor.ratio.value = 1 + (compAmount * 11);       
-        compressor.attack.value = 0.003; 
-        compressor.release.value = 0.25;
-
-        const reverbNode = offlineCtx.createConvolver();
-        const reverbGain = offlineCtx.createGain(); 
-        const dryGain = offlineCtx.createGain();    
-        
-        if (settings.reverb > 0) {
-            const revDuration = 1.5 + (settings.reverb / 100) * 2.0; 
-            reverbNode.buffer = createImpulseResponse(offlineCtx, revDuration, 2.0, false);
-            const mix = settings.reverb / 100;
-            reverbGain.gain.value = mix;
-            dryGain.gain.value = 1 - (mix * 0.5); 
-        } else {
-            reverbGain.gain.value = 0;
-            dryGain.gain.value = 1;
-        }
-
         const voiceGain = offlineCtx.createGain();
         voiceGain.gain.value = (voiceVolume / 100); 
-        
+
+        // SMART BYPASS: Only create processing nodes if needed
+        const hasEq = settings.eqBands.some(v => v !== 0);
+        const hasCompression = settings.compression > 0;
+        const hasReverb = settings.reverb > 0;
+
         let currentNode: AudioNode = source;
-        filters.forEach(f => { currentNode.connect(f); currentNode = f; });
-        currentNode.connect(compressor);
-        compressor.connect(reverbNode);
-        reverbNode.connect(reverbGain);
-        reverbGain.connect(voiceGain);
-        compressor.connect(dryGain);
-        dryGain.connect(voiceGain);
+
+        // 1. EQ
+        if (hasEq) {
+            const frequencies = [60, 250, 1000, 4000, 12000];
+            const filters = frequencies.map((freq, i) => {
+                const filter = offlineCtx.createBiquadFilter();
+                if (i === 0) filter.type = 'lowshelf';
+                else if (i === 4) filter.type = 'highshelf';
+                else filter.type = 'peaking';
+                
+                filter.frequency.value = freq;
+                filter.gain.value = settings.eqBands[i] || 0;
+                filter.Q.value = 1.0;
+                return filter;
+            });
+            filters.forEach(f => { currentNode.connect(f); currentNode = f; });
+        }
+
+        // 2. Dynamics / Reverb (Parallel)
+        // If we have effects, we need to construct the chain
+        if (hasCompression || hasReverb) {
+            const compressor = offlineCtx.createDynamicsCompressor();
+            const compAmount = settings.compression / 100; 
+            
+            // Only apply compression params if active
+            if (hasCompression) {
+                compressor.threshold.value = -10 - (compAmount * 40); 
+                compressor.ratio.value = 1 + (compAmount * 11);       
+                compressor.attack.value = 0.003; 
+                compressor.release.value = 0.25;
+            } else {
+                // Transparent settings
+                compressor.threshold.value = 0;
+                compressor.ratio.value = 1;
+            }
+
+            currentNode.connect(compressor);
+            
+            if (hasReverb) {
+                const reverbNode = offlineCtx.createConvolver();
+                const reverbGain = offlineCtx.createGain(); 
+                const dryGain = offlineCtx.createGain();    
+                
+                const revDuration = 1.5 + (settings.reverb / 100) * 2.0; 
+                reverbNode.buffer = createImpulseResponse(offlineCtx, revDuration, 2.0, false);
+                
+                const mix = settings.reverb / 100;
+                reverbGain.gain.value = mix;
+                dryGain.gain.value = 1 - (mix * 0.5); 
+
+                compressor.connect(reverbNode);
+                reverbNode.connect(reverbGain);
+                reverbGain.connect(voiceGain);
+                
+                compressor.connect(dryGain);
+                dryGain.connect(voiceGain);
+            } else {
+                // Just compression, no reverb
+                compressor.connect(voiceGain);
+            }
+        } else {
+            // No compression, no reverb.
+            // Connect EQ output (or source) directly to gain
+            currentNode.connect(voiceGain);
+        }
         
         voiceGain.connect(offlineCtx.destination);
         
