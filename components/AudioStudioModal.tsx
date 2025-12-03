@@ -592,52 +592,70 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 vGain = ctx.createGain();
                 vGain.gain.value = isVoiceMuted ? 0 : (voiceVolume / 100);
                 
-                // DSP Chain (Real-time)
+                // --- SMART BYPASS LOGIC ---
+                const hasEq = settingsRef.current.eqBands.some(v => v !== 0);
+                const hasCompression = settingsRef.current.compression > 0;
+                const hasReverb = settingsRef.current.reverb > 0;
+
+                let currentNode: AudioNode = vSource;
+
                 // 1. EQ
-                const frequencies = [60, 250, 1000, 4000, 12000];
-                const filters = frequencies.map((freq, i) => {
-                    const f = ctx.createBiquadFilter();
-                    f.type = i===0?'lowshelf':(i===4?'highshelf':'peaking');
-                    f.frequency.value = freq;
-                    f.gain.value = settingsRef.current.eqBands[i] || 0;
-                    return f;
-                });
-                eqFiltersRef.current = filters;
+                if (hasEq) {
+                    const frequencies = [60, 250, 1000, 4000, 12000];
+                    const filters = frequencies.map((freq, i) => {
+                        const f = ctx.createBiquadFilter();
+                        f.type = i===0?'lowshelf':(i===4?'highshelf':'peaking');
+                        f.frequency.value = freq;
+                        f.gain.value = settingsRef.current.eqBands[i] || 0;
+                        return f;
+                    });
+                    eqFiltersRef.current = filters;
+                    filters.forEach(f => { currentNode.connect(f); currentNode = f; });
+                }
 
-                // 2. Compressor
-                const comp = ctx.createDynamicsCompressor();
-                const compAmount = settingsRef.current.compression / 100;
-                comp.threshold.value = -10 - (compAmount * 40);
-                comp.ratio.value = 1 + (compAmount * 11);
-                compressorRef.current = comp;
+                // 2. Dynamics / Reverb
+                if (hasCompression || hasReverb) {
+                    // Always add compressor if any effects active, but maybe bypass if compression is 0
+                    const comp = ctx.createDynamicsCompressor();
+                    if (hasCompression) {
+                        const compAmount = settingsRef.current.compression / 100;
+                        comp.threshold.value = -10 - (compAmount * 40);
+                        comp.ratio.value = 1 + (compAmount * 11);
+                    } else {
+                        // Transparent
+                        comp.threshold.value = 0;
+                        comp.ratio.value = 1;
+                    }
+                    compressorRef.current = comp;
+                    currentNode.connect(comp);
 
-                // 3. Reverb (Parallel)
-                const revNode = ctx.createConvolver();
-                const revDuration = 1.5 + (settingsRef.current.reverb / 100) * 2.0; 
-                revNode.buffer = getImpulseResponse(ctx, revDuration, 2.0);
-                reverbRef.current = revNode;
+                    if (hasReverb) {
+                        const revNode = ctx.createConvolver();
+                        const revDuration = 1.5 + (settingsRef.current.reverb / 100) * 2.0; 
+                        revNode.buffer = getImpulseResponse(ctx, revDuration, 2.0);
+                        reverbRef.current = revNode;
 
-                const revGain = ctx.createGain();
-                const dGain = ctx.createGain();
-                const mix = settingsRef.current.reverb / 100;
-                revGain.gain.value = mix;
-                dGain.gain.value = 1 - (mix * 0.5);
-                reverbGainRef.current = revGain;
-                dryGainRef.current = dGain;
+                        const revGain = ctx.createGain();
+                        const dGain = ctx.createGain();
+                        const mix = settingsRef.current.reverb / 100;
+                        revGain.gain.value = mix;
+                        dGain.gain.value = 1 - (mix * 0.5);
+                        reverbGainRef.current = revGain;
+                        dryGainRef.current = dGain;
 
-                // Connect Chain: Source -> Filters -> Compressor -> Split(Reverb, Dry) -> Merge -> Volume -> Out
-                let node: AudioNode = vSource;
-                filters.forEach(f => { node.connect(f); node = f; });
-                node.connect(comp);
-                
-                comp.connect(revNode);
-                revNode.connect(revGain);
-                
-                comp.connect(dGain);
-                
-                // Merge to VoiceGain
-                revGain.connect(vGain);
-                dGain.connect(vGain);
+                        comp.connect(revNode);
+                        revNode.connect(revGain);
+                        comp.connect(dGain);
+                        
+                        revGain.connect(vGain);
+                        dGain.connect(vGain);
+                    } else {
+                        comp.connect(vGain);
+                    }
+                } else {
+                    // PURE PATH: Source -> EQ (if any) -> Gain
+                    currentNode.connect(vGain);
+                }
 
                 // Analyzers
                 visualizerAnalyser = ctx.createAnalyser();
@@ -1384,3 +1402,5 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         setPresetName('Default');
     }
 };
+
+export default AudioStudioModal;
