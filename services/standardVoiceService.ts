@@ -3,23 +3,64 @@ import { decode, createWavBlob } from '../utils/audioUtils';
 import { SpeakerConfig } from '../types';
 
 /**
+ * Helper to escape XML characters for SSML.
+ */
+function escapeXml(unsafe: string): string {
+    return unsafe.replace(/[<>&'"]/g, (c) => {
+        switch (c) {
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '&': return '&amp;';
+            case '\'': return '&apos;';
+            case '"': return '&quot;';
+            default: return c;
+        }
+    });
+}
+
+/**
  * Calls the backend API to generate speech using Google Cloud TTS (WaveNet/Standard).
  * High reliability, industry standard quality.
  */
 export async function generateStandardSpeech(
     text: string,
     voiceId: string, // e.g., 'ar-XA-Wavenet-A'
-    languageCode?: string // optional, e.g., 'ar-XA'
+    pauseDuration: number = 0 // Seconds
 ): Promise<Uint8Array | null> {
     try {
+        let payload: any = { voiceId };
+
+        // Logic: If pauseDuration > 0, we use SSML to inject breaks between paragraphs.
+        // We look for double newlines as paragraph separators.
+        if (pauseDuration > 0) {
+            // Split by newlines (paragraph breaks)
+            const paragraphs = text.split(/\n\s*\n/);
+            
+            // Build SSML
+            // <speak>Para 1<break time="1s"/>Para 2</speak>
+            let ssml = '<speak>';
+            
+            paragraphs.forEach((para, index) => {
+                const cleanPara = para.trim();
+                if (cleanPara) {
+                    ssml += escapeXml(cleanPara);
+                    if (index < paragraphs.length - 1) {
+                        ssml += `<break time="${pauseDuration}s"/>`;
+                    }
+                }
+            });
+            
+            ssml += '</speak>';
+            payload.ssml = ssml;
+        } else {
+            // Default plain text
+            payload.text = text;
+        }
+
         const response = await fetch('/api/speak-google', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: text,
-                voiceId: voiceId,
-                languageCode: languageCode
-            })
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
@@ -66,7 +107,8 @@ export async function generateStandardSpeech(
 export async function generateMultiSpeakerStandardSpeech(
     text: string,
     speakers: { speakerA: SpeakerConfig, speakerB: SpeakerConfig, speakerC?: SpeakerConfig, speakerD?: SpeakerConfig },
-    defaultVoice: string
+    defaultVoice: string,
+    pauseDuration: number = 0.5 // Default pause between speaker turns
 ): Promise<Uint8Array | null> {
     // 1. Parse text into segments
     // Regex to split by newlines, handling both \n and \r\n
@@ -127,7 +169,8 @@ export async function generateMultiSpeakerStandardSpeech(
 
     for (const seg of segments) {
         try {
-            const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice);
+            // We use simple generation here (no pauseDuration) because pauses are handled by stitching
+            const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
             if (mp3Bytes) {
                 // Decode MP3 bytes to AudioBuffer
                 // We must clone buffer because decodeAudioData detaches it
@@ -145,9 +188,8 @@ export async function generateMultiSpeakerStandardSpeech(
 
     // 3. Stitch AudioBuffers
     // Calculate total length
-    // Add small silence (0.2s) between segments for natural flow
-    const PAUSE_DURATION = 0.2; 
-    const PAUSE_SAMPLES = Math.floor(PAUSE_DURATION * ctx.sampleRate);
+    // Add dynamic silence between segments based on pauseDuration setting
+    const PAUSE_SAMPLES = Math.floor(pauseDuration * ctx.sampleRate);
     
     let totalLength = 0;
     audioBuffers.forEach((buf, i) => {
@@ -168,7 +210,8 @@ export async function generateMultiSpeakerStandardSpeech(
         
         // Add silence
         if (i < audioBuffers.length - 1) {
-            offset += PAUSE_SAMPLES; // Leave 0s (silence)
+            // No data set = silence (0)
+            offset += PAUSE_SAMPLES; 
         }
     }
 
