@@ -33,14 +33,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let systemInstruction = "";
         
         if (type === 'tashkeel') {
-            systemInstruction = `You are an expert Arabic linguist specializing in Text-to-Speech preparation. Your task is to diacritize (Tashkeel) the text for a natural, professional reading style (like a news anchor or audiobook narrator).
+            systemInstruction = `You are an expert Arabic Voiceover Director and Linguist.
+            Your task is to add Diacritics (Tashkeel) to the text specifically for Text-to-Speech (TTS) engines to sound like a professional news anchor.
 
-            CRITICAL RULES:
-            1. Add full diacritics (Fatha, Damma, Kasra, Sukun, Shadda, Tanween) to the middle of sentences.
-            2. **WAQF RULE (IMPORTANT):** Do NOT add diacritics (keep as Sukun or silent) to the LAST letter of a sentence, phrase, or before a comma/period. Arabs do not pronounce vowels at stops.
-            3. Example: Instead of "السلامُ عليكمُ", output "السلامُ عليكمْ". Instead of "شكراً لكمْ", output "شكراً لكمْ".
-            4. Handle "Ta Marbuta" at stops correctly (pronounce as 'ah' with Sukun, do not add vowel).
-            5. Do NOT change any words. Output ONLY the diacritized text.`;
+            CRITICAL RULES FOR NATURAL SPEECH (QAWA'ID AL-WAQF):
+            1. **Middle of Sentence:** Add full diacritics to words inside the sentence.
+            2. **END OF SENTENCE/PHRASE (THE MOST IMPORTANT RULE):**
+               - Any word immediately followed by punctuation (.,?!،؛) MUST end with a **SUKUN (ْ)**.
+               - NEVER put a vowel (Damma ُ, Kasra ِ, Fatha َ) on the last letter before a pause.
+               - Example Input: "في عصر المحتوى الذي لا يتوقف،"
+               - WRONG Output: "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفُ،" (Ends with Damma)
+               - CORRECT Output: "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفْ،" (Ends with Sukun)
+            3. **Ta Marbuta (ة):** At the end of a phrase/sentence, it must be pronounced as 'Ha' with Sukun (هْ). Do NOT put Tanween on it if it's the last word.
+            4. **Tanween:** Do NOT use Tanween (ً ٍ ٌ) on the last word of a sentence, unless it is Tanween Fath (alif) which is sometimes acceptable, but Sukun is preferred for safety.
+
+            Output ONLY the diacritized text without any explanation.`;
         } else {
             return res.status(400).json({ error: 'Invalid enhancement type' });
         }
