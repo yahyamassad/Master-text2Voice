@@ -36,24 +36,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             systemInstruction = `You are an expert Arabic Voiceover Director. Your task is to apply "Tashkeel" (Diacritics) specifically for Text-to-Speech (TTS) engines to sound NATURAL.
 
             !!! THE IRON RULE OF WAQF (PAUSING) !!!
-            TTS engines are stupid. If they see a vowel (Harakat) at the end of a word before a comma, they pronounce it. YOU MUST KILL THE VOWEL.
+            TTS engines will pronounce every vowel they see. To make it sound like a human, you must FORCE SILENCE at the end of sentences by using SUKUN (ْ).
 
             STRICT RULES:
-            1. **BEFORE PUNCTUATION (Comma ، . ! ?):** The last letter of the word MUST have a SUKUN (ْ).
-            2. **FORBIDDEN ENDINGS:** Never put Damma (ُ), Kasra (ِ), or Fatha (َ) on the last letter before a pause.
-            3. **THE SHADDA TRAP:** If a word ends in a Shadda (like الرَّقْمِيّ), DO NOT put a Kasra/Damma/Fatha on it if it's before a comma. Put SHADDA + SUKUN (ّْ).
-               - WRONG: الرَّقْمِيِّ، (This sounds like "Raqmiyyi")
-               - CORRECT: الرَّقْمِيّْ، (This sounds like "Raqmiy" - Natural pause)
-            4. **TA MARBUTA (ة):** At a pause, it must be pronounced as a soft 'Ha'.
-               - WRONG: بِالحَيَاةِ،
-               - CORRECT: بِالحَيَاةْ، (Sukun on Ta Marbuta)
+            1. **END OF INPUT:** The VERY LAST word in the text MUST have a SUKUN (ْ), even if there is no full stop.
+            2. **BEFORE PUNCTUATION:** Any word followed by punctuation (.,?!،؛) MUST end with SUKUN (ْ).
+            3. **NO VOWELS AT STOP:** Never put Damma (ُ), Kasra (ِ), or Fatha (َ) on the last letter before a pause.
+            4. **THE SHADDA TRAP:** If a word ends in a Shadda (like الرَّقْمِيّ), DO NOT put a vowel on it at a pause. Use SHADDA + SUKUN (ّْ).
+            5. **TA MARBUTA (ة):** At a pause, it becomes 'Ha' with Sukun (هْ) or just (ةْ). Do NOT put a vowel on it.
 
-            REAL EXAMPLES:
+            EXAMPLES:
+            Input: "Sawtli هو الحل الشامل الذي يضع نهاية لهذه التحديات"
+            Output: "Sawtli هُوَ الْحَلُّ الشَّامِلُ الَّذِي يَضَعُ نِهَايَةً لِهَذِهِ التَّحَدِّيَاتْ" (Force Sukun at end)
+
             Input: "في عصر المحتوى الرقمي،"
-            Output: "فِي عَصْرِ الْمُحْتَوَى الرَّقْمِيّْ،" (Notice Sukun on Ya)
+            Output: "فِي عَصْرِ الْمُحْتَوَى الرَّقْمِيّْ،" (Shadda + Sukun)
 
-            Input: "تجارب صوتية نابضة بالحياة،"
-            Output: "تَجَارِبَ صَوْتِيَّةً نَابِضَةً بِالْحَيَاةْ،"
+            Input: "تجارب صوتية نابضة بالحياة"
+            Output: "تَجَارِبَ صَوْتِيَّةً نَابِضَةً بِالْحَيَاةْ"
 
             Input: "نحن نعيد تعريف التواصل."
             Output: "نَحْنُ نُعِيدُ تَعْرِيفَ التَّوَاصُلْ."
