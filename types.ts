@@ -1,5 +1,4 @@
 
-
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -16,7 +15,7 @@ export interface SpeakerConfig {
 
 export const GEMINI_VOICES = ['Puck', 'Kore', 'Charon', 'Zephyr', 'Fenrir'];
 
-// Defines the "Studio" voices (Google Cloud TTS - WaveNet/Standard)
+// Defines the "Studio" voices (Google Cloud TTS - WaveNet/Standard/Neural2)
 export interface StandardVoice {
     name: string; // The API name (e.g., ar-XA-Wavenet-A)
     label: string; // Display name
@@ -25,10 +24,12 @@ export interface StandardVoice {
     type: 'WaveNet' | 'Standard' | 'Neural2';
 }
 
+// SAFE LIST: All voices here are either Standard ($4/M) or WaveNet/Neural2 ($16/M).
+// NO 'Studio' ($160/M) voices are included to prevent billing spikes.
 export const GOOGLE_STUDIO_VOICES: StandardVoice[] = [
     // --- ARABIC (The Core) ---
-    // WaveNet: $16.00 / 1M chars
-    // Standard: $4.00 / 1M chars
+    // WaveNet: $16.00 / 1M chars (1M Free/Mo)
+    // Standard: $4.00 / 1M chars (4M Free/Mo)
     { name: 'ar-XA-Wavenet-A', label: 'Fatima (WaveNet)', lang: 'ar', gender: 'Female', type: 'WaveNet' },
     { name: 'ar-XA-Wavenet-B', label: 'Ahmed (WaveNet)', lang: 'ar', gender: 'Male', type: 'WaveNet' },
     { name: 'ar-XA-Wavenet-C', label: 'Omar (WaveNet)', lang: 'ar', gender: 'Male', type: 'WaveNet' },
@@ -42,8 +43,9 @@ export const GOOGLE_STUDIO_VOICES: StandardVoice[] = [
     // Neural2: $16.00 / 1M chars (High Quality, Low Cost)
     { name: 'en-US-Neural2-J', label: 'Journey (US Male)', lang: 'en', gender: 'Male', type: 'Neural2' },
     { name: 'en-US-Neural2-F', label: 'Journey (US Female)', lang: 'en', gender: 'Female', type: 'Neural2' },
-    { name: 'en-US-Neural2-C', label: 'Emma (US Neural2)', lang: 'en', gender: 'Female', type: 'Neural2' }, // Replaced Studio-O
-    { name: 'en-US-Neural2-D', label: 'Logan (US Neural2)', lang: 'en', gender: 'Male', type: 'Neural2' }, // Replaced Studio-Q
+    // Replaced Expensive Studio Voices with Neural2 (Same Quality feel, 10x cheaper)
+    { name: 'en-US-Neural2-C', label: 'Emma (US Neural2)', lang: 'en', gender: 'Female', type: 'Neural2' },
+    { name: 'en-US-Neural2-D', label: 'Logan (US Neural2)', lang: 'en', gender: 'Male', type: 'Neural2' },
     { name: 'en-US-Wavenet-D', label: 'David (US News)', lang: 'en', gender: 'Male', type: 'WaveNet' },
     { name: 'en-US-Wavenet-F', label: 'Sarah (US News)', lang: 'en', gender: 'Female', type: 'WaveNet' },
 
