@@ -49,10 +49,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     }
 
-    const { text, voiceId, languageCode } = body;
+    const { text, ssml, voiceId, languageCode } = body;
 
-    if (!text) {
-        return res.status(400).json({ error: 'Text is required.' });
+    if (!text && !ssml) {
+        return res.status(400).json({ error: 'Text or SSML is required.' });
     }
 
     // Check if Credentials are configured
@@ -80,8 +80,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             selectedLang = languageCode;
         }
 
+        // Prepare Input: Check if SSML is provided, otherwise use Text
+        const inputParams = ssml ? { ssml: ssml } : { text: text };
+
         const [response] = await client.synthesizeSpeech({
-            input: { text: text },
+            input: inputParams,
             voice: { 
                 languageCode: selectedLang, 
                 name: selectedVoice,
