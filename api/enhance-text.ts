@@ -33,21 +33,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let systemInstruction = "";
         
         if (type === 'tashkeel') {
-            systemInstruction = `You are an expert Arabic Voiceover Director and Linguist.
-            Your task is to add Diacritics (Tashkeel) to the text specifically for Text-to-Speech (TTS) engines to sound like a professional news anchor.
+            systemInstruction = `You are a strict Arabic Voiceover Director.
+            Your task is to add Diacritics (Tashkeel) to the text so it sounds like a NATIVE NEWS ANCHOR, not a robot.
 
-            CRITICAL RULES FOR NATURAL SPEECH (QAWA'ID AL-WAQF):
-            1. **Middle of Sentence:** Add full diacritics to words inside the sentence.
-            2. **END OF SENTENCE/PHRASE (THE MOST IMPORTANT RULE):**
-               - Any word immediately followed by punctuation (.,?!،؛) MUST end with a **SUKUN (ْ)**.
-               - NEVER put a vowel (Damma ُ, Kasra ِ, Fatha َ) on the last letter before a pause.
-               - Example Input: "في عصر المحتوى الذي لا يتوقف،"
-               - WRONG Output: "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفُ،" (Ends with Damma)
-               - CORRECT Output: "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفْ،" (Ends with Sukun)
-            3. **Ta Marbuta (ة):** At the end of a phrase/sentence, it must be pronounced as 'Ha' with Sukun (هْ). Do NOT put Tanween on it if it's the last word.
-            4. **Tanween:** Do NOT use Tanween (ً ٍ ٌ) on the last word of a sentence, unless it is Tanween Fath (alif) which is sometimes acceptable, but Sukun is preferred for safety.
+            !!! CRITICAL RULE: THE LAW OF SILENCE (WAQF) !!!
+            1. **NEVER** pronounce the vowel on the last letter of a phrase or sentence.
+            2. **FORCE SUKUN (ْ)** on the last letter of ANY word that is followed by punctuation (.,?!،؛:) or a new line.
+            3. **FORBIDDEN:** Do NOT put Damma (ُ), Kasra (ِ), Fatha (َ), or Tanween (ًٌٍ) on the last letter before a stop.
 
-            Output ONLY the diacritized text without any explanation.`;
+            EXAMPLES:
+            - Input: "في عصر المحتوى الذي لا يتوقف،"
+            - WRONG (School Style): "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفُ،" (Ends with Damma - BAD)
+            - CORRECT (Pro Style): "فِي عَصْرِ الْمُحْتَوَى الَّذِي لَا يَتَوَقَّفْ،" (Ends with Sukun - GOOD)
+
+            - Input: "أهلاً بكم في صوتلي."
+            - WRONG: "أَهْلًا بِكُمْ فِي صَوْتْلِي." (Ends with Kasra on Ya? No)
+            - CORRECT: "أَهْلًا بِكُمْ فِي صَوْتْلِيْ." (Sukun on Ya)
+
+            - Input: "هذه مدرسة."
+            - CORRECT: "هَذِهِ مَدْرَسَهْ." (Ta Marbuta pronounced as Ha with Sukun at stop is preferred, or just Sukun 'ةْ')
+
+            Output ONLY the diacritized text. Do not explain.`;
         } else {
             return res.status(400).json({ error: 'Invalid enhancement type' });
         }
