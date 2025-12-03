@@ -1,13 +1,5 @@
 
 
-
-
-
-
-
-
-
-
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -35,20 +27,23 @@ export interface StandardVoice {
 
 export const GOOGLE_STUDIO_VOICES: StandardVoice[] = [
     // --- ARABIC (The Core) ---
-    { name: 'ar-XA-Wavenet-A', label: 'Fatima (Studio)', lang: 'ar', gender: 'Female', type: 'WaveNet' },
-    { name: 'ar-XA-Wavenet-B', label: 'Ahmed (Studio)', lang: 'ar', gender: 'Male', type: 'WaveNet' },
-    { name: 'ar-XA-Wavenet-C', label: 'Omar (Studio)', lang: 'ar', gender: 'Male', type: 'WaveNet' },
-    { name: 'ar-XA-Wavenet-D', label: 'Layla (Studio)', lang: 'ar', gender: 'Female', type: 'WaveNet' },
+    // WaveNet: $16.00 / 1M chars
+    // Standard: $4.00 / 1M chars
+    { name: 'ar-XA-Wavenet-A', label: 'Fatima (WaveNet)', lang: 'ar', gender: 'Female', type: 'WaveNet' },
+    { name: 'ar-XA-Wavenet-B', label: 'Ahmed (WaveNet)', lang: 'ar', gender: 'Male', type: 'WaveNet' },
+    { name: 'ar-XA-Wavenet-C', label: 'Omar (WaveNet)', lang: 'ar', gender: 'Male', type: 'WaveNet' },
+    { name: 'ar-XA-Wavenet-D', label: 'Layla (WaveNet)', lang: 'ar', gender: 'Female', type: 'WaveNet' },
     { name: 'ar-XA-Standard-A', label: 'Salma (Standard)', lang: 'ar', gender: 'Female', type: 'Standard' },
     { name: 'ar-XA-Standard-B', label: 'Karim (Standard)', lang: 'ar', gender: 'Male', type: 'Standard' },
     { name: 'ar-XA-Standard-C', label: 'Tarek (Standard)', lang: 'ar', gender: 'Male', type: 'Standard' },
     { name: 'ar-XA-Standard-D', label: 'Mona (Standard)', lang: 'ar', gender: 'Female', type: 'Standard' },
 
     // --- ENGLISH (US) ---
+    // Neural2: $16.00 / 1M chars (High Quality, Low Cost)
     { name: 'en-US-Neural2-J', label: 'Journey (US Male)', lang: 'en', gender: 'Male', type: 'Neural2' },
     { name: 'en-US-Neural2-F', label: 'Journey (US Female)', lang: 'en', gender: 'Female', type: 'Neural2' },
-    { name: 'en-US-Studio-O', label: 'Emma (US Pro)', lang: 'en', gender: 'Female', type: 'WaveNet' },
-    { name: 'en-US-Studio-Q', label: 'Logan (US Pro)', lang: 'en', gender: 'Male', type: 'WaveNet' },
+    { name: 'en-US-Neural2-C', label: 'Emma (US Neural2)', lang: 'en', gender: 'Female', type: 'Neural2' }, // Replaced Studio-O
+    { name: 'en-US-Neural2-D', label: 'Logan (US Neural2)', lang: 'en', gender: 'Male', type: 'Neural2' }, // Replaced Studio-Q
     { name: 'en-US-Wavenet-D', label: 'David (US News)', lang: 'en', gender: 'Male', type: 'WaveNet' },
     { name: 'en-US-Wavenet-F', label: 'Sarah (US News)', lang: 'en', gender: 'Female', type: 'WaveNet' },
 
@@ -69,8 +64,8 @@ export const GOOGLE_STUDIO_VOICES: StandardVoice[] = [
     // --- FRENCH (France) ---
     { name: 'fr-FR-Neural2-A', label: 'Marie (FR Female)', lang: 'fr', gender: 'Female', type: 'Neural2' },
     { name: 'fr-FR-Neural2-B', label: 'Pierre (FR Male)', lang: 'fr', gender: 'Male', type: 'Neural2' },
-    { name: 'fr-FR-Wavenet-C', label: 'Sophie (FR Studio)', lang: 'fr', gender: 'Female', type: 'WaveNet' },
-    { name: 'fr-FR-Wavenet-D', label: 'Jean (FR Studio)', lang: 'fr', gender: 'Male', type: 'WaveNet' },
+    { name: 'fr-FR-Wavenet-C', label: 'Sophie (FR WaveNet)', lang: 'fr', gender: 'Female', type: 'WaveNet' },
+    { name: 'fr-FR-Wavenet-D', label: 'Jean (FR WaveNet)', lang: 'fr', gender: 'Male', type: 'WaveNet' },
 
     // --- FRENCH (Canada) ---
     { name: 'fr-CA-Neural2-A', label: 'Amelie (CA Female)', lang: 'fr', gender: 'Female', type: 'Neural2' },
