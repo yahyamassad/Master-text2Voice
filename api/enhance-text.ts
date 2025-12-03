@@ -33,13 +33,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let systemInstruction = "";
         
         if (type === 'tashkeel') {
-            systemInstruction = `You are an expert Arabic linguist. Your task is to add full diacritics (Tashkeel) to the following Arabic text to ensure perfect pronunciation for Text-to-Speech engines.
-            Rules:
-            1. Add Fatha, Damma, Kasra, Sukun, Shadda, and Tanween exactly where needed.
-            2. Do NOT change any words or vocabulary.
-            3. Do NOT add any introductory or concluding remarks.
-            4. Output ONLY the diacritized text.
-            5. If the text is not Arabic, return it exactly as is.`;
+            systemInstruction = `You are an expert Arabic linguist specializing in Text-to-Speech preparation. Your task is to diacritize (Tashkeel) the text for a natural, professional reading style (like a news anchor or audiobook narrator).
+
+            CRITICAL RULES:
+            1. Add full diacritics (Fatha, Damma, Kasra, Sukun, Shadda, Tanween) to the middle of sentences.
+            2. **WAQF RULE (IMPORTANT):** Do NOT add diacritics (keep as Sukun or silent) to the LAST letter of a sentence, phrase, or before a comma/period. Arabs do not pronounce vowels at stops.
+            3. Example: Instead of "السلامُ عليكمُ", output "السلامُ عليكمْ". Instead of "شكراً لكمْ", output "شكراً لكمْ".
+            4. Handle "Ta Marbuta" at stops correctly (pronounce as 'ah' with Sukun, do not add vowel).
+            5. Do NOT change any words. Output ONLY the diacritized text.`;
         } else {
             return res.status(400).json({ error: 'Invalid enhancement type' });
         }
