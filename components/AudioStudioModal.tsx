@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
 import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon, ChevronDownIcon } from './icons';
@@ -326,8 +327,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
         if (trimToVoice && voiceBuffer) {
             // Include tail buffer in the UI timeline. 
-            // Matching utils/audioUtils.ts calculation: absoluteVoiceEnd + 6.0s padding
-            total = voiceEnd + 6.0; 
+            // Matching utils/audioUtils.ts calculation: absoluteVoiceEnd + 0.5s padding
+            total = voiceEnd + 0.5; 
         } else {
             total = Math.max(voiceEnd, musicEnd);
         }
@@ -561,8 +562,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         let primaryDuration = Math.max(voiceEnd, musicEnd);
         
         if (trimToVoice && voiceBuffer) {
-            // Ensure visual playback follows the exact same 6s padding logic
-            primaryDuration = voiceEnd + 6.0;
+            // Ensure visual playback follows the exact same 0.5s padding logic
+            primaryDuration = voiceEnd + 0.5;
         }
 
         // Loop if at end
@@ -712,7 +713,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     let liveTotalDur = Math.max(vEnd, mEnd);
                     
                     if (trimToVoiceRef.current && voiceBuffer) {
-                        liveTotalDur = vEnd + 6.0; // Matching padding
+                        liveTotalDur = vEnd + 0.5; // Matching padding
                     }
                     
                     // --- REAL-TIME DUCKING ---
