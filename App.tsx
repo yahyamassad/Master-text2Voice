@@ -1,15 +1,11 @@
 
-
-
-
-
 // ... existing imports ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
-import { generateSpeech, translateText, previewVoice } from './services/geminiService';
+import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
-  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon
+  SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon, WandIcon
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
@@ -238,6 +234,7 @@ const App: React.FC = () => {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [lastGeneratedPCM, setLastGeneratedPCM] = useState<Uint8Array | null>(null);
+  const [isEnhancing, setIsEnhancing] = useState(false);
 
   const apiAbortControllerRef = useRef<AbortController | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -621,6 +618,28 @@ const App: React.FC = () => {
       }
   };
   
+  const handleTashkeel = async () => {
+      if (!sourceText.trim()) return;
+      if (!sourceLang.startsWith('ar')) {
+          showToast(t('tashkeelError', uiLanguage), 'error');
+          return;
+      }
+      if (isEnhancing) return;
+
+      setIsEnhancing(true);
+      try {
+          const enhanced = await addDiacritics(sourceText);
+          if (enhanced) {
+              setSourceText(enhanced);
+              showToast(t('tashkeelSuccess', uiLanguage), 'success');
+          }
+      } catch (e: any) {
+          showToast(e.message || t('tashkeelError', uiLanguage), 'error');
+      } finally {
+          setIsEnhancing(false);
+      }
+  };
+
    const handleToggleListening = () => {
     // ... logic unchanged ...
     if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
@@ -788,6 +807,19 @@ const App: React.FC = () => {
             <div className="flex items-center justify-between mb-3">
                 <LanguageSelect value={sourceLang} onChange={setSourceLang} />
                 <div className="flex items-center gap-2">
+                     {/* Tashkeel Button - Only for Arabic */}
+                     {sourceLang === 'ar' && (
+                         <button 
+                            onClick={handleTashkeel} 
+                            disabled={isEnhancing || !sourceText.trim()}
+                            className={`p-2 rounded-lg transition-all flex items-center gap-2 font-bold text-xs ${isEnhancing ? 'bg-amber-900/50 text-amber-400 animate-pulse' : 'text-slate-400 hover:text-amber-400'}`} 
+                            title={t('tashkeel', uiLanguage)}
+                        >
+                            <WandIcon className="w-5 h-5" /> 
+                            <span className="hidden sm:inline">{isEnhancing ? t('addingTashkeel', uiLanguage) : t('tashkeel', uiLanguage)}</span>
+                        </button>
+                     )}
+
                      <div className="relative" ref={effectsDropdownRef}>
                         <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className={`p-2 rounded-lg transition-all flex items-center gap-2 font-bold text-xs ${isEffectsOpen ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-400 hover:text-cyan-400'}`} title={t('soundEffects', uiLanguage)}>
                             <SparklesIcon className="w-5 h-5" /> <span className="hidden sm:inline">Sound FX</span>

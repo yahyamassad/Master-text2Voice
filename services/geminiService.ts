@@ -1,6 +1,4 @@
 
-
-
 import { SpeakerConfig } from '../types';
 import { decode } from '../utils/audioUtils';
 
@@ -255,6 +253,30 @@ export async function previewVoice(
         );
     } catch (error) {
         console.error("Gemini Service (previewVoice) failed:", error);
+        throw error;
+    }
+}
+
+/**
+ * Calls the backend to enhance text (e.g. add Tashkeel)
+ */
+export async function addDiacritics(text: string): Promise<string> {
+    try {
+        const response = await fetch('/api/enhance-text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, type: 'tashkeel' })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to enhance text');
+        }
+
+        const data = await response.json();
+        return data.enhancedText;
+    } catch (error) {
+        console.error("Enhance Text Failed:", error);
         throw error;
     }
 }
