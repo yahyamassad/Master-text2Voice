@@ -3,12 +3,33 @@ import { TextToSpeechClient } from "@google-cloud/text-to-speech";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Buffer } from 'buffer';
 
+// Robust Private Key Cleaner
+// Handles:
+// 1. Surrounding double quotes (common Vercel copy-paste error)
+// 2. Escaped newlines (\\n) -> Real newlines (\n)
+// 3. Trimming whitespace
+const getCleanPrivateKey = (key: string | undefined) => {
+    if (!key) return undefined;
+    
+    let cleanKey = key.trim();
+    
+    // Remove surrounding quotes if they exist (start AND end)
+    if (cleanKey.startsWith('"') && cleanKey.endsWith('"')) {
+        cleanKey = cleanKey.slice(1, -1);
+    }
+    
+    // Replace literal \n with actual newlines
+    cleanKey = cleanKey.replace(/\\n/g, '\n');
+    
+    return cleanKey;
+};
+
 // Initialize the Google Cloud TTS Client using the SAME credentials as Firebase Admin.
 // This simplifies config significantly - one service account rules them all.
 const client = new TextToSpeechClient({
     credentials: {
         client_email: process.env.FIREBASE_CLIENT_EMAIL,
-        private_key: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+        private_key: getCleanPrivateKey(process.env.FIREBASE_PRIVATE_KEY),
         project_id: process.env.FIREBASE_PROJECT_ID,
     }
 });
