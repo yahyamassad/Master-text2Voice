@@ -186,8 +186,8 @@ export async function processAudio(
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // Explicit padding to prevent cutoff - Generous 6s
-    const END_PADDING = 6.0; 
+    // Explicit padding to prevent cutoff - Reduced to 0.5s for tighter editing
+    const END_PADDING = 0.5; 
     
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
