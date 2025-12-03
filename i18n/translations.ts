@@ -1,9 +1,3 @@
-
-
-
-
-
-
 export type Language = 'ar' | 'en' | 'fr' | 'es' | 'pt';
 export type Direction = 'rtl' | 'ltr';
 export interface LanguageListItem {
@@ -37,6 +31,20 @@ export const translationLanguages: LanguageListItem[] = [
 ];
 
 export const translations = {
+  categoryStandard: {
+      ar: 'أصوات قياسية (Standard)',
+      en: 'Standard Voices',
+      fr: 'Voix Standard',
+      es: 'Voces Estándar',
+      pt: 'Vozes Padrão',
+  },
+  categoryPremium: {
+      ar: 'أصوات احترافية (WaveNet/Neural2)',
+      en: 'Pro Voices (WaveNet/Neural2)',
+      fr: 'Voix Pro (WaveNet/Neural2)',
+      es: 'Voces Pro (WaveNet/Neural2)',
+      pt: 'Vozes Pro (WaveNet/Neural2)',
+  },
   pageTitle: {
     ar: 'صوتلي - محطة العمل الصوتية بالذكاء الاصطناعي',
     en: 'Sawtli - AI Audio Workstation',
@@ -129,8 +137,8 @@ export const translations = {
     pt: 'Essas vozes de alta qualidade são otimizadas para árabe padrão. Dialetos adicionais podem estar disponíveis no futuro.',
   },
   systemVoices: {
-    ar: 'أصوات ستوديو (WaveNet)',
-    en: 'Studio Voices (WaveNet)',
+    ar: 'أصوات ستوديو',
+    en: 'Studio Voices',
     fr: 'Voix Studio',
     es: 'Voces de Estudio',
     pt: 'Vozes de Estúdio',
