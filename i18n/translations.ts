@@ -2,6 +2,8 @@
 
 
 
+
+
 export type Language = 'ar' | 'en' | 'fr' | 'es' | 'pt';
 export type Direction = 'rtl' | 'ltr';
 export interface LanguageListItem {
@@ -230,6 +232,98 @@ export const translations = {
     fr: 'Bonjour, je suis prêt.',
     es: 'Hola, estoy listo.',
     pt: 'Olá, estou pronto.',
+  },
+  // Multilingual Preview Texts
+  previewText_ar: {
+      ar: 'مَرْحَبًا، أَنَا جَاهِز.',
+      en: 'مَرْحَبًا، أَنَا جَاهِز.',
+      fr: 'مَرْحَبًا، أَنَا جَاهِز.',
+      es: 'مَرْحَبًا، أَنَا جَاهِز.',
+      pt: 'مَرْحَبًا، أَنَا جَاهِز.',
+  },
+  previewText_en: {
+      ar: 'Hello, I am ready.',
+      en: 'Hello, I am ready.',
+      fr: 'Hello, I am ready.',
+      es: 'Hello, I am ready.',
+      pt: 'Hello, I am ready.',
+  },
+  previewText_fr: {
+      ar: 'Bonjour, je suis prêt.',
+      en: 'Bonjour, je suis prêt.',
+      fr: 'Bonjour, je suis prêt.',
+      es: 'Bonjour, je suis prêt.',
+      pt: 'Bonjour, je suis prêt.',
+  },
+  previewText_es: {
+      ar: 'Hola, estoy listo.',
+      en: 'Hola, estoy listo.',
+      fr: 'Hola, estoy listo.',
+      es: 'Hola, estoy listo.',
+      pt: 'Hola, estoy listo.',
+  },
+  previewText_de: {
+      ar: 'Hallo, ich bin bereit.',
+      en: 'Hallo, ich bin bereit.',
+      fr: 'Hallo, ich bin bereit.',
+      es: 'Hallo, ich bin bereit.',
+      pt: 'Hallo, ich bin bereit.',
+  },
+  previewText_it: {
+      ar: 'Ciao, sono pronto.',
+      en: 'Ciao, sono pronto.',
+      fr: 'Ciao, sono pronto.',
+      es: 'Ciao, sono pronto.',
+      pt: 'Ciao, sono pronto.',
+  },
+  previewText_pt: {
+      ar: 'Olá, estou pronto.',
+      en: 'Olá, estou pronto.',
+      fr: 'Olá, estou pronto.',
+      es: 'Olá, estou pronto.',
+      pt: 'Olá, estou pronto.',
+  },
+  previewText_ja: {
+      ar: 'こんにちは、準備完了です。',
+      en: 'こんにちは、準備完了です。',
+      fr: 'こんにちは、準備完了です。',
+      es: 'こんにちは、準備完了です。',
+      pt: 'こんにちは、準備完了です。',
+  },
+  previewText_ko: {
+      ar: '안녕하세요, 준비되었습니다.',
+      en: '안녕하세요, 준비되었습니다.',
+      fr: '안녕하세요, 준비되었습니다.',
+      es: '안녕하세요, 준비되었습니다.',
+      pt: '안녕하세요, 준비되었습니다.',
+  },
+  previewText_zh: {
+      ar: '你好，我准备好了。',
+      en: '你好，我准备好了。',
+      fr: '你好，我准备好了。',
+      es: '你好，我准备好了。',
+      pt: '你好，我准备好了。',
+  },
+  previewText_tr: {
+      ar: 'Merhaba, hazırım.',
+      en: 'Merhaba, hazırım.',
+      fr: 'Merhaba, hazırım.',
+      es: 'Merhaba, hazırım.',
+      pt: 'Merhaba, hazırım.',
+  },
+  previewText_ru: {
+      ar: 'Привет, я готов.',
+      en: 'Привет, я готов.',
+      fr: 'Привет, я готов.',
+      es: 'Привет, я готов.',
+      pt: 'Привет, я готов.',
+  },
+  previewText_hi: {
+      ar: 'नमस्ते, मैं तैयार हूँ।',
+      en: 'नमस्ते, मैं तैयार हूँ।',
+      fr: 'नमस्ते, मैं तैयार हूँ।',
+      es: 'नमस्ते, मैं तैयार हूँ।',
+      pt: 'नमस्ते, मैं तैयार हूँ।',
   },
   emotionLabel: {
     ar: 'النبرة العامة',
