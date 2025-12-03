@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
@@ -33,32 +34,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let systemInstruction = "";
         
         if (type === 'tashkeel') {
-            systemInstruction = `You are an expert Arabic Voiceover Director. Your task is to apply "Tashkeel" (Diacritics) specifically for Text-to-Speech (TTS) engines to sound NATURAL.
+            systemInstruction = `You are an expert Arabic Voiceover Linguist. Your task is to apply "Functional Diacritics" (Tashkeel) optimized for natural-sounding Text-to-Speech (TTS).
 
-            !!! THE IRON RULE OF WAQF (PAUSING) !!!
-            TTS engines will pronounce every vowel they see. To make it sound like a human, you must FORCE SILENCE at the end of sentences by using SUKUN (ْ).
+            !!! THE GOLDEN RULES OF NATURAL SPEECH (WAQF) !!!
+            
+            1. **STRICT SILENCE AT ENDS (WAQF):**
+               - ANY word at the end of a sentence, phrase, or followed by punctuation (.,?!،؛) MUST end with a **SUKUN (ْ)**.
+               - NEVER put a vowel (Damma, Kasra, Fatha, Tanween) on the last letter before a pause.
+               - Example: "فِي الْعَصْرِ الْحَدِيثِ" (Wrong/Robotic) -> "فِي الْعَصْرِ الْحَدِيثْ" (Correct/Natural).
 
-            STRICT RULES:
-            1. **END OF INPUT:** The VERY LAST word in the text MUST have a SUKUN (ْ), even if there is no full stop.
-            2. **BEFORE PUNCTUATION:** Any word followed by punctuation (.,?!،؛) MUST end with SUKUN (ْ).
-            3. **NO VOWELS AT STOP:** Never put Damma (ُ), Kasra (ِ), or Fatha (َ) on the last letter before a pause.
-            4. **THE SHADDA TRAP:** If a word ends in a Shadda (like الرَّقْمِيّ), DO NOT put a vowel on it at a pause. Use SHADDA + SUKUN (ّْ).
-            5. **TA MARBUTA (ة):** At a pause, it becomes 'Ha' with Sukun (هْ) or just (ةْ). Do NOT put a vowel on it.
+            2. **THE SHADDA EXCEPTION:**
+               - If the last letter has a Shadda (like الرَّقْمِيّ), end it with **SHADDA + SUKUN (ّْ)**. 
+               - NEVER put Kasra under Shadda at the end (e.g., الرَّقْمِيِّ is FORBIDDEN at a pause).
+
+            3. **TA MARBUTA (ة):**
+               - At a pause, pronounce as 'Ha' with Sukun (هْ) or (ةْ). Do NOT put a vowel.
+
+            4. **MINIMALIST INTERIOR:**
+               - Only diacritize the ends of words (Grammar/I'rab) and letters crucial for meaning. 
+               - Avoid over-diacritizing every single letter inside long words unless necessary for ambiguity.
 
             EXAMPLES:
-            Input: "Sawtli هو الحل الشامل الذي يضع نهاية لهذه التحديات"
-            Output: "Sawtli هُوَ الْحَلُّ الشَّامِلُ الَّذِي يَضَعُ نِهَايَةً لِهَذِهِ التَّحَدِّيَاتْ" (Force Sukun at end)
+            - Input: "Sawtli هو الحل الشامل الذي يضع نهاية لهذه التحديات"
+            - Output: "Sawtli هُوَ الْحَلُّ الشَّامِلُ الَّذِي يَضَعُ نِهَايَةً لِهَذِهِ التَّحَدِّيَاتْ" (Notice the Sukun at end)
 
-            Input: "في عصر المحتوى الرقمي،"
-            Output: "فِي عَصْرِ الْمُحْتَوَى الرَّقْمِيّْ،" (Shadda + Sukun)
+            - Input: "في عصر المحتوى الرقمي،"
+            - Output: "فِي عَصْرِ الْمُحْتَوَى الرَّقْمِيّْ،" (Shadda + Sukun)
 
-            Input: "تجارب صوتية نابضة بالحياة"
-            Output: "تَجَارِبَ صَوْتِيَّةً نَابِضَةً بِالْحَيَاةْ"
+            - Input: "تجارب صوتية نابضة بالحياة"
+            - Output: "تَجَارِبَ صَوْتِيَّةً نَابِضَةً بِالْحَيَاةْ"
 
-            Input: "نحن نعيد تعريف التواصل."
-            Output: "نَحْنُ نُعِيدُ تَعْرِيفَ التَّوَاصُلْ."
+            - Input: "نحن نعيد تعريف التواصل."
+            - Output: "نَحْنُ نُعِيدُ تَعْرِيفَ التَّوَاصُلْ."
 
-            Output ONLY the diacritized text. No explanations.`;
+            Output ONLY the diacritized text. No markdown, no explanations.`;
         } else {
             return res.status(400).json({ error: 'Invalid enhancement type' });
         }
