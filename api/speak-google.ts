@@ -65,19 +65,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Default voice if none specified
         const selectedVoice = voiceId || "ar-XA-Wavenet-B";
         
-        // INTELLIGENT LANGUAGE DETECTION
-        // If languageCode is not provided, try to extract it from the voiceId.
-        // e.g., "en-US-Journey-D" -> "en-US", "ar-XA-Wavenet-A" -> "ar-XA"
-        let selectedLang = languageCode;
-        
-        if (!selectedLang) {
-            const parts = selectedVoice.split('-');
-            if (parts.length >= 2) {
-                // Combine the first two parts to form the locale (e.g., "en" + "US" = "en-US")
-                selectedLang = `${parts[0]}-${parts[1]}`;
-            } else {
-                selectedLang = "ar-XA"; // Fallback default
-            }
+        // INTELLIGENT LANGUAGE FORCE
+        // Google Cloud TTS is strict. "en-US-Studio-Q" MUST use "en-US". Sending "en" fails.
+        // We override whatever the frontend sends if we can derive the specific locale from the ID.
+        let selectedLang = 'ar-XA'; // Fallback
+
+        const parts = selectedVoice.split('-');
+        if (parts.length >= 2) {
+            // e.g. "en-US-Studio-Q" -> parts[0]="en", parts[1]="US" -> "en-US"
+            // e.g. "cmn-CN-Wavenet-A" -> parts[0]="cmn", parts[1]="CN" -> "cmn-CN"
+            selectedLang = `${parts[0]}-${parts[1]}`;
+        } else if (languageCode) {
+            // Only use the frontend hint if we can't figure it out from the voice name
+            selectedLang = languageCode;
         }
 
         const [response] = await client.synthesizeSpeech({
@@ -118,7 +118,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error("Google Cloud TTS Error:", error);
         
         // Return the specific error message from Google to aid debugging
-        // e.g. "Voice 'X' does not exist" or "Cloud Text-to-Speech API is not enabled"
         return res.status(500).json({ 
             error: "Failed to generate studio speech.",
             details: error.message || error.toString(),
