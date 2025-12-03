@@ -6,6 +6,8 @@
 
 
 
+
+
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -39,33 +41,88 @@ export const GOOGLE_STUDIO_VOICES: StandardVoice[] = [
     { name: 'ar-XA-Wavenet-D', label: 'Layla (Studio)', lang: 'ar', gender: 'Female', type: 'WaveNet' },
     { name: 'ar-XA-Standard-A', label: 'Salma (Standard)', lang: 'ar', gender: 'Female', type: 'Standard' },
     { name: 'ar-XA-Standard-B', label: 'Karim (Standard)', lang: 'ar', gender: 'Male', type: 'Standard' },
+    { name: 'ar-XA-Standard-C', label: 'Tarek (Standard)', lang: 'ar', gender: 'Male', type: 'Standard' },
+    { name: 'ar-XA-Standard-D', label: 'Mona (Standard)', lang: 'ar', gender: 'Female', type: 'Standard' },
 
-    // --- ENGLISH US ---
-    { name: 'en-US-Journey-D', label: 'Journey (US Male)', lang: 'en', gender: 'Male', type: 'Neural2' },
-    { name: 'en-US-Journey-F', label: 'Journey (US Female)', lang: 'en', gender: 'Female', type: 'Neural2' },
-    { name: 'en-US-Wavenet-D', label: 'David (US Studio)', lang: 'en', gender: 'Male', type: 'WaveNet' },
-    { name: 'en-US-Wavenet-F', label: 'Sarah (US Studio)', lang: 'en', gender: 'Female', type: 'WaveNet' },
-    { name: 'en-US-Studio-O', label: 'Emma (Pro)', lang: 'en', gender: 'Female', type: 'WaveNet' }, // Studio voice often requires special access, fallback to Wavenet if fails, but 'Studio' class is generally available now
+    // --- ENGLISH (US) ---
+    { name: 'en-US-Neural2-J', label: 'Journey (US Male)', lang: 'en', gender: 'Male', type: 'Neural2' },
+    { name: 'en-US-Neural2-F', label: 'Journey (US Female)', lang: 'en', gender: 'Female', type: 'Neural2' },
+    { name: 'en-US-Studio-O', label: 'Emma (US Pro)', lang: 'en', gender: 'Female', type: 'WaveNet' },
+    { name: 'en-US-Studio-Q', label: 'Logan (US Pro)', lang: 'en', gender: 'Male', type: 'WaveNet' },
+    { name: 'en-US-Wavenet-D', label: 'David (US News)', lang: 'en', gender: 'Male', type: 'WaveNet' },
+    { name: 'en-US-Wavenet-F', label: 'Sarah (US News)', lang: 'en', gender: 'Female', type: 'WaveNet' },
 
-    // --- ENGLISH UK ---
-    { name: 'en-GB-Wavenet-B', label: 'George (UK Studio)', lang: 'en', gender: 'Male', type: 'WaveNet' },
-    { name: 'en-GB-Wavenet-C', label: 'Charlotte (UK Studio)', lang: 'en', gender: 'Female', type: 'WaveNet' },
+    // --- ENGLISH (UK) ---
+    { name: 'en-GB-Neural2-B', label: 'Arthur (UK Male)', lang: 'en', gender: 'Male', type: 'Neural2' },
+    { name: 'en-GB-Neural2-C', label: 'Olivia (UK Female)', lang: 'en', gender: 'Female', type: 'Neural2' },
+    { name: 'en-GB-Wavenet-B', label: 'George (UK News)', lang: 'en', gender: 'Male', type: 'WaveNet' },
+    { name: 'en-GB-Wavenet-C', label: 'Charlotte (UK News)', lang: 'en', gender: 'Female', type: 'WaveNet' },
 
-    // --- FRENCH ---
-    { name: 'fr-FR-Wavenet-C', label: 'Marie (FR Studio)', lang: 'fr', gender: 'Female', type: 'WaveNet' },
+    // --- ENGLISH (Australia) ---
+    { name: 'en-AU-Neural2-A', label: 'Harper (AU Female)', lang: 'en', gender: 'Female', type: 'Neural2' },
+    { name: 'en-AU-Neural2-B', label: 'Liam (AU Male)', lang: 'en', gender: 'Male', type: 'Neural2' },
+
+    // --- ENGLISH (India) ---
+    { name: 'en-IN-Neural2-A', label: 'Priya (IN Female)', lang: 'en', gender: 'Female', type: 'Neural2' },
+    { name: 'en-IN-Neural2-B', label: 'Arjun (IN Male)', lang: 'en', gender: 'Male', type: 'Neural2' },
+
+    // --- FRENCH (France) ---
+    { name: 'fr-FR-Neural2-A', label: 'Marie (FR Female)', lang: 'fr', gender: 'Female', type: 'Neural2' },
+    { name: 'fr-FR-Neural2-B', label: 'Pierre (FR Male)', lang: 'fr', gender: 'Male', type: 'Neural2' },
+    { name: 'fr-FR-Wavenet-C', label: 'Sophie (FR Studio)', lang: 'fr', gender: 'Female', type: 'WaveNet' },
     { name: 'fr-FR-Wavenet-D', label: 'Jean (FR Studio)', lang: 'fr', gender: 'Male', type: 'WaveNet' },
 
-    // --- SPANISH ---
-    { name: 'es-ES-Wavenet-C', label: 'Laura (ES Studio)', lang: 'es', gender: 'Female', type: 'WaveNet' },
-    { name: 'es-ES-Wavenet-B', label: 'Pedro (ES Studio)', lang: 'es', gender: 'Male', type: 'WaveNet' },
+    // --- FRENCH (Canada) ---
+    { name: 'fr-CA-Neural2-A', label: 'Amelie (CA Female)', lang: 'fr', gender: 'Female', type: 'Neural2' },
+    { name: 'fr-CA-Neural2-B', label: 'Antoine (CA Male)', lang: 'fr', gender: 'Male', type: 'Neural2' },
 
-    // --- PORTUGUESE ---
-    { name: 'pt-BR-Wavenet-A', label: 'Maria (BR Studio)', lang: 'pt', gender: 'Female', type: 'WaveNet' },
-    { name: 'pt-BR-Wavenet-B', label: 'Joao (BR Studio)', lang: 'pt', gender: 'Male', type: 'WaveNet' },
+    // --- SPANISH (Spain) ---
+    { name: 'es-ES-Neural2-A', label: 'Lucia (ES Female)', lang: 'es', gender: 'Female', type: 'Neural2' },
+    { name: 'es-ES-Neural2-B', label: 'Mateo (ES Male)', lang: 'es', gender: 'Male', type: 'Neural2' },
+
+    // --- SPANISH (US/LatAm) ---
+    { name: 'es-US-Neural2-A', label: 'Sofia (LatAm Female)', lang: 'es', gender: 'Female', type: 'Neural2' },
+    { name: 'es-US-Neural2-B', label: 'Diego (LatAm Male)', lang: 'es', gender: 'Male', type: 'Neural2' },
     
     // --- GERMAN ---
-    { name: 'de-DE-Wavenet-C', label: 'Hanna (DE Studio)', lang: 'de', gender: 'Female', type: 'WaveNet' },
-    { name: 'de-DE-Wavenet-B', label: 'Klaus (DE Studio)', lang: 'de', gender: 'Male', type: 'WaveNet' },
+    { name: 'de-DE-Neural2-C', label: 'Hanna (DE Female)', lang: 'de', gender: 'Female', type: 'Neural2' },
+    { name: 'de-DE-Neural2-B', label: 'Klaus (DE Male)', lang: 'de', gender: 'Male', type: 'Neural2' },
+
+    // --- ITALIAN ---
+    { name: 'it-IT-Neural2-A', label: 'Giulia (IT Female)', lang: 'it', gender: 'Female', type: 'Neural2' },
+    { name: 'it-IT-Neural2-C', label: 'Marco (IT Male)', lang: 'it', gender: 'Male', type: 'Neural2' },
+
+    // --- PORTUGUESE (Brazil) ---
+    { name: 'pt-BR-Neural2-A', label: 'Maria (BR Female)', lang: 'pt', gender: 'Female', type: 'Neural2' },
+    { name: 'pt-BR-Neural2-B', label: 'Joao (BR Male)', lang: 'pt', gender: 'Male', type: 'Neural2' },
+
+    // --- PORTUGUESE (Portugal) ---
+    { name: 'pt-PT-Wavenet-A', label: 'Ines (PT Female)', lang: 'pt', gender: 'Female', type: 'WaveNet' },
+    { name: 'pt-PT-Wavenet-B', label: 'Duarte (PT Male)', lang: 'pt', gender: 'Male', type: 'WaveNet' },
+
+    // --- JAPANESE ---
+    { name: 'ja-JP-Neural2-B', label: 'Akari (JP Female)', lang: 'ja', gender: 'Female', type: 'Neural2' },
+    { name: 'ja-JP-Neural2-C', label: 'Ken (JP Male)', lang: 'ja', gender: 'Male', type: 'Neural2' },
+
+    // --- KOREAN ---
+    { name: 'ko-KR-Neural2-A', label: 'Ji-Min (KR Female)', lang: 'ko', gender: 'Female', type: 'Neural2' },
+    { name: 'ko-KR-Neural2-C', label: 'Min-Ho (KR Male)', lang: 'ko', gender: 'Male', type: 'Neural2' },
+
+    // --- CHINESE (Mandarin) ---
+    { name: 'cmn-CN-Wavenet-A', label: 'Xiaoyan (CN Female)', lang: 'zh', gender: 'Female', type: 'WaveNet' },
+    { name: 'cmn-CN-Wavenet-C', label: 'Chang (CN Male)', lang: 'zh', gender: 'Male', type: 'WaveNet' },
+
+    // --- TURKISH ---
+    { name: 'tr-TR-Wavenet-A', label: 'Elif (TR Female)', lang: 'tr', gender: 'Female', type: 'WaveNet' },
+    { name: 'tr-TR-Wavenet-B', label: 'Emre (TR Male)', lang: 'tr', gender: 'Male', type: 'WaveNet' },
+
+    // --- RUSSIAN ---
+    { name: 'ru-RU-Wavenet-A', label: 'Svetlana (RU Female)', lang: 'ru', gender: 'Female', type: 'WaveNet' },
+    { name: 'ru-RU-Wavenet-D', label: 'Dmitry (RU Male)', lang: 'ru', gender: 'Male', type: 'WaveNet' },
+
+    // --- HINDI ---
+    { name: 'hi-IN-Neural2-A', label: 'Anjali (IN Female)', lang: 'hi', gender: 'Female', type: 'Neural2' },
+    { name: 'hi-IN-Neural2-B', label: 'Rohan (IN Male)', lang: 'hi', gender: 'Male', type: 'Neural2' },
 ];
 
 // Alias for backward compatibility in components
