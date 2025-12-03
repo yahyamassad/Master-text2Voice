@@ -1,10 +1,12 @@
 
 
 
+
+
 // ... existing imports ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice } from './services/geminiService';
-import { generateStandardSpeech } from './services/standardVoiceService';
+import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
   SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon
@@ -271,9 +273,6 @@ const App: React.FC = () => {
   const isDailyLimitReached = userTier !== 'admin' && userStats.dailyCharsUsed >= currentDailyLimit;
   const isTotalLimitReached = userTier !== 'admin' && userStats.totalCharsUsed >= effectiveTotalLimit;
   
-  // ... Rest of the helper functions (loadUserStats, updateUserStats, handleSpeak, etc.) are assumed unchanged ...
-  // ... Keeping logic flow intact, focusing on render return ...
-
   const loadUserStats = (userId: string) => {
       const key = `sawtli_stats_${userId}`;
       const stored = localStorage.getItem(key);
@@ -549,19 +548,26 @@ const App: React.FC = () => {
 
           try {
               if (isGeminiVoice) {
+                  // GEMINI MODE
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
                   pcmData = await generateSpeech(textToProcess, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
               } else {
-                  // For "Studio/Standard" voices, we now use the Google Cloud integration
-                  // but we pass the ID directly. The language code is inferred or passed if needed.
-                  const langCode = target === 'source' ? sourceLang : targetLang;
-                  // Map lang code to full code if needed, but for now passing simple code or letting backend default works
-                  // Actually, standardVoiceService expects full locale code usually, but we stored full codes in TYPES
-                  // So `voice` variable holds 'ar-XA-Wavenet-A' etc.
-                  pcmData = await generateStandardSpeech(textToProcess, voice, langCode);
+                  // STUDIO/STANDARD MODE
+                  // Check if multi-speaker is requested for Studio voices
+                  if (multiSpeaker) {
+                      pcmData = await generateMultiSpeakerStandardSpeech(
+                          textToProcess,
+                          { speakerA, speakerB, speakerC, speakerD },
+                          voice // Default voice if no speaker match
+                      );
+                  } else {
+                      // Single Studio Voice
+                      pcmData = await generateStandardSpeech(textToProcess, voice);
+                  }
               }
+              
               clearTimeout(warmUpTimer); clearTimeout(clientTimeout);
               if (signal.aborted) return;
               if (pcmData) {
@@ -686,12 +692,22 @@ const App: React.FC = () => {
              const pcmData = audioCacheRef.current.get(cacheKey)!;
              if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); else blob = await createMp3Blob(pcmData, 1, 24000);
         } else {
-             const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
              // @ts-ignore
              const idToken = user ? await user.getIdToken() : undefined;
              let pcmData;
-             if (isGemini) pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
-             else pcmData = await generateStandardSpeech(text, voice);
+             
+             if (isGemini) {
+                 const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
+                 pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
+             } else {
+                 // Standard Mode Multi-speaker or Single
+                 if (multiSpeaker) {
+                     pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice);
+                 } else {
+                     pcmData = await generateStandardSpeech(text, voice);
+                 }
+             }
+
             if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage));
              if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
             audioCacheRef.current.set(cacheKey, pcmData);
