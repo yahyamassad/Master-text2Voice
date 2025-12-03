@@ -34,6 +34,11 @@ export async function generateStandardSpeech(
                  throw new Error(`CRITICAL CONFIG ERROR: Your Private Key belongs to Project ID/Num '${usedProjectNum}', but you are trying to use Project '${configuredProject}'. Please go to Vercel and update FIREBASE_PRIVATE_KEY with the key from '${configuredProject}'.`);
             }
 
+            // Check for Decoder/Key format errors
+            if (errorData.details && (errorData.details.includes('DECODER routines') || errorData.details.includes('bad decrypt'))) {
+                throw new Error("KEY FORMAT ERROR: The FIREBASE_PRIVATE_KEY in Vercel is malformed. Please remove any surrounding quotes (\") and ensure the key starts exactly with -----BEGIN PRIVATE KEY-----");
+            }
+
             // Surface the specific 'details' from the backend if available
             const errorMessage = errorData.details 
                 ? `${errorData.error}: ${errorData.details}` 
