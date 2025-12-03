@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translations } from '../i18n/translations';
 import { SpeakerConfig, GEMINI_VOICES, GOOGLE_STUDIO_VOICES } from '../types';
@@ -111,6 +110,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         return filtered.length > 0 ? filtered : GOOGLE_STUDIO_VOICES;
     }, [sourceLang, targetLang, showAllSystemVoices]);
+
+    // Categorize voices for display
+    const standardCategoryVoices = useMemo(() => relevantStandardVoices.filter(v => v.type === 'Standard'), [relevantStandardVoices]);
+    const premiumCategoryVoices = useMemo(() => relevantStandardVoices.filter(v => v.type === 'WaveNet' || v.type === 'Neural2'), [relevantStandardVoices]);
 
     // Auto-select voice when switching modes if current voice is invalid for mode
     useEffect(() => {
@@ -278,23 +281,59 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </button>
                                 </div>
 
-                                {relevantStandardVoices.length > 0 ? (
-                                    relevantStandardVoices.map(v => (
-                                        <VoiceListItem 
-                                            key={v.name} 
-                                            voiceName={v.name} 
-                                            label={v.label} 
-                                            sublabel={`${v.lang} • ${v.gender}`} 
-                                            isSelected={voice === v.name}
-                                            previewingVoice={previewingVoice}
-                                            onSelect={setVoice}
-                                            onPreview={handlePreview}
-                                            t={tWrapper}
-                                        />
-                                    ))
-                                ) : (
+                                {relevantStandardVoices.length === 0 && (
                                     <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3 text-slate-500 italic">
-                                        No standard voices available for this language.
+                                        No voices available for this language.
+                                    </div>
+                                )}
+
+                                {/* STANDARD VOICES GROUP */}
+                                {standardCategoryVoices.length > 0 && (
+                                    <div className="mb-4">
+                                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-700 pb-1 mb-2">
+                                            {t('categoryStandard', uiLanguage)}
+                                        </div>
+                                        <div className="space-y-2">
+                                            {standardCategoryVoices.map(v => (
+                                                <VoiceListItem 
+                                                    key={v.name} 
+                                                    voiceName={v.name} 
+                                                    label={v.label} 
+                                                    sublabel={`${v.lang} • ${v.gender}`} 
+                                                    isSelected={voice === v.name}
+                                                    previewingVoice={previewingVoice}
+                                                    onSelect={setVoice}
+                                                    onPreview={handlePreview}
+                                                    t={tWrapper}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* PREMIUM VOICES GROUP (WaveNet/Neural2) */}
+                                {premiumCategoryVoices.length > 0 && (
+                                    <div>
+                                        <div className="text-xs font-bold text-amber-400 uppercase tracking-widest border-b border-slate-700 pb-1 mb-2 flex justify-between items-center">
+                                            {t('categoryPremium', uiLanguage)}
+                                            {!currentLimits.allowWav && <LockIcon className="w-3 h-3" />}
+                                        </div>
+                                        <div className="space-y-2">
+                                            {premiumCategoryVoices.map(v => (
+                                                <VoiceListItem 
+                                                    key={v.name} 
+                                                    voiceName={v.name} 
+                                                    label={v.label} 
+                                                    sublabel={`${v.lang} • ${v.gender}`} 
+                                                    isSelected={voice === v.name}
+                                                    isLocked={!currentLimits.allowWav} // Example lock based on generic premium feature
+                                                    previewingVoice={previewingVoice}
+                                                    onSelect={setVoice}
+                                                    onPreview={handlePreview}
+                                                    t={tWrapper}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
