@@ -1,9 +1,8 @@
 
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
 import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon, ChevronDownIcon } from './icons';
-import { AudioSettings, AudioPresetName, UserTier, MusicTrack } from '../types';
+import { AudioSettings, AudioPresetName, UserTier, MusicTrack, GEMINI_VOICES } from '../types';
 import { AUDIO_PRESETS, processAudio, createMp3Blob, createWavBlob, rawPcmToAudioBuffer, decodeAudioData } from '../utils/audioUtils';
 
 interface AudioStudioModalProps {
@@ -414,23 +413,40 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
     }, [isOpen]);
 
-    // --- LOAD AI AUDIO (SMART DECODE for MP3 support) ---
+    // --- LOAD AI AUDIO (SMART DECODE) ---
     useEffect(() => {
         if (activeTab === 'ai' && sourceAudioPCM) {
             const loadAudio = async () => {
                 const ctx = getAudioContext();
                 try {
-                    // Try to decode as file (MP3 from Studio Voices)
-                    // We must slice to create a copy because decodeAudioData detaches the buffer
-                    const bufferCopy = sourceAudioPCM.slice(0).buffer;
-                    const decoded = await ctx.decodeAudioData(bufferCopy);
-                    setVoiceBuffer(decoded);
-                    setFileName(`Gemini ${voice} Session`);
+                    // CRITICAL FIX FOR STATIC NOISE:
+                    // Determine decode strategy based on voice origin.
+                    // Gemini = Raw PCM. Studio/Standard = MP3 (File).
+                    const isGemini = GEMINI_VOICES.includes(voice);
+
+                    if (isGemini) {
+                        // GEMINI: Force Raw PCM Decode
+                        const buf = rawPcmToAudioBuffer(sourceAudioPCM);
+                        setVoiceBuffer(buf);
+                        setFileName(`Gemini ${voice} Session`);
+                    } else {
+                        // STUDIO: Force File Decode (MP3/WAV)
+                        // We must slice to create a copy because decodeAudioData detaches the buffer
+                        const bufferCopy = sourceAudioPCM.slice(0).buffer;
+                        const decoded = await ctx.decodeAudioData(bufferCopy);
+                        setVoiceBuffer(decoded);
+                        setFileName(`${voice} (Studio) Session`);
+                    }
                 } catch (e) {
-                    // Fallback to Raw PCM (Gemini Original)
-                    const buf = rawPcmToAudioBuffer(sourceAudioPCM);
-                    setVoiceBuffer(buf);
-                    setFileName(`Gemini ${voice} Session`);
+                    console.error("Audio Load Error:", e);
+                    // Last resort fallback (only if primary strategy fails unexpectedly)
+                    try {
+                        const buf = rawPcmToAudioBuffer(sourceAudioPCM);
+                        setVoiceBuffer(buf);
+                        setFileName(`Audio Session (Fallback)`);
+                    } catch(err2) {
+                        alert("Failed to load audio. Format not supported.");
+                    }
                 }
             };
             loadAudio();
@@ -992,14 +1008,23 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 const loadAudio = async () => {
                     const ctx = getAudioContext();
                     try {
-                        const bufferCopy = sourceAudioPCM.slice(0).buffer;
-                        const decoded = await ctx.decodeAudioData(bufferCopy);
-                        setVoiceBuffer(decoded);
-                        setFileName(`Gemini ${voice} Session`);
+                        const isGemini = GEMINI_VOICES.includes(voice);
+                        if (isGemini) {
+                            const buf = rawPcmToAudioBuffer(sourceAudioPCM);
+                            setVoiceBuffer(buf);
+                            setFileName(`Gemini ${voice} Session`);
+                        } else {
+                            // STUDIO: Force File Decode
+                            const bufferCopy = sourceAudioPCM.slice(0).buffer;
+                            const decoded = await ctx.decodeAudioData(bufferCopy);
+                            setVoiceBuffer(decoded);
+                            setFileName(`${voice} (Studio) Session`);
+                        }
                     } catch (e) {
+                        // Fallback logic kept just in case
                         const buf = rawPcmToAudioBuffer(sourceAudioPCM);
                         setVoiceBuffer(buf);
-                        setFileName(`Gemini ${voice} Session`);
+                        setFileName(`Audio Session (Fallback)`);
                     }
                 };
                 loadAudio();
