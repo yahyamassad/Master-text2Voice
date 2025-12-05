@@ -29,9 +29,12 @@ export const translationLanguages: LanguageListItem[] = [
     { code: 'zh', name: 'Chinese', speechCode: 'zh-CN' },
     { code: 'tr', name: 'Turkish', speechCode: 'tr-TR' },
     { code: 'hi', name: 'Hindi', speechCode: 'hi-IN' },
+    { code: 'fa', name: 'Persian (Farsi)', speechCode: 'fa-IR' },
+    { code: 'he', name: 'Hebrew', speechCode: 'he-IL' },
 ];
 
 export const translations = {
+  // ... (keep existing translations) ...
   categoryStandard: {
       ar: 'أصوات قياسية (Standard)',
       en: 'Standard Voices',

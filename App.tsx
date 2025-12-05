@@ -49,18 +49,15 @@ const getInitialLanguage = (): Language => {
         }
         
         const browserLang = navigator.language.split('-')[0];
-        if (browserLang === 'ar') return 'ar';
-        if (browserLang === 'fr') return 'fr';
-        if (browserLang === 'es') return 'es';
-        if (browserLang === 'pt') return 'pt';
-        
+        if (['ar', 'fr', 'es', 'pt'].includes(browserLang)) return browserLang as Language;
     } catch (e) {
         // Ignore errors and fall back to default
     }
     return 'en'; // Default to English
 };
 
-// --- TOAST NOTIFICATION SYSTEM ---
+// --- HELPER COMPONENTS (Moved to top to prevent Reference Errors) ---
+
 interface ToastMsg {
     id: number;
     message: string;
@@ -116,10 +113,6 @@ const QuotaIndicator: React.FC<{
     const dailyPercent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
     const isDailyLimitReached = dailyUsed >= dailyLimit;
 
-    let barColor = 'bg-cyan-500';
-    if (dailyPercent > 80) barColor = 'bg-amber-500';
-    if (dailyPercent >= 100) barColor = 'bg-red-500';
-
     return (
         <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
             <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isDailyLimitReached ? 'bg-red-500' : 'bg-cyan-500'}`} 
@@ -143,6 +136,66 @@ const QuotaIndicator: React.FC<{
     );
 };
 
+const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
+    return (
+        <div className="flex items-center gap-2 bg-slate-900/50 border border-slate-700 px-5 py-3 rounded-lg hover:border-cyan-500/50 transition-colors group shadow-sm relative min-w-[140px]">
+            <GlobeIcon className="w-6 h-6 text-slate-400 group-hover:text-cyan-400 transition-colors absolute left-3 pointer-events-none" />
+            <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-transparent text-white font-bold text-base focus:outline-none uppercase cursor-pointer tracking-wide appearance-none pl-10 pr-6 py-1">
+                {translationLanguages.map(lang => (<option key={lang.code} value={lang.code} className="bg-slate-800 text-white">{lang.name}</option>))}
+            </select>
+            <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2 pointer-events-none" />
+        </div>
+    );
+};
+
+const ActionButton: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; className?: string; }> = ({ icon, label, onClick, disabled, className }) => (
+    <button onClick={onClick} disabled={disabled} className={`h-16 px-6 flex items-center justify-center gap-3 font-bold rounded-xl text-lg text-white tracking-wide uppercase active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:filter-none border-2 transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg ${className}`}>
+        {icon} <span className="drop-shadow-md">{label}</span>
+    </button>
+);
+
+const ActionCard: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; highlight?: boolean; }> = ({ icon, label, onClick, disabled, highlight }) => (
+    <button onClick={onClick} disabled={disabled} className={`rounded-xl p-4 sm:p-5 flex flex-col items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none bg-slate-800/50 border border-cyan-500/50 text-cyan-500/80 hover:border-cyan-400 hover:text-cyan-400 hover:bg-slate-800 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] hover:scale-105 transition-all duration-300 group`}>
+        <div className={`transform transition-transform duration-200 group-hover:-translate-y-1 ${highlight ? 'text-cyan-400' : 'text-slate-300 group-hover:text-cyan-400'}`}>
+             {React.cloneElement(icon as ReactElement<any>, { className: 'w-8 h-8 sm:w-10 sm:h-10' })}
+        </div>
+        <span className={`text-xs sm:text-sm font-bold uppercase tracking-wide text-slate-400 group-hover:text-white transition-colors`}>{label}</span>
+    </button>
+);
+
+const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' | 'mp3') => void; uiLanguage: Language; isLoading: boolean; onCancel: () => void; allowWav: boolean; onUpgrade: () => void; }> = ({ onClose, onDownload, uiLanguage, isLoading, onCancel, allowWav, onUpgrade }) => {
+    return (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
+            <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl shadow-2xl p-8" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-wide flex items-center gap-2"><DownloadIcon className="text-cyan-400"/> {t('downloadPanelTitle', uiLanguage)}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                </div>
+                <div className="space-y-6">
+                     <div className="grid grid-cols-2 gap-4">
+                        <button onClick={() => onDownload('mp3')} disabled={isLoading} className="btn-tactile flex flex-col items-center justify-center gap-3 p-6 rounded-xl group h-32 hover:bg-slate-700">
+                            <span className="text-4xl font-black text-white group-hover:text-cyan-300 transition-colors">MP3</span>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Standard</span>
+                        </button>
+                        <button onClick={() => allowWav ? onDownload('wav') : onUpgrade()} disabled={isLoading} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-xl relative overflow-hidden border h-32 group transition-all ${allowWav ? 'bg-slate-700 border-slate-600 hover:border-cyan-500/50 hover:bg-slate-600' : 'bg-slate-800 border-slate-700 opacity-60'}`}>
+                             {!allowWav && <div className="absolute top-2 right-2 bg-amber-500/20 p-1.5 rounded-md"><LockIcon className="text-amber-500 w-4 h-4"/></div>}
+                            <span className={`text-4xl font-black ${allowWav ? 'text-white group-hover:text-cyan-300' : 'text-slate-500'}`}>WAV</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Lossless {allowWav ? '' : '(Pro)'}</span>
+                        </button>
+                     </div>
+                     {isLoading && (
+                        <div className="mt-8 flex flex-col items-center justify-center gap-4 text-cyan-400">
+                            <LoaderIcon className="w-10 h-10"/>
+                            <span className="animate-pulse text-sm font-bold uppercase tracking-widest">{t('encoding', uiLanguage)}...</span>
+                             <button onClick={onCancel} className="mt-2 text-xs font-bold text-red-400 hover:text-white underline decoration-red-500/50">{t('stopSpeaking', uiLanguage)}</button>
+                        </div>
+                     )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Main App Component
 const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
@@ -156,8 +209,6 @@ const App: React.FC = () => {
   
   // Sync source language with UI language when UI language changes (and no specific source set)
   useEffect(() => {
-      // If the user hasn't explicitly set a different source language, sync with UI
-      // For now, we'll simple set it.
       setSourceLang(uiLanguage);
       setTargetLang(uiLanguage === 'ar' ? 'en' : 'ar');
   }, [uiLanguage]);
@@ -175,7 +226,6 @@ const App: React.FC = () => {
   const [userSubscription, setUserSubscription] = useState<'free' | 'gold' | 'platinum'>('free');
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
-  // ... (rest of the component state and logic, truncated for brevity until render) ...
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
   useEffect(() => {
@@ -214,7 +264,7 @@ const App: React.FC = () => {
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   
   // Settings State
-  const [voice, setVoice] = useState('Puck'); // Default to a Gemini voice to look impressive
+  const [voice, setVoice] = useState('Puck'); 
   const [emotion, setEmotion] = useState('Default');
   const [pauseDuration, setPauseDuration] = useState(1.0);
   const [speed, setSpeed] = useState(1.0);
@@ -222,7 +272,6 @@ const App: React.FC = () => {
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
-  // Explicitly initialize Speaker C and D
   const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Zephyr' });
   const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Fenrir' });
   
@@ -867,8 +916,9 @@ const App: React.FC = () => {
             <div className="relative">
                 <textarea ref={sourceTextAreaRef} value={sourceText} onChange={(e) => setSourceText(e.target.value)} placeholder={t('placeholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all resize-none ${isSourceRtl ? 'text-right' : 'text-left'} custom-scrollbar`} dir={isSourceRtl ? 'rtl' : 'ltr'} spellCheck="false" />
                 {sourceText && ( <button onClick={() => {setSourceText(''); setTranslatedText('');}} className="absolute bottom-4 left-4 p-2 bg-slate-800/80 hover:bg-red-900/80 text-slate-500 hover:text-red-400 rounded-lg transition-all border border-slate-700 hover:border-red-500/50" title={uiLanguage === 'ar' ? 'مسح النص' : 'Clear Text'}><TrashIcon className="w-4 h-4" /></button>)}
-                <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-500 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">{sourceText.length} chars</div>
             </div>
+            {/* Char Count OUTSIDE */}
+            <div className="text-right mt-2 text-xs font-bold text-slate-500 px-1">{sourceText.length} chars</div>
              <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
         </div>
     );
@@ -885,8 +935,9 @@ const App: React.FC = () => {
             </div>
             <div className="relative">
                 <textarea value={translatedText} readOnly placeholder={t('translationPlaceholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`} dir={isTargetRtl ? 'rtl' : 'ltr'} />
-                <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-600 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">{translatedText.length} chars</div>
             </div>
+            {/* Char Count OUTSIDE */}
+            <div className="text-right mt-2 text-xs font-bold text-slate-600 px-1">{translatedText.length} chars</div>
         </div>
     );
 
@@ -1034,67 +1085,6 @@ const App: React.FC = () => {
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
-};
-
-const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
-    return (
-        <div className="flex items-center gap-2 bg-slate-900/50 border border-slate-700 px-5 py-3 rounded-lg hover:border-cyan-500/50 transition-colors group shadow-sm relative min-w-[140px]">
-            <GlobeIcon className="w-6 h-6 text-slate-400 group-hover:text-cyan-400 transition-colors absolute left-3 pointer-events-none" />
-            <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-transparent text-white font-bold text-base focus:outline-none uppercase cursor-pointer tracking-wide appearance-none pl-10 pr-6 py-1">
-                {translationLanguages.map(lang => (<option key={lang.code} value={lang.code} className="bg-slate-800 text-white">{lang.name}</option>))}
-            </select>
-            <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2 pointer-events-none" />
-        </div>
-    );
-};
-
-// ... ActionButton, ActionCard, DownloadModal Components ...
-const ActionButton: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; className?: string; }> = ({ icon, label, onClick, disabled, className }) => (
-    <button onClick={onClick} disabled={disabled} className={`h-16 px-6 flex items-center justify-center gap-3 font-bold rounded-xl text-lg text-white tracking-wide uppercase active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:filter-none border-2 transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg ${className}`}>
-        {icon} <span className="drop-shadow-md">{label}</span>
-    </button>
-);
-
-const ActionCard: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; highlight?: boolean; }> = ({ icon, label, onClick, disabled, highlight }) => (
-    <button onClick={onClick} disabled={disabled} className={`rounded-xl p-4 sm:p-5 flex flex-col items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none bg-slate-800/50 border border-cyan-500/50 text-cyan-500/80 hover:border-cyan-400 hover:text-cyan-400 hover:bg-slate-800 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] hover:scale-105 transition-all duration-300 group`}>
-        <div className={`transform transition-transform duration-200 group-hover:-translate-y-1 ${highlight ? 'text-cyan-400' : 'text-slate-300 group-hover:text-cyan-400'}`}>
-             {React.cloneElement(icon as ReactElement<any>, { className: 'w-8 h-8 sm:w-10 sm:h-10' })}
-        </div>
-        <span className={`text-xs sm:text-sm font-bold uppercase tracking-wide text-slate-400 group-hover:text-white transition-colors`}>{label}</span>
-    </button>
-);
-
-const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' | 'mp3') => void; uiLanguage: Language; isLoading: boolean; onCancel: () => void; allowWav: boolean; onUpgrade: () => void; }> = ({ onClose, onDownload, uiLanguage, isLoading, onCancel, allowWav, onUpgrade }) => {
-    return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
-            <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl shadow-2xl p-8" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-wide flex items-center gap-2"><DownloadIcon className="text-cyan-400"/> {t('downloadPanelTitle', uiLanguage)}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                </div>
-                <div className="space-y-6">
-                     <div className="grid grid-cols-2 gap-4">
-                        <button onClick={() => onDownload('mp3')} disabled={isLoading} className="btn-tactile flex flex-col items-center justify-center gap-3 p-6 rounded-xl group h-32 hover:bg-slate-700">
-                            <span className="text-4xl font-black text-white group-hover:text-cyan-300 transition-colors">MP3</span>
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Standard</span>
-                        </button>
-                        <button onClick={() => allowWav ? onDownload('wav') : onUpgrade()} disabled={isLoading} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-xl relative overflow-hidden border h-32 group transition-all ${allowWav ? 'bg-slate-700 border-slate-600 hover:border-cyan-500/50 hover:bg-slate-600' : 'bg-slate-800 border-slate-700 opacity-60'}`}>
-                             {!allowWav && <div className="absolute top-2 right-2 bg-amber-500/20 p-1.5 rounded-md"><LockIcon className="text-amber-500 w-4 h-4"/></div>}
-                            <span className={`text-4xl font-black ${allowWav ? 'text-white group-hover:text-cyan-300' : 'text-slate-500'}`}>WAV</span>
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Lossless {allowWav ? '' : '(Pro)'}</span>
-                        </button>
-                     </div>
-                     {isLoading && (
-                        <div className="mt-8 flex flex-col items-center justify-center gap-4 text-cyan-400">
-                            <LoaderIcon className="w-10 h-10"/>
-                            <span className="animate-pulse text-sm font-bold uppercase tracking-widest">{t('encoding', uiLanguage)}...</span>
-                             <button onClick={onCancel} className="mt-2 text-xs font-bold text-red-400 hover:text-white underline decoration-red-500/50">{t('stopSpeaking', uiLanguage)}</button>
-                        </div>
-                     )}
-                </div>
-            </div>
-        </div>
-    );
 };
 
 export default App;

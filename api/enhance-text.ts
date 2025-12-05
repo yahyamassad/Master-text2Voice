@@ -1,6 +1,4 @@
 
-
-
 import { GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
@@ -35,6 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let systemInstruction = "";
         
         if (type === 'tashkeel') {
+            // STRICT WAQF RULES TO FIX "INDIAN ACCENT" TTS EFFECT
             systemInstruction = `You are an expert Arabic Voiceover Linguist. Your task is to apply "Functional Diacritics" (Tashkeel) optimized for natural-sounding Text-to-Speech (TTS).
 
             !!! CRITICAL RULE: PAUSE PRONUNCIATION (WAQF) !!!
