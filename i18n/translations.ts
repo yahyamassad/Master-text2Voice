@@ -16,21 +16,21 @@ export const languageOptions: { value: Language; label: string; dir: Direction }
 ];
 
 export const translationLanguages: LanguageListItem[] = [
-    { code: 'ar', name: 'Arabic', speechCode: 'ar-SA' },
-    { code: 'en', name: 'English', speechCode: 'en-US' },
-    { code: 'fr', name: 'French', speechCode: 'fr-FR' },
-    { code: 'es', name: 'Spanish', speechCode: 'es-ES' },
-    { code: 'pt', name: 'Portuguese', speechCode: 'pt-BR' },
-    { code: 'de', name: 'German', speechCode: 'de-DE' },
-    { code: 'it', name: 'Italian', speechCode: 'it-IT' },
-    { code: 'ru', name: 'Russian', speechCode: 'ru-RU' },
-    { code: 'ja', name: 'Japanese', speechCode: 'ja-JP' },
-    { code: 'ko', name: 'Korean', speechCode: 'ko-KR' },
-    { code: 'zh', name: 'Chinese', speechCode: 'zh-CN' },
-    { code: 'tr', name: 'Turkish', speechCode: 'tr-TR' },
-    { code: 'hi', name: 'Hindi', speechCode: 'hi-IN' },
-    { code: 'fa', name: 'Persian (Farsi)', speechCode: 'fa-IR' },
-    { code: 'he', name: 'Hebrew', speechCode: 'he-IL' },
+    { code: 'ar', name: 'AR', speechCode: 'ar-SA' },
+    { code: 'en', name: 'EN', speechCode: 'en-US' },
+    { code: 'fr', name: 'FR', speechCode: 'fr-FR' },
+    { code: 'es', name: 'ES', speechCode: 'es-ES' },
+    { code: 'pt', name: 'PT', speechCode: 'pt-BR' },
+    { code: 'de', name: 'DE', speechCode: 'de-DE' },
+    { code: 'it', name: 'IT', speechCode: 'it-IT' },
+    { code: 'ru', name: 'RU', speechCode: 'ru-RU' },
+    { code: 'tr', name: 'TR', speechCode: 'tr-TR' },
+    { code: 'zh', name: 'ZH', speechCode: 'zh-CN' },
+    { code: 'ja', name: 'JA', speechCode: 'ja-JP' },
+    { code: 'ko', name: 'KO', speechCode: 'ko-KR' },
+    { code: 'he', name: 'HE', speechCode: 'he-IL' }, // Moved to middle/end
+    { code: 'hi', name: 'HI', speechCode: 'hi-IN' },
+    { code: 'fa', name: 'FA', speechCode: 'fa-IR' },
 ];
 
 export const translations = {
