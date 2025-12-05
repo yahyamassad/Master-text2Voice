@@ -137,22 +137,26 @@ const QuotaIndicator: React.FC<{
 };
 
 const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
+    // FIX: Fallback logic inside component to prevent "TEXT"/"AUDIO" display
+    const isValidCode = translationLanguages.some(l => l.code === value);
+    const safeValue = isValidCode ? value : 'ar'; // Default fallback if invalid
+    
     return (
-        <div className="relative group min-w-[90px] flex-shrink-0">
-            <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl hover:border-cyan-500/50 transition-colors cursor-pointer w-full shadow-sm">
-                <span className="text-white font-bold text-sm tracking-widest uppercase flex-1 text-center">
-                    {translationLanguages.find(l => l.code === value)?.name || value.toUpperCase()}
+        <div className="relative group min-w-[100px] flex-shrink-0">
+            <div className="flex items-center justify-center gap-2 bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl hover:border-cyan-500/50 transition-colors cursor-pointer w-full shadow-sm text-center">
+                <span className="text-white font-bold text-sm tracking-widest uppercase flex-1 text-center w-full block">
+                    {translationLanguages.find(l => l.code === safeValue)?.name || safeValue.toUpperCase()}
                 </span>
-                <ChevronDownIcon className="w-3 h-3 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                <ChevronDownIcon className="w-3 h-3 text-slate-500 group-hover:text-cyan-400 transition-colors absolute right-2" />
             </div>
             <select 
-                value={value} 
+                value={safeValue} 
                 onChange={(e) => onChange(e.target.value)} 
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none text-center"
                 title="Select Language"
             >
                 {translationLanguages.map(lang => (
-                    <option key={lang.code} value={lang.code} className="bg-slate-800 text-white font-bold py-2">
+                    <option key={lang.code} value={lang.code} className="bg-slate-800 text-white font-bold py-2 text-center">
                         {lang.name} - {lang.speechCode.split('-')[1]}
                     </option>
                 ))}
@@ -741,8 +745,21 @@ const App: React.FC = () => {
   const handleHistoryLoad = useCallback((item: HistoryItem) => {
     setSourceText(item.sourceText);
     setTranslatedText(item.translatedText);
-    setSourceLang(item.sourceLang);
-    setTargetLang(item.targetLang);
+    
+    // FIX: Ghost of TEXT/AUDIO bug fix
+    // If the saved item has "Text" or "Audio" as language (legacy TTS logs), fallback to defaults
+    if (item.sourceLang === 'Text' || item.sourceLang === 'Audio') {
+        setSourceLang('ar'); // or current UI lang
+    } else {
+        setSourceLang(item.sourceLang);
+    }
+
+    if (item.targetLang === 'Text' || item.targetLang === 'Audio') {
+        setTargetLang('en'); // fallback
+    } else {
+        setTargetLang(item.targetLang);
+    }
+
     setIsHistoryOpen(false);
   }, []);
   
@@ -941,10 +958,10 @@ const App: React.FC = () => {
         <div className="flex-1 relative">
             {/* TARGET TOOLBAR: Actions (Right), Target Lang (Left) */}
             <div className="flex items-center justify-between mb-3 px-3">
-                {/* Language Select - Moved to Left for Target */}
+                {/* Language Select - Moved to Left for Target (Outer Edge for standard LTR) */}
                 <LanguageSelect value={targetLang} onChange={setTargetLang} />
                 
-                {/* Actions (Copy) - Moved to Right for Target */}
+                {/* Actions (Copy) - Moved to Right for Target (Inner Edge for standard LTR) */}
                 <div className="flex items-center gap-2">
                     <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
                         {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
