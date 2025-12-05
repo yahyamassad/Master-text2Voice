@@ -1,5 +1,4 @@
 
-
 import { AudioSettings, AudioPreset, AudioPresetName } from '../types';
 
 function convertInt16ToFloat32(incomingData: Uint8Array): Float32Array {
@@ -186,8 +185,9 @@ export async function processAudio(
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // Explicit padding to prevent cutoff - Reduced to 0.5s for tighter editing
-    const END_PADDING = 0.5; 
+    // Explicit padding to prevent cutoff and allow fadeout
+    // Increased to 5.0 seconds to allow smooth music fade out if delay is used
+    const END_PADDING = 5.0; 
     
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
@@ -397,8 +397,8 @@ export async function processAudio(
         // Apply Fade Out at the very end if Trimming
         if (trimToVoice && sourceBuffer) {
             // Start fading out music significantly AFTER voice ends + reverb
-            // We use absoluteVoiceEnd + 1.5s to ensure full voice clarity before music fades
-            const safeFadeStart = absoluteVoiceEnd + 1.5; 
+            // We use absoluteVoiceEnd + 2.0s to ensure full voice clarity before music fades
+            const safeFadeStart = absoluteVoiceEnd + 2.0; 
             
             // Cancel any automations at this point to take control
             try { 
