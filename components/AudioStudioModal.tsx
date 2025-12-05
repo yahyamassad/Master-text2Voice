@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
 import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon, ChevronDownIcon } from './icons';
@@ -88,14 +89,48 @@ const Knob: React.FC<{
     displaySuffix?: string,
     size?: 'sm' | 'md' | 'lg'
 }> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan', onClickCapture, displaySuffix = '', size = 'lg' }) => {
+    const knobRef = useRef<HTMLDivElement>(null);
+    const startYRef = useRef<number | null>(null);
+    const startValueRef = useRef<number>(value);
+
     const percentage = (value - min) / (max - min);
     const rotation = -135 + (percentage * 270); 
 
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (onClickCapture) onClickCapture(e);
+        e.preventDefault(); // Prevent text selection
+        startYRef.current = e.clientY;
+        startValueRef.current = value;
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = 'ns-resize';
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+        if (startYRef.current === null) return;
+        
+        e.preventDefault();
+        const deltaY = startYRef.current - e.clientY; // Drag up = positive delta
+        const range = max - min;
+        // Sensitivity: 200 pixels for full range
+        const sensitivity = 200; 
+        const deltaValue = (deltaY / sensitivity) * range;
+        
+        let newValue = startValueRef.current + deltaValue;
+        newValue = Math.max(min, Math.min(max, newValue));
+        
+        onChange(newValue);
+    };
+
+    const handleMouseUp = () => {
+        startYRef.current = null;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = 'unset';
+    };
+
+    // Keep wheel support for fine tuning
     const handleWheel = (e: React.WheelEvent) => {
-        if (onClickCapture) {
-            // If strictly capture needed, return. But usually we want knobs to work.
-            // onClickCapture(e as any);
-        }
         e.stopPropagation();
         e.preventDefault();
         const delta = e.deltaY > 0 ? -1 : 1; 
@@ -108,6 +143,7 @@ const Knob: React.FC<{
     
     const isPurple = color === 'purple';
     const isGreen = color === 'green';
+    const isRed = color === 'red';
 
     let borderColor = 'border-cyan-900/50 group-hover:border-cyan-500/50';
     let tickColor = 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]';
@@ -121,14 +157,22 @@ const Knob: React.FC<{
         borderColor = 'border-green-900/50 group-hover:border-green-500/50';
         tickColor = 'bg-green-400 shadow-[0_0_8px_#4ade80]';
         textColor = 'text-green-300';
+    } else if (isRed) {
+        borderColor = 'border-red-900/50 group-hover:border-red-500/50';
+        tickColor = 'bg-red-400 shadow-[0_0_8px_#f87171]';
+        textColor = 'text-red-300';
     }
 
     const sizeClasses = size === 'sm' ? 'w-10 h-10' : (size === 'md' ? 'w-12 h-12' : 'w-14 h-14 sm:w-16 sm:h-16');
     const innerSizeClasses = size === 'sm' ? 'w-6 h-6' : (size === 'md' ? 'w-8 h-8' : 'w-9 h-9 sm:w-10 sm:h-10');
 
     return (
-        <div className="flex flex-col items-center group cursor-pointer" onWheel={handleWheel} onClick={onClickCapture} title="Scroll to adjust">
-             <div className={`relative ${sizeClasses} rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${borderColor} flex items-center justify-center mb-2 cursor-ns-resize transition-all`}>
+        <div className="flex flex-col items-center group cursor-pointer" onWheel={handleWheel} title="Drag up/down or Scroll">
+             <div 
+                ref={knobRef}
+                onMouseDown={handleMouseDown}
+                className={`relative ${sizeClasses} rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${borderColor} flex items-center justify-center mb-2 cursor-ns-resize transition-all active:scale-95`}
+             >
                  <div className="absolute w-full h-full rounded-full pointer-events-none" style={{ transform: `rotate(${rotation}deg)` }}>
                      <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-2 sm:w-1.5 sm:h-2.5 rounded-full ${tickColor}`}></div>
                  </div>
@@ -136,7 +180,7 @@ const Knob: React.FC<{
                      <span className={`text-[8px] sm:text-[10px] sm:text-xs font-mono font-bold select-none pointer-events-none ${textColor}`}>{Math.round(value * 10) / 10}{displaySuffix}</span>
                  </div>
              </div>
-             <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors text-center leading-tight">{label}</span>
+             <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors text-center leading-tight select-none">{label}</span>
         </div>
     );
 };
@@ -216,7 +260,7 @@ const Fader: React.FC<{
         <div className="bg-slate-900 px-1 py-0.5 rounded border border-slate-800 min-w-[2rem] text-center">
              <span className={`text-[10px] sm:text-xs font-mono font-bold ${muted ? 'text-red-500' : 'text-cyan-100'}`}>{muted ? 'OFF' : Math.round(value)}</span>
         </div>
-        <span className={`${labelSize} font-bold text-slate-500 uppercase tracking-wider mt-1 text-center leading-tight`}>{label}</span>
+        <span className={`${labelSize} font-bold text-slate-500 uppercase tracking-wider mt-1 text-center leading-tight select-none`}>{label}</span>
     </div>
 )};
 
@@ -230,7 +274,7 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
                 <div className={`w-3 sm:w-4 h-1 rounded-sm ${value > 0 ? 'bg-cyan-400' : (value < 0 ? 'bg-amber-500' : 'bg-slate-400')}`}></div>
             </div>
         </div>
-        <span className="text-[8px] sm:text-[10px] font-bold text-slate-500 uppercase">{label}</span>
+        <span className="text-[8px] sm:text-[10px] font-bold text-slate-500 uppercase select-none">{label}</span>
         <span className={`text-[8px] sm:text-[10px] font-mono font-bold ${value !== 0 ? 'text-cyan-400' : 'text-slate-600'}`}>{value > 0 ? `+${value}` : value}dB</span>
     </div>
 );
@@ -250,6 +294,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const [autoDucking, setAutoDucking] = useState(false);
     const [duckingActive, setDuckingActive] = useState(false); 
     
+    // Additional Effects (Not in AudioSettings yet but UI logic needed)
+    const [echo, setEcho] = useState(0); // 0-100%
+
     // Export Settings
     const [exportFormat, setExportFormat] = useState<'mp3' | 'wav'>('mp3');
     const [exportSource, setExportSource] = useState<'mix' | 'voice'>('mix');
@@ -301,6 +348,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const voiceDelayRef = useRef(voiceDelay);
     const trimToVoiceRef = useRef(trimToVoice);
     const settingsRef = useRef(settings);
+    const echoRef = useRef(echo); // Echo Ref
     
     // Playback Request ID to prevent race conditions (Double Audio)
     const playRequestIdRef = useRef<number>(0);
@@ -315,18 +363,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     useEffect(() => { voiceDelayRef.current = voiceDelay; }, [voiceDelay]);
     useEffect(() => { trimToVoiceRef.current = trimToVoice; }, [trimToVoice]);
     useEffect(() => { settingsRef.current = settings; }, [settings]);
+    useEffect(() => { echoRef.current = echo; }, [echo]);
 
     // Update total file duration
     useEffect(() => {
         let total = 0;
         const currentSpeed = settings.speed || 1.0;
-        // CORRECTED: Calculate Voice End based on Delay + (Duration / Speed)
         const voiceEnd = voiceBuffer ? voiceDelay + (voiceBuffer.duration / currentSpeed) : 0;
         const musicEnd = musicBuffer ? musicBuffer.duration : 0;
 
         if (trimToVoice && voiceBuffer) {
-            // Include tail buffer in the UI timeline. 
-            // Matching utils/audioUtils.ts calculation: absoluteVoiceEnd + 0.5s padding
             total = voiceEnd + 0.5; 
         } else {
             total = Math.max(voiceEnd, musicEnd);
@@ -349,6 +395,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const reverbGainRef = useRef<GainNode | null>(null);
     const dryGainRef = useRef<GainNode | null>(null);
     const compressorRef = useRef<DynamicsCompressorNode | null>(null);
+    
+    // Echo Nodes
+    const delayNodeRef = useRef<DelayNode | null>(null);
+    const feedbackNodeRef = useRef<GainNode | null>(null);
+    const echoGainRef = useRef<GainNode | null>(null);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordingChunksRef = useRef<Blob[]>([]);
@@ -419,19 +470,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const loadAudio = async () => {
                 const ctx = getAudioContext();
                 try {
-                    // CRITICAL FIX FOR STATIC NOISE:
-                    // Determine decode strategy based on voice origin.
-                    // Gemini = Raw PCM. Studio/Standard = MP3 (File).
                     const isGemini = GEMINI_VOICES.includes(voice);
 
                     if (isGemini) {
-                        // GEMINI: Force Raw PCM Decode
                         const buf = rawPcmToAudioBuffer(sourceAudioPCM);
                         setVoiceBuffer(buf);
                         setFileName(`Gemini ${voice} Session`);
                     } else {
-                        // STUDIO: Force File Decode (MP3/WAV)
-                        // We must slice to create a copy because decodeAudioData detaches the buffer
                         const bufferCopy = sourceAudioPCM.slice(0).buffer;
                         const decoded = await ctx.decodeAudioData(bufferCopy);
                         setVoiceBuffer(decoded);
@@ -439,7 +484,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     }
                 } catch (e) {
                     console.error("Audio Load Error:", e);
-                    // Last resort fallback (only if primary strategy fails unexpectedly)
                     try {
                         const buf = rawPcmToAudioBuffer(sourceAudioPCM);
                         setVoiceBuffer(buf);
@@ -482,11 +526,17 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             compressorRef.current.threshold.setTargetAtTime(-10 - (compAmount * 40), getAudioContext().currentTime, 0.1);
             compressorRef.current.ratio.setTargetAtTime(1 + (compAmount * 11), getAudioContext().currentTime, 0.1);
         }
+        
+        // Update Echo
+        if (echoGainRef.current) {
+            echoGainRef.current.gain.setTargetAtTime(echo / 100, getAudioContext().currentTime, 0.1);
+        }
+
         // Speed changes require restarting the source or using playbackRate
         if (voiceSourceRef.current) {
              voiceSourceRef.current.playbackRate.value = settings.speed;
         }
-    }, [settings]);
+    }, [settings, echo]);
 
     // --- PLAYBACK LOGIC (REAL-TIME MIXING) ---
     const stopPlayback = useCallback(() => {
@@ -513,6 +563,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         reverbGainRef.current = null;
         dryGainRef.current = null;
         compressorRef.current = null;
+        delayNodeRef.current = null;
+        feedbackNodeRef.current = null;
+        echoGainRef.current = null;
         
         if (!isRecording) setAnalyserNode(null);
         setIsPlaying(false);
@@ -553,7 +606,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         const requestId = playRequestIdRef.current + 1;
         playRequestIdRef.current = requestId;
 
-        // Calculate Limits - CORRECTED FORMULA
         const currentSpeed = settingsRef.current.speed || 1.0;
         const vDelay = voiceDelayRef.current;
         const voiceEnd = (voiceBuffer ? vDelay + (voiceBuffer.duration / currentSpeed) : 0);
@@ -561,17 +613,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         let primaryDuration = Math.max(voiceEnd, musicEnd);
         
         if (trimToVoice && voiceBuffer) {
-            // Ensure visual playback follows the exact same 0.5s padding logic
             primaryDuration = voiceEnd + 0.5;
         }
 
-        // Loop if at end
         if (playbackOffsetRef.current >= primaryDuration - 0.1) {
             playbackOffsetRef.current = 0;
         }
 
         try {
-            // Don't show processing state for instant play, unless building complex graph takes long (it shouldn't)
             const ctx = getAudioContext();
             if (ctx.state === 'suspended') await ctx.resume();
             
@@ -595,6 +644,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 const hasEq = settingsRef.current.eqBands.some(v => v !== 0);
                 const hasCompression = settingsRef.current.compression > 0;
                 const hasReverb = settingsRef.current.reverb > 0;
+                const hasEcho = echoRef.current > 0;
 
                 let currentNode: AudioNode = vSource;
 
@@ -612,49 +662,65 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     filters.forEach(f => { currentNode.connect(f); currentNode = f; });
                 }
 
-                // 2. Dynamics / Reverb
-                if (hasCompression || hasReverb) {
-                    // Always add compressor if any effects active, but maybe bypass if compression is 0
-                    const comp = ctx.createDynamicsCompressor();
-                    if (hasCompression) {
-                        const compAmount = settingsRef.current.compression / 100;
-                        comp.threshold.value = -10 - (compAmount * 40);
-                        comp.ratio.value = 1 + (compAmount * 11);
-                    } else {
-                        // Transparent
-                        comp.threshold.value = 0;
-                        comp.ratio.value = 1;
-                    }
-                    compressorRef.current = comp;
-                    currentNode.connect(comp);
-
-                    if (hasReverb) {
-                        const revNode = ctx.createConvolver();
-                        const revDuration = 1.5 + (settingsRef.current.reverb / 100) * 2.0; 
-                        revNode.buffer = getImpulseResponse(ctx, revDuration, 2.0);
-                        reverbRef.current = revNode;
-
-                        const revGain = ctx.createGain();
-                        const dGain = ctx.createGain();
-                        const mix = settingsRef.current.reverb / 100;
-                        revGain.gain.value = mix;
-                        dGain.gain.value = 1 - (mix * 0.5);
-                        reverbGainRef.current = revGain;
-                        dryGainRef.current = dGain;
-
-                        comp.connect(revNode);
-                        revNode.connect(revGain);
-                        comp.connect(dGain);
-                        
-                        revGain.connect(vGain);
-                        dGain.connect(vGain);
-                    } else {
-                        comp.connect(vGain);
-                    }
+                // 2. Dynamics
+                const comp = ctx.createDynamicsCompressor();
+                if (hasCompression) {
+                    const compAmount = settingsRef.current.compression / 100;
+                    comp.threshold.value = -10 - (compAmount * 40);
+                    comp.ratio.value = 1 + (compAmount * 11);
                 } else {
-                    // PURE PATH: Source -> EQ (if any) -> Gain
-                    currentNode.connect(vGain);
+                    comp.threshold.value = 0; 
+                    comp.ratio.value = 1;
                 }
+                compressorRef.current = comp;
+                currentNode.connect(comp);
+                
+                // Parallel Effects Chain (Reverb & Echo)
+                // Source (Comp) -> Reverb -> ReverbGain -> vGain
+                // Source (Comp) -> Delay -> EchoGain -> vGain
+                // Source (Comp) -> DryGain -> vGain
+
+                const dGain = ctx.createGain(); // Dry Gain
+                dryGainRef.current = dGain;
+                comp.connect(dGain);
+                dGain.connect(vGain); // Default connection
+
+                if (hasReverb) {
+                    const revNode = ctx.createConvolver();
+                    const revDuration = 1.5 + (settingsRef.current.reverb / 100) * 2.0; 
+                    revNode.buffer = getImpulseResponse(ctx, revDuration, 2.0);
+                    reverbRef.current = revNode;
+
+                    const revGain = ctx.createGain();
+                    const mix = settingsRef.current.reverb / 100;
+                    revGain.gain.value = mix;
+                    reverbGainRef.current = revGain;
+                    dGain.gain.value = 1 - (mix * 0.5);
+
+                    comp.connect(revNode);
+                    revNode.connect(revGain);
+                    revGain.connect(vGain);
+                }
+
+                // ECHO LOGIC
+                // Always create nodes so we can automate them, just set gain to 0 if off
+                const delayNode = ctx.createDelay();
+                delayNode.delayTime.value = 0.4; // 400ms delay
+                const feedbackNode = ctx.createGain();
+                feedbackNode.gain.value = 0.3; // 30% feedback
+                const echoGain = ctx.createGain();
+                echoGain.gain.value = echoRef.current / 100;
+
+                delayNode.connect(feedbackNode);
+                feedbackNode.connect(delayNode);
+                
+                comp.connect(delayNode);
+                delayNode.connect(echoGain);
+                echoGain.connect(vGain);
+
+                delayNodeRef.current = delayNode;
+                feedbackNodeRef.current = feedbackNode;
+                echoGainRef.current = echoGain;
 
                 // Analyzers
                 visualizerAnalyser = ctx.createAnalyser();
@@ -666,15 +732,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 vGain.connect(duckingAnalyser); 
                 
                 // --- SCHEDULING WITH DELAY ---
-                
                 if (currentOffset < vDelay) {
                     vSource.start(ctx.currentTime + (vDelay - currentOffset), 0);
                 } else {
-                    // Logic to handle skipping into the middle of the voice track accounting for speed
-                    // offsetInVoice = (elapsedTimeSinceDelay) * speed
                     const timeIntoVoice = currentOffset - vDelay;
                     const offsetInSample = timeIntoVoice * currentSpeed;
-                    
                     if (offsetInSample < voiceBuffer.duration) {
                         vSource.start(0, offsetInSample);
                     }
@@ -722,7 +784,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     const currentSegmentTime = ctx.currentTime - playbackStartTimeRef.current;
                     const actualTime = playbackOffsetRef.current + currentSegmentTime;
                     
-                    // Duration Check (Real-time calculation to respect speed/delay changes)
                     const curSpeed = settingsRef.current.speed || 1.0;
                     const curDelay = voiceDelayRef.current;
                     const vEnd = (voiceBuffer) ? (curDelay + (voiceBuffer.duration / curSpeed)) : 0;
@@ -740,28 +801,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         let isDucking = false;
 
                         if (autoDuckingRef.current && duckingAnalyser && !isMusicMutedRef.current && !isVoiceMutedRef.current) {
-                            // Only duck if we are past the delay point (voice is hypothetically active)
                             if (actualTime >= curDelay) {
                                 const dataArray = new Uint8Array(duckingAnalyser.frequencyBinCount);
                                 duckingAnalyser.getByteTimeDomainData(dataArray);
-                                
                                 let sum = 0;
-                                // Optimize loop
                                 for(let i = 0; i < dataArray.length; i+=8) {
                                     const v = (dataArray[i] - 128) / 128;
                                     sum += v*v;
                                 }
                                 const rms = Math.sqrt(sum / (dataArray.length / 8));
-                                // More sensitive threshold for live listening
                                 const threshold = 0.01; 
-                                
                                 if (rms > threshold) {
                                     targetMusicGain = currentMusicVol * 0.15; 
                                     isDucking = true;
                                 }
                             }
                         }
-                        // Smooth transition - Slower release for better effect
                         const rampTime = isDucking ? 0.3 : 0.8;
                         mGain.gain.setTargetAtTime(targetMusicGain, ctx.currentTime, rampTime);
                         setDuckingActive(isDucking);
@@ -776,7 +831,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     if (actualTime >= liveTotalDur) {
                         setCurrentTime(liveTotalDur);
                         stopPlayback();
-                        // Reset to start for convenience
                         playbackOffsetRef.current = 0; 
                         setCurrentTime(0);
                     } else {
@@ -793,6 +847,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
     };
 
+    // ... (rest of audio logic: recording, files, export) ...
     // --- MIC LOGIC ---
     const startRecording = async () => {
         try {
@@ -870,7 +925,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
     };
 
-    // --- LIBRARY & FILES ---
     const onMusicUploadClick = () => { 
         if (!isPaidUser) {
             setShowUpgradeAlert(true);
@@ -949,7 +1003,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
     };
 
-    // --- EXPORT ---
     const handleExportClick = () => {
         setShowExportMenu(false);
         if (!allowDownloads) {
@@ -1032,14 +1085,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             setVoiceBuffer(buf);
                             setFileName(`Gemini ${voice} Session`);
                         } else {
-                            // STUDIO: Force File Decode
                             const bufferCopy = sourceAudioPCM.slice(0).buffer;
                             const decoded = await ctx.decodeAudioData(bufferCopy);
                             setVoiceBuffer(decoded);
                             setFileName(`${voice} (Studio) Session`);
                         }
                     } catch (e) {
-                        // Fallback logic kept just in case
                         const buf = rawPcmToAudioBuffer(sourceAudioPCM);
                         setVoiceBuffer(buf);
                         setFileName(`Audio Session (Fallback)`);
@@ -1078,7 +1129,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-hide w-full">
-                {/* ... existing body content ... */}
                 <div className="max-w-7xl mx-auto space-y-6 pb-10">
 
                     {/* Visualizer & Timeline */}
@@ -1092,20 +1142,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     <p className="text-slate-400 mb-4">
                                         {uiLanguage === 'ar' ? 'يتوفر استوديو الصوت الكامل للمشتركين فقط.' : 'Full Audio Studio access is available for subscribers only.'}
                                     </p>
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (onUpgrade) onUpgrade();
-                                            setShowUpgradeAlert(false); 
-                                        }}
-                                        className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide transition-colors"
-                                    >
+                                    <button onClick={(e) => { e.stopPropagation(); if (onUpgrade) onUpgrade(); setShowUpgradeAlert(false); }} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide transition-colors">
                                         {uiLanguage === 'ar' ? 'ترقية الآن' : 'Upgrade Now'}
                                     </button>
                                 </div>
                             </div>
                         )}
-                        
                         <div className="h-32 sm:h-40 relative w-full">
                              <AudioVisualizer analyser={analyserNode} isPlaying={isPlaying || isRecording} />
                              {isRecording && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="animate-pulse text-red-500 font-mono text-xl font-bold tracking-widest bg-black/30 px-4 py-1 rounded">RECORDING {Math.floor(recordingTime/60)}:{String(recordingTime%60).padStart(2,'0')}</div></div>}
@@ -1120,11 +1162,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             </div>
                             <div className="flex items-center gap-2 max-w-[150px]">
                                 <span className="text-slate-400 truncate" title={fileName}>{fileName}</span>
-                                {voiceBuffer && (
-                                    <button onClick={handleRemoveVoice} className="text-slate-500 hover:text-red-500 transition-colors" title="Remove Voice">
-                                        <TrashIcon className="w-3 h-3" />
-                                    </button>
-                                )}
+                                {voiceBuffer && (<button onClick={handleRemoveVoice} className="text-slate-500 hover:text-red-500 transition-colors" title="Remove Voice"><TrashIcon className="w-3 h-3" /></button>)}
                             </div>
                         </div>
                     </div>
@@ -1133,36 +1171,21 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     <div className="bg-[#1e293b] p-3 rounded-2xl border border-slate-700 shadow-xl relative z-40" dir="ltr">
                         <div className="flex flex-col md:flex-row items-stretch gap-4">
                             <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-1">
-                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                                    <span>FILE</span>
-                                    {!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}
-                                </button>
-                                <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) handleTabSwitch('mic'); }} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                                    <span>MIC</span>
-                                    {!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}
-                                </button>
+                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>FILE</span>{!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}</button>
+                                <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) handleTabSwitch('mic'); }} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>MIC</span>{!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}</button>
                                 <button onClick={() => handleTabSwitch('ai')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>GEMINI</button>
                             </div>
-
                             <div className="flex-shrink-0 flex justify-center items-center">
                                  <button onClick={handlePlayPause} disabled={!voiceBuffer && !musicBuffer} className={`w-20 h-full min-h-[4rem] rounded-xl flex items-center justify-center border-2 transition-all active:scale-95 shadow-xl ${isPlaying ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-cyan-600 border-cyan-400 text-white'}`}>
                                     {isPlaying ? <PauseIcon className="w-8 h-8"/> : <PlayCircleIcon className="w-10 h-10 ml-1"/>}
                                  </button>
                             </div>
-
                             <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-2">
                                 <div className="flex-1 relative flex flex-col justify-center">
                                     {activeTab === 'mic' ? (
                                         <div className="w-full h-full flex flex-col">
-                                            <button onClick={isRecording ? stopRecording : startRecording} className={`h-10 rounded-t-lg flex items-center justify-center border w-full ${isRecording ? 'bg-red-900/80 border-red-500 text-white animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-300 hover:text-white'}`}>
-                                                <span className="font-bold text-xs">RECORD</span>
-                                            </button>
-                                            <select 
-                                                value={selectedDeviceId} 
-                                                onChange={(e) => setSelectedDeviceId(e.target.value)} 
-                                                disabled={isRecording}
-                                                className="h-6 bg-slate-950 text-slate-400 border border-slate-700 border-t-0 rounded-b-lg p-0 px-1 text-[9px] focus:outline-none w-full"
-                                            >
+                                            <button onClick={isRecording ? stopRecording : startRecording} className={`h-10 rounded-t-lg flex items-center justify-center border w-full ${isRecording ? 'bg-red-900/80 border-red-500 text-white animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-300 hover:text-white'}`}><span className="font-bold text-xs">RECORD</span></button>
+                                            <select value={selectedDeviceId} onChange={(e) => setSelectedDeviceId(e.target.value)} disabled={isRecording} className="h-6 bg-slate-950 text-slate-400 border border-slate-700 border-t-0 rounded-b-lg p-0 px-1 text-[9px] focus:outline-none w-full">
                                                 <option value="default">Default Mic</option>
                                                 {inputDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,4)}`}</option>)}
                                             </select>
@@ -1173,18 +1196,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         </div>
                                     )}
                                 </div>
-
                                 <div className="flex-1 relative" ref={exportMenuRef}>
-                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={!voiceBuffer && !musicBuffer} className="w-full h-16 rounded-lg flex flex-col items-center justify-center bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 font-bold uppercase">
-                                        {isProcessing ? <LoaderIcon className="w-5 h-5 mb-1"/> : <DownloadIcon className="w-5 h-5 mb-1" />}
-                                        <span>{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span>
-                                    </button>
+                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={!voiceBuffer && !musicBuffer} className="w-full h-16 rounded-lg flex flex-col items-center justify-center bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 font-bold uppercase">{isProcessing ? <LoaderIcon className="w-5 h-5 mb-1"/> : <DownloadIcon className="w-5 h-5 mb-1" />}<span>{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span></button>
                                     {showExportMenu && (
                                         <div className="absolute top-full right-0 mt-2 w-72 bg-[#0f172a] border border-slate-600 rounded-xl shadow-2xl z-[100] p-4 flex flex-col gap-4">
-                                            <div className="flex items-center justify-between border-b border-slate-700 pb-2">
-                                                <h4 className="text-xs font-bold text-cyan-400 tracking-widest uppercase">EXPORT SETTINGS</h4>
-                                            </div>
-                                            
+                                            <div className="flex items-center justify-between border-b border-slate-700 pb-2"><h4 className="text-xs font-bold text-cyan-400 tracking-widest uppercase">EXPORT SETTINGS</h4></div>
                                             <div>
                                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Source</label>
                                                 <div className="flex bg-slate-800 rounded p-1">
@@ -1192,41 +1208,21 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                                     <button onClick={() => setExportSource('voice')} className={`flex-1 py-1.5 text-[10px] font-bold rounded ${exportSource === 'voice' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>VOICE ONLY</button>
                                                 </div>
                                             </div>
-
                                             <div>
                                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Duration</label>
                                                 <div className="flex flex-col gap-2">
-                                                    <button onClick={() => setTrimToVoice(true)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>
-                                                        {trimToVoice && <CheckIcon className="w-3 h-3"/>}
-                                                        End when Voice ends
-                                                    </button>
-                                                    <button onClick={() => setTrimToVoice(false)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${!trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>
-                                                        {!trimToVoice && <CheckIcon className="w-3 h-3"/>}
-                                                        Keep Full Music Length
-                                                    </button>
+                                                    <button onClick={() => setTrimToVoice(true)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>{trimToVoice && <CheckIcon className="w-3 h-3"/>}End when Voice ends</button>
+                                                    <button onClick={() => setTrimToVoice(false)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${!trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>{!trimToVoice && <CheckIcon className="w-3 h-3"/>}Keep Full Music Length</button>
                                                 </div>
                                             </div>
-
                                             <div>
                                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Format</label>
                                                 <div className="flex flex-col gap-2">
-                                                    <button onClick={() => setExportFormat('mp3')} className={`flex items-center justify-between p-2 rounded border transition-colors ${exportFormat === 'mp3' ? 'bg-slate-800 border-cyan-500' : 'bg-transparent border-slate-700'}`}>
-                                                        <span className={`text-[10px] font-bold ${exportFormat === 'mp3' ? 'text-white' : 'text-slate-500'}`}>MP3 <span className="opacity-50">320kbps</span></span>
-                                                        {exportFormat === 'mp3' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}
-                                                    </button>
-                                                    <button onClick={() => setExportFormat('wav')} className={`flex items-center justify-between p-2 rounded border transition-colors ${exportFormat === 'wav' ? 'bg-slate-800 border-cyan-500' : 'bg-transparent border-slate-700'}`}>
-                                                        <span className={`text-[10px] font-bold ${exportFormat === 'wav' ? 'text-white' : 'text-slate-500'}`}>WAV <span className="opacity-50">48khz 24-bit</span></span>
-                                                        {exportFormat === 'wav' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}
-                                                    </button>
+                                                    <button onClick={() => setExportFormat('mp3')} className={`flex items-center justify-between p-2 rounded border transition-colors ${exportFormat === 'mp3' ? 'bg-slate-800 border-cyan-500' : 'bg-transparent border-slate-700'}`}><span className={`text-[10px] font-bold ${exportFormat === 'mp3' ? 'text-white' : 'text-slate-500'}`}>MP3 <span className="opacity-50">320kbps</span></span>{exportFormat === 'mp3' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}</button>
+                                                    <button onClick={() => setExportFormat('wav')} className={`flex items-center justify-between p-2 rounded border transition-colors ${exportFormat === 'wav' ? 'bg-slate-800 border-cyan-500' : 'bg-transparent border-slate-700'}`}><span className={`text-[10px] font-bold ${exportFormat === 'wav' ? 'text-white' : 'text-slate-500'}`}>WAV <span className="opacity-50">48khz 24-bit</span></span>{exportFormat === 'wav' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}</button>
                                                 </div>
                                             </div>
-
-                                            <button 
-                                                onClick={handleExportClick} 
-                                                className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-2 shadow-lg mt-2"
-                                            >
-                                                <DownloadIcon className="w-4 h-4" /> DOWNLOAD
-                                            </button>
+                                            <button onClick={handleExportClick} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-2 shadow-lg mt-2"><DownloadIcon className="w-4 h-4" /> DOWNLOAD</button>
                                         </div>
                                     )}
                                 </div>
@@ -1236,10 +1232,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         <input type="file" ref={musicInputRef} onChange={handleMusicFileChange} accept="audio/*" className="hidden" />
                     </div>
 
-                    {/* Main Grid: EQ (LEFT) | Mixer (CENTER) | Presets (RIGHT) */}
+                    {/* Main Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" dir="ltr">
-                        
-                        {/* LEFT: BAND EQ-5 (4 Cols) */}
+                        {/* LEFT: BAND EQ-5 */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                             {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                             <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
@@ -1255,10 +1250,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             </div>
                         </div>
 
-                        {/* CENTER: MIXER (4 Cols) */}
+                        {/* CENTER: MIXER */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                              {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
-                             
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="flex items-center gap-3">
                                     <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
@@ -1272,80 +1266,34 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     </div>
                                 </div>
                              </div>
-                             
-                             {/* Faders Container - Flex Grow to take available space */}
                              <div className="flex gap-4 items-end justify-center pb-2 flex-grow overflow-hidden relative">
-                                <Fader 
-                                    label="VOICE" 
-                                    value={voiceVolume} 
-                                    onChange={setVoiceVolume} 
-                                    height="h-full max-h-48" 
-                                    disabled={!voiceBuffer} 
-                                    muted={isVoiceMuted}
-                                    onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)}
-                                    onClickCapture={handleRestrictedAction}
-                                />
-                                
-                                {/* Voice Delay Knob - CENTERED */}
+                                <Fader label="VOICE" value={voiceVolume} onChange={setVoiceVolume} height="h-full max-h-48" disabled={!voiceBuffer} muted={isVoiceMuted} onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)} onClickCapture={handleRestrictedAction} />
                                 <div className="flex flex-col items-center justify-center pb-6 mx-2 h-full">
-                                    <Knob 
-                                        label="DELAY" 
-                                        value={voiceDelay} 
-                                        min={0} 
-                                        max={10} 
-                                        onChange={setVoiceDelay} 
-                                        color="green" 
-                                        onClickCapture={handleRestrictedAction}
-                                        displaySuffix="s"
-                                        size="md"
-                                    />
+                                    <Knob label="DELAY" value={voiceDelay} min={0} max={10} onChange={setVoiceDelay} color="green" onClickCapture={handleRestrictedAction} displaySuffix="s" size="md" />
                                 </div>
-
-                                <Fader 
-                                    label="MUSIC" 
-                                    value={musicVolume} 
-                                    onChange={setMusicVolume} 
-                                    color="amber" 
-                                    height="h-full max-h-48" 
-                                    disabled={!musicFileName && isPaidUser} 
-                                    muted={isMusicMuted}
-                                    onMuteToggle={() => setIsMusicMuted(!isMusicMuted)}
-                                    onClickCapture={handleRestrictedAction}
-                                />
+                                <Fader label="MUSIC" value={musicVolume} onChange={setMusicVolume} color="amber" height="h-full max-h-48" disabled={!musicFileName && isPaidUser} muted={isMusicMuted} onMuteToggle={() => setIsMusicMuted(!isMusicMuted)} onClickCapture={handleRestrictedAction} />
                              </div>
-                             
-                             {/* Music Library - Push to bottom, Dropdown (DOWNWARDS) */}
                              <div className="mt-auto pt-2 w-full relative z-20" ref={libraryMenuRef}>
-                                <button 
-                                    onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setIsLibraryOpen(!isLibraryOpen); }}
-                                    className="w-full flex items-center justify-between text-[10px] bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:border-slate-500 transition-colors shadow-lg"
-                                >
+                                <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setIsLibraryOpen(!isLibraryOpen); }} className="w-full flex items-center justify-between text-[10px] bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:border-slate-500 transition-colors shadow-lg">
                                     <span className="truncate flex-1 text-left font-bold">{activeMusicTrack ? activeMusicTrack.name : 'Select Music Track...'}</span>
                                     <ChevronDownIcon className={`w-3 h-3 transition-transform ml-2 ${isLibraryOpen ? 'rotate-180' : ''}`} />
                                 </button>
-                                
                                 {isLibraryOpen && (
                                     <div className="absolute top-full left-0 right-0 mt-4 bg-[#0f172a] border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar p-1 animate-fade-in">
                                         {musicLibrary.length > 0 ? (
                                             musicLibrary.map(track => (
-                                                <div 
-                                                    key={track.id} 
-                                                    onClick={() => { setActiveMusicId(track.id); setIsLibraryOpen(false); }} 
-                                                    className={`flex items-center justify-between p-2 cursor-pointer rounded hover:bg-slate-800 transition-colors ${activeMusicId === track.id ? 'bg-slate-800 text-amber-400' : 'text-slate-400'}`}
-                                                >
+                                                <div key={track.id} onClick={() => { setActiveMusicId(track.id); setIsLibraryOpen(false); }} className={`flex items-center justify-between p-2 cursor-pointer rounded hover:bg-slate-800 transition-colors ${activeMusicId === track.id ? 'bg-slate-800 text-amber-400' : 'text-slate-400'}`}>
                                                     <span className="text-[10px] truncate max-w-[150px] font-bold">{track.name}</span>
                                                     <button onClick={(e) => removeTrackFromLibrary(e, track.id)} className="text-slate-600 hover:text-red-500 p-1"><TrashIcon className="w-3 h-3"/></button>
                                                 </div>
                                             ))
-                                        ) : (
-                                            <div className="text-[10px] text-center text-slate-500 py-4 italic">No tracks loaded</div>
-                                        )}
+                                        ) : (<div className="text-[10px] text-center text-slate-500 py-4 italic">No tracks loaded</div>)}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* RIGHT: PRESETS (4 Cols - 2x4 Grid) */}
+                        {/* RIGHT: PRESETS */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                              {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                              <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
@@ -1353,19 +1301,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
                              </div>
                              <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
-                                 <button 
-                                    onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});} }} 
-                                    className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
-                                >
-                                    RESET DEFAULT
-                                </button>
+                                 <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});} }} className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}>RESET DEFAULT</button>
                                 {AUDIO_PRESETS.slice(1).map(p => (
-                                    <button 
-                                        key={p.name} 
-                                        onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName(p.name); setSettings({...p.settings});} }} 
-                                        className={`w-full px-1 py-4 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-[10px] flex items-center justify-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}
-                                        title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
-                                    >
+                                    <button key={p.name} onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName(p.name); setSettings({...p.settings});} }} className={`w-full px-1 py-4 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-[10px] flex items-center justify-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`} title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}>
                                         {p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
                                     </button>
                                 ))}
@@ -1374,7 +1312,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     </div>
 
                     {/* Bottom Knobs */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
                             {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Time Stretch</div>
@@ -1384,6 +1322,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Ambience</div>
                             <Knob label="REVERB" value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} onClickCapture={handleRestrictedAction} />
+                        </div>
+                        {/* NEW ECHO KNOB */}
+                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
+                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Echo</div>
+                            <Knob label="FEEDBACK" value={echo} onChange={setEcho} color="green" onClickCapture={handleRestrictedAction} />
                         </div>
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
                             {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
