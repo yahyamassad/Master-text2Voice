@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 // Fix: Import User type from firebase compat namespace
 import firebase from 'firebase/compat/app';
 import { t, Language } from '../i18n/translations';
-import { TrashIcon, CheckIcon, SparklesIcon, LockIcon, InfoIcon } from './icons';
+import { TrashIcon, CheckIcon, SparklesIcon, LockIcon, InfoIcon, LoaderIcon } from './icons';
 import { UserTier, UserStats } from '../types';
 
 type User = firebase.User;
@@ -50,16 +50,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
     const [secretKeyInput, setSecretKeyInput] = useState('');
     const [isDevMode, setIsDevMode] = useState(false);
     const [uidCopied, setUidCopied] = useState(false);
-
-    // Hardcoded fallback keys + Environment Variable Check
-    const validKeys = [
-        "sawtli-master", 
-        "friend", 
-        "صديق", 
-        "dinner",
-        // The secure way: check Vercel Env Var
-        (import.meta as any).env.VITE_ADMIN_ACCESS_CODE 
-    ].filter(Boolean); // Remove undefined if env var not set
+    const [isVerifying, setIsVerifying] = useState(false);
 
     useEffect(() => {
         // Check if dev mode is active from sessionStorage (handled in parent, but sync here)
@@ -67,27 +58,32 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
         setIsDevMode(key === 'true');
     }, [user]);
 
-    const handleRedeemCode = () => {
-        const input = secretKeyInput.trim(); // Do not lowercase automatically to allow case-sensitive env vars
+    const handleRedeemCode = async () => {
+        if (!secretKeyInput.trim()) return;
         
-        // Check exact match first
-        let isValid = validKeys.includes(input);
-        
-        // If not found, check lowercased versions for the hardcoded friendly codes
-        if (!isValid) {
-             const lowerInput = input.toLowerCase();
-             if (['friend', 'صديق', 'dinner', 'sawtli-master'].includes(lowerInput)) {
-                 isValid = true;
-             }
-        }
-
-        if (isValid) {
-            onSetDevMode(true);
-            setIsDevMode(true);
-            alert(t('keySaved', uiLanguage));
-            setSecretKeyInput('');
-        } else {
-            alert("Invalid Coupon Code");
+        setIsVerifying(true);
+        try {
+            const res = await fetch('/api/verify-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: secretKeyInput })
+            });
+            
+            const data = await res.json();
+            
+            if (data.valid) {
+                onSetDevMode(true);
+                setIsDevMode(true);
+                alert(t('keySaved', uiLanguage));
+                setSecretKeyInput('');
+            } else {
+                alert("Invalid Coupon Code");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Verification error. Please try again.");
+        } finally {
+            setIsVerifying(false);
         }
     };
 
@@ -198,9 +194,14 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                                     onChange={(e) => setSecretKeyInput(e.target.value)}
                                     placeholder="Enter code..."
                                     className="flex-grow p-2 bg-slate-900/50 border border-slate-600 rounded-md focus:ring-1 focus:ring-cyan-500 placeholder-slate-600 text-sm"
+                                    disabled={isVerifying}
                                 />
-                                <button onClick={handleRedeemCode} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-sm transition-colors">
-                                    {uiLanguage === 'ar' ? 'تفعيل' : 'Redeem'}
+                                <button 
+                                    onClick={handleRedeemCode} 
+                                    disabled={isVerifying}
+                                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-sm transition-colors flex items-center justify-center min-w-[80px]"
+                                >
+                                    {isVerifying ? <LoaderIcon className="w-4 h-4" /> : (uiLanguage === 'ar' ? 'تفعيل' : 'Redeem')}
                                 </button>
                             </div>
                         ) : (
