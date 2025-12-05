@@ -1,4 +1,3 @@
-
 // ... existing imports ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
@@ -571,6 +570,18 @@ const App: React.FC = () => {
                   if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
                   audioCacheRef.current.set(cacheKey, pcmData); setLastGeneratedPCM(pcmData);
                   if (userTier !== 'visitor' && userTier !== 'admin') { updateUserStats(textToProcess.length); }
+                  
+                  // --- SAVE TO HISTORY (FIX: Now recording TTS events) ---
+                  if (user) {
+                      import('./services/firestoreService').then(mod => {
+                          mod.addHistoryItem(user.uid, {
+                              sourceText: textToProcess,
+                              translatedText: `[Audio: ${voice}]`, // Marker for TTS entries
+                              sourceLang: 'Text',
+                              targetLang: 'Audio'
+                          });
+                      }).catch(e => console.error("History save error:", e));
+                  }
               }
           } catch (err: any) {
               clearTimeout(warmUpTimer); clearTimeout(clientTimeout);
@@ -803,8 +814,8 @@ const App: React.FC = () => {
   const targetButtonState = getButtonState('target');
 
   const sourceTextArea = (
-        <div className="flex-1 relative group">
-            <div className="flex items-center justify-between mb-3">
+        <div className="flex-1 relative group flex flex-col gap-2">
+            <div className="flex items-center justify-between mb-1">
                 <LanguageSelect value={sourceLang} onChange={setSourceLang} />
                 <div className="flex items-center gap-2">
                      {/* Tashkeel Button - Only for Arabic */}
@@ -839,18 +850,21 @@ const App: React.FC = () => {
                     </button>
                 </div>
             </div>
-            <div className="relative">
+            <div className="relative flex-grow">
                 <textarea ref={sourceTextAreaRef} value={sourceText} onChange={(e) => setSourceText(e.target.value)} placeholder={t('placeholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all resize-none ${isSourceRtl ? 'text-right' : 'text-left'} custom-scrollbar`} dir={isSourceRtl ? 'rtl' : 'ltr'} spellCheck="false" />
                 {sourceText && ( <button onClick={() => {setSourceText(''); setTranslatedText('');}} className="absolute bottom-4 left-4 p-2 bg-slate-800/80 hover:bg-red-900/80 text-slate-500 hover:text-red-400 rounded-lg transition-all border border-slate-700 hover:border-red-500/50" title={uiLanguage === 'ar' ? 'مسح النص' : 'Clear Text'}><TrashIcon className="w-4 h-4" /></button>)}
-                <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-500 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">{sourceText.length} chars</div>
             </div>
-             <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
+            {/* Character Count moved outside */}
+            <div className="flex justify-between items-center px-1">
+                 <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
+                 <div className="text-xs font-bold text-slate-500 bg-slate-900/50 px-3 py-1 rounded-full border border-slate-800">{sourceText.length} chars</div>
+            </div>
         </div>
     );
 
     const translatedTextArea = (
-        <div className="flex-1 relative">
-            <div className="flex items-center justify-between mb-3">
+        <div className="flex-1 relative flex flex-col gap-2">
+            <div className="flex items-center justify-between mb-1">
                 <LanguageSelect value={targetLang} onChange={setTargetLang} />
                 <div className="flex items-center gap-2">
                     <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
@@ -858,9 +872,12 @@ const App: React.FC = () => {
                     </button>
                 </div>
             </div>
-            <div className="relative">
+            <div className="relative flex-grow">
                 <textarea value={translatedText} readOnly placeholder={t('translationPlaceholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`} dir={isTargetRtl ? 'rtl' : 'ltr'} />
-                <div className="absolute bottom-4 right-4 text-xs font-bold text-slate-600 pointer-events-none bg-slate-900/80 px-2 py-1 rounded">{translatedText.length} chars</div>
+            </div>
+            {/* Character Count moved outside */}
+            <div className="flex justify-end px-1">
+                <div className="text-xs font-bold text-slate-600 bg-slate-900/50 px-3 py-1 rounded-full border border-slate-800">{translatedText.length} chars</div>
             </div>
         </div>
     );
@@ -899,7 +916,7 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col items-center justify-center w-1/3">
-                     <SawtliLogoIcon className="w-auto h-16 sm:h-24" />
+                     <SawtliLogoIcon className="w-auto h-20 sm:h-28" />
                 </div>
 
                 <div className="flex justify-end w-1/3">

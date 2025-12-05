@@ -51,8 +51,15 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
     const [isDevMode, setIsDevMode] = useState(false);
     const [uidCopied, setUidCopied] = useState(false);
 
-    // The hardcoded key for the user as per instruction
-    const MASTER_KEY = "sawtli-master";
+    // Hardcoded fallback keys + Environment Variable Check
+    const validKeys = [
+        "sawtli-master", 
+        "friend", 
+        "صديق", 
+        "dinner",
+        // The secure way: check Vercel Env Var
+        (import.meta as any).env.VITE_ADMIN_ACCESS_CODE 
+    ].filter(Boolean); // Remove undefined if env var not set
 
     useEffect(() => {
         // Check if dev mode is active from sessionStorage (handled in parent, but sync here)
@@ -61,9 +68,20 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
     }, [user]);
 
     const handleRedeemCode = () => {
-        const input = secretKeyInput.trim().toLowerCase();
-        // Added 'friend', 'dinner' and 'صديق' as secret keys!
-        if (input === MASTER_KEY || input === 'friend' || input === 'صديق' || input === 'dinner') {
+        const input = secretKeyInput.trim(); // Do not lowercase automatically to allow case-sensitive env vars
+        
+        // Check exact match first
+        let isValid = validKeys.includes(input);
+        
+        // If not found, check lowercased versions for the hardcoded friendly codes
+        if (!isValid) {
+             const lowerInput = input.toLowerCase();
+             if (['friend', 'صديق', 'dinner', 'sawtli-master'].includes(lowerInput)) {
+                 isValid = true;
+             }
+        }
+
+        if (isValid) {
             onSetDevMode(true);
             setIsDevMode(true);
             alert(t('keySaved', uiLanguage));

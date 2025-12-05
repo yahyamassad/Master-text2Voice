@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
 import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon, ChevronDownIcon } from './icons';
@@ -238,6 +236,7 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
 );
 
 export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = true, onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, onUpgrade, userTier = 'visitor' }) => {
+    // ... existing logic ...
     const [activeTab, setActiveTab] = useState<'ai' | 'mic' | 'upload'>('ai');
     const [presetName, setPresetName] = useState<AudioPresetName>('Default');
     const [settings, setSettings] = useState<AudioSettings>(AUDIO_PRESETS[0].settings);
@@ -1071,7 +1070,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         <SawtliLogoIcon className="h-16 sm:h-20 w-auto" />
                     </div>
                     <div className="flex items-center gap-6">
-                        <h2 className="text-2xl sm:text-3xl font-thin tracking-[0.2em] text-slate-200 uppercase hidden sm:block border-r border-slate-700 pr-6 mr-2">Audio Studio</h2>
                         <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
@@ -1080,6 +1078,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-hide w-full">
+                {/* ... existing body content ... */}
                 <div className="max-w-7xl mx-auto space-y-6 pb-10">
 
                     {/* Visualizer & Timeline */}

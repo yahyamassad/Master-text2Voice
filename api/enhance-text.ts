@@ -1,5 +1,6 @@
 
 
+
 import { GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
@@ -36,36 +37,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (type === 'tashkeel') {
             systemInstruction = `You are an expert Arabic Voiceover Linguist. Your task is to apply "Functional Diacritics" (Tashkeel) optimized for natural-sounding Text-to-Speech (TTS).
 
-            !!! THE GOLDEN RULES OF NATURAL SPEECH (WAQF) !!!
+            !!! CRITICAL RULE: PAUSE PRONUNCIATION (WAQF) !!!
             
-            1. **STRICT SILENCE AT ENDS (WAQF):**
-               - ANY word at the end of a sentence, phrase, or followed by punctuation (.,?!،؛) MUST end with a **SUKUN (ْ)**.
-               - NEVER put a vowel (Damma, Kasra, Fatha, Tanween) on the last letter before a pause.
-               - Example: "فِي الْعَصْرِ الْحَدِيثِ" (Wrong/Robotic) -> "فِي الْعَصْرِ الْحَدِيثْ" (Correct/Natural).
+            1. **FORCED SILENCE (SUKUN) AT STOPS:**
+               - Every word at the end of a sentence (.), phrase, or followed by a comma (،) MUST end with a **SUKUN (ْ)**.
+               - **FORBIDDEN:** Do NOT use Damma (ُ), Kasra (ِ), Fatha (َ), or Tanween at the end of a phrase.
+               - Example: "السَّلَامُ عَلَيْكُمْ." -> "السَّلَامُ عَلَيْكُمْ." (Correct, meem usually sakin)
+               - Example: "فِي الْمَدِينَةِ،" -> "فِي الْمَدِينَةْ،" (Ta Marbuta becomes Ha Sakin)
+               - Example: "الْكِتَابُ جَدِيدٌ." -> "الْكِتَابُ جَدِيدْ." (Strict Sukun)
 
-            2. **THE SHADDA EXCEPTION:**
-               - If the last letter has a Shadda (like الرَّقْمِيّ), end it with **SHADDA + SUKUN (ّْ)**. 
-               - NEVER put Kasra under Shadda at the end (e.g., الرَّقْمِيِّ is FORBIDDEN at a pause).
+            2. **SHADDA AT STOPS:**
+               - If a word ends with a Shadda letter (like حُبّ or حَقّ), maintain the Shadda but add Sukun: (ّْ).
+               - Example: "الْحَقُّ" -> "الْحَقّْ"
 
             3. **TA MARBUTA (ة):**
-               - At a pause, pronounce as 'Ha' with Sukun (هْ) or (ةْ). Do NOT put a vowel.
+               - At a stop/comma, pronounce as 'Ha' with Sukun (هْ). 
+               - Do NOT write vowels on ة at the end of a sentence.
 
-            4. **MINIMALIST INTERIOR:**
-               - Only diacritize the ends of words (Grammar/I'rab) and letters crucial for meaning. 
-               - Avoid over-diacritizing every single letter inside long words unless necessary for ambiguity.
+            4. **INTERNAL VOWELS:**
+               - Add full vowels for internal words to ensure correct grammar (I'rab), but keep the last letter of the *utterance* silent (Sukun).
 
             EXAMPLES:
-            - Input: "Sawtli هو الحل الشامل الذي يضع نهاية لهذه التحديات"
-            - Output: "Sawtli هُوَ الْحَلُّ الشَّامِلُ الَّذِي يَضَعُ نِهَايَةً لِهَذِهِ التَّحَدِّيَاتْ" (Notice the Sukun at end)
+            - Input: "أهلا بك في صوتلي. نحن هنا للمساعدة."
+            - Output: "أَهْلًا بِكَ فِي صَوْتْلِي. نَحْنُ هُنَا لِلْمُسَاعَدَةْ." (Note: صَوْتْلِي ends naturally, للمساعدة becomes Ha Sakin)
 
-            - Input: "في عصر المحتوى الرقمي،"
-            - Output: "فِي عَصْرِ الْمُحْتَوَى الرَّقْمِيّْ،" (Shadda + Sukun)
-
-            - Input: "تجارب صوتية نابضة بالحياة"
-            - Output: "تَجَارِبَ صَوْتِيَّةً نَابِضَةً بِالْحَيَاةْ"
-
-            - Input: "نحن نعيد تعريف التواصل."
-            - Output: "نَحْنُ نُعِيدُ تَعْرِيفَ التَّوَاصُلْ."
+            - Input: "في يوم من الأيام، كان هناك رجل حكيم."
+            - Output: "فِي يَوْمٍ مِنَ الْأَيَّامْ، كَانَ هُنَاكَ رَجُلٌ حَكِيمْ." (Note: Ayam and Hakeem end with Sukun)
 
             Output ONLY the diacritized text. No markdown, no explanations.`;
         } else {

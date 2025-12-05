@@ -153,8 +153,6 @@ function PauseIcon({ className }: IconProps) {
     );
 }
 
-// STABILITY FIX: Converted StarIcon to a React.FC to correctly handle the 'key' prop
-// when used in lists, resolving a type error and React warning in Feedback.tsx.
 const StarIcon: React.FC<IconProps> = ({ className }) => {
   return (
   <svg 
@@ -370,13 +368,38 @@ function SawtliLogoIcon({ className }: IconProps) {
     <svg 
         className={className} 
         xmlns="http://www.w3.org/2000/svg" 
-        viewBox="0 0 272.7 85.2" 
+        viewBox="0 0 400 120" 
         fill="none"
     >
-        {/* ... (Previous SVG content remains, just updating the export) ... */}
-        {/* Simplified for brevity in this snippet since no visual changes to logo */}
-        <path fill="#22D3EE" d="M24.1 57.6c-1.1 0-2.3-.1-3.5-.2-1.2-.1-2.5-.3-3.7-.5-1.2-.2-2.2-.3-3.1-.5l.4-4.6c.9.1 1.9.2 3.1.4 1.2.1 2.3.2 3.5.3 1.2.1 2.2.1 3 .1 1.1 0 2-.1 2.6-.4.7-.3 1.2-.7 1.5-1.3.3-.6.5-1.3.5-2.2 0-.7-.1-1.3-.4-1.8-.3-.4-.8-.8-1.6-1.1-.8-.3-1.8-.5-3.2-.8-1.7-.3-3.2-.7-4.4-1.1-1.2-.4-2.2-1-3-1.6-.8-.6-1.3-1.5-1.7-2.5-.4-1-.5-2.2-.5-3.6 0-2.2.4-4 1.2-5.2.8-1.3 2-2.2 3.5-2.7 1.5-.5 3.3-.8 5.4-.8.9 0 2 .1 3.2.1 1.2.1 2.4.2 3.6.4 1.2.1 2.2.3 3 .5l-.3 4.7c-.9-.1-1.8-.2-3-.3-1.1-.1-2.2-.2-3.3-.3-1.1-.1-2-.1-2.8-.1-1.1 0-1.9.1-2.6.3-.7.2-1.2.6-1.6 1.1-.3.5-.5 1.1-.5 1.8 0 .9.2 1.5.5 2 .3.5.9.8 1.7 1.1.8.3 1.9.6 3.3.9 1.7.4 3.1.8 4.3 1.2 1.2.4 2.1.9 2.9 1.5.7.6 1.3 1.4 1.6 2.3.3.9.5 2.1.5 3.5 0 2.3-.4 4.1-1.2 5.5s-2 2.4-3.5 3c-1.6.6-3.4.9-5.5.9z"/>
-        <path fill="#22D3EE" d="M39.2 57.1L46.6 28h10.3l7.4 29.1h-5.9l-1.6-5.9H46.6l-1.5 5.9H39.2zm8.3-10.6h8.4l-3.3-13.7h-1.8l-3.3 13.7zM72.8 57.1L67.9 28h5.9l3.6 23.4h1l4.4-23.1h6.6l4.5 23.1h1L98.3 28h6l-4.9 29.1h-9.3L86 34h.2L82 57.1H72.8zM116.9 57.1V33h-7.8v-5h21.3v5h-7.6v24.1h-5.9zM137 57.1V28h5.9v24.1h11.5v5H137zM161 57.1V28h5.9v29.1H161z"/>
+        {/* Abstract Sound Wave / Frequency Bars - Left Side */}
+        <g transform="translate(10, 20)">
+            <rect x="0" y="25" width="6" height="30" rx="3" fill="#22D3EE" opacity="0.8"/>
+            <rect x="10" y="15" width="6" height="50" rx="3" fill="#3B82F6" opacity="0.9"/>
+            <rect x="20" y="5" width="6" height="70" rx="3" fill="#22D3EE"/>
+            <rect x="30" y="15" width="6" height="50" rx="3" fill="#3B82F6" opacity="0.9"/>
+            <rect x="40" y="25" width="6" height="30" rx="3" fill="#22D3EE" opacity="0.8"/>
+        </g>
+
+        {/* Text Group */}
+        <g transform="translate(60, 0)">
+            {/* Top Text: AUDIO WORK STATION */}
+            <text x="5" y="30" fontFamily="sans-serif" fontSize="12" fontWeight="bold" letterSpacing="0.2em" fill="#94A3B8">AUDIO WORK STATION</text>
+            
+            {/* Main Text: SAWTLI */}
+            <text x="0" y="75" fontFamily="sans-serif" fontSize="48" fontWeight="900" letterSpacing="0.05em" fill="url(#mainGradient)">SAWTLI</text>
+            
+            {/* Bottom Text: Beyond */}
+            <text x="180" y="95" fontFamily="sans-serif" fontSize="14" fontStyle="italic" fontWeight="500" fill="#22D3EE">Beyond</text>
+        </g>
+
+        {/* Gradients */}
+        <defs>
+            <linearGradient id="mainGradient" x1="0" y1="0" x2="200" y2="0" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#FFFFFF" />
+                <stop offset="50%" stopColor="#22D3EE" />
+                <stop offset="100%" stopColor="#3B82F6" />
+            </linearGradient>
+        </defs>
     </svg>
     );
 }
