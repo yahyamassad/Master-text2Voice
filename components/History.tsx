@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { HistoryItem } from '../types';
 import { t, Language, translationLanguages } from '../i18n/translations';
+import { TrashIcon } from './icons';
 
 interface HistoryProps {
     items: HistoryItem[];
     language: Language;
     onClose: () => void;
     onClear: () => void;
+    onDelete?: (id: string) => void;
     onLoad: (item: HistoryItem) => void;
 }
 
@@ -37,7 +39,7 @@ const findLanguageName = (code: string): string => {
     return translationLanguages.find(lang => lang.code === code)?.name || code;
 }
 
-export const History: React.FC<HistoryProps> = ({ items, language, onClose, onClear, onLoad }) => {
+export const History: React.FC<HistoryProps> = ({ items, language, onClose, onClear, onDelete, onLoad }) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredItems = useMemo(() => {
@@ -72,28 +74,41 @@ export const History: React.FC<HistoryProps> = ({ items, language, onClose, onCl
                     <button 
                         onClick={onClear} 
                         disabled={items.length === 0}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-sm"
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-sm whitespace-nowrap"
                     >
                         {t('historyClear', language)}
                     </button>
                 </div>
                 
-                <div className="flex-grow overflow-y-auto pr-2">
+                <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar">
                     {filteredItems.length > 0 ? (
                         <div className="space-y-3">
                             {filteredItems.map(item => (
-                                <button 
+                                <div 
                                     key={item.id} 
-                                    onClick={() => onLoad(item)}
-                                    className="w-full text-left p-4 bg-slate-900/50 hover:bg-slate-700/50 rounded-lg border border-slate-700 transition-colors"
+                                    className="w-full flex items-start gap-2 bg-slate-900/50 hover:bg-slate-700/50 rounded-lg border border-slate-700 transition-colors overflow-hidden"
                                 >
-                                    <div className="flex justify-between items-center text-xs text-cyan-400 mb-2">
-                                        <span>{t('historyItemFrom', language)}: <strong>{findLanguageName(item.sourceLang)}</strong> {t('historyItemTo', language)}: <strong>{findLanguageName(item.targetLang)}</strong></span>
-                                        <span className="text-slate-500">{formatTimestamp(item.timestamp, language)}</span>
-                                    </div>
-                                    <p className="text-slate-300 truncate mb-1">{item.sourceText}</p>
-                                    <p className="text-slate-400 truncate font-light">{item.translatedText}</p>
-                                </button>
+                                    <button 
+                                        onClick={() => onLoad(item)}
+                                        className="flex-grow text-left p-4 focus:outline-none"
+                                    >
+                                        <div className="flex justify-between items-center text-xs text-cyan-400 mb-2">
+                                            <span>{t('historyItemFrom', language)}: <strong>{findLanguageName(item.sourceLang)}</strong> {t('historyItemTo', language)}: <strong>{findLanguageName(item.targetLang)}</strong></span>
+                                            <span className="text-slate-500">{formatTimestamp(item.timestamp, language)}</span>
+                                        </div>
+                                        <p className="text-slate-300 truncate mb-1">{item.sourceText}</p>
+                                        <p className="text-slate-400 truncate font-light">{item.translatedText}</p>
+                                    </button>
+                                    {onDelete && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+                                            className="p-4 h-full text-slate-600 hover:text-red-500 hover:bg-red-900/10 transition-colors flex items-center justify-center border-l border-slate-700"
+                                            title="Delete Item"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
                             ))}
                         </div>
                     ) : (

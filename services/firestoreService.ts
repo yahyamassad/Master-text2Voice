@@ -55,6 +55,16 @@ export async function addHistoryItem(userId: string, item: Omit<HistoryItem, 'id
 }
 
 /**
+ * Deletes a single history item.
+ */
+export async function deleteHistoryItem(userId: string, historyId: string) {
+    const { db } = getFirebase();
+    if (!db) throw new Error("Firestore is not initialized.");
+
+    await db.collection('users').doc(userId).collection('history').doc(historyId).delete();
+}
+
+/**
  * Deletes all documents in a user's history subcollection.
  */
 export async function clearHistoryForUser(userId: string) {

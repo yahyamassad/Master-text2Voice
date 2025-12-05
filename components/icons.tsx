@@ -365,42 +365,152 @@ function VideoCameraIcon({ className }: IconProps) {
 
 function SawtliLogoIcon({ className }: IconProps) {
     return (
-    <svg 
-        className={className} 
-        xmlns="http://www.w3.org/2000/svg" 
-        viewBox="0 0 400 120" 
-        fill="none"
-    >
-        {/* Abstract Sound Wave / Frequency Bars - Left Side */}
-        <g transform="translate(10, 20)">
-            <rect x="0" y="25" width="6" height="30" rx="3" fill="#22D3EE" opacity="0.8"/>
-            <rect x="10" y="15" width="6" height="50" rx="3" fill="#3B82F6" opacity="0.9"/>
-            <rect x="20" y="5" width="6" height="70" rx="3" fill="#22D3EE"/>
-            <rect x="30" y="15" width="6" height="50" rx="3" fill="#3B82F6" opacity="0.9"/>
-            <rect x="40" y="25" width="6" height="30" rx="3" fill="#22D3EE" opacity="0.8"/>
-        </g>
-
-        {/* Text Group */}
-        <g transform="translate(60, 0)">
-            {/* Top Text: AUDIO WORK STATION */}
-            <text x="5" y="30" fontFamily="sans-serif" fontSize="12" fontWeight="bold" letterSpacing="0.2em" fill="#94A3B8">AUDIO WORK STATION</text>
-            
-            {/* Main Text: SAWTLI */}
-            <text x="0" y="75" fontFamily="sans-serif" fontSize="48" fontWeight="900" letterSpacing="0.05em" fill="url(#mainGradient)">SAWTLI</text>
-            
-            {/* Bottom Text: Beyond */}
-            <text x="180" y="95" fontFamily="sans-serif" fontSize="14" fontStyle="italic" fontWeight="500" fill="#22D3EE">Beyond</text>
-        </g>
-
-        {/* Gradients */}
-        <defs>
-            <linearGradient id="mainGradient" x1="0" y1="0" x2="200" y2="0" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#FFFFFF" />
-                <stop offset="50%" stopColor="#22D3EE" />
-                <stop offset="100%" stopColor="#3B82F6" />
-            </linearGradient>
-        </defs>
-    </svg>
+        <svg 
+            version="1.1" 
+            xmlns="http://www.w3.org/2000/svg" 
+            xmlnsXlink="http://www.w3.org/1999/xlink" 
+            x="0px" 
+            y="0px"
+            viewBox="0 0 272.7 85.2" 
+            xmlSpace="preserve"
+            className={className}
+        >
+            <defs>
+                <linearGradient id="sawtli_grad_1" gradientUnits="userSpaceOnUse" x1="216" y1="39.3621" x2="216" y2="56.172" gradientTransform="matrix(1 0 0 -1 0 85.2756)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_2" gradientUnits="userSpaceOnUse" x1="220.8" y1="39.5866" x2="220.8" y2="42.9506" gradientTransform="matrix(1 0 0 -1 0 85.2756)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_3" gradientUnits="userSpaceOnUse" x1="225.5699" y1="39.8054" x2="225.5699" y2="43.1694" gradientTransform="matrix(1 0 0 -1 0 85.2756)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_4" gradientUnits="userSpaceOnUse" x1="230.4" y1="25.6527" x2="230.4" y2="42.8008" gradientTransform="matrix(1 0 0 -1 0 85.2756)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_5" gradientUnits="userSpaceOnUse" x1="220.6021" y1="26.1666" x2="220.6021" y2="29.5306" gradientTransform="matrix(-1 0 0 1 446.2001 29.5244)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_6" gradientUnits="userSpaceOnUse" x1="225.4001" y1="26.1666" x2="225.4001" y2="29.5306" gradientTransform="matrix(-1 0 0 1 446.2001 29.5244)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_7" gradientUnits="userSpaceOnUse" x1="229.1558" y1="31.1011" x2="229.1558" y2="31.1744" gradientTransform="matrix(-1 0 0 1 446.2001 29.5244)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_8" gradientUnits="userSpaceOnUse" x1="230.2001" y1="26.2669" x2="230.2001" y2="29.583" gradientTransform="matrix(-1 0 0 1 446.2001 29.5244)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_9" gradientUnits="userSpaceOnUse" x1="215.8" y1="26.1666" x2="215.8" y2="29.5306" gradientTransform="matrix(-1 0 0 1 446.2001 29.5244)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_10" gradientUnits="userSpaceOnUse" x1="216.8309" y1="9.7749" x2="216.8309" y2="13.1389" gradientTransform="matrix(1 0 0 -1 3.9439 41.9922)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_11" gradientUnits="userSpaceOnUse" x1="221.6239" y1="9.7749" x2="221.6239" y2="13.1389" gradientTransform="matrix(1 0 0 -1 3.9439 41.9922)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_12" gradientUnits="userSpaceOnUse" x1="226.4512" y1="9.8751" x2="226.4512" y2="13.1913" gradientTransform="matrix(1 0 0 -1 3.9439 41.9922)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+                <linearGradient id="sawtli_grad_13" gradientUnits="userSpaceOnUse" x1="212.0082" y1="9.7749" x2="212.0082" y2="13.1389" gradientTransform="matrix(1 0 0 -1 3.9439 41.9922)">
+                    <stop offset="0" style={{stopColor: '#308ECD'}}/>
+                    <stop offset="1" style={{stopColor: '#6ACBDF'}}/>
+                    <stop offset="1" style={{stopColor: '#58B847'}}/>
+                </linearGradient>
+            </defs>
+            <path fill="#00ADEE" d="M216,59.2L216,59.2c-0.9,0-1.6-0.7-1.6-1.6V30.4c0-0.9,0.7-1.6,1.6-1.6h0.1c0.9,0,1.6,0.7,1.6,1.6v27.2 C217.6,58.5,216.9,59.2,216,59.2z"/>
+            <path fill="#00ADEE" d="M220.8,59.2L220.8,59.2c-0.9,0-1.6-0.7-1.6-1.6V30.4c0-0.9,0.7-1.6,1.6-1.6h0.1c0.9,0,1.6,0.7,1.6,1.6v27.2 C222.4,58.5,221.7,59.2,220.8,59.2z"/>
+            <path fill="#00ADEE" d="M225.6,59.2L225.6,59.2c-0.9,0-1.6-0.7-1.6-1.6V30.4c0-0.9,0.7-1.6,1.6-1.6h0.1c0.9,0,1.6,0.7,1.6,1.6v27.2 C227.2,58.5,226.5,59.2,225.6,59.2z"/>
+            <path fill="#00ADEE" d="M230.4,59.2L230.4,59.2c-0.9,0-1.6-0.7-1.6-1.6V30.4c0-0.9,0.7-1.6,1.6-1.6h0.1c0.9,0,1.6,0.7,1.6,1.6v27.2 C232,58.5,231.3,59.2,230.4,59.2z"/>
+            <g>
+                <path fill="#00ADEE" d="M209.6,28.7c-0.9,0-1.7,0.8-1.7,1.7v27c0,0.9,0.8,1.7,1.7,1.7s1.7-0.8,1.7-1.7v-27 C211.3,29.4,210.6,28.7,209.6,28.7z"/>
+                <path fill="#00ADEE" d="M202.9,25.3c-0.9,0-1.7,0.8-1.7,1.7v33.7c0,0.9,0.8,1.7,1.7,1.7s1.7-0.8,1.7-1.7V27 C204.6,26,203.8,25.3,202.9,25.3z"/>
+                <path fill="#00ADEE" d="M196.1,28.7c-0.9,0-1.7,0.8-1.7,1.7v27c0,0.9,0.8,1.7,1.7,1.7s1.7-0.8,1.7-1.7v-27 C197.8,29.4,197.1,28.7,196.1,28.7z"/>
+                <path fill="#00ADEE" d="M189.4,32c-0.9,0-1.7,0.8-1.7,1.7V54c0,0.9,0.8,1.7,1.7,1.7s1.7-0.8,1.7-1.7V33.7 C191.1,32.8,190.3,32,189.4,32z"/>
+                <path fill="#00ADEE" d="M182.6,38.8c-0.9,0-1.7,0.8-1.7,1.7v6.7c0,0.9,0.8,1.7,1.7,1.7s1.7-0.8,1.7-1.7v-6.7 C184.3,39.5,183.6,38.8,182.6,38.8z"/>
+                <g>
+                    <path fill="#00ADEE" d="M207.9,30.4v27c0,0.9,0.8,1.7,1.7,1.7c0.1,0,0.3,0,0.4,0c0.4-0.3,0.6-0.8,0.6-1.3v-27c0-0.9-0.8-1.7-1.7-1.7 c-0.1,0-0.3,0-0.4,0C208.2,29.4,207.9,29.8,207.9,30.4z"/>
+                    <path fill="#00ADEE" d="M201.2,27v33.7c0,0.9,0.8,1.7,1.7,1.7c0.1,0,0.3,0,0.4,0c0.4-0.3,0.6-0.8,0.6-1.3V27.3c0-0.9-0.8-1.7-1.7-1.7 c-0.1,0-0.3,0-0.4,0C201.4,26,201.2,26.5,201.2,27z"/>
+                    <path fill="#00ADEE" d="M194.4,30.4v27c0,0.9,0.8,1.7,1.7,1.7c0.1,0,0.3,0,0.4,0c0.4-0.3,0.6-0.8,0.6-1.3v-27c0-0.9-0.8-1.7-1.7-1.7 c-0.1,0-0.3,0-0.4,0C194.7,29.4,194.4,29.8,194.4,30.4z"/>
+                    <path fill="#00ADEE" d="M187.7,33.7V54c0,0.9,0.8,1.7,1.7,1.7c0.1,0,0.3,0,0.4,0c0.4-0.3,0.6-0.8,0.6-1.3V34.1c0-0.9-0.8-1.7-1.7-1.7 c-0.1,0-0.3,0-0.4,0C187.9,32.7,187.7,33.2,187.7,33.7z"/>
+                    <path fill="#00ADEE" d="M180.9,40.5v6.7c0,0.9,0.8,1.7,1.7,1.7c0.1,0,0.3,0,0.4,0c0.4-0.3,0.6-0.8,0.6-1.3v-6.7 c0-0.9-0.8-1.7-1.7-1.7c-0.1,0-0.3,0-0.4,0C181.2,39.5,180.9,39.9,180.9,40.5z"/>
+                </g>
+            </g>
+            <g>
+                <g>
+                    <path fill="#00ADEE" d="M244.7,25.8c0-0.1-0.1-0.1-0.1-0.2c0,0,0,0-0.1,0c-0.3-0.2-0.6-0.3-0.9-0.3c-1,0-1.7,0.7-1.7,1.7v33.7 c0,0.7,0.5,1.3,1.1,1.6c0,0,0.1,0.1,0.1,0.1c0.1,0,0.3,0,0.4,0c0,0,0,0,0.1,0c0,0,0,0,0,0c0.9,0,1.7-0.8,1.7-1.7V27 C245.3,26.5,245.1,26.1,244.7,25.8z"/>
+                    <path fill="#00ADEE" d="M257.1,32c-1,0-1.7,0.8-1.7,1.7V54c0,0.7,0.5,1.3,1.1,1.6c0,0,0.1,0.1,0.1,0.1c0.1,0,0.3,0,0.4,0 c0,0,0,0,0.1,0c0,0,0,0,0,0c0.9,0,1.7-0.8,1.7-1.7V33.7C258.8,32.8,258,32,257.1,32z"/>
+                    <path fill="#00ADEE" d="M265.5,40.1c0-0.1,0-0.2-0.1-0.2c0,0,0,0,0-0.1c-0.1-0.3-0.3-0.5-0.5-0.6c0,0,0,0,0,0 c-0.3-0.2-0.7-0.4-1.1-0.4c-0.9,0-1.7,0.7-1.7,1.7v6.7c0,0.7,0.5,1.4,1.2,1.6c0,0,0.1,0.1,0.1,0.1c0.1,0,0.3,0,0.4,0 c0.9,0,1.7-0.8,1.7-1.7v-6.7C265.5,40.4,265.5,40.3,265.5,40.1z"/>
+                    <path fill="#00ADEE" d="M237.9,29.1C237.9,29.1,237.9,29.1,237.9,29.1c-0.3-0.2-0.7-0.4-1.1-0.4c-0.9,0-1.7,0.7-1.7,1.7v27 c0,0.7,0.5,1.4,1.2,1.6c0,0,0.1,0.1,0.1,0.1c0.1,0,0.3,0,0.4,0c0.9,0,1.7-0.8,1.7-1.7v-27C238.5,29.8,238.3,29.4,237.9,29.1z"/>
+                    <path fill="#00ADEE" d="M251.4,29.1C251.4,29.1,251.4,29.1,251.4,29.1c-0.3-0.2-0.7-0.4-1.1-0.4c-0.9,0-1.7,0.7-1.7,1.7v27 c0,0.7,0.5,1.4,1.2,1.6c0,0,0.1,0.1,0.1,0.1c0.1,0,0.3,0,0.4,0c0.9,0,1.7-0.8,1.7-1.7v-27C252,29.8,251.8,29.4,251.4,29.1z"/>
+                </g>
+            </g>
+            <path fill="url(#sawtli_grad_1)" d="M217.1,29.1c0.4,0.3,0.6,0.8,0.6,1.3v15.2H216c-0.4,0-0.7-0.1-1-0.3c-0.4-0.3-0.7-0.8-0.7-1.4V30.4 c0-0.2,0-0.3,0.1-0.5c0-0.1,0.1-0.2,0.1-0.3c0.1-0.1,0.1-0.2,0.2-0.3c0.3-0.4,0.8-0.6,1.3-0.6C216.5,28.7,216.8,28.8,217.1,29.1z"/>
+            <rect x="219.2" y="42.3" fill="url(#sawtli_grad_2)" width="3.2" height="3.4"/>
+            <rect x="223.9" y="42.1" fill="url(#sawtli_grad_3)" width="3.3" height="3.4"/>
+            <path fill="url(#sawtli_grad_4)" d="M232,43.7v13.8c0,0.9-0.8,1.7-1.6,1.7 c-0.1,0-0.3,0-0.4-0.1c-0.7-0.2-1.2-0.8-1.2-1.6V42.1h1.6C231.3,42.1,232,42.8,232,43.7z"/>
+            <path fill="url(#sawtli_grad_5)" d="M224.6,58.7c-0.4-0.3-0.6-0.8-0.6-1.3v-1.6 h3.2v1.7c0,0.9-0.8,1.7-1.6,1.7C225.2,59.1,224.8,59,224.6,58.7z"/>
+            <path fill="url(#sawtli_grad_6)" d="M219.8,58.7c-0.4-0.3-0.6-0.8-0.6-1.3v-1.6 h3.2v1.7c0,0.9-0.8,1.7-1.6,1.7C220.4,59.1,220,59,219.8,58.7z"/>
+            <path fill="url(#sawtli_grad_7)" d="M217,60.7C217,60.7,217,60.7,217,60.7"/>
+            <path fill="url(#sawtli_grad_8)" d="M216,59.2c0.8,0,1.6-0.8,1.6-1.7v-1.7 c0,0-1.6,0-1.6,0c-0.7,0-1.3,0.5-1.5,1.2c-0.1,0.4-0.1,0.8,0,1.2c0.1,0.3,0.2,0.5,0.4,0.7c0.3,0.2,0.5,0.3,0.9,0.3"/>
+            <path fill="url(#sawtli_grad_9)" d="M229.4,58.7c-0.4-0.3-0.6-0.8-0.6-1.3v-1.6 h3.2v1.7c0,0.9-0.8,1.7-1.6,1.7C229.9,59.1,229.6,59,229.4,58.7z"/>
+            <g>
+                <g>
+                    <path fill="#FFFFFF" d="M24.1,57.6c-1.1,0-2.3-0.1-3.5-0.2s-2.5-0.3-3.7-0.5s-2.2-0.3-3.1-0.5l0.4-4.6c0.9,0.1,1.9,0.2,3.1,0.4 c1.2,0.1,2.3,0.2,3.5,0.3s2.2,0.1,3,0.1c1.1,0,2-0.1,2.6-0.4c0.7-0.3,1.2-0.7,1.5-1.3s0.5-1.3,0.5-2.2c0-0.7-0.1-1.3-0.4-1.8 c-0.3-0.4-0.8-0.8-1.6-1.1c-0.8-0.3-1.8-0.5-3.2-0.8c-1.7-0.3-3.2-0.7-4.4-1.1c-1.2-0.4-2.2-1-3-1.6c-0.8-0.6-1.3-1.5-1.7-2.5 s-0.5-2.2-0.5-3.6c0-2.2,0.4-4,1.2-5.2c0.8-1.3,2-2.2,3.5-2.7s3.3-0.8,5.4-0.8c0.9,0,2,0.1,3.2,0.1c1.2,0.1,2.4,0.2,3.6,0.4 c1.2,0.1,2.2,0.3,3,0.5l-0.3,4.7c-0.9-0.1-1.8-0.2-3-0.3c-1.1-0.1-2.2-0.2-3.3-0.3c-1.1-0.1-2-0.1-2.8-0.1c-1.1,0-1.9,0.1-2.6,0.3 s-1.2,0.6-1.6,1.1c-0.3,0.5-0.5,1.1-0.5,1.8c0,0.9,0.2,1.5,0.5,2s0.9,0.8,1.7,1.1c0.8,0.3,1.9,0.6,3.3,0.9 c1.7,0.4,3.1,0.8,4.3,1.2c1.2,0.4,2.1,0.9,2.9,1.5c0.7,0.6,1.3,1.4,1.6,2.3c0.3,0.9,0.5,2.1,0.5,3.5c0,2.3-0.4,4.1-1.2,5.5 s-2,2.4-3.5,3C28,57.3,26.2,57.6,24.1,57.6z"/>
+                    <path fill="#00ADEE" d="M39.2,57.1L46.6,28h10.3l7.4,29.1h-5.9l-1.6-5.9H46.6l-1.5,5.9H39.2z M47.5,46.5h8.4l-3.3-13.7h-1.8 L47.5,46.5z"/>
+                    <path fill="#00ADEE" d="M72.8,57.1L67.9,28h5.9l3.6,23.4h1l4.4-23.1h6.6l4.5,23.1h1L98.3,28h6l-4.9,29.1h-9.3L86,34h0.2L82,57.1H72.8 z"/>
+                    <path fill="#00ADEE" d="M116.9,57.1V33h-7.8v-5h21.3v5h-7.6v24.1H116.9z"/>
+                    <path fill="#00ADEE" d="M137,57.1V28h5.9v24.1h11.5v5H137z"/>
+                    <path fill="#00ADEE" d="M161,57.1V28h5.9v29.1H161z"/>
+                </g>
+            </g>
+            <g>
+                <path fill="#FFFFFF" d="M17.7,17.1l-1.2,3.6H15l3.9-11.5h1.8l3.9,11.5H23l-1.2-3.6H17.7z M21.5,15.9l-1.1-3.3 c-0.3-0.7-0.4-1.4-0.6-2.1l0,0c-0.2,0.7-0.4,1.4-0.6,2.1L18,15.9H21.5z"/>
+                <path fill="#FFFFFF" d="M27.3,9.2V16c0,2.6,1.1,3.7,2.7,3.7c1.7,0,2.8-1.1,2.8-3.7V9.2h1.5v6.7c0,3.5-1.9,5-4.3,5 c-2.3,0-4.1-1.3-4.1-4.9V9.2H27.3z"/>
+                <path fill="#FFFFFF" d="M36.8,9.4c0.9-0.1,2-0.2,3.2-0.2c2.1,0,3.6,0.5,4.6,1.4s1.6,2.3,1.6,4.1c0,1.9-0.6,3.4-1.7,4.5 c-1.1,1.1-2.8,1.7-5.1,1.7c-1.1,0-1.9-0.1-2.7-0.1V9.4H36.8z M38.3,19.5c0.4,0.1,0.9,0.1,1.5,0.1c3.2,0,4.9-1.8,4.9-4.9 c0-2.7-1.5-4.4-4.6-4.4c-0.8,0-1.3,0.1-1.7,0.2v9H38.3z"/>
+                <path fill="#FFFFFF" d="M49.7,9.2v11.5h-1.5V9.2H49.7z"/>
+                <path fill="#FFFFFF" d="M62.1,14.8c0,4-2.4,6-5.3,6c-3,0-5.2-2.4-5.2-5.8c0-3.6,2.3-6,5.3-6C60,9,62.1,11.4,62.1,14.8z M53.1,15 c0,2.5,1.3,4.6,3.7,4.6s3.7-2.2,3.7-4.8c0-2.3-1.2-4.7-3.7-4.7C54.4,10.2,53.1,12.5,53.1,15z"/>
+                <path fill="#FFFFFF" d="M68.8,20.7L65.9,9.2h1.6l1.4,5.8c0.3,1.4,0.6,2.9,0.9,4l0,0c0.2-1.1,0.5-2.5,0.9-4l1.5-5.8h1.5l1.4,5.8 c0.3,1.4,0.6,2.7,0.8,3.9l0,0c0.2-1.3,0.6-2.5,0.9-4l1.5-5.8h1.5l-3.3,11.5H75l-1.4-6c-0.4-1.5-0.6-2.6-0.7-3.7l0,0 c-0.2,1.1-0.5,2.3-0.9,3.7l-1.6,6h-1.6V20.7z"/>
+                <path fill="#FFFFFF" d="M91.2,14.8c0,4-2.4,6-5.3,6c-3,0-5.2-2.4-5.2-5.8c0-3.6,2.3-6,5.3-6C89.2,9,91.2,11.4,91.2,14.8z M82.3,15 c0,2.5,1.3,4.6,3.7,4.6c2.4,0,3.7-2.2,3.7-4.8c0-2.3-1.2-4.7-3.7-4.7C83.5,10.2,82.3,12.5,82.3,15z"/>
+                <path fill="#FFFFFF" d="M93.1,9.4c0.7-0.2,1.8-0.2,2.8-0.2c1.6,0,2.6,0.3,3.3,0.9c0.6,0.5,0.9,1.3,0.9,2.2c0,1.5-1,2.5-2.2,2.9v0.1 c0.9,0.3,1.4,1.1,1.7,2.3c0.4,1.6,0.6,2.7,0.9,3.2H99c-0.2-0.3-0.4-1.3-0.8-2.7c-0.3-1.6-1-2.2-2.3-2.2h-1.4v5H93L93.1,9.4 L93.1,9.4z M94.6,14.6h1.5c1.6,0,2.6-0.9,2.6-2.2c0-1.5-1.1-2.1-2.6-2.1c-0.7,0-1.2,0.1-1.5,0.1V14.6z"/>
+                <path fill="#FFFFFF" d="M102.3,9.2h1.5v5.5h0.1c0.3-0.4,0.6-0.9,0.9-1.2l3.5-4.3h1.8l-4.2,4.9l4.5,6.6h-1.8l-3.8-5.6l-1.1,1.3v4.4 h-1.5L102.3,9.2L102.3,9.2z"/>
+                <path fill="#FFFFFF" d="M111.3,18.9c0.7,0.4,1.6,0.7,2.7,0.7c1.5,0,2.4-0.8,2.4-2c0-1.1-0.6-1.7-2.2-2.3c-1.9-0.7-3-1.6-3-3.3 c0-1.8,1.5-3.1,3.7-3.1c1.2,0,2,0.3,2.5,0.6l-0.4,1.2c-0.4-0.2-1.1-0.5-2.2-0.5c-1.6,0-2.2,0.9-2.2,1.7c0,1.1,0.7,1.6,2.3,2.2 c1.9,0.7,2.9,1.7,2.9,3.4c0,1.8-1.3,3.3-4,3.3c-1.1,0-2.3-0.3-2.9-0.7L111.3,18.9z"/>
+                <path fill="#FFFFFF" d="M122.1,10.5h-3.5V9.2h8.5v1.3h-3.5v10.2h-1.5V10.5z"/>
+                <path fill="#FFFFFF" d="M128.9,17.1l-1.2,3.6h-1.5l3.9-11.5h1.8l3.9,11.5h-1.6l-1.2-3.6H128.9z M132.7,15.9l-1.1-3.3 c-0.3-0.7-0.4-1.4-0.6-2.1l0,0c-0.2,0.7-0.4,1.4-0.6,2.1l-1.1,3.3C129.3,15.9,132.7,15.9,132.7,15.9z"/>
+                <path fill="#FFFFFF" d="M138.4,10.5h-3.5V9.2h8.5v1.3h-3.5v10.2h-1.5V10.5z"/>
+                <path fill="#FFFFFF" d="M146.1,9.2v11.5h-1.5V9.2H146.1z"/>
+                <path fill="#FFFFFF" d="M158.5,14.8c0,4-2.4,6-5.3,6c-3,0-5.2-2.4-5.2-5.8c0-3.6,2.3-6,5.3-6C156.5,9,158.5,11.4,158.5,14.8z M149.6,15c0,2.5,1.3,4.6,3.7,4.6s3.7-2.2,3.7-4.8c0-2.3-1.2-4.7-3.7-4.7C150.8,10.2,149.6,12.5,149.6,15z"/>
+                <path fill="#FFFFFF" d="M160.5,20.7V9.2h1.6l3.7,5.8c0.9,1.3,1.5,2.6,2.1,3.7l0,0c-0.1-1.5-0.2-2.9-0.2-4.7V9.2h1.4v11.5h-1.5 l-3.6-5.8c-0.8-1.3-1.6-2.6-2.1-3.8h-0.1c0.1,1.4,0.1,2.8,0.1,4.7v4.9H160.5z"/>
+            </g>
+            <path fill="url(#sawtli_grad_10)" d="M221.8,29.2c0.4,0.3,0.6,0.8,0.6,1.3v1.6 l-3.2,0v-1.7c0-0.9,0.7-1.7,1.6-1.7C221.1,28.8,221.5,28.9,221.8,29.2z"/>
+            <path fill="url(#sawtli_grad_11)" d="M226.6,29.2c0.4,0.3,0.6,0.8,0.6,1.3v1.6 H224v-1.7c0-0.9,0.8-1.7,1.6-1.7C225.9,28.8,226.3,28.9,226.6,29.2z"/>
+            <path fill="url(#sawtli_grad_12)" d="M230.4,28.7c-0.8,0-1.7,0.8-1.7,1.7v1.7 c0,0,1.6,0,1.6,0c0.7,0,1.3-0.5,1.5-1.2c0.1-0.4,0.1-0.8,0-1.2c-0.1-0.3-0.2-0.5-0.4-0.7c-0.3-0.2-0.5-0.3-0.9-0.3"/>
+            <path fill="url(#sawtli_grad_13)" d="M217,29.2c0.4,0.3,0.6,0.8,0.6,1.3v1.6 h-3.3v-1.7c0-0.9,0.8-1.7,1.7-1.7C216.4,28.8,216.7,28.9,217,29.2z"/>
+        </svg>
     );
 }
 
@@ -477,7 +587,7 @@ function SparklesIcon({ className }: IconProps) {
       viewBox="0 0 20 20" 
       fill="currentColor"
     >
-      <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 9a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zm7-9a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0V6h-3a1 1 0 110-2h3V3a1 1 0 011-1z" clipRule="evenodd" />
+      <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 9a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zm7-9a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0V6h-3a1 1 0 11-2 0V6h-3a1 1 0 110-2h3V3a1 1 0 011-1z" clipRule="evenodd" />
     </svg>
   );
 }

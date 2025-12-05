@@ -45,6 +45,7 @@ const QuotaProgressBar: React.FC<{ label: string, used: number, total: number, c
 };
 
 const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, onSignOut, onClearHistory, onDeleteAccount, currentTier, userStats, limits, onUpgrade, onSetDevMode, onOpenOwnerGuide }) => {
+    // Safety check: if user is null (logged out while modal open), close or return null
     if (!user) return null;
 
     const [secretKeyInput, setSecretKeyInput] = useState('');
@@ -69,6 +70,8 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                 body: JSON.stringify({ code: secretKeyInput })
             });
             
+            if (!res.ok) throw new Error('Verification request failed');
+
             const data = await res.json();
             
             if (data.valid) {
@@ -81,7 +84,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
             }
         } catch (e) {
             console.error(e);
-            alert("Verification error. Please try again.");
+            alert("Verification connection error. Please try again.");
         } finally {
             setIsVerifying(false);
         }
@@ -100,11 +103,23 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
         setTimeout(() => setUidCopied(false), 2000);
     };
 
-    const creationDate = user.metadata.creationTime
-        ? new Date(user.metadata.creationTime).toLocaleDateString(uiLanguage, { year: 'numeric', month: 'long', day: 'numeric' })
-        : 'N/A';
+    // Safe date formatting to prevent crashes
+    const getCreationDate = () => {
+        try {
+            if (user?.metadata?.creationTime) {
+                return new Date(user.metadata.creationTime).toLocaleDateString(uiLanguage, { year: 'numeric', month: 'long', day: 'numeric' });
+            }
+        } catch (e) {
+            console.error("Date error", e);
+        }
+        return 'N/A';
+    };
+
+    const creationDate = getCreationDate();
     
-    const effectiveTotalLimit = limits.totalTrialLimit + (userStats.bonusChars || 0);
+    // Safe limits access
+    const safeTotalLimit = (limits?.totalTrialLimit || 0) + (userStats?.bonusChars || 0);
+    const safeDailyLimit = limits?.dailyLimit || 0;
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
@@ -124,7 +139,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                          {currentTier === 'admin' && <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-bl">ADMIN</div>}
                         <img src={user.photoURL || undefined} alt={user.displayName || 'User'} className="w-16 h-16 rounded-full border-2 border-cyan-500" />
                         <div>
-                            <p className="text-lg font-bold text-white flex items-center gap-2">{user.displayName}</p>
+                            <p className="text-lg font-bold text-white flex items-center gap-2">{user.displayName || 'User'}</p>
                             <p className="text-sm text-slate-400">{user.email}</p>
                             <p className="text-xs text-slate-500 mt-1">{t('joinedDate', uiLanguage)}: {creationDate}</p>
                         </div>
@@ -135,15 +150,15 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                          <div className="flex justify-between items-center mb-4">
                              <span className="text-slate-400 text-sm">Current Plan</span>
                              <span className={`font-bold ${currentTier === 'gold' ? 'text-amber-400' : (currentTier === 'platinum' ? 'text-cyan-400' : (currentTier === 'admin' ? 'text-red-500' : 'text-white'))}`}>
-                                 {currentTier.toUpperCase()}
+                                 {currentTier ? currentTier.toUpperCase() : 'FREE'}
                              </span>
                          </div>
 
                          {/* Usage Stats for Free/Visitor */}
                          {(currentTier === 'free' || currentTier === 'visitor') && (
                              <div className="mb-4 pt-2 border-t border-slate-800">
-                                 <QuotaProgressBar label={t('dailyUsageLabel', uiLanguage)} used={userStats.dailyCharsUsed} total={limits.dailyLimit} color="cyan" />
-                                 <QuotaProgressBar label={t('trialUsageLabel', uiLanguage)} used={userStats.totalCharsUsed} total={effectiveTotalLimit} color="amber" />
+                                 <QuotaProgressBar label={t('dailyUsageLabel', uiLanguage)} used={userStats?.dailyCharsUsed || 0} total={safeDailyLimit} color="cyan" />
+                                 <QuotaProgressBar label={t('trialUsageLabel', uiLanguage)} used={userStats?.totalCharsUsed || 0} total={safeTotalLimit} color="amber" />
                              </div>
                          )}
 

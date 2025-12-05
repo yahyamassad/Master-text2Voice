@@ -1,4 +1,4 @@
-// ... existing imports ...
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
@@ -13,7 +13,7 @@ import firebase, { getFirebase } from './firebaseConfig';
 
 type User = firebase.User;
 
-import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument, addToWaitlist } from './services/firestoreService';
+import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument, addToWaitlist, deleteHistoryItem } from './services/firestoreService';
 import { AudioStudioModal } from './components/AudioStudioModal'; 
 import SettingsModal from './components/SettingsModal';
 import TutorialModal from './components/TutorialModal';
@@ -26,7 +26,6 @@ const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
 const ReportModal = lazy(() => import('./components/ReportModal'));
 
-// ... existing soundEffects array ...
 const soundEffects = [
     { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
     { emoji: '🤣', tag: '[laughter]', labelKey: 'addLaughter' },
@@ -61,7 +60,6 @@ const getInitialLanguage = (): Language => {
     return 'en'; // Default to English
 };
 
-// ... existing Toast & Quota components ...
 // --- TOAST NOTIFICATION SYSTEM ---
 interface ToastMsg {
     id: number;
@@ -118,10 +116,6 @@ const QuotaIndicator: React.FC<{
     const dailyPercent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
     const isDailyLimitReached = dailyUsed >= dailyLimit;
 
-    let barColor = 'bg-cyan-500';
-    if (dailyPercent > 80) barColor = 'bg-amber-500';
-    if (dailyPercent >= 100) barColor = 'bg-red-500';
-
     return (
         <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
             <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isDailyLimitReached ? 'bg-red-500' : 'bg-cyan-500'}`} 
@@ -145,21 +139,67 @@ const QuotaIndicator: React.FC<{
     );
 };
 
+// UI Helpers
+const ActionButton: React.FC<{ icon: React.ReactNode, onClick: () => void, label: string, disabled?: boolean, className?: string }> = ({ icon, onClick, label, disabled, className }) => (
+    <button onClick={onClick} disabled={disabled} className={`flex items-center justify-center gap-2 p-3 rounded-xl font-bold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md ${className}`}>
+        {icon}
+        <span>{label}</span>
+    </button>
+);
+
+const ActionCard: React.FC<{ icon: React.ReactNode, label: string, onClick: () => void, disabled?: boolean, highlight?: boolean }> = ({ icon, label, onClick, disabled, highlight }) => (
+    <button 
+        onClick={onClick} 
+        disabled={disabled}
+        className={`flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all active:scale-95 h-32 ${highlight ? 'bg-slate-800 border-cyan-500/50 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : 'bg-slate-800/50 border-slate-700 hover:bg-slate-700 hover:border-slate-500'} ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
+    >
+        {icon}
+        <span className="text-xs font-bold text-slate-300 text-center uppercase tracking-wide">{label}</span>
+    </button>
+);
+
+const DownloadModal: React.FC<{ onClose: () => void, onDownload: (format: 'mp3' | 'wav') => void, uiLanguage: Language, isLoading: boolean, onCancel: () => void, allowWav: boolean, onUpgrade: () => void }> = ({ onClose, onDownload, uiLanguage, isLoading, onCancel, allowWav, onUpgrade }) => {
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 animate-fade-in-down" onClick={onClose}>
+            <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                <h3 className="text-xl font-bold text-white mb-4">{t('downloadPanelTitle', uiLanguage)}</h3>
+                
+                {isLoading ? (
+                    <div className="flex flex-col items-center gap-4 py-8">
+                        <LoaderIcon className="w-10 h-10 text-cyan-400" />
+                        <p className="text-slate-300">{t('encoding', uiLanguage)}</p>
+                        <button onClick={onCancel} className="text-red-400 text-sm hover:underline">{t('closeButton', uiLanguage)}</button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        <button onClick={() => onDownload('mp3')} className="w-full py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-bold text-white flex items-center justify-between px-4 transition-colors group">
+                            <span>MP3</span>
+                            <span className="text-xs text-slate-400 group-hover:text-white">Standard</span>
+                        </button>
+                        <button onClick={() => { if(allowWav) onDownload('wav'); else onUpgrade(); }} className={`w-full py-3 rounded-lg font-bold flex items-center justify-between px-4 transition-colors group ${allowWav ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed'}`}>
+                            <span>WAV</span>
+                            <div className="flex items-center gap-2">
+                                {!allowWav && <LockIcon className="w-3 h-3" />}
+                                <span className={`text-xs ${allowWav ? 'text-cyan-200' : 'text-slate-600'}`}>HD Studio</span>
+                            </div>
+                        </button>
+                        <button onClick={onClose} className="w-full py-2 text-slate-400 hover:text-white text-sm mt-2">{t('closeButton', uiLanguage)}</button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 // Main App Component
 const App: React.FC = () => {
-  // --- STATE MANAGEMENT ---
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
-  
-  // Initialize Source Language to match UI Language unless URL param overrides
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
   const [sourceLang, setSourceLang] = useState<string>(uiLanguage);
   const [targetLang, setTargetLang] = useState<string>(uiLanguage === 'ar' ? 'en' : 'ar');
   
-  // Sync source language with UI language when UI language changes (and no specific source set)
   useEffect(() => {
-      // If the user hasn't explicitly set a different source language, sync with UI
-      // For now, we'll simple set it.
       setSourceLang(uiLanguage);
       setTargetLang(uiLanguage === 'ar' ? 'en' : 'ar');
   }, [uiLanguage]);
@@ -170,14 +210,12 @@ const App: React.FC = () => {
   const [isPaused, setIsPaused] = useState<boolean>(false); 
   const [error, setError] = useState<string | null>(null);
   
-  // Auth State & Tiers
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); 
   const [userSubscription, setUserSubscription] = useState<'free' | 'gold' | 'platinum'>('free');
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
 
-  // ... (rest of the component state and logic, truncated for brevity until render) ...
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
   useEffect(() => {
@@ -198,7 +236,6 @@ const App: React.FC = () => {
       bonusChars: 0
   });
 
-  // Panels and Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
@@ -215,8 +252,7 @@ const App: React.FC = () => {
   const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   
-  // Settings State
-  const [voice, setVoice] = useState('Puck'); // Default to a Gemini voice to look impressive
+  const [voice, setVoice] = useState('Puck');
   const [emotion, setEmotion] = useState('Default');
   const [pauseDuration, setPauseDuration] = useState(1.0);
   const [speed, setSpeed] = useState(1.0);
@@ -224,7 +260,6 @@ const App: React.FC = () => {
   const [multiSpeaker, setMultiSpeaker] = useState(false);
   const [speakerA, setSpeakerA] = useState<SpeakerConfig>({ name: 'Yazan', voice: 'Puck' });
   const [speakerB, setSpeakerB] = useState<SpeakerConfig>({ name: 'Lana', voice: 'Kore' });
-  // Explicitly initialize Speaker C and D
   const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Zephyr' });
   const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Fenrir' });
   
@@ -312,61 +347,281 @@ const App: React.FC = () => {
       });
   };
 
-  const handleBoost = (type: 'share' | 'rate' | 'invite') => {
-      if (!user) return;
-      let bonus = 0;
-      setUserStats(prev => {
-          if (type === 'share' && !prev.hasShared) {
-              bonus = 50;
-              const newStats = { ...prev, hasShared: true, bonusChars: prev.bonusChars + 50 };
-              localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
-              return newStats;
-          }
-          if (type === 'rate' && !prev.hasRated) {
-              bonus = 100;
-              const newStats = { ...prev, hasRated: true, bonusChars: prev.bonusChars + 100 };
-              localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
-              return newStats;
-          }
-          return prev;
-      });
-  };
-
   const stopAll = useCallback(() => {
-    if (apiAbortControllerRef.current) {
-      apiAbortControllerRef.current.abort();
-      apiAbortControllerRef.current = null;
-    }
-    if (audioSourceRef.current) {
-        try {
-            audioSourceRef.current.onended = null; 
-            audioSourceRef.current.stop();
-            audioSourceRef.current.disconnect(); 
-        } catch (e) { /* Ignore */ }
-        audioSourceRef.current = null;
-    }
-    if (audioContextRef.current && audioContextRef.current.state === 'running') {
-        audioContextRef.current.suspend().catch(() => {});
-    }
-    if (recognitionRef.current) {
-        recognitionRef.current.abort();
-        setIsListening(false);
-    }
-    playbackStartTimeRef.current = 0;
-    playbackOffsetRef.current = 0;
-    isPausedRef.current = false;
-    setActivePlayer(null);
-    setIsPaused(false);
-    setLoadingTask('');
-    setIsLoading(false); 
+      if (audioSourceRef.current) {
+          try {
+              audioSourceRef.current.stop();
+              audioSourceRef.current.disconnect();
+          } catch (e) {
+              // ignore
+          }
+          audioSourceRef.current = null;
+      }
+      
+      if (apiAbortControllerRef.current) {
+          apiAbortControllerRef.current.abort();
+          apiAbortControllerRef.current = null;
+      }
+
+      setIsLoading(false);
+      setLoadingTask('');
+      setActivePlayer(null);
+      setIsPaused(false);
+      isPausedRef.current = false;
+      playbackOffsetRef.current = 0;
+      playbackStartTimeRef.current = 0;
   }, []);
 
-  useEffect(() => {
-      if (activePlayer || isPaused) {
-          stopAll();
+  const handleSignIn = async () => {
+      setIsAuthLoading(true);
+      const { auth } = getFirebase();
+      if (!auth) {
+          showToast(t('signInNotConfigured', uiLanguage), 'error');
+          setIsAuthLoading(false);
+          return;
       }
-  }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, speakerC, speakerD, stopAll]);
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+          await auth.signInWithPopup(provider);
+      } catch (error: any) {
+          console.error("Sign in error", error);
+          showToast(t('signInError', uiLanguage), 'error');
+      } finally {
+          setIsAuthLoading(false);
+      }
+  };
 
+  const handleSignOutAndClose = async () => {
+      const { auth } = getFirebase();
+      if (auth) {
+          await auth.signOut();
+          setUser(null);
+          setIsAccountOpen(false);
+          showToast("Signed out", 'info');
+      }
+  };
+
+  const handleDeleteAccount = async () => {
+      if (!user) return;
+      if (confirm(t('deleteAccountConfirmationPrompt', uiLanguage))) {
+          try {
+              await deleteUserDocument(user.uid);
+              const { auth } = getFirebase();
+              if (auth && auth.currentUser) {
+                  await auth.currentUser.delete();
+              }
+              setIsAccountOpen(false);
+              showToast(t('accountDeletedSuccess', uiLanguage), 'success');
+          } catch (e) {
+              console.error(e);
+              showToast(t('accountDeletionError', uiLanguage), 'error');
+          }
+      }
+  };
+
+  const handleSetDevMode = (enabled: boolean) => {
+      if (enabled) {
+          sessionStorage.setItem('sawtli_dev_mode', 'true');
+          setIsDevMode(true);
+      } else {
+          sessionStorage.removeItem('sawtli_dev_mode');
+          setIsDevMode(false);
+      }
+  };
+
+  const handleBoost = (type: 'share' | 'rate' | 'invite') => {
+      let bonus = 0;
+      if (type === 'share') bonus = 50;
+      if (type === 'rate') bonus = 100;
+      if (type === 'invite') bonus = 200;
+      
+      setUserStats(prev => {
+          const newStats = { ...prev, bonusChars: prev.bonusChars + bonus };
+          if (type === 'share') newStats.hasShared = true;
+          if (type === 'rate') newStats.hasRated = true;
+          
+          if (user) {
+              localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
+          }
+          return newStats;
+      });
+      showToast(t('bonusAdded', uiLanguage), 'success');
+  };
+
+  const handleUpgrade = async (tier: 'gold' | 'platinum') => {
+      if (!user) {
+          setIsUpgradeOpen(false);
+          handleSignIn();
+          return false;
+      }
+      try {
+          await addToWaitlist(user.uid, user.email, tier);
+          return true; 
+      } catch (e) {
+          console.error(e);
+          showToast("Error joining waitlist", 'error');
+          return false;
+      }
+  };
+
+  const handleAudioStudioOpen = () => {
+      setIsAudioStudioOpen(true);
+  };
+
+  const handleShareLink = () => {
+      const params = new URLSearchParams();
+      if (sourceText) params.set('sourceText', encodeURIComponent(sourceText));
+      params.set('sourceLang', sourceLang);
+      params.set('targetLang', targetLang);
+      
+      const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+      navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+      showToast(t('linkCopied', uiLanguage), 'success');
+  };
+
+  const handleDownload = async (format: 'mp3' | 'wav') => {
+      if (!lastGeneratedPCM) {
+          showToast("No audio to download", 'error');
+          return;
+      }
+
+      setLoadingTask(t('encoding', uiLanguage));
+      setIsLoading(true);
+
+      try {
+          let blob: Blob;
+          if (format === 'wav') {
+              blob = createWavBlob(lastGeneratedPCM, 1, 24000);
+          } else {
+              blob = await createMp3Blob(lastGeneratedPCM, 1, 24000);
+          }
+          
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `sawtli_audio.${format}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+      } catch (e) {
+          console.error(e);
+          showToast(t('errorMp3Encoding', uiLanguage), 'error');
+      } finally {
+          setIsLoading(false);
+          setLoadingTask('');
+          setIsDownloadOpen(false);
+      }
+  };
+
+  const handleHistoryLoad = (item: HistoryItem) => {
+      setSourceText(item.sourceText);
+      setTranslatedText(item.translatedText);
+      setSourceLang(item.sourceLang);
+      setTargetLang(item.targetLang);
+      setIsHistoryOpen(false);
+  };
+
+  const handleTranslate = async () => {
+      if (!sourceText.trim()) return;
+      
+      stopAll();
+      setIsLoading(true);
+      setLoadingTask(t('translatingButton', uiLanguage));
+      
+      try {
+          apiAbortControllerRef.current = new AbortController();
+          const { translatedText: result, speakerMapping } = await translateText(
+              sourceText, 
+              sourceLang, 
+              targetLang, 
+              'Speaker 1', 
+              'Speaker 2', 
+              apiAbortControllerRef.current.signal
+          );
+          
+          setTranslatedText(result);
+          
+          if (user) {
+              addHistoryItem(user.uid, {
+                  sourceText,
+                  translatedText: result,
+                  sourceLang,
+                  targetLang
+              });
+          } else {
+              const newItem: HistoryItem = {
+                  id: Date.now().toString(),
+                  sourceText,
+                  translatedText: result,
+                  sourceLang,
+                  targetLang,
+                  timestamp: Date.now()
+              };
+              setHistory(prev => {
+                  const updated = [newItem, ...prev].slice(0, 50);
+                  localStorage.setItem('sawtli_history', JSON.stringify(updated));
+                  return updated;
+              });
+          }
+      } catch (e: any) {
+          if (e.message !== 'Aborted') {
+              console.error(e);
+              showToast(t('errorTranslate', uiLanguage), 'error');
+          }
+      } finally {
+          setIsLoading(false);
+          setLoadingTask('');
+      }
+  };
+
+  const handleToggleListening = () => {
+      if (isListening) {
+          if (recognitionRef.current) recognitionRef.current.stop();
+          setIsListening(false);
+          return;
+      }
+
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+          showToast(t('errorMicNotSupported', uiLanguage), 'error');
+          return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = languageOptions.find(l => l.value === sourceLang)?.value || 'en';
+      recognition.interimResults = true;
+      recognition.continuous = true;
+
+      recognition.onstart = () => setIsListening(true);
+      
+      recognition.onresult = (event: any) => {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+              if (event.results[i].isFinal) {
+                  finalTranscript += event.results[i][0].transcript;
+              }
+          }
+          if (finalTranscript) {
+              setSourceText(prev => prev + (prev ? ' ' : '') + finalTranscript);
+          }
+      };
+
+      recognition.onerror = (event: any) => {
+          console.error(event.error);
+          setMicError(t('errorMicPermission', uiLanguage));
+          setIsListening(false);
+      };
+
+      recognition.onend = () => setIsListening(false);
+
+      recognition.start();
+      recognitionRef.current = recognition;
+  };
+  
+  // Auth useEffect
   useEffect(() => {
     fetch('/api/check-config').then(res => res.json()).then(data => setIsApiConfigured(!!data.configured)).catch(() => setIsApiConfigured(false));
     const { auth } = getFirebase();
@@ -423,6 +678,7 @@ const App: React.FC = () => {
       };
   }, []);
 
+  // Settings useEffects
   useEffect(() => {
     try {
       const savedSettingsRaw = localStorage.getItem('sawtli_settings');
@@ -451,7 +707,6 @@ const App: React.FC = () => {
       if(urlSourceLang) {
           setSourceLang(urlSourceLang);
       } 
-      // Removed the 'else if (!savedSettings)' check to allow useEffect hooks above to handle init logic
       if(urlTargetLang) setTargetLang(urlTargetLang);
       
       const devModeActive = sessionStorage.getItem('sawtli_dev_mode') === 'true';
@@ -460,7 +715,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Failed to load state", e);
     }
-  }, []); // Run once on mount
+  }, []); 
 
   useEffect(() => {
     try {
@@ -480,25 +735,12 @@ const App: React.FC = () => {
     document.title = t('pageTitle', uiLanguage);
   }, [uiLanguage]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-        if (effectsDropdownRef.current && !effectsDropdownRef.current.contains(event.target as Node)) {
-            setIsEffectsOpen(false);
-        }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-  
   const getCacheKey = (text: string) => {
       const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}-${speakerC.voice}-${speakerD.voice}` : 'single';
       return `${text}_${voice}_${emotion}_${speed}_${seed}_${pauseDuration}_${speakers}`;
   };
 
   const handleSpeak = async (text: string, target: 'source' | 'target') => {
-      // ... same logic as before ...
       if (!text.trim()) return;
       if (isLoading && activePlayer === target) { stopAll(); return; }
       
@@ -551,15 +793,13 @@ const App: React.FC = () => {
                   pcmData = await generateSpeech(textToProcess, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
               } else {
                   // STUDIO/STANDARD MODE
-                  // Check if multi-speaker is requested for Studio voices
                   if (multiSpeaker) {
                       pcmData = await generateMultiSpeakerStandardSpeech(
                           textToProcess,
                           { speakerA, speakerB, speakerC, speakerD },
-                          voice // Default voice if no speaker match
+                          voice 
                       );
                   } else {
-                      // Single Studio Voice
                       pcmData = await generateStandardSpeech(textToProcess, voice);
                   }
               }
@@ -570,18 +810,6 @@ const App: React.FC = () => {
                   if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
                   audioCacheRef.current.set(cacheKey, pcmData); setLastGeneratedPCM(pcmData);
                   if (userTier !== 'visitor' && userTier !== 'admin') { updateUserStats(textToProcess.length); }
-                  
-                  // --- SAVE TO HISTORY (FIX: Now recording TTS events) ---
-                  if (user) {
-                      import('./services/firestoreService').then(mod => {
-                          mod.addHistoryItem(user.uid, {
-                              sourceText: textToProcess,
-                              translatedText: `[Audio: ${voice}]`, // Marker for TTS entries
-                              sourceLang: 'Text',
-                              targetLang: 'Audio'
-                          });
-                      }).catch(e => console.error("History save error:", e));
-                  }
               }
           } catch (err: any) {
               clearTimeout(warmUpTimer); clearTimeout(clientTimeout);
@@ -603,296 +831,114 @@ const App: React.FC = () => {
       }
   };
   
-  const handleTranslate = async () => {
-      // ... logic unchanged ...
-      if(isLoading) { stopAll(); return; }
-      if (!sourceText.trim()) return;
-      if (userTier !== 'admin' && sourceText.length > 2000) { showToast(t('errorFileTooLarge', uiLanguage), 'error'); return; }
-      setIsLoading(true); setLoadingTask(t('translatingButton', uiLanguage)); setError(null); setTranslatedText('');
-      apiAbortControllerRef.current = new AbortController();
-      const signal = apiAbortControllerRef.current.signal;
-      try {
-          // @ts-ignore
-          const idToken = user ? await user.getIdToken() : undefined;
-          const result = await translateText(sourceText, sourceLang, targetLang, speakerA.name, speakerB.name, signal, idToken);
-          if (!signal.aborted) {
-              setTranslatedText(result.translatedText);
-              const newHistoryItem: HistoryItem = { id: new Date().toISOString(), sourceText, translatedText: result.translatedText, sourceLang, targetLang, timestamp: Date.now() };
-              if (user) { const { id, timestamp, ...itemToSave } = newHistoryItem; addHistoryItem(user.uid, itemToSave).catch(e => console.error("History fail:", e)); } 
-              else { setHistory(prev => [newHistoryItem, ...prev.slice(49)]); }
-          }
-      } catch (err: any) {
-          if (err.message !== 'Aborted') { console.error("Translate failed:", err); showToast(err.message || t('errorTranslate', uiLanguage), 'error'); }
-      } finally {
-          if(!apiAbortControllerRef.current?.signal.aborted) { setIsLoading(false); setLoadingTask(''); }
-          if(apiAbortControllerRef.current?.signal === signal) apiAbortControllerRef.current = null;
-      }
-  };
-  
-  const handleTashkeel = async () => {
-      if (!sourceText.trim()) return;
-      if (!sourceLang.startsWith('ar')) {
-          showToast(t('tashkeelError', uiLanguage), 'error');
-          return;
-      }
-      if (isEnhancing) return;
-
-      setIsEnhancing(true);
-      try {
-          const enhanced = await addDiacritics(sourceText);
-          if (enhanced) {
-              setSourceText(enhanced);
-              showToast(t('tashkeelSuccess', uiLanguage), 'success');
-          }
-      } catch (e: any) {
-          showToast(e.message || t('tashkeelError', uiLanguage), 'error');
-      } finally {
-          setIsEnhancing(false);
-      }
-  };
-
-   const handleToggleListening = () => {
-    // ... logic unchanged ...
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { setMicError(t('errorMicNotSupported', uiLanguage)); return; }
-    recognitionRef.current = new SpeechRecognition();
-    const recognition = recognitionRef.current;
-    recognition.lang = translationLanguages.find(l => l.code === sourceLang)?.speechCode || 'en-US';
-    recognition.continuous = true; recognition.interimResults = true;
-    recognition.onstart = () => { setIsListening(true); setMicError(null); };
-    recognition.onend = () => { setIsListening(false); };
-    recognition.onerror = (event: any) => { if (event.error !== 'no-speech') setMicError(event.error); setIsListening(false); };
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) { if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript; }
-      setSourceText(prev => prev + finalTranscript);
-    };
-    recognition.start();
-  };
-
-  const swapLanguages = () => {
-    setSourceLang(targetLang);
-    setTargetLang(sourceLang);
-    setSourceText(translatedText);
-    setTranslatedText(sourceText);
-  };
-  
-  const handleHistoryLoad = useCallback((item: HistoryItem) => {
-    setSourceText(item.sourceText);
-    setTranslatedText(item.translatedText);
-    setSourceLang(item.sourceLang);
-    setTargetLang(item.targetLang);
-    setIsHistoryOpen(false);
-  }, []);
-  
-  const handleCopy = (text: string, type: 'source' | 'target') => {
-      if (!text) return;
-      navigator.clipboard.writeText(text);
-      if (type === 'source') { setCopiedSource(true); setTimeout(() => setCopiedSource(false), 2000); } 
-      else if (type === 'target') { setCopiedTarget(true); setTimeout(() => setCopiedTarget(false), 2000); }
-  };
-
-  const handleShareLink = () => {
-      const params = new URLSearchParams();
-      params.set('sourceText', encodeURIComponent(sourceText));
-      params.set('sourceLang', sourceLang);
-      params.set('targetLang', targetLang);
-      const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
-      navigator.clipboard.writeText(url);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-      if (user) handleBoost('share');
-  };
-
-  const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
-    // ... logic unchanged ...
-    if (!text.trim()) return null;
-    const isGemini = GEMINI_VOICES.includes(voice);
-    const isStandard = GOOGLE_STUDIO_VOICES.some(v => v.name === voice);
-    if (!isGemini && !isStandard) { showToast("Invalid voice", 'error'); return null; }
-    
-    setError(null); setIsLoading(true); setLoadingTask(`${t('encoding', uiLanguage)}...`);
-    apiAbortControllerRef.current = new AbortController();
-    const signal = apiAbortControllerRef.current.signal;
-    let blob = null;
-    try {
-        const cacheKey = getCacheKey(text);
-        if (audioCacheRef.current.has(cacheKey)) {
-             const pcmData = audioCacheRef.current.get(cacheKey)!;
-             if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); else blob = await createMp3Blob(pcmData, 1, 24000);
-        } else {
-             // @ts-ignore
-             const idToken = user ? await user.getIdToken() : undefined;
-             let pcmData;
-             
-             if (isGemini) {
-                 const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
-                 pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
-             } else {
-                 // Standard Mode Multi-speaker or Single
-                 if (multiSpeaker) {
-                     pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice);
-                 } else {
-                     pcmData = await generateStandardSpeech(text, voice);
-                 }
-             }
-
-            if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage));
-             if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
-            audioCacheRef.current.set(cacheKey, pcmData);
-            if (userTier !== 'visitor' && userTier !== 'admin') updateUserStats(text.length);
-            if(signal.aborted) throw new Error('AbortError');
-            if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); else blob = await createMp3Blob(pcmData, 1, 24000);
-        }
-    } catch (err: any) {
-        if (err.message !== 'Aborted') { console.error("Audio failed:", err); showToast(err.message, 'error'); }
-    } finally {
-        setIsLoading(false); setLoadingTask(''); if(apiAbortControllerRef.current?.signal === signal) apiAbortControllerRef.current = null;
-    }
-    return blob;
-  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
-
-  const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
-    if (userTier === 'visitor') { setIsUpgradeOpen(true); return; }
-    const textToProcess = translatedText || sourceText;
-    const blob = await generateAudioBlob(textToProcess, format);
-    if (blob) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = `sawtli_audio.${format}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    }
-    setIsDownloadOpen(false);
-  }, [translatedText, sourceText, generateAudioBlob, userTier]);
-  
-  const handleInsertTag = (tag: string) => {
-    // ... logic unchanged ...
-    const textarea = sourceTextAreaRef.current;
-    if (textarea) {
-        const start = textarea.selectionStart; const end = textarea.selectionEnd; const text = sourceText;
-        const newText = text.substring(0, start) + ` ${tag} ` + text.substring(end);
-        setSourceText(newText); setIsEffectsOpen(false);
-        textarea.focus(); setTimeout(() => { const newCursorPos = start + tag.length + 2; textarea.selectionStart = textarea.selectionEnd = newCursorPos; }, 0);
-    }
-  };
-  
-  // ... Other handlers (handleAudioStudioOpen, handleSignIn, etc.) unchanged ...
-  const handleAudioStudioOpen = () => { stopAll(); setIsAudioStudioOpen(true); };
-  const handleSignIn = () => {
-      const { auth } = getFirebase();
-      if (!auth) { showToast("Firebase Auth not initialized", 'error'); return; }
-      setIsAuthLoading(true);
-      const provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithPopup(provider).catch((error: any) => { console.error(error); showToast(t('signInError', uiLanguage), 'error'); }).finally(() => setIsAuthLoading(false));
-  };
-  const handleSignOutAndClose = () => { const { auth } = getFirebase(); if (auth) auth.signOut().then(() => { setIsAccountOpen(false); showToast("Signed out", 'info'); }); };
   const handleClearHistory = async () => {
       if (user) { try { await clearHistoryForUser(user.uid); setHistory([]); showToast(t('historyClearSuccess', uiLanguage), 'success'); } catch (error) { showToast(t('historyClearError', uiLanguage), 'error'); } } 
       else { setHistory([]); localStorage.removeItem('sawtli_history'); showToast(t('historyClearSuccess', uiLanguage), 'success'); }
       setIsHistoryOpen(false);
   };
-  const handleDeleteAccount = async () => { if (!user) return; if (confirm(t('deleteAccountConfirmationPrompt', uiLanguage))) { try { await deleteUserDocument(user.uid); await user.delete(); setIsAccountOpen(false); showToast(t('accountDeletedSuccess', uiLanguage), 'success'); } catch (e) { showToast(t('accountDeletionError', uiLanguage), 'error'); } } };
-  const handleUpgrade = async (tier: 'gold' | 'platinum'): Promise<boolean> => {
-      if (!user) { showToast(t('signInError', uiLanguage), 'error'); handleSignIn(); return false; }
-      try { await addToWaitlist(user.uid, user.email, tier); showToast(t('waitlistSuccess', uiLanguage), 'success'); return true; } catch (e: any) { console.error("Waitlist fail:", e.message); showToast(`Failed: ${e.message}`, 'error'); return false; }
-  };
-  const handleSetDevMode = (enabled: boolean) => { setIsDevMode(enabled); sessionStorage.setItem('sawtli_dev_mode', enabled ? 'true' : 'false'); showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), 'success'); };
 
-  const getButtonState = (target: 'source' | 'target') => {
-      const isActive = activePlayer === target;
-      if (isActive) {
-          if (isPaused) {
-              return { icon: <PlayCircleIcon className="w-6 h-6" />, label: t('resumeSpeaking', uiLanguage), className: "bg-amber-600/90 border-amber-400 text-white hover:bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]", showStop: true };
+  const handleDeleteHistoryItem = async (itemId: string) => {
+      if (user) {
+          try {
+              await deleteHistoryItem(user.uid, itemId);
+          } catch (e) {
+              console.error(e);
+              showToast("Failed to delete item", 'error');
           }
-          return { icon: <PauseIcon className="w-6 h-6 animate-pulse" />, label: t('pauseSpeaking', uiLanguage), className: "bg-slate-800 border-cyan-400 text-cyan-400 hover:bg-slate-700 hover:text-white shadow-[0_0_20px_rgba(34,211,238,0.3)]", showStop: true };
+      } else {
+          const newHistory = history.filter(item => item.id !== itemId);
+          setHistory(newHistory);
+          localStorage.setItem('sawtli_history', JSON.stringify(newHistory));
       }
-      return { icon: <SpeakerIcon className="w-6 h-6" />, label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage), className: "bg-slate-800 border-cyan-500/30 text-cyan-500 hover:bg-slate-700 hover:border-cyan-400 hover:text-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]", showStop: false };
   };
 
-  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
-  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
-  const sourceButtonState = getButtonState('source');
-  const targetButtonState = getButtonState('target');
+  // UI Definitions
+  const sourceButtonState = {
+      icon: isLoading && activePlayer === 'source' ? <LoaderIcon className="w-5 h-5" /> : (activePlayer === 'source' ? <SoundWaveIcon className="w-5 h-5 text-cyan-400" animate={true} /> : <SpeakerIcon className="w-5 h-5" />),
+      label: isLoading && activePlayer === 'source' ? loadingTask : (activePlayer === 'source' ? t('listening', uiLanguage) : t('speakSource', uiLanguage)),
+      className: activePlayer === 'source' ? 'bg-slate-800 text-cyan-400 border border-cyan-500/50' : 'bg-slate-700 text-slate-200 hover:bg-slate-600 hover:text-white'
+  };
+
+  const targetButtonState = {
+      icon: isLoading && activePlayer === 'target' ? <LoaderIcon className="w-5 h-5" /> : (activePlayer === 'target' ? <SoundWaveIcon className="w-5 h-5 text-green-400" animate={true} /> : <SpeakerIcon className="w-5 h-5" />),
+      label: isLoading && activePlayer === 'target' ? loadingTask : (activePlayer === 'target' ? t('listening', uiLanguage) : t('speakTarget', uiLanguage)),
+      className: activePlayer === 'target' ? 'bg-slate-800 text-green-400 border border-green-500/50' : 'bg-slate-700 text-slate-200 hover:bg-slate-600 hover:text-white'
+  };
 
   const sourceTextArea = (
-        <div className="flex-1 relative group flex flex-col gap-2">
-            <div className="flex items-center justify-between mb-1">
-                <LanguageSelect value={sourceLang} onChange={setSourceLang} />
-                <div className="flex items-center gap-2">
-                     {/* Tashkeel Button - Only for Arabic */}
-                     {sourceLang === 'ar' && (
-                         <button 
-                            onClick={handleTashkeel} 
-                            disabled={isEnhancing || !sourceText.trim()}
-                            className={`p-2 rounded-lg transition-all flex items-center gap-2 font-bold text-xs ${isEnhancing ? 'bg-amber-900/50 text-amber-400 animate-pulse' : 'text-slate-400 hover:text-amber-400'}`} 
-                            title={t('tashkeel', uiLanguage)}
-                        >
-                            <WandIcon className="w-5 h-5" /> 
-                            <span className="hidden sm:inline">{isEnhancing ? t('addingTashkeel', uiLanguage) : t('tashkeel', uiLanguage)}</span>
-                        </button>
-                     )}
+      <div className="flex-1 relative group">
+          <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('sourceLanguage', uiLanguage)}</span>
+              <div className="flex items-center gap-2">
+                  <select value={sourceLang} onChange={e => setSourceLang(e.target.value)} className="bg-slate-800 text-slate-200 text-xs rounded px-2 py-1 border border-slate-700 focus:border-cyan-500 outline-none">
+                      {translationLanguages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                  </select>
+                  <button onClick={() => { navigator.clipboard.writeText(sourceText); setCopiedSource(true); setTimeout(() => setCopiedSource(false), 2000); }} className="text-slate-500 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
+                      {copiedSource ? <CheckIcon className="w-4 h-4 text-green-400" /> : <CopyIcon className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => setSourceText('')} className="text-slate-500 hover:text-red-400 transition-colors" title="Clear">
+                      <TrashIcon className="w-4 h-4" />
+                  </button>
+              </div>
+          </div>
+          <textarea
+              ref={sourceTextAreaRef}
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              placeholder={t('placeholder', uiLanguage)}
+              className="w-full h-40 sm:h-48 bg-slate-900/50 p-4 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-cyan-500/50 border border-slate-700 text-lg transition-all placeholder:text-slate-600"
+              dir="auto"
+          />
+          <div className="absolute bottom-4 right-4 flex gap-2">
+              <span className="text-xs text-slate-600">{sourceText.length} chars</span>
+          </div>
+      </div>
+  );
 
-                     <div className="relative" ref={effectsDropdownRef}>
-                        <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className={`p-2 rounded-lg transition-all flex items-center gap-2 font-bold text-xs ${isEffectsOpen ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-400 hover:text-cyan-400'}`} title={t('soundEffects', uiLanguage)}>
-                            <SparklesIcon className="w-5 h-5" /> <span className="hidden sm:inline">Sound FX</span>
-                        </button>
-                        {isEffectsOpen && (
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-                                <div className="p-2 grid grid-cols-3 gap-1">
-                                    {soundEffects.map((effect) => (
-                                        <button key={effect.tag} onClick={() => handleInsertTag(effect.tag)} className="aspect-square flex items-center justify-center text-xl hover:bg-slate-700 rounded-lg transition-colors" title={t(effect.labelKey as any, uiLanguage)}>{effect.emoji}</button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <button onClick={() => handleCopy(sourceText, 'source')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
-                        {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
-                    </button>
-                </div>
-            </div>
-            <div className="relative flex-grow">
-                <textarea ref={sourceTextAreaRef} value={sourceText} onChange={(e) => setSourceText(e.target.value)} placeholder={t('placeholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all resize-none ${isSourceRtl ? 'text-right' : 'text-left'} custom-scrollbar`} dir={isSourceRtl ? 'rtl' : 'ltr'} spellCheck="false" />
-                {sourceText && ( <button onClick={() => {setSourceText(''); setTranslatedText('');}} className="absolute bottom-4 left-4 p-2 bg-slate-800/80 hover:bg-red-900/80 text-slate-500 hover:text-red-400 rounded-lg transition-all border border-slate-700 hover:border-red-500/50" title={uiLanguage === 'ar' ? 'مسح النص' : 'Clear Text'}><TrashIcon className="w-4 h-4" /></button>)}
-            </div>
-            {/* Character Count moved outside */}
-            <div className="flex justify-between items-center px-1">
-                 <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
-                 <div className="text-xs font-bold text-slate-500 bg-slate-900/50 px-3 py-1 rounded-full border border-slate-800">{sourceText.length} chars</div>
-            </div>
-        </div>
-    );
+  const translatedTextArea = (
+      <div className="flex-1 relative group">
+          <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('targetLanguage', uiLanguage)}</span>
+              <div className="flex items-center gap-2">
+                  <select value={targetLang} onChange={e => setTargetLang(e.target.value)} className="bg-slate-800 text-slate-200 text-xs rounded px-2 py-1 border border-slate-700 focus:border-cyan-500 outline-none">
+                      {translationLanguages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                  </select>
+                  <button onClick={() => { navigator.clipboard.writeText(translatedText); setCopiedTarget(true); setTimeout(() => setCopiedTarget(false), 2000); }} className="text-slate-500 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
+                      {copiedTarget ? <CheckIcon className="w-4 h-4 text-green-400" /> : <CopyIcon className="w-4 h-4" />}
+                  </button>
+              </div>
+          </div>
+          <textarea
+              value={translatedText}
+              readOnly
+              placeholder={t('translationPlaceholder', uiLanguage)}
+              className="w-full h-40 sm:h-48 bg-slate-900/30 p-4 rounded-xl resize-none focus:outline-none border border-slate-800 text-lg text-slate-300 placeholder:text-slate-700"
+              dir="auto"
+          />
+      </div>
+  );
 
-    const translatedTextArea = (
-        <div className="flex-1 relative flex flex-col gap-2">
-            <div className="flex items-center justify-between mb-1">
-                <LanguageSelect value={targetLang} onChange={setTargetLang} />
-                <div className="flex items-center gap-2">
-                    <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
-                        {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
-                    </button>
-                </div>
-            </div>
-            <div className="relative flex-grow">
-                <textarea value={translatedText} readOnly placeholder={t('translationPlaceholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`} dir={isTargetRtl ? 'rtl' : 'ltr'} />
-            </div>
-            {/* Character Count moved outside */}
-            <div className="flex justify-end px-1">
-                <div className="text-xs font-bold text-slate-600 bg-slate-900/50 px-3 py-1 rounded-full border border-slate-800">{translatedText.length} chars</div>
-            </div>
-        </div>
-    );
-
-    const swapButton = (
-        <div className="absolute top-[72px] left-1/2 -translate-x-1/2 z-10 md:static md:top-auto md:left-auto md:translate-x-0 md:flex md:items-center justify-center">
-            <button onClick={swapLanguages} className="p-3 bg-slate-800 border-2 border-slate-600 rounded-xl text-slate-400 hover:text-cyan-400 hover:border-cyan-400 hover:bg-slate-700 transition-all shadow-lg hover:shadow-cyan-500/20 active:scale-95 group" title={t('swapLanguages', uiLanguage)}>
-                <SwapIcon className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />
-            </button>
-        </div>
-    );
+  const swapButton = (
+      <div className="flex items-center justify-center md:pt-8">
+          <button 
+              onClick={() => {
+                  setSourceLang(targetLang);
+                  setTargetLang(sourceLang);
+                  setSourceText(translatedText);
+                  setTranslatedText(sourceText);
+              }}
+              className="p-2 rounded-full bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-cyan-500/50 text-slate-400 hover:text-cyan-400 transition-all transform hover:rotate-180 duration-300 shadow-lg"
+              title={t('swapLanguages', uiLanguage)}
+          >
+              <SwapIcon className="w-6 h-6" />
+          </button>
+      </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
       
+      {/* Background and Header */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
            <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-900/10 blur-[100px]"></div>
            <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-cyan-900/10 blur-[100px]"></div>
@@ -939,13 +985,17 @@ const App: React.FC = () => {
             {showSetupGuide && <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 mb-6 z-50 relative"><OwnerSetupGuide uiLanguage={uiLanguage} isApiConfigured={isApiConfigured} isFirebaseConfigured={!!getFirebase().app} /></div>}
 
             <div className="glass-panel rounded-3xl p-5 md:p-8 space-y-6 relative bg-[#1e293b]/80 backdrop-blur-sm shadow-[0_0_20px_rgba(34,211,238,0.15)] border-2 border-cyan-500/50">
+                {/* Error Messages */}
                 {error && <div className="bg-red-950/50 border border-red-500/30 text-red-200 p-4 rounded-xl text-sm mb-4 font-bold flex items-center gap-3 animate-fade-in-down"><WarningIcon className="w-5 h-5 flex-shrink-0 text-red-400"/> <p>{error}</p></div>}
                 {micError && <div className="bg-red-950/50 border border-red-500/30 text-red-200 p-4 rounded-xl text-sm mb-4 font-bold flex items-center gap-3 animate-fade-in-down"><WarningIcon className="w-5 h-5 flex-shrink-0 text-red-400"/> <p>{micError}</p></div>}
+                
                 <div className="relative flex flex-col md:flex-row gap-6 md:gap-10">
                     {sourceTextArea}
                     {swapButton}
                     {translatedTextArea}
                 </div>
+                
+                {/* Control Buttons */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-4 relative">
                      <div className="flex-1 w-full flex items-center justify-end gap-2 max-w-xs">
                         <ActionButton icon={sourceButtonState.icon} onClick={() => handleSpeak(sourceText, 'source')} label={sourceButtonState.label} className={`w-full ${sourceButtonState.className}`} />
@@ -1009,7 +1059,7 @@ const App: React.FC = () => {
         onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
       />}
       
-      {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
+      {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onDelete={handleDeleteHistoryItem} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
       
       <AudioStudioModal isOpen={isAudioStudioOpen} onClose={() => setIsAudioStudioOpen(false)} uiLanguage={uiLanguage} voice={voice} sourceAudioPCM={lastGeneratedPCM} allowDownloads={planConfig.allowDownloads} allowStudio={planConfig.allowStudio} userTier={userTier} onUpgrade={() => setIsUpgradeOpen(true)} />
@@ -1026,67 +1076,6 @@ const App: React.FC = () => {
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
-};
-
-const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
-    return (
-        <div className="flex items-center gap-2 bg-slate-900/50 border border-slate-700 px-5 py-3 rounded-lg hover:border-cyan-500/50 transition-colors group shadow-sm relative min-w-[140px]">
-            <GlobeIcon className="w-6 h-6 text-slate-400 group-hover:text-cyan-400 transition-colors absolute left-3 pointer-events-none" />
-            <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-transparent text-white font-bold text-base focus:outline-none uppercase cursor-pointer tracking-wide appearance-none pl-10 pr-6 py-1">
-                {translationLanguages.map(lang => (<option key={lang.code} value={lang.code} className="bg-slate-800 text-white">{lang.name}</option>))}
-            </select>
-            <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2 pointer-events-none" />
-        </div>
-    );
-};
-
-// ... ActionButton, ActionCard, DownloadModal Components ...
-const ActionButton: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; className?: string; }> = ({ icon, label, onClick, disabled, className }) => (
-    <button onClick={onClick} disabled={disabled} className={`h-16 px-6 flex items-center justify-center gap-3 font-bold rounded-xl text-lg text-white tracking-wide uppercase active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:filter-none border-2 transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg ${className}`}>
-        {icon} <span className="drop-shadow-md">{label}</span>
-    </button>
-);
-
-const ActionCard: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; highlight?: boolean; }> = ({ icon, label, onClick, disabled, highlight }) => (
-    <button onClick={onClick} disabled={disabled} className={`rounded-xl p-4 sm:p-5 flex flex-col items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none bg-slate-800/50 border border-cyan-500/50 text-cyan-500/80 hover:border-cyan-400 hover:text-cyan-400 hover:bg-slate-800 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] hover:scale-105 transition-all duration-300 group`}>
-        <div className={`transform transition-transform duration-200 group-hover:-translate-y-1 ${highlight ? 'text-cyan-400' : 'text-slate-300 group-hover:text-cyan-400'}`}>
-             {React.cloneElement(icon as ReactElement<any>, { className: 'w-8 h-8 sm:w-10 sm:h-10' })}
-        </div>
-        <span className={`text-xs sm:text-sm font-bold uppercase tracking-wide text-slate-400 group-hover:text-white transition-colors`}>{label}</span>
-    </button>
-);
-
-const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' | 'mp3') => void; uiLanguage: Language; isLoading: boolean; onCancel: () => void; allowWav: boolean; onUpgrade: () => void; }> = ({ onClose, onDownload, uiLanguage, isLoading, onCancel, allowWav, onUpgrade }) => {
-    return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
-            <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl shadow-2xl p-8" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-wide flex items-center gap-2"><DownloadIcon className="text-cyan-400"/> {t('downloadPanelTitle', uiLanguage)}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                </div>
-                <div className="space-y-6">
-                     <div className="grid grid-cols-2 gap-4">
-                        <button onClick={() => onDownload('mp3')} disabled={isLoading} className="btn-tactile flex flex-col items-center justify-center gap-3 p-6 rounded-xl group h-32 hover:bg-slate-700">
-                            <span className="text-4xl font-black text-white group-hover:text-cyan-300 transition-colors">MP3</span>
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Standard</span>
-                        </button>
-                        <button onClick={() => allowWav ? onDownload('wav') : onUpgrade()} disabled={isLoading} className={`flex flex-col items-center justify-center gap-3 p-6 rounded-xl relative overflow-hidden border h-32 group transition-all ${allowWav ? 'bg-slate-700 border-slate-600 hover:border-cyan-500/50 hover:bg-slate-600' : 'bg-slate-800 border-slate-700 opacity-60'}`}>
-                             {!allowWav && <div className="absolute top-2 right-2 bg-amber-500/20 p-1.5 rounded-md"><LockIcon className="text-amber-500 w-4 h-4"/></div>}
-                            <span className={`text-4xl font-black ${allowWav ? 'text-white group-hover:text-cyan-300' : 'text-slate-500'}`}>WAV</span>
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Lossless {allowWav ? '' : '(Pro)'}</span>
-                        </button>
-                     </div>
-                     {isLoading && (
-                        <div className="mt-8 flex flex-col items-center justify-center gap-4 text-cyan-400">
-                            <LoaderIcon className="w-10 h-10"/>
-                            <span className="animate-pulse text-sm font-bold uppercase tracking-widest">{t('encoding', uiLanguage)}...</span>
-                             <button onClick={onCancel} className="mt-2 text-xs font-bold text-red-400 hover:text-white underline decoration-red-500/50">{t('stopSpeaking', uiLanguage)}</button>
-                        </div>
-                     )}
-                </div>
-            </div>
-        </div>
-    );
 };
 
 export default App;
