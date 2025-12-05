@@ -138,12 +138,25 @@ const QuotaIndicator: React.FC<{
 
 const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
     return (
-        <div className="flex items-center gap-2 bg-slate-900/50 border border-slate-700 px-5 py-3 rounded-lg hover:border-cyan-500/50 transition-colors group shadow-sm relative min-w-[140px]">
-            <GlobeIcon className="w-6 h-6 text-slate-400 group-hover:text-cyan-400 transition-colors absolute left-3 pointer-events-none" />
-            <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-transparent text-white font-bold text-base focus:outline-none uppercase cursor-pointer tracking-wide appearance-none pl-10 pr-6 py-1">
-                {translationLanguages.map(lang => (<option key={lang.code} value={lang.code} className="bg-slate-800 text-white">{lang.name}</option>))}
+        <div className="relative group min-w-[90px] flex-shrink-0">
+            <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl hover:border-cyan-500/50 transition-colors cursor-pointer w-full shadow-sm">
+                <span className="text-white font-bold text-sm tracking-widest uppercase flex-1 text-center">
+                    {translationLanguages.find(l => l.code === value)?.name || value.toUpperCase()}
+                </span>
+                <ChevronDownIcon className="w-3 h-3 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+            </div>
+            <select 
+                value={value} 
+                onChange={(e) => onChange(e.target.value)} 
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none"
+                title="Select Language"
+            >
+                {translationLanguages.map(lang => (
+                    <option key={lang.code} value={lang.code} className="bg-slate-800 text-white font-bold py-2">
+                        {lang.name} - {lang.speechCode.split('-')[1]}
+                    </option>
+                ))}
             </select>
-            <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2 pointer-events-none" />
         </div>
     );
 };
@@ -878,28 +891,19 @@ const App: React.FC = () => {
 
   const sourceTextArea = (
         <div className="flex-1 relative group">
-            <div className="flex items-center justify-between mb-3">
-                <LanguageSelect value={sourceLang} onChange={setSourceLang} />
+            {/* SOURCE TOOLBAR: Source Lang (Right), Actions (Left) */}
+            <div className="flex items-center justify-between mb-3 px-3">
+                {/* Actions (Tashkeel, FX, Copy) - Moved to Left for Source */}
                 <div className="flex items-center gap-2">
-                     {/* Tashkeel Button - Only for Arabic */}
-                     {sourceLang === 'ar' && (
-                         <button 
-                            onClick={handleTashkeel} 
-                            disabled={isEnhancing || !sourceText.trim()}
-                            className={`p-2 rounded-lg transition-all flex items-center gap-2 font-bold text-xs ${isEnhancing ? 'bg-amber-900/50 text-amber-400 animate-pulse' : 'text-slate-400 hover:text-amber-400'}`} 
-                            title={t('tashkeel', uiLanguage)}
-                        >
-                            <WandIcon className="w-5 h-5" /> 
-                            <span className="hidden sm:inline">{isEnhancing ? t('addingTashkeel', uiLanguage) : t('tashkeel', uiLanguage)}</span>
-                        </button>
-                     )}
-
+                     <button onClick={() => handleCopy(sourceText, 'source')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
+                        {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
+                    </button>
                      <div className="relative" ref={effectsDropdownRef}>
                         <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className={`p-2 rounded-lg transition-all flex items-center gap-2 font-bold text-xs ${isEffectsOpen ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-400 hover:text-cyan-400'}`} title={t('soundEffects', uiLanguage)}>
-                            <SparklesIcon className="w-5 h-5" /> <span className="hidden sm:inline">Sound FX</span>
+                            <SparklesIcon className="w-5 h-5" /> 
                         </button>
                         {isEffectsOpen && (
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+                            <div className="absolute left-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
                                 <div className="p-2 grid grid-cols-3 gap-1">
                                     {soundEffects.map((effect) => (
                                         <button key={effect.tag} onClick={() => handleInsertTag(effect.tag)} className="aspect-square flex items-center justify-center text-xl hover:bg-slate-700 rounded-lg transition-colors" title={t(effect.labelKey as any, uiLanguage)}>{effect.emoji}</button>
@@ -908,11 +912,21 @@ const App: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    <button onClick={() => handleCopy(sourceText, 'source')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
-                        {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
-                    </button>
+                     {sourceLang === 'ar' && (
+                         <button 
+                            onClick={handleTashkeel} 
+                            disabled={isEnhancing || !sourceText.trim()}
+                            className={`p-2 rounded-lg transition-all flex items-center gap-2 font-bold text-xs ${isEnhancing ? 'bg-amber-900/50 text-amber-400 animate-pulse' : 'text-slate-400 hover:text-amber-400'}`} 
+                            title={t('tashkeel', uiLanguage)}
+                        >
+                            <WandIcon className="w-5 h-5" /> 
+                        </button>
+                     )}
                 </div>
+                {/* Language Select - Moved to Right for Source */}
+                <LanguageSelect value={sourceLang} onChange={setSourceLang} />
             </div>
+            
             <div className="relative">
                 <textarea ref={sourceTextAreaRef} value={sourceText} onChange={(e) => setSourceText(e.target.value)} placeholder={t('placeholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all resize-none ${isSourceRtl ? 'text-right' : 'text-left'} custom-scrollbar`} dir={isSourceRtl ? 'rtl' : 'ltr'} spellCheck="false" />
                 {sourceText && ( <button onClick={() => {setSourceText(''); setTranslatedText('');}} className="absolute bottom-4 left-4 p-2 bg-slate-800/80 hover:bg-red-900/80 text-slate-500 hover:text-red-400 rounded-lg transition-all border border-slate-700 hover:border-red-500/50" title={uiLanguage === 'ar' ? 'مسح النص' : 'Clear Text'}><TrashIcon className="w-4 h-4" /></button>)}
@@ -925,14 +939,19 @@ const App: React.FC = () => {
 
     const translatedTextArea = (
         <div className="flex-1 relative">
-            <div className="flex items-center justify-between mb-3">
+            {/* TARGET TOOLBAR: Actions (Right), Target Lang (Left) */}
+            <div className="flex items-center justify-between mb-3 px-3">
+                {/* Language Select - Moved to Left for Target */}
                 <LanguageSelect value={targetLang} onChange={setTargetLang} />
+                
+                {/* Actions (Copy) - Moved to Right for Target */}
                 <div className="flex items-center gap-2">
                     <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
                         {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
                     </button>
                 </div>
             </div>
+            
             <div className="relative">
                 <textarea value={translatedText} readOnly placeholder={t('translationPlaceholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`} dir={isTargetRtl ? 'rtl' : 'ltr'} />
             </div>
