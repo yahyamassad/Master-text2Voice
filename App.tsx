@@ -1,5 +1,4 @@
 
-// ... existing imports ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
@@ -14,7 +13,7 @@ import firebase, { getFirebase } from './firebaseConfig';
 
 type User = firebase.User;
 
-import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument, addToWaitlist } from './services/firestoreService';
+import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument, addToWaitlist, deleteHistoryItem } from './services/firestoreService';
 import { AudioStudioModal } from './components/AudioStudioModal'; 
 import SettingsModal from './components/SettingsModal';
 import TutorialModal from './components/TutorialModal';
@@ -27,7 +26,6 @@ const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
 const ReportModal = lazy(() => import('./components/ReportModal'));
 
-// ... existing soundEffects array ...
 const soundEffects = [
     { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
     { emoji: '🤣', tag: '[laughter]', labelKey: 'addLaughter' },
@@ -62,7 +60,6 @@ const getInitialLanguage = (): Language => {
     return 'en'; // Default to English
 };
 
-// ... existing Toast & Quota components ...
 // --- TOAST NOTIFICATION SYSTEM ---
 interface ToastMsg {
     id: number;
@@ -571,6 +568,18 @@ const App: React.FC = () => {
                   if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
                   audioCacheRef.current.set(cacheKey, pcmData); setLastGeneratedPCM(pcmData);
                   if (userTier !== 'visitor' && userTier !== 'admin') { updateUserStats(textToProcess.length); }
+                  
+                  // --- SAVE TO HISTORY (FIX: Now recording TTS events) ---
+                  if (user) {
+                      import('./services/firestoreService').then(mod => {
+                          mod.addHistoryItem(user.uid, {
+                              sourceText: textToProcess,
+                              translatedText: `[Audio: ${voice}]`, // Marker for TTS entries
+                              sourceLang: 'Text',
+                              targetLang: 'Audio'
+                          });
+                      }).catch(e => console.error("History save error:", e));
+                  }
               }
           } catch (err: any) {
               clearTimeout(warmUpTimer); clearTimeout(clientTimeout);
@@ -779,6 +788,22 @@ const App: React.FC = () => {
       else { setHistory([]); localStorage.removeItem('sawtli_history'); showToast(t('historyClearSuccess', uiLanguage), 'success'); }
       setIsHistoryOpen(false);
   };
+
+  const handleDeleteHistoryItem = async (itemId: string) => {
+      if (user) {
+          try {
+              await deleteHistoryItem(user.uid, itemId);
+          } catch (e) {
+              console.error("Failed to delete history item", e);
+              showToast("Failed to delete item", 'error');
+          }
+      } else {
+          const newHistory = history.filter(item => item.id !== itemId);
+          setHistory(newHistory);
+          localStorage.setItem('sawtli_history', JSON.stringify(newHistory));
+      }
+  };
+
   const handleDeleteAccount = async () => { if (!user) return; if (confirm(t('deleteAccountConfirmationPrompt', uiLanguage))) { try { await deleteUserDocument(user.uid); await user.delete(); setIsAccountOpen(false); showToast(t('accountDeletedSuccess', uiLanguage), 'success'); } catch (e) { showToast(t('accountDeletionError', uiLanguage), 'error'); } } };
   const handleUpgrade = async (tier: 'gold' | 'platinum'): Promise<boolean> => {
       if (!user) { showToast(t('signInError', uiLanguage), 'error'); handleSignIn(); return false; }
@@ -992,7 +1017,7 @@ const App: React.FC = () => {
         onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
       />}
       
-      {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onLoad={handleHistoryLoad}/>}
+      {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onDelete={handleDeleteHistoryItem} onLoad={handleHistoryLoad}/>}
       {isDownloadOpen && <DownloadModal onClose={() => setIsDownloadOpen(false)} onDownload={handleDownload} uiLanguage={uiLanguage} isLoading={isLoading && loadingTask.startsWith(t('encoding', uiLanguage))} onCancel={stopAll} allowWav={planConfig.allowWav} onUpgrade={() => setIsUpgradeOpen(true)} />}
       
       <AudioStudioModal isOpen={isAudioStudioOpen} onClose={() => setIsAudioStudioOpen(false)} uiLanguage={uiLanguage} voice={voice} sourceAudioPCM={lastGeneratedPCM} allowDownloads={planConfig.allowDownloads} allowStudio={planConfig.allowStudio} userTier={userTier} onUpgrade={() => setIsUpgradeOpen(true)} />
