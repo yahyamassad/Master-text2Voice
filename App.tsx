@@ -623,8 +623,8 @@ const App: React.FC = () => {
                           pauseDuration // Pass pauseDuration
                       );
                   } else {
-                      // Single Studio Voice with Pause Support
-                      pcmData = await generateStandardSpeech(textToProcess, voice, pauseDuration);
+                      // Single Studio Voice with Pause Support AND Emotion Support
+                      pcmData = await generateStandardSpeech(textToProcess, voice, pauseDuration, emotion);
                   }
               }
               
@@ -811,7 +811,7 @@ const App: React.FC = () => {
                  if (multiSpeaker) {
                      pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice, pauseDuration);
                  } else {
-                     pcmData = await generateStandardSpeech(text, voice, pauseDuration);
+                     pcmData = await generateStandardSpeech(text, voice, pauseDuration, emotion);
                  }
              }
 
