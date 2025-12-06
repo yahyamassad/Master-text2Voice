@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
+import { getFallbackVoice } from './services/fallbackService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
   SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon, WandIcon
@@ -46,16 +48,11 @@ const getInitialLanguage = (): Language => {
                 return settings.uiLanguage;
             }
         }
-        
         const browserLang = navigator.language.split('-')[0];
         if (['ar', 'fr', 'es', 'pt'].includes(browserLang)) return browserLang as Language;
-    } catch (e) {
-        // Ignore errors and fall back to default
-    }
-    return 'en'; // Default to English
+    } catch (e) { }
+    return 'en';
 };
-
-// --- HELPER COMPONENTS (Moved to top to prevent Reference Errors) ---
 
 interface ToastMsg {
     id: number;
@@ -96,12 +93,13 @@ const QuotaIndicator: React.FC<{
 }> = ({ stats, tier, limits, uiLanguage, onUpgrade, onBoost }) => {
     if (tier === 'admin' || tier === 'gold' || tier === 'platinum') return null;
     
+    // VISITOR BAR
     if (tier === 'visitor') {
         return (
             <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-                 <span className="text-cyan-500/70">VISITOR MODE</span>
+                 <span className="text-cyan-500/70">VISITOR MODE (50 CHARS MAX)</span>
                  <span className="text-amber-500 cursor-pointer hover:underline" onClick={onUpgrade}>
-                     {uiLanguage === 'ar' ? 'سجل للحصول على 5000 حرف' : 'Sign In for 5000 chars'}
+                     {uiLanguage === 'ar' ? 'سجل لزيادة الحد' : 'Sign In to Increase Limit'}
                  </span>
             </div>
         );
@@ -135,11 +133,10 @@ const QuotaIndicator: React.FC<{
     );
 };
 
+// ... (LanguageSelect, ActionButton, ActionCard components remain the same) ...
 const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
-    // FIX: Fallback logic inside component to prevent "TEXT"/"AUDIO" display
     const isValidCode = translationLanguages.some(l => l.code === value);
-    const safeValue = isValidCode ? value : 'ar'; // Default fallback if invalid
-    
+    const safeValue = isValidCode ? value : 'ar';
     return (
         <div className="relative group min-w-[100px] flex-shrink-0">
             <div className="flex items-center justify-center gap-2 bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl hover:border-cyan-500/50 transition-colors cursor-pointer w-full shadow-sm text-center">
@@ -152,7 +149,6 @@ const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => voi
                 value={safeValue} 
                 onChange={(e) => onChange(e.target.value)} 
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none text-center"
-                title="Select Language"
             >
                 {translationLanguages.map(lang => (
                     <option key={lang.code} value={lang.code} className="bg-slate-800 text-white font-bold py-2 text-center">
@@ -217,13 +213,11 @@ const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   
-  // Initialize Source Language to match UI Language unless URL param overrides
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
   const [sourceLang, setSourceLang] = useState<string>(uiLanguage);
   const [targetLang, setTargetLang] = useState<string>(uiLanguage === 'ar' ? 'en' : 'ar');
   
-  // Sync source language with UI language when UI language changes (and no specific source set)
   useEffect(() => {
       setSourceLang(uiLanguage);
       setTargetLang(uiLanguage === 'ar' ? 'en' : 'ar');
@@ -235,7 +229,6 @@ const App: React.FC = () => {
   const [isPaused, setIsPaused] = useState<boolean>(false); 
   const [error, setError] = useState<string | null>(null);
   
-  // Auth State & Tiers
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); 
@@ -262,7 +255,7 @@ const App: React.FC = () => {
       bonusChars: 0
   });
 
-  // Panels and Modals
+  // Panels
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
@@ -279,7 +272,7 @@ const App: React.FC = () => {
   const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   
-  // Settings State
+  // Settings
   const [voice, setVoice] = useState('Puck'); 
   const [emotion, setEmotion] = useState('Default');
   const [pauseDuration, setPauseDuration] = useState(1.0);
@@ -321,16 +314,38 @@ const App: React.FC = () => {
   }, []);
   const removeToast = (id: number) => setToasts(prev => prev.filter(t => t.id !== id));
 
+  // Determine User Tier
   const userTier: UserTier = isDevMode ? 'admin' : (user ? userSubscription : 'visitor');
   const planConfig = PLAN_LIMITS[userTier];
   
+  // LOGIC TO CHECK LIMITS
+  const checkLimits = (textLength: number): boolean => {
+      if (userTier === 'admin') return true;
+      
+      // VISITOR HARD LIMIT
+      if (userTier === 'visitor') {
+          if (textLength > 50) {
+              showToast(uiLanguage === 'ar' ? "النص طويل جداً للزوار (الحد 50 حرف). يرجى التسجيل." : "Text too long for visitors (Limit 50). Please sign in.", 'error');
+              setIsUpgradeOpen(true);
+              return false;
+          }
+          return true; 
+      }
+
+      // REGISTERED USER LIMITS
+      const isTrialExpired = daysSinceStart > planConfig.trialDays;
+      const isDailyLimitReached = userStats.dailyCharsUsed >= planConfig.dailyLimit;
+      const isTotalLimitReached = userStats.totalCharsUsed >= (planConfig.totalTrialLimit + userStats.bonusChars);
+
+      if (isTrialExpired) { showToast(t('trialExpired', uiLanguage), 'error'); setIsUpgradeOpen(true); return false; }
+      if (isDailyLimitReached) { showToast(t('dailyLimitReached', uiLanguage), 'info'); setIsGamificationOpen(true); return false; }
+      if (isTotalLimitReached) { showToast(t('totalLimitReached', uiLanguage), 'error'); setIsUpgradeOpen(true); return false; }
+      
+      return true;
+  };
+
   const currentDailyLimit = planConfig.dailyLimit;
-  const effectiveTotalLimit = planConfig.totalTrialLimit + userStats.bonusChars;
   const daysSinceStart = Math.floor((Date.now() - userStats.trialStartDate) / (1000 * 60 * 60 * 24));
-  const isTrialExpired = userTier === 'free' && daysSinceStart > planConfig.trialDays;
-  const dailyCharsRemaining = Math.max(0, currentDailyLimit - userStats.dailyCharsUsed);
-  const isDailyLimitReached = userTier !== 'admin' && userStats.dailyCharsUsed >= currentDailyLimit;
-  const isTotalLimitReached = userTier !== 'admin' && userStats.totalCharsUsed >= effectiveTotalLimit;
   
   const loadUserStats = (userId: string) => {
       const key = `sawtli_stats_${userId}`;
@@ -362,19 +377,21 @@ const App: React.FC = () => {
 
   const updateUserStats = (charsConsumed: number) => {
       if (userTier === 'admin' || userTier === 'visitor') return; 
-      if (!user) return;
-
+      
       setUserStats(prev => {
           const newStats = {
               ...prev,
               totalCharsUsed: prev.totalCharsUsed + charsConsumed,
               dailyCharsUsed: prev.dailyCharsUsed + charsConsumed
           };
-          localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
+          if (user) {
+              localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
+          }
           return newStats;
       });
   };
 
+  // ... (handleBoost, stopAll, useEffects same as before) ...
   const handleBoost = (type: 'share' | 'rate' | 'invite') => {
       if (!user) return;
       let bonus = 0;
@@ -504,18 +521,9 @@ const App: React.FC = () => {
         if (settings.sourceLang) setSourceLang(settings.sourceLang);
         if (settings.targetLang) setTargetLang(settings.targetLang);
       }
-      
       const urlParams = new URLSearchParams(window.location.search);
       const urlSourceText = urlParams.get('sourceText');
-      const urlSourceLang = urlParams.get('sourceLang');
-      const urlTargetLang = urlParams.get('targetLang');
-      
       if(urlSourceText) setSourceText(decodeURIComponent(urlSourceText));
-      if(urlSourceLang) {
-          setSourceLang(urlSourceLang);
-      } 
-      // Removed the 'else if (!savedSettings)' check to allow useEffect hooks above to handle init logic
-      if(urlTargetLang) setTargetLang(urlTargetLang);
       
       const devModeActive = sessionStorage.getItem('sawtli_dev_mode') === 'true';
       if (devModeActive) setIsDevMode(true);
@@ -523,7 +531,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Failed to load state", e);
     }
-  }, []); // Run once on mount
+  }, []); 
 
   useEffect(() => {
     try {
@@ -532,9 +540,7 @@ const App: React.FC = () => {
       if (!user && history.length > 0) {
           localStorage.setItem('sawtli_history', JSON.stringify(history));
       }
-    } catch (e) {
-      console.error("Failed to save state", e);
-    }
+    } catch (e) {}
   }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, history, sourceLang, targetLang, uiLanguage, user]);
 
   useEffect(() => {
@@ -561,15 +567,11 @@ const App: React.FC = () => {
   };
 
   const handleSpeak = async (text: string, target: 'source' | 'target') => {
-      // ... same logic as before ...
       if (!text.trim()) return;
       if (isLoading && activePlayer === target) { stopAll(); return; }
       
-      if (userTier === 'visitor') { /* allow */ } else {
-          if (isTrialExpired) { showToast(t('trialExpired', uiLanguage), 'error'); setIsUpgradeOpen(true); return; }
-          if (isDailyLimitReached) { showToast(t('dailyLimitReached', uiLanguage), 'info'); setIsGamificationOpen(true); return; }
-          if (isTotalLimitReached) { showToast(t('totalLimitReached', uiLanguage), 'error'); setIsUpgradeOpen(true); return; }
-      }
+      // STRICT LIMIT CHECK
+      if (!checkLimits(text.length)) return;
 
       const isGeminiVoice = GEMINI_VOICES.includes(voice);
       if (isGeminiVoice && !planConfig.allowGemini) { setIsUpgradeOpen(true); return; }
@@ -591,9 +593,13 @@ const App: React.FC = () => {
       if (activePlayer === target && isPaused) { setIsPaused(false); isPausedRef.current = false; } 
       else { stopAll(); setIsLoading(true); setLoadingTask(t('generatingSpeech', uiLanguage)); setActivePlayer(target); setError(null); isPausedRef.current = false; }
 
+      // FOR VISITORS: TRUNCATE IF THEY BYPASS UI CHECK (Double safety)
       let textToProcess = text;
       let isTruncated = false;
-      if (userTier === 'visitor' && text.length > 50) { textToProcess = text.substring(0, 50); isTruncated = true; }
+      if (userTier === 'visitor' && text.length > 50) { 
+          textToProcess = text.substring(0, 50); 
+          isTruncated = true; 
+      }
 
       const cacheKey = getCacheKey(textToProcess);
       let pcmData: Uint8Array | null = null;
@@ -611,19 +617,28 @@ const App: React.FC = () => {
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
-                  pcmData = await generateSpeech(textToProcess, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
+                  try {
+                      pcmData = await generateSpeech(textToProcess, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
+                  } catch (geminiError: any) {
+                      // Fallback to Azure
+                      if (geminiError.message && (geminiError.message.includes('429') || geminiError.message.includes('503') || geminiError.message.includes('quota'))) {
+                          showToast(uiLanguage === 'ar' ? "خدمة Gemini مشغولة، تم التحويل للمسار الاحتياطي (Azure)" : "Gemini busy, switched to Backup (Azure)", 'info');
+                          const fallbackVoice = getFallbackVoice(voice, target === 'source' ? sourceLang : targetLang);
+                          pcmData = await generateStandardSpeech(textToProcess, fallbackVoice, pauseDuration, emotion);
+                      } else {
+                          throw geminiError;
+                      }
+                  }
               } else {
-                  // STUDIO/STANDARD MODE
-                  // Check if multi-speaker is requested for Studio voices
+                  // AZURE MODE
                   if (multiSpeaker) {
                       pcmData = await generateMultiSpeakerStandardSpeech(
                           textToProcess,
                           { speakerA, speakerB, speakerC, speakerD },
                           voice,
-                          pauseDuration // Pass pauseDuration
+                          pauseDuration
                       );
                   } else {
-                      // Single Studio Voice with Pause Support AND Emotion Support
                       pcmData = await generateStandardSpeech(textToProcess, voice, pauseDuration, emotion);
                   }
               }
@@ -633,14 +648,14 @@ const App: React.FC = () => {
               if (pcmData) {
                   if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
                   audioCacheRef.current.set(cacheKey, pcmData); setLastGeneratedPCM(pcmData);
-                  if (userTier !== 'visitor' && userTier !== 'admin') { updateUserStats(textToProcess.length); }
+                  // Update usage
+                  updateUserStats(textToProcess.length);
                   
-                  // --- SAVE TO HISTORY (FIX: Now recording TTS events) ---
                   if (user) {
                       import('./services/firestoreService').then(mod => {
                           mod.addHistoryItem(user.uid, {
                               sourceText: textToProcess,
-                              translatedText: `[Audio: ${voice}]`, // Marker for TTS entries
+                              translatedText: `[Audio: ${voice}]`, 
                               sourceLang: 'Text',
                               targetLang: 'Audio'
                           });
@@ -660,15 +675,15 @@ const App: React.FC = () => {
           audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
                    if (!isPausedRef.current) {
                        setActivePlayer(null); audioSourceRef.current = null; setIsLoading(false); setLoadingTask(''); playbackOffsetRef.current = 0;
-                       if (isTruncated) { setTimeout(() => { showToast(uiLanguage === 'ar' ? "هذه معاينة مجانية." : "Free preview ended.", 'info'); setIsUpgradeOpen(true); }, 500); }
+                       if (isTruncated) { setTimeout(() => { showToast(uiLanguage === 'ar' ? "هذه معاينة للزوار (50 حرف)." : "Visitor Preview (50 chars).", 'info'); setIsUpgradeOpen(true); }, 500); }
                    }
               }, speed, startOffset);
           setIsLoading(false);
       }
   };
   
+  // ... (handleTranslate, handleTashkeel, handleToggleListening, swapLanguages, handleHistoryLoad, handleCopy, handleShareLink remain same) ...
   const handleTranslate = async () => {
-      // ... logic unchanged ...
       if(isLoading) { stopAll(); return; }
       if (!sourceText.trim()) return;
       if (userTier !== 'admin' && sourceText.length > 2000) { showToast(t('errorFileTooLarge', uiLanguage), 'error'); return; }
@@ -716,7 +731,6 @@ const App: React.FC = () => {
   };
 
    const handleToggleListening = () => {
-    // ... logic unchanged ...
     if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) { setMicError(t('errorMicNotSupported', uiLanguage)); return; }
@@ -745,21 +759,8 @@ const App: React.FC = () => {
   const handleHistoryLoad = useCallback((item: HistoryItem) => {
     setSourceText(item.sourceText);
     setTranslatedText(item.translatedText);
-    
-    // FIX: Ghost of TEXT/AUDIO bug fix
-    // If the saved item has "Text" or "Audio" as language (legacy TTS logs), fallback to defaults
-    if (item.sourceLang === 'Text' || item.sourceLang === 'Audio') {
-        setSourceLang('ar'); // or current UI lang
-    } else {
-        setSourceLang(item.sourceLang);
-    }
-
-    if (item.targetLang === 'Text' || item.targetLang === 'Audio') {
-        setTargetLang('en'); // fallback
-    } else {
-        setTargetLang(item.targetLang);
-    }
-
+    if (item.sourceLang === 'Text' || item.sourceLang === 'Audio') { setSourceLang('ar'); } else { setSourceLang(item.sourceLang); }
+    if (item.targetLang === 'Text' || item.targetLang === 'Audio') { setTargetLang('en'); } else { setTargetLang(item.targetLang); }
     setIsHistoryOpen(false);
   }, []);
   
@@ -783,11 +784,9 @@ const App: React.FC = () => {
   };
 
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
-    // ... logic unchanged ...
     if (!text.trim()) return null;
     const isGemini = GEMINI_VOICES.includes(voice);
-    const isStandard = MICROSOFT_AZURE_VOICES.some(v => v.name === voice);
-    if (!isGemini && !isStandard) { showToast("Invalid voice", 'error'); return null; }
+    if (!isGemini && !MICROSOFT_AZURE_VOICES.some(v => v.name === voice)) { showToast("Invalid voice", 'error'); return null; }
     
     setError(null); setIsLoading(true); setLoadingTask(`${t('encoding', uiLanguage)}...`);
     apiAbortControllerRef.current = new AbortController();
@@ -802,12 +801,17 @@ const App: React.FC = () => {
              // @ts-ignore
              const idToken = user ? await user.getIdToken() : undefined;
              let pcmData;
-             
              if (isGemini) {
                  const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
-                 pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
+                 try {
+                    pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
+                 } catch (geminiError: any) {
+                     if (geminiError.message && (geminiError.message.includes('429') || geminiError.message.includes('503'))) {
+                         const fallbackVoice = getFallbackVoice(voice, targetLang); 
+                         pcmData = await generateStandardSpeech(text, fallbackVoice, pauseDuration, emotion);
+                     } else throw geminiError;
+                 }
              } else {
-                 // Standard Mode Multi-speaker or Single
                  if (multiSpeaker) {
                      pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice, pauseDuration);
                  } else {
@@ -818,7 +822,7 @@ const App: React.FC = () => {
             if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage));
              if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
             audioCacheRef.current.set(cacheKey, pcmData);
-            if (userTier !== 'visitor' && userTier !== 'admin') updateUserStats(text.length);
+            updateUserStats(text.length);
             if(signal.aborted) throw new Error('AbortError');
             if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); else blob = await createMp3Blob(pcmData, 1, 24000);
         }
@@ -828,10 +832,16 @@ const App: React.FC = () => {
         setIsLoading(false); setLoadingTask(''); if(apiAbortControllerRef.current?.signal === signal) apiAbortControllerRef.current = null;
     }
     return blob;
-  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
+  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier, targetLang]);
 
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
-    if (userTier === 'visitor') { setIsUpgradeOpen(true); return; }
+    // STRICT DOWNLOAD CHECK FOR VISITORS
+    if (userTier === 'visitor') { 
+        showToast(uiLanguage === 'ar' ? "التحميل غير متاح للزوار. سجل الآن." : "Downloads are locked for visitors. Sign in.", 'error');
+        setIsUpgradeOpen(true); 
+        return; 
+    }
+    
     const textToProcess = translatedText || sourceText;
     const blob = await generateAudioBlob(textToProcess, format);
     if (blob) {
@@ -842,7 +852,6 @@ const App: React.FC = () => {
   }, [translatedText, sourceText, generateAudioBlob, userTier]);
   
   const handleInsertTag = (tag: string) => {
-    // ... logic unchanged ...
     const textarea = sourceTextAreaRef.current;
     if (textarea) {
         const start = textarea.selectionStart; const end = textarea.selectionEnd; const text = sourceText;
@@ -852,8 +861,17 @@ const App: React.FC = () => {
     }
   };
   
-  // ... Other handlers (handleAudioStudioOpen, handleSignIn, etc.) unchanged ...
-  const handleAudioStudioOpen = () => { stopAll(); setIsAudioStudioOpen(true); };
+  const handleAudioStudioOpen = () => { 
+      // VISITOR CHECK FOR STUDIO
+      if (userTier === 'visitor') {
+          showToast(uiLanguage === 'ar' ? "الاستوديو متاح للأعضاء فقط." : "Studio is for members only.", 'error');
+          setIsUpgradeOpen(true);
+          return;
+      }
+      stopAll(); 
+      setIsAudioStudioOpen(true); 
+  };
+
   const handleSignIn = () => {
       const { auth } = getFirebase();
       if (!auth) { showToast("Firebase Auth not initialized", 'error'); return; }
@@ -870,12 +888,7 @@ const App: React.FC = () => {
 
   const handleDeleteHistoryItem = async (itemId: string) => {
       if (user) {
-          try {
-              await deleteHistoryItem(user.uid, itemId);
-          } catch (e) {
-              console.error("Failed to delete history item", e);
-              showToast("Failed to delete item", 'error');
-          }
+          try { await deleteHistoryItem(user.uid, itemId); } catch (e) { showToast("Failed to delete item", 'error'); }
       } else {
           const newHistory = history.filter(item => item.id !== itemId);
           setHistory(newHistory);
@@ -890,27 +903,38 @@ const App: React.FC = () => {
   };
   const handleSetDevMode = (enabled: boolean) => { setIsDevMode(enabled); sessionStorage.setItem('sawtli_dev_mode', enabled ? 'true' : 'false'); showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), 'success'); };
 
+  // ... (Render Logic) ...
   const getButtonState = (target: 'source' | 'target') => {
       const isActive = activePlayer === target;
       if (isActive) {
           if (isPaused) {
-              return { icon: <PlayCircleIcon className="w-6 h-6" />, label: t('resumeSpeaking', uiLanguage), className: "bg-amber-600/90 border-amber-400 text-white hover:bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]", showStop: true };
+              return {
+                  label: t('resumeSpeaking', uiLanguage),
+                  icon: <PlayCircleIcon className="w-6 h-6" />,
+                  className: 'bg-green-600 hover:bg-green-500 border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)] animate-pulse'
+              };
           }
-          return { icon: <PauseIcon className="w-6 h-6 animate-pulse" />, label: t('pauseSpeaking', uiLanguage), className: "bg-slate-800 border-cyan-400 text-cyan-400 hover:bg-slate-700 hover:text-white shadow-[0_0_20px_rgba(34,211,238,0.3)]", showStop: true };
+          return {
+              label: t('pauseSpeaking', uiLanguage),
+              icon: <PauseIcon className="w-6 h-6" />,
+              className: 'bg-amber-600 hover:bg-amber-500 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.4)]'
+          };
       }
-      return { icon: <SpeakerIcon className="w-6 h-6" />, label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage), className: "bg-slate-800 border-cyan-500/30 text-cyan-500 hover:bg-slate-700 hover:border-cyan-400 hover:text-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)]", showStop: false };
+      return {
+          label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage),
+          icon: <SpeakerIcon className="w-6 h-6" />,
+          className: 'bg-slate-700 hover:bg-slate-600 border-slate-500 hover:border-cyan-400'
+      };
   };
 
-  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
-  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
   const sourceButtonState = getButtonState('source');
   const targetButtonState = getButtonState('target');
+  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
+  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
 
   const sourceTextArea = (
         <div className="flex-1 relative group">
-            {/* SOURCE TOOLBAR: Source Lang (Right), Actions (Left) */}
             <div className="flex items-center justify-between mb-3 px-3">
-                {/* Actions (Tashkeel, FX, Copy) - Moved to Left for Source */}
                 <div className="flex items-center gap-2">
                      <button onClick={() => handleCopy(sourceText, 'source')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
                         {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
@@ -940,7 +964,6 @@ const App: React.FC = () => {
                         </button>
                      )}
                 </div>
-                {/* Language Select - Moved to Right for Source */}
                 <LanguageSelect value={sourceLang} onChange={setSourceLang} />
             </div>
             
@@ -948,31 +971,24 @@ const App: React.FC = () => {
                 <textarea ref={sourceTextAreaRef} value={sourceText} onChange={(e) => setSourceText(e.target.value)} placeholder={t('placeholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all resize-none ${isSourceRtl ? 'text-right' : 'text-left'} custom-scrollbar`} dir={isSourceRtl ? 'rtl' : 'ltr'} spellCheck="false" />
                 {sourceText && ( <button onClick={() => {setSourceText(''); setTranslatedText('');}} className="absolute bottom-4 left-4 p-2 bg-slate-800/80 hover:bg-red-900/80 text-slate-500 hover:text-red-400 rounded-lg transition-all border border-slate-700 hover:border-red-500/50" title={uiLanguage === 'ar' ? 'مسح النص' : 'Clear Text'}><TrashIcon className="w-4 h-4" /></button>)}
             </div>
-            {/* Char Count OUTSIDE */}
             <div className="text-right mt-2 text-xs font-bold text-slate-500 px-1">{sourceText.length} chars</div>
-             <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
+             <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig as any} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
         </div>
     );
 
     const translatedTextArea = (
         <div className="flex-1 relative">
-            {/* TARGET TOOLBAR: Actions (Right), Target Lang (Left) */}
             <div className="flex items-center justify-between mb-3 px-3">
-                {/* Language Select - Moved to Left for Target (Outer Edge for standard LTR) */}
                 <LanguageSelect value={targetLang} onChange={setTargetLang} />
-                
-                {/* Actions (Copy) - Moved to Right for Target (Inner Edge for standard LTR) */}
                 <div className="flex items-center gap-2">
                     <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
                         {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
                     </button>
                 </div>
             </div>
-            
             <div className="relative">
                 <textarea value={translatedText} readOnly placeholder={t('translationPlaceholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`} dir={isTargetRtl ? 'rtl' : 'ltr'} />
             </div>
-            {/* Char Count OUTSIDE */}
             <div className="text-right mt-2 text-xs font-bold text-slate-600 px-1">{translatedText.length} chars</div>
         </div>
     );
@@ -987,7 +1003,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
-      
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
            <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-900/10 blur-[100px]"></div>
            <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-cyan-900/10 blur-[100px]"></div>
