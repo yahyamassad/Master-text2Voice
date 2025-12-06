@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { t, Language } from '../i18n/translations';
-import { CheckIcon, LockIcon, SparklesIcon, UserIcon, LoaderIcon } from './icons';
+import { CheckIcon, LockIcon, SparklesIcon, UserIcon, LoaderIcon, StarIcon } from './icons';
 import { UserTier } from '../types';
 
 interface UpgradeModalProps {
@@ -10,11 +10,12 @@ interface UpgradeModalProps {
     currentTier: UserTier;
     onUpgrade: (tier: 'gold' | 'platinum') => Promise<boolean>; 
     onSignIn: () => void;
+    onOneTimeBuy?: () => void;
 }
 
-const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, currentTier, onUpgrade, onSignIn }) => {
+const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, currentTier, onUpgrade, onSignIn, onOneTimeBuy }) => {
     // Track which tier is currently processing
-    const [loadingTier, setLoadingTier] = useState<'gold' | 'platinum' | null>(null);
+    const [loadingTier, setLoadingTier] = useState<'gold' | 'platinum' | 'onetime' | null>(null);
     // Track which tiers have been successfully joined in this session
     const [joinedTiers, setJoinedTiers] = useState<string[]>([]);
 
@@ -36,6 +37,11 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
         }
     };
 
+    const handleOneTimeBuy = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onOneTimeBuy) onOneTimeBuy();
+    };
+
     return (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[200] p-4 animate-fade-in-down" onClick={onClose}>
             <div className="bg-slate-900 border border-slate-700 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
@@ -54,8 +60,8 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                     </button>
                 </div>
 
-                <div className="overflow-y-auto p-6 flex-grow">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
+                <div className="overflow-y-auto p-6 flex-grow custom-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         
                         {/* Free Card */}
                         <div className={`p-6 rounded-xl border flex flex-col ${currentTier === 'free' || currentTier === 'visitor' ? 'bg-slate-800 border-cyan-500 ring-1 ring-cyan-500 shadow-lg' : 'bg-slate-800 border-slate-700 opacity-80 hover:opacity-100 transition-opacity'}`}>
@@ -88,9 +94,8 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                              )}
                         </div>
 
-                        {/* Gold Card (Teaser) */}
+                        {/* STARTER Card (Was Gold) */}
                         <div className="p-6 rounded-xl border bg-gradient-to-b from-slate-800 to-slate-900 border-amber-500/30 flex flex-col relative overflow-hidden group hover:border-amber-500 transition-colors shadow-xl transform hover:-translate-y-1">
-                            {/* Moved badge to not overlap button click area visually, though z-index handles it */}
                             <div className="flex justify-between items-start mb-6">
                                 <div>
                                     <h3 className="text-lg font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-2 mb-2">
@@ -104,10 +109,9 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                             
                             <ul className="space-y-4 text-sm text-slate-200 flex-grow mb-8">
                                 <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureCharsExtended', uiLanguage)}</li>
-                                <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureGeminiVoices', uiLanguage)} (HD)</li>
+                                <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureGeminiVoices', uiLanguage)} (Unlimited)</li>
                                 <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureDownloadsHigh', uiLanguage)}</li>
-                                <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureEffectsPause', uiLanguage)}</li>
-                                <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureMultiSpeaker', uiLanguage)}</li>
+                                <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-amber-500"/> {t('featureAudioStudio', uiLanguage)}</li>
                             </ul>
                             
                             <div className="relative z-50">
@@ -126,7 +130,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                             </div>
                         </div>
 
-                        {/* Platinum Card (Teaser) */}
+                        {/* PRO Card (Was Platinum) */}
                         <div className="p-6 rounded-xl border bg-slate-800 border-cyan-400/20 flex flex-col relative overflow-hidden hover:border-cyan-400 transition-colors opacity-90 hover:opacity-100">
                              <div className="flex justify-between items-start mb-6">
                                 <div>
@@ -141,10 +145,10 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                             
                             <ul className="space-y-4 text-sm text-slate-200 flex-grow mb-8">
                                 <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-cyan-400"/> {t('featureCharsUnlimited', uiLanguage)}</li>
-                                <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-cyan-400"/> {t('featureAdvancedStudio', uiLanguage)}</li>
+                                <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-cyan-400"/> {t('featureMultiSpeaker', uiLanguage)}</li>
                                 <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-cyan-400"/> {t('featureCommercial', uiLanguage)}</li>
                                 <li className="flex items-center gap-3"><CheckIcon className="w-5 h-5 text-cyan-400"/> {t('featurePriority', uiLanguage)}</li>
-                                <li className="flex items-center gap-3 text-slate-400 italic">+ All Gold Features</li>
+                                <li className="flex items-center gap-3 text-slate-400 italic">+ All Starter Features</li>
                             </ul>
                             
                             <div className="relative z-50">
@@ -162,8 +166,44 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                                 </button>
                             </div>
                         </div>
-
                     </div>
+
+                    {/* NEW: ONE-TIME PASS SECTION */}
+                    <div className="mt-8 relative">
+                        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                            <div className="w-full border-t border-slate-700"></div>
+                        </div>
+                        <div className="relative flex justify-center">
+                            <span className="px-3 bg-slate-900 text-sm text-slate-500 font-bold uppercase tracking-widest">
+                                {t('or', uiLanguage)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 bg-gradient-to-r from-purple-900/40 to-slate-800 border border-purple-500/30 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 hover:border-purple-500/60 transition-all shadow-lg">
+                        <div className="flex-1">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
+                                <StarIcon className="w-6 h-6 text-purple-400" />
+                                {t('oneTimePassTitle', uiLanguage)}
+                            </h3>
+                            <p className="text-slate-300 text-sm">{t('oneTimePassDesc', uiLanguage)}</p>
+                            <div className="mt-3 flex gap-3 text-xs text-slate-400">
+                                <span className="flex items-center gap-1"><CheckIcon className="w-3 h-3 text-purple-400"/> 2,500 Chars</span>
+                                <span className="flex items-center gap-1"><CheckIcon className="w-3 h-3 text-purple-400"/> WAV Export</span>
+                                <span className="flex items-center gap-1"><CheckIcon className="w-3 h-3 text-purple-400"/> Pro Voices</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="text-2xl font-bold text-white">{t('oneTimePrice', uiLanguage)}</div>
+                            <button 
+                                onClick={handleOneTimeBuy}
+                                className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow-lg hover:shadow-purple-500/20 transition-all uppercase tracking-wide w-full md:w-auto"
+                            >
+                                {t('buyNow', uiLanguage)}
+                            </button>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
