@@ -1,4 +1,5 @@
 
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from "@google/genai";
 
@@ -26,10 +27,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const azureKey = env.AZURE_SPEECH_KEY;
   const azureRegion = env.AZURE_SPEECH_REGION;
 
-  // Models
-  const ttsModel = env.GEMINI_MODEL_TTS || 'Default (gemini-2.5-flash-preview-tts)';
-  const textModel = env.GEMINI_MODEL_TEXT || 'Default (gemini-2.5-flash)';
-
   const responseData: any = {
       configured: false,
       details: {
@@ -38,9 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           firebaseEmail: 'Missing',
           firebaseKey: 'Missing',
           azureKey: 'Missing',
-          azureRegion: 'Missing',
-          ttsModel: ttsModel,
-          textModel: textModel
+          azureRegion: 'Missing'
       }
   };
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
-import { getFallbackVoice } from './services/fallbackService';
 import { playAudio, createWavBlob, createMp3Blob } from './utils/audioUtils';
 import {
   SawtliLogoIcon, LoaderIcon, StopIcon, SpeakerIcon, TranslateIcon, SwapIcon, GearIcon, HistoryIcon, DownloadIcon, ShareIcon, CopyIcon, CheckIcon, LinkIcon, GlobeIcon, PlayCircleIcon, MicrophoneIcon, SoundWaveIcon, WarningIcon, ExternalLinkIcon, UserIcon, SoundEnhanceIcon, ChevronDownIcon, InfoIcon, ReportIcon, PauseIcon, VideoCameraIcon, StarIcon, LockIcon, SparklesIcon, TrashIcon, WandIcon
@@ -95,7 +94,7 @@ const QuotaIndicator: React.FC<{
     onUpgrade: () => void;
     onBoost: () => void;
 }> = ({ stats, tier, limits, uiLanguage, onUpgrade, onBoost }) => {
-    if (tier === 'admin' || tier === 'gold' || tier === 'platinum' || tier === 'onetime') return null;
+    if (tier === 'admin' || tier === 'gold' || tier === 'platinum') return null;
     
     if (tier === 'visitor') {
         return (
@@ -115,7 +114,7 @@ const QuotaIndicator: React.FC<{
 
     return (
         <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-            <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isDailyLimitReached ? 'bg-red-500' : 'bg-cyan-500'} `}
+            <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isDailyLimitReached ? 'bg-red-500' : 'bg-cyan-500'}`} 
                 style={{ width: `${dailyPercent}%` }}>
             </div>
             
@@ -242,7 +241,6 @@ const App: React.FC = () => {
   const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); 
   const [userSubscription, setUserSubscription] = useState<'free' | 'gold' | 'platinum'>('free');
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
-  const [isOneTimePassActive, setIsOneTimePassActive] = useState<boolean>(false);
 
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
@@ -323,8 +321,7 @@ const App: React.FC = () => {
   }, []);
   const removeToast = (id: number) => setToasts(prev => prev.filter(t => t.id !== id));
 
-  // Determine User Tier (Priority: Admin > OneTimePass > User Sub > Visitor)
-  const userTier: UserTier = isDevMode ? 'admin' : (isOneTimePassActive ? 'onetime' : (user ? userSubscription : 'visitor'));
+  const userTier: UserTier = isDevMode ? 'admin' : (user ? userSubscription : 'visitor');
   const planConfig = PLAN_LIMITS[userTier];
   
   const currentDailyLimit = planConfig.dailyLimit;
@@ -364,20 +361,16 @@ const App: React.FC = () => {
   };
 
   const updateUserStats = (charsConsumed: number) => {
-      if (userTier === 'admin') return; 
-      
-      // If visitor/onetime, use local state/storage implicitly via existing logic or extend here
-      // Current logic primarily for logged in users, but we should track visitor locally too for enforcement
-      
+      if (userTier === 'admin' || userTier === 'visitor') return; 
+      if (!user) return;
+
       setUserStats(prev => {
           const newStats = {
               ...prev,
               totalCharsUsed: prev.totalCharsUsed + charsConsumed,
               dailyCharsUsed: prev.dailyCharsUsed + charsConsumed
           };
-          if (user) {
-              localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
-          }
+          localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
           return newStats;
       });
   };
@@ -400,27 +393,6 @@ const App: React.FC = () => {
           }
           return prev;
       });
-  };
-
-  // --- ONE-TIME PASS HANDLER ---
-  const handleOneTimePurchase = () => {
-      showToast(uiLanguage === 'ar' ? "جاري معالجة الدفع..." : "Processing Payment...", 'info');
-      setTimeout(() => {
-          setIsOneTimePassActive(true);
-          setIsUpgradeOpen(false);
-          // Reset stats for fresh session
-          setUserStats({
-              trialStartDate: Date.now(),
-              totalCharsUsed: 0,
-              dailyCharsUsed: 0,
-              lastUsageDate: new Date().toISOString().split('T')[0],
-              hasRated: false,
-              hasShared: false,
-              invitedCount: 0,
-              bonusChars: 0
-          });
-          showToast(uiLanguage === 'ar' ? "تم الدفع بنجاح! استمتع بتجربة البرو." : "Payment Successful! Enjoy Pro access.", 'success');
-      }, 1500);
   };
 
   const stopAll = useCallback(() => {
@@ -593,17 +565,9 @@ const App: React.FC = () => {
       if (!text.trim()) return;
       if (isLoading && activePlayer === target) { stopAll(); return; }
       
-      // STRICT CHECKING for visitor vs others
-      if (userTier === 'visitor') { 
-          // Visitor logic: Allowed but truncation handled later
-      } else {
+      if (userTier === 'visitor') { /* allow */ } else {
           if (isTrialExpired) { showToast(t('trialExpired', uiLanguage), 'error'); setIsUpgradeOpen(true); return; }
-          if (isDailyLimitReached) { 
-              showToast(t('dailyLimitReached', uiLanguage), 'info'); 
-              if(userTier === 'onetime') setIsUpgradeOpen(true); // Onetime limit reached
-              else setIsGamificationOpen(true); 
-              return; 
-          }
+          if (isDailyLimitReached) { showToast(t('dailyLimitReached', uiLanguage), 'info'); setIsGamificationOpen(true); return; }
           if (isTotalLimitReached) { showToast(t('totalLimitReached', uiLanguage), 'error'); setIsUpgradeOpen(true); return; }
       }
 
@@ -629,7 +593,6 @@ const App: React.FC = () => {
 
       let textToProcess = text;
       let isTruncated = false;
-      // TRUNCATION LOGIC FOR VISITORS ONLY
       if (userTier === 'visitor' && text.length > 50) { textToProcess = text.substring(0, 50); isTruncated = true; }
 
       const cacheKey = getCacheKey(textToProcess);
@@ -648,27 +611,7 @@ const App: React.FC = () => {
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
-                  try {
-                      pcmData = await generateSpeech(textToProcess, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
-                  } catch (geminiError: any) {
-                      // --- AUTOMATIC FALLBACK SYSTEM ---
-                      // If Gemini fails (Rate Limit 429, Overloaded 503, or 500), automatically try Azure
-                      if (geminiError.message && (geminiError.message.includes('429') || geminiError.message.includes('503') || geminiError.message.includes('quota') || geminiError.message.includes('500'))) {
-                          console.warn("Gemini busy/failed. Switching to Azure Fallback.", geminiError);
-                          showToast(uiLanguage === 'ar' ? "خدمة Gemini مشغولة، تم التحويل للمسار الاحتياطي (Azure)" : "Gemini busy, switched to Backup (Azure)", 'info');
-                          
-                          // Determine best fallback voice
-                          const fallbackVoice = getFallbackVoice(voice, target === 'source' ? sourceLang : targetLang);
-                          
-                          // Try generation with fallback
-                          pcmData = await generateStandardSpeech(textToProcess, fallbackVoice, pauseDuration, emotion);
-                          
-                          // If successful, don't throw, just continue
-                      } else {
-                          // If it's another error (e.g. Auth), throw it
-                          throw geminiError;
-                      }
-                  }
+                  pcmData = await generateSpeech(textToProcess, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
               } else {
                   // STUDIO/STANDARD MODE
                   // Check if multi-speaker is requested for Studio voices
@@ -690,8 +633,7 @@ const App: React.FC = () => {
               if (pcmData) {
                   if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
                   audioCacheRef.current.set(cacheKey, pcmData); setLastGeneratedPCM(pcmData);
-                  // Update usage for non-admin/non-visitor (including onetime)
-                  if (userTier !== 'admin' && userTier !== 'visitor') { updateUserStats(textToProcess.length); }
+                  if (userTier !== 'visitor' && userTier !== 'admin') { updateUserStats(textToProcess.length); }
                   
                   // --- SAVE TO HISTORY (FIX: Now recording TTS events) ---
                   if (user) {
@@ -729,7 +671,7 @@ const App: React.FC = () => {
       // ... logic unchanged ...
       if(isLoading) { stopAll(); return; }
       if (!sourceText.trim()) return;
-      if (userTier !== 'admin' && userTier !== 'onetime' && sourceText.length > 2000) { showToast(t('errorFileTooLarge', uiLanguage), 'error'); return; }
+      if (userTier !== 'admin' && sourceText.length > 2000) { showToast(t('errorFileTooLarge', uiLanguage), 'error'); return; }
       setIsLoading(true); setLoadingTask(t('translatingButton', uiLanguage)); setError(null); setTranslatedText('');
       apiAbortControllerRef.current = new AbortController();
       const signal = apiAbortControllerRef.current.signal;
@@ -751,7 +693,6 @@ const App: React.FC = () => {
       }
   };
   
-  // ... (Tashkeel, ToggleListening, SwapLanguages, HistoryLoad, Copy, Share ... NO CHANGES)
   const handleTashkeel = async () => {
       if (!sourceText.trim()) return;
       if (!sourceLang.startsWith('ar')) {
@@ -775,6 +716,7 @@ const App: React.FC = () => {
   };
 
    const handleToggleListening = () => {
+    // ... logic unchanged ...
     if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) { setMicError(t('errorMicNotSupported', uiLanguage)); return; }
@@ -803,16 +745,21 @@ const App: React.FC = () => {
   const handleHistoryLoad = useCallback((item: HistoryItem) => {
     setSourceText(item.sourceText);
     setTranslatedText(item.translatedText);
+    
+    // FIX: Ghost of TEXT/AUDIO bug fix
+    // If the saved item has "Text" or "Audio" as language (legacy TTS logs), fallback to defaults
     if (item.sourceLang === 'Text' || item.sourceLang === 'Audio') {
-        setSourceLang('ar'); 
+        setSourceLang('ar'); // or current UI lang
     } else {
         setSourceLang(item.sourceLang);
     }
+
     if (item.targetLang === 'Text' || item.targetLang === 'Audio') {
-        setTargetLang('en'); 
+        setTargetLang('en'); // fallback
     } else {
         setTargetLang(item.targetLang);
     }
+
     setIsHistoryOpen(false);
   }, []);
   
@@ -858,15 +805,9 @@ const App: React.FC = () => {
              
              if (isGemini) {
                  const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
-                 try {
-                    pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
-                 } catch (geminiError: any) {
-                     if (geminiError.message && (geminiError.message.includes('429') || geminiError.message.includes('503'))) {
-                         const fallbackVoice = getFallbackVoice(voice, targetLang); 
-                         pcmData = await generateStandardSpeech(text, fallbackVoice, pauseDuration, emotion);
-                     } else throw geminiError;
-                 }
+                 pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
              } else {
+                 // Standard Mode Multi-speaker or Single
                  if (multiSpeaker) {
                      pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice, pauseDuration);
                  } else {
@@ -887,10 +828,10 @@ const App: React.FC = () => {
         setIsLoading(false); setLoadingTask(''); if(apiAbortControllerRef.current?.signal === signal) apiAbortControllerRef.current = null;
     }
     return blob;
-  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier, targetLang]);
+  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier]);
 
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
-    if (!planConfig.allowDownloads) { setIsUpgradeOpen(true); return; }
+    if (userTier === 'visitor') { setIsUpgradeOpen(true); return; }
     const textToProcess = translatedText || sourceText;
     const blob = await generateAudioBlob(textToProcess, format);
     if (blob) {
@@ -898,9 +839,10 @@ const App: React.FC = () => {
         const a = document.createElement('a'); a.href = url; a.download = `sawtli_audio.${format}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     }
     setIsDownloadOpen(false);
-  }, [translatedText, sourceText, generateAudioBlob, userTier, planConfig]);
+  }, [translatedText, sourceText, generateAudioBlob, userTier]);
   
   const handleInsertTag = (tag: string) => {
+    // ... logic unchanged ...
     const textarea = sourceTextAreaRef.current;
     if (textarea) {
         const start = textarea.selectionStart; const end = textarea.selectionEnd; const text = sourceText;
@@ -910,6 +852,7 @@ const App: React.FC = () => {
     }
   };
   
+  // ... Other handlers (handleAudioStudioOpen, handleSignIn, etc.) unchanged ...
   const handleAudioStudioOpen = () => { stopAll(); setIsAudioStudioOpen(true); };
   const handleSignIn = () => {
       const { auth } = getFirebase();
@@ -918,7 +861,7 @@ const App: React.FC = () => {
       const provider = new firebase.auth.GoogleAuthProvider();
       auth.signInWithPopup(provider).catch((error: any) => { console.error(error); showToast(t('signInError', uiLanguage), 'error'); }).finally(() => setIsAuthLoading(false));
   };
-  const handleSignOutAndClose = () => { const { auth } = getFirebase(); if (auth) auth.signOut().then(() => { setIsAccountOpen(false); setIsOneTimePassActive(false); showToast("Signed out", 'info'); }); };
+  const handleSignOutAndClose = () => { const { auth } = getFirebase(); if (auth) auth.signOut().then(() => { setIsAccountOpen(false); showToast("Signed out", 'info'); }); };
   const handleClearHistory = async () => {
       if (user) { try { await clearHistoryForUser(user.uid); setHistory([]); showToast(t('historyClearSuccess', uiLanguage), 'success'); } catch (error) { showToast(t('historyClearError', uiLanguage), 'error'); } } 
       else { setHistory([]); localStorage.removeItem('sawtli_history'); showToast(t('historyClearSuccess', uiLanguage), 'success'); }
@@ -947,7 +890,6 @@ const App: React.FC = () => {
   };
   const handleSetDevMode = (enabled: boolean) => { setIsDevMode(enabled); sessionStorage.setItem('sawtli_dev_mode', enabled ? 'true' : 'false'); showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), 'success'); };
 
-  // ... (getButtonState, Buttons Rendering - NO CHANGES)
   const getButtonState = (target: 'source' | 'target') => {
       const isActive = activePlayer === target;
       if (isActive) {
@@ -1008,7 +950,7 @@ const App: React.FC = () => {
             </div>
             {/* Char Count OUTSIDE */}
             <div className="text-right mt-2 text-xs font-bold text-slate-500 px-1">{sourceText.length} chars</div>
-             <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig as any} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
+             <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
         </div>
     );
 
@@ -1167,7 +1109,7 @@ const App: React.FC = () => {
       
       <AudioStudioModal isOpen={isAudioStudioOpen} onClose={() => setIsAudioStudioOpen(false)} uiLanguage={uiLanguage} voice={voice} sourceAudioPCM={lastGeneratedPCM} allowDownloads={planConfig.allowDownloads} allowStudio={planConfig.allowStudio} userTier={userTier} onUpgrade={() => setIsUpgradeOpen(true)} />
       {isTutorialOpen && <TutorialModal onClose={() => setIsTutorialOpen(false)} uiLanguage={uiLanguage} />}
-      {isUpgradeOpen && <UpgradeModal onClose={() => setIsUpgradeOpen(false)} uiLanguage={uiLanguage} currentTier={userTier} onUpgrade={handleUpgrade} onSignIn={() => { setIsUpgradeOpen(false); handleSignIn(); }} onOneTimeBuy={handleOneTimePurchase} />}
+      {isUpgradeOpen && <UpgradeModal onClose={() => setIsUpgradeOpen(false)} uiLanguage={uiLanguage} currentTier={userTier} onUpgrade={handleUpgrade} onSignIn={() => { setIsUpgradeOpen(false); handleSignIn(); }} />}
       {isGamificationOpen && <GamificationModal onClose={() => setIsGamificationOpen(false)} uiLanguage={uiLanguage} userStats={userStats} onBoost={handleBoost} />}
       {isPrivacyOpen && <PrivacyModal onClose={() => setIsPrivacyOpen(false)} uiLanguage={uiLanguage} />}
 

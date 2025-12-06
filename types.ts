@@ -1,4 +1,5 @@
 
+
 export interface HistoryItem {
   id: string;
   sourceText: string;
@@ -23,9 +24,6 @@ export interface StandardVoice {
     gender: 'Female' | 'Male';
     type: 'Azure Neural'; // Simplified type
 }
-
-// Fallback Map Interface
-export type FallbackMap = Record<string, { male: string; female: string }>;
 
 // MICROSOFT AZURE VOICES LIST
 // Selected high-quality Neural voices with focus on Arabic dialects
@@ -150,7 +148,7 @@ export const MICROSOFT_AZURE_VOICES: StandardVoice[] = [
     { name: 'fa-IR-FaridNeural', label: 'Farid (Persian)', lang: 'fa', gender: 'Male', type: 'Azure Neural' },
 ];
 
-export type UserTier = 'visitor' | 'free' | 'gold' | 'platinum' | 'admin' | 'onetime';
+export type UserTier = 'visitor' | 'free' | 'gold' | 'platinum' | 'admin';
 
 // --- USER STATS FOR GAMIFICATION ---
 export interface UserStats {
@@ -206,19 +204,6 @@ export const PLAN_LIMITS = {
         allowStudio: false, // LOCKED: No Studio for visitors
         allowMultiSpeaker: false,
         allowEffects: false,
-    },
-    onetime: {
-        maxCharsPerRequest: 2500, // Full project at once
-        dailyLimit: 2500,
-        totalTrialLimit: 2500,
-        trialDays: 7, // 7 Day Pass
-        maxDownloads: Infinity,
-        allowDownloads: true,
-        allowWav: true,
-        allowGemini: true,
-        allowStudio: true,
-        allowMultiSpeaker: true,
-        allowEffects: true,
     },
     free: {
         maxCharsPerRequest: 350, // Daily Cap acting as Request Cap

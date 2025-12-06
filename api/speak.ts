@@ -33,10 +33,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const client = new GoogleGenAI({ apiKey });
 
-    // SAFETY STRATEGY:
-    // Use env var GEMINI_MODEL_TTS if set, otherwise fallback to the current preview model.
-    // This allows hot-swapping the model from Vercel dashboard if Google deprecates the preview.
-    const MODEL_NAME = process.env.GEMINI_MODEL_TTS || 'gemini-2.5-flash-preview-tts';
+    // REVERTED TO WORKING ENDPOINT: gemini-2.5-flash-preview-tts
+    const MODEL_NAME = 'gemini-2.5-flash-preview-tts';
     
     const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
 
@@ -60,6 +58,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         speechConfig: {
                             voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoiceName } }
                         }
+                        // REMOVED: systemInstruction, temperature, topP, topK 
+                        // These parameters are not supported by the TTS model and cause 500 errors.
                     },
                 });
 
@@ -84,13 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     continue;
                 }
 
-                // If it's a 404 (Model Not Found), it means the preview might be deprecated.
-                // In a real production app, we would fallback to Azure here automatically.
-                if (errMsg.includes('404') || errMsg.includes('not found')) {
-                     console.error("Gemini Model Not Found. Please update GEMINI_MODEL_TTS env var.");
-                     throw new Error(`Model ${MODEL_NAME} not found or deprecated.`);
-                }
-
+                // If it's a 404 (Model Not Found) or 400 (Invalid Argument), fail immediately
                 throw err;
             }
         }
@@ -98,6 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error: any) {
         console.error(`Final Failure with ${MODEL_NAME}:`, error.message);
         
+        // Return the EXACT error from Google to help debugging
         const errorMessage = error.message || "Unknown error";
 
         if (errorMessage.includes('429') || errorMessage.includes('quota')) {
@@ -109,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         return res.status(500).json({ 
             error: "Generation failed.", 
-            details: errorMessage 
+            details: errorMessage // Show the real reason (e.g., Model not found)
         });
     }
     
