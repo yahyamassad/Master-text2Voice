@@ -25,7 +25,8 @@ function escapeXml(unsafe: string): string {
 export async function generateStandardSpeech(
     text: string,
     voiceId: string, // e.g., 'ar-EG-SalmaNeural'
-    pauseDuration: number = 0 // Seconds
+    pauseDuration: number = 0, // Seconds
+    emotion: string = 'Default' // Style mapping
 ): Promise<Uint8Array | null> {
     try {
         let payload: any = { voiceId };
@@ -34,40 +35,48 @@ export async function generateStandardSpeech(
         const parts = voiceId.split('-');
         const langCode = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : 'en-US';
 
-        // Logic: If pauseDuration > 0, we use SSML to inject breaks between paragraphs.
-        // We look for double newlines as paragraph separators.
-        // Even for simple text, Azure requires SSML structure if we send raw SSML, but we'll let the backend wrap it
-        // UNLESS we are doing special pause logic here.
-        
-        if (pauseDuration > 0) {
-            const paragraphs = text.split(/\n\s*\n/);
-            
-            // Build Inner SSML (inside the <voice> tag)
-            let innerSSML = '';
-            
-            paragraphs.forEach((para, index) => {
-                const cleanPara = para.trim();
-                if (cleanPara) {
-                    innerSSML += escapeXml(cleanPara);
-                    if (index < paragraphs.length - 1) {
-                        innerSSML += `<break time="${Math.round(pauseDuration * 1000)}ms"/>`;
-                    }
-                }
-            });
-            
-            // We construct the full SSML here to control the break tags
-            const fullSSML = `
-                <speak version='1.0' xml:lang='${langCode}'>
-                    <voice xml:lang='${langCode}' xml:gender='Female' name='${voiceId}'>
-                        ${innerSSML}
-                    </voice>
-                </speak>
-            `;
-            payload.ssml = fullSSML;
-        } else {
-            // Default plain text - backend handles wrapping
-            payload.text = text;
+        // Map UI Emotion to Azure Style
+        let azureStyle = '';
+        switch (emotion) {
+            case 'Happy': azureStyle = 'cheerful'; break;
+            case 'Sad': azureStyle = 'sad'; break;
+            case 'Formal': azureStyle = 'newscast'; break; // Or 'serious' depending on voice support
+            default: azureStyle = '';
         }
+
+        // Logic: Build SSML to handle Pauses AND Emotions
+        // We always use SSML now to support these features
+        
+        const paragraphs = text.split(/\n\s*\n/);
+        
+        // Build Inner Text (Breaks logic)
+        let innerContent = '';
+        
+        paragraphs.forEach((para, index) => {
+            const cleanPara = para.trim();
+            if (cleanPara) {
+                innerContent += escapeXml(cleanPara);
+                if (index < paragraphs.length - 1 && pauseDuration > 0) {
+                    innerContent += `<break time="${Math.round(pauseDuration * 1000)}ms"/>`;
+                }
+            }
+        });
+
+        // Wrap in Style if selected
+        if (azureStyle) {
+            innerContent = `<mstts:express-as style="${azureStyle}">${innerContent}</mstts:express-as>`;
+        }
+        
+        // Construct the final full SSML
+        // Note: added xmlns:mstts for style support
+        const fullSSML = `
+            <speak version='1.0' xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang='${langCode}'>
+                <voice xml:lang='${langCode}' xml:gender='Female' name='${voiceId}'>
+                    ${innerContent}
+                </voice>
+            </speak>
+        `;
+        payload.ssml = fullSSML;
 
         const response = await fetch('/api/speak-azure', {
             method: 'POST',
@@ -167,7 +176,9 @@ export async function generateMultiSpeakerStandardSpeech(
 
     for (const seg of segments) {
         try {
-            // We use simple generation here (no pauseDuration) because pauses are handled by stitching
+            // We use simple generation here (no emotion/pause per line) 
+            // Note: We could pass the global 'emotion' here if we updated this function signature too, 
+            // but sticking to base functionality for multi-speaker standard for now to keep it robust.
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
             if (mp3Bytes) {
                 // Decode MP3 bytes to AudioBuffer
