@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
@@ -8,7 +9,7 @@ import {
 } from './components/icons';
 import { t, Language, languageOptions, translationLanguages, translations } from './i18n/translations';
 import { History } from './components/History';
-import { HistoryItem, SpeakerConfig, GEMINI_VOICES, GOOGLE_STUDIO_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
+import { HistoryItem, SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
 import firebase, { getFirebase } from './firebaseConfig';
 
 type User = firebase.User;
@@ -786,7 +787,7 @@ const App: React.FC = () => {
     // ... logic unchanged ...
     if (!text.trim()) return null;
     const isGemini = GEMINI_VOICES.includes(voice);
-    const isStandard = GOOGLE_STUDIO_VOICES.some(v => v.name === voice);
+    const isStandard = MICROSOFT_AZURE_VOICES.some(v => v.name === voice);
     if (!isGemini && !isStandard) { showToast("Invalid voice", 'error'); return null; }
     
     setError(null); setIsLoading(true); setLoadingTask(`${t('encoding', uiLanguage)}...`);
@@ -1098,7 +1099,7 @@ const App: React.FC = () => {
         speakerB={speakerB} setSpeakerB={setSpeakerB} 
         speakerC={speakerC} setSpeakerC={setSpeakerC} 
         speakerD={speakerD} setSpeakerD={setSpeakerD} 
-        systemVoices={GOOGLE_STUDIO_VOICES as any} 
+        systemVoices={MICROSOFT_AZURE_VOICES as any} 
         sourceLang={sourceLang} targetLang={targetLang}
         currentLimits={planConfig} 
         onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { t, Language } from '../i18n/translations';
 import { WarningIcon, CopyIcon, TrashIcon, InfoIcon, CheckIcon, ChevronDownIcon } from './icons';
@@ -12,6 +13,8 @@ interface ServerStatus {
         firebaseProject?: string;
         firebaseEmail?: string;
         firebaseKey?: string;
+        azureKey?: string;
+        azureRegion?: string;
     };
 }
 
@@ -252,11 +255,17 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     const keyStatus = serverStatus?.details?.firebaseKey || '';
     const isAutoFixed = keyStatus.includes('Auto-Fixed') || keyStatus.includes('Auto-fixing') || keyStatus.includes('Auto-corrected');
 
+    // Azure Check
+    const azureStatus = serverStatus?.details?.azureKey || '';
+    const azureRegionStatus = serverStatus?.details?.azureRegion || '';
+    const isAzureReady = azureStatus.includes('Present') && azureRegionStatus.includes('Present');
+
     const isServerReady = 
         serverStatus?.details?.gemini?.includes('Present') &&
         serverStatus?.details?.firebaseProject?.includes('Present') &&
         serverStatus?.details?.firebaseEmail?.includes('Present') &&
-        (serverStatus?.details?.firebaseKey?.includes('Valid') || isAutoFixed);
+        (serverStatus?.details?.firebaseKey?.includes('Valid') || isAutoFixed) &&
+        isAzureReady;
 
     const isFullyConfigured = isServerReady && isFirebaseConfigured;
 
@@ -345,14 +354,26 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                                     <StatusRow label="Firebase Project" value={serverStatus.details.firebaseProject} />
                                     <StatusRow label="Firebase Email" value={serverStatus.details.firebaseEmail} />
                                     <StatusRow label="Private Key" value={serverStatus.details.firebaseKey} />
+                                    <StatusRow label="Azure Speech Key" value={serverStatus.details.azureKey} />
+                                    <StatusRow label="Azure Region" value={serverStatus.details.azureRegion} />
                                     
+                                    {!isAzureReady && (
+                                        <div className="mt-4 p-3 bg-red-950/20 border border-red-500/20 text-red-300 rounded-lg text-xs leading-relaxed flex gap-3 items-start font-medium">
+                                            <WarningIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-400" />
+                                            <div>
+                                                <strong className="text-red-200 block mb-1">Microsoft Azure Missing:</strong> 
+                                                You need to add AZURE_SPEECH_KEY and AZURE_SPEECH_REGION to Vercel.
+                                                <div className="opacity-80 mt-1">{uiLanguage === 'ar' ? 'أضف متغيرات AZURE_SPEECH_KEY و AZURE_SPEECH_REGION في إعدادات Vercel.' : 'Add AZURE_SPEECH_KEY and AZURE_SPEECH_REGION variables in Vercel settings.'}</div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {isAutoFixed && (
                                         <div className="mt-4 p-3 bg-green-950/20 border border-green-500/20 text-green-300 rounded-lg text-xs leading-relaxed flex gap-3 items-start font-medium">
                                             <CheckIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-400" />
                                             <div>
                                                 <strong className="text-green-200 block mb-1">Good news:</strong> 
                                                 Your Private Key format was corrected automatically.
-                                                <div className="opacity-80 mt-1">{uiLanguage === 'ar' ? 'تم إصلاح تنسيق المفتاح تلقائياً. يمكنك المتابعة.' : 'System auto-fixed the key format. You are good to go.'}</div>
                                             </div>
                                         </div>
                                     )}

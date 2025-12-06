@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translations } from '../i18n/translations';
-import { SpeakerConfig, GEMINI_VOICES, GOOGLE_STUDIO_VOICES } from '../types';
+import { SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES } from '../types';
 import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
@@ -98,22 +99,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
     // Filter Standard Voices based on language
     const relevantStandardVoices = useMemo(() => {
-        if (showAllSystemVoices) return GOOGLE_STUDIO_VOICES;
+        if (showAllSystemVoices) return MICROSOFT_AZURE_VOICES;
 
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();
 
-        const filtered = GOOGLE_STUDIO_VOICES.filter(v => {
+        const filtered = MICROSOFT_AZURE_VOICES.filter(v => {
             const vLang = v.lang.toLowerCase();
             return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode) || vLang.includes(sourceLangCode) || vLang.includes(targetLangCode);
         });
 
-        return filtered.length > 0 ? filtered : GOOGLE_STUDIO_VOICES;
+        return filtered.length > 0 ? filtered : MICROSOFT_AZURE_VOICES;
     }, [sourceLang, targetLang, showAllSystemVoices]);
 
     // Categorize voices for display
-    const standardCategoryVoices = useMemo(() => relevantStandardVoices.filter(v => v.type === 'Standard'), [relevantStandardVoices]);
-    const premiumCategoryVoices = useMemo(() => relevantStandardVoices.filter(v => v.type === 'WaveNet' || v.type === 'Neural2'), [relevantStandardVoices]);
+    // Azure voices are all "Neural" (Premium quality)
+    // We can group them by Gender or Dialect if needed, but for now flat list is fine or grouped by "High Quality"
+    const neuralVoices = relevantStandardVoices;
 
     // Auto-select voice when switching modes if current voice is invalid for mode
     useEffect(() => {
@@ -161,7 +163,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         let langCode: string = uiLanguage; 
         
         if (!GEMINI_VOICES.includes(voiceName)) {
-            const voiceObj = GOOGLE_STUDIO_VOICES.find(v => v.name === voiceName);
+            const voiceObj = MICROSOFT_AZURE_VOICES.find(v => v.name === voiceName);
             if (voiceObj) {
                 langCode = voiceObj.lang;
             } else if (voiceName.includes('-')) {
@@ -287,46 +289,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </div>
                                 )}
 
-                                {/* STANDARD VOICES GROUP */}
-                                {standardCategoryVoices.length > 0 && (
-                                    <div className="mb-4">
-                                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-700 pb-1 mb-2">
-                                            {t('categoryStandard', uiLanguage)}
-                                        </div>
-                                        <div className="space-y-2">
-                                            {standardCategoryVoices.map(v => (
-                                                <VoiceListItem 
-                                                    key={v.name} 
-                                                    voiceName={v.name} 
-                                                    label={v.label} 
-                                                    sublabel={`${v.lang} • ${v.gender}`} 
-                                                    isSelected={voice === v.name}
-                                                    previewingVoice={previewingVoice}
-                                                    onSelect={setVoice}
-                                                    onPreview={handlePreview}
-                                                    t={tWrapper}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* PREMIUM VOICES GROUP (WaveNet/Neural2) */}
-                                {premiumCategoryVoices.length > 0 && (
+                                {/* NEURAL VOICES (AZURE) */}
+                                {neuralVoices.length > 0 && (
                                     <div>
                                         <div className="text-xs font-bold text-amber-400 uppercase tracking-widest border-b border-slate-700 pb-1 mb-2 flex justify-between items-center">
-                                            {t('categoryPremium', uiLanguage)}
+                                            {t('categoryPremium', uiLanguage)} (Azure Neural)
                                             {!currentLimits.allowWav && <LockIcon className="w-3 h-3" />}
                                         </div>
                                         <div className="space-y-2">
-                                            {premiumCategoryVoices.map(v => (
+                                            {neuralVoices.map(v => (
                                                 <VoiceListItem 
                                                     key={v.name} 
                                                     voiceName={v.name} 
                                                     label={v.label} 
                                                     sublabel={`${v.lang} • ${v.gender}`} 
                                                     isSelected={voice === v.name}
-                                                    isLocked={!currentLimits.allowWav} // Example lock based on generic premium feature
+                                                    isLocked={!currentLimits.allowWav} 
                                                     previewingVoice={previewingVoice}
                                                     onSelect={setVoice}
                                                     onPreview={handlePreview}

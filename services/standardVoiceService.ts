@@ -1,4 +1,5 @@
 
+
 import { decode, createWavBlob } from '../utils/audioUtils';
 import { SpeakerConfig } from '../types';
 
@@ -19,45 +20,56 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
- * Calls the backend API to generate speech using Google Cloud TTS (WaveNet/Standard).
- * High reliability, industry standard quality.
+ * Calls the backend API to generate speech using Microsoft Azure AI Speech (Neural).
  */
 export async function generateStandardSpeech(
     text: string,
-    voiceId: string, // e.g., 'ar-XA-Wavenet-A'
+    voiceId: string, // e.g., 'ar-EG-SalmaNeural'
     pauseDuration: number = 0 // Seconds
 ): Promise<Uint8Array | null> {
     try {
         let payload: any = { voiceId };
 
+        // Derive lang from voiceId (e.g. ar-EG-SalmaNeural -> ar-EG)
+        const parts = voiceId.split('-');
+        const langCode = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : 'en-US';
+
         // Logic: If pauseDuration > 0, we use SSML to inject breaks between paragraphs.
         // We look for double newlines as paragraph separators.
+        // Even for simple text, Azure requires SSML structure if we send raw SSML, but we'll let the backend wrap it
+        // UNLESS we are doing special pause logic here.
+        
         if (pauseDuration > 0) {
-            // Split by newlines (paragraph breaks)
             const paragraphs = text.split(/\n\s*\n/);
             
-            // Build SSML
-            // <speak>Para 1<break time="1s"/>Para 2</speak>
-            let ssml = '<speak>';
+            // Build Inner SSML (inside the <voice> tag)
+            let innerSSML = '';
             
             paragraphs.forEach((para, index) => {
                 const cleanPara = para.trim();
                 if (cleanPara) {
-                    ssml += escapeXml(cleanPara);
+                    innerSSML += escapeXml(cleanPara);
                     if (index < paragraphs.length - 1) {
-                        ssml += `<break time="${pauseDuration}s"/>`;
+                        innerSSML += `<break time="${Math.round(pauseDuration * 1000)}ms"/>`;
                     }
                 }
             });
             
-            ssml += '</speak>';
-            payload.ssml = ssml;
+            // We construct the full SSML here to control the break tags
+            const fullSSML = `
+                <speak version='1.0' xml:lang='${langCode}'>
+                    <voice xml:lang='${langCode}' xml:gender='Female' name='${voiceId}'>
+                        ${innerSSML}
+                    </voice>
+                </speak>
+            `;
+            payload.ssml = fullSSML;
         } else {
-            // Default plain text
+            // Default plain text - backend handles wrapping
             payload.text = text;
         }
 
-        const response = await fetch('/api/speak-google', {
+        const response = await fetch('/api/speak-azure', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -65,23 +77,9 @@ export async function generateStandardSpeech(
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            
-            // Check for Project ID mismatch specifically
-            if (errorData.details && errorData.details.includes('PERMISSION_DENIED') && errorData.details.includes('API has not been used')) {
-                 const match = errorData.details.match(/project (\d+)/);
-                 const usedProjectNum = match ? match[1] : 'UNKNOWN';
-                 const configuredProject = errorData.projectId || 'UNKNOWN';
-                 
-                 throw new Error(`CRITICAL CONFIG ERROR: Your Private Key belongs to Project ID/Num '${usedProjectNum}', but you are trying to use Project '${configuredProject}'. Please go to Vercel and update FIREBASE_PRIVATE_KEY with the key from '${configuredProject}'.`);
-            }
-
-            if (errorData.details && (errorData.details.includes('DECODER routines') || errorData.details.includes('bad decrypt'))) {
-                throw new Error("KEY FORMAT ERROR: The FIREBASE_PRIVATE_KEY in Vercel is malformed. Please remove any surrounding quotes (\") and ensure the key starts exactly with -----BEGIN PRIVATE KEY-----");
-            }
-
             const errorMessage = errorData.details 
                 ? `${errorData.error}: ${errorData.details}` 
-                : (errorData.error || `Studio voice error: ${response.status}`);
+                : (errorData.error || `Azure voice error: ${response.status}`);
             
             throw new Error(errorMessage);
         }
@@ -89,20 +87,20 @@ export async function generateStandardSpeech(
         const data = await response.json();
         
         if (!data.audioContent) {
-            console.warn("Studio API returned no audio content.");
+            console.warn("Azure API returned no audio content.");
             return null;
         }
         
         return decode(data.audioContent);
 
     } catch (error) {
-        console.error("Studio Speech Generation Failed:", error);
+        console.error("Azure Speech Generation Failed:", error);
         throw error;
     }
 }
 
 /**
- * Generates multi-speaker audio by parsing text and stitching multiple Studio voice requests.
+ * Generates multi-speaker audio by parsing text and stitching multiple Azure voice requests.
  */
 export async function generateMultiSpeakerStandardSpeech(
     text: string,
@@ -164,7 +162,7 @@ export async function generateMultiSpeakerStandardSpeech(
     // We fetch linearly to maintain order and simplicity, though parallel is possible
     const audioBuffers: AudioBuffer[] = [];
     
-    // We need an AudioContext to decode MP3 data coming from Google
+    // We need an AudioContext to decode MP3 data coming from Azure
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
     for (const seg of segments) {

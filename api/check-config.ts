@@ -1,4 +1,5 @@
 
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from "@google/genai";
 
@@ -22,13 +23,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const firebaseEmail = env.FIREBASE_CLIENT_EMAIL;
   const firebaseKey = env.FIREBASE_PRIVATE_KEY;
 
+  // New: Azure Keys
+  const azureKey = env.AZURE_SPEECH_KEY;
+  const azureRegion = env.AZURE_SPEECH_REGION;
+
   const responseData: any = {
       configured: false,
       details: {
           gemini: 'Missing',
           firebaseProject: 'Missing',
           firebaseEmail: 'Missing',
-          firebaseKey: 'Missing'
+          firebaseKey: 'Missing',
+          azureKey: 'Missing',
+          azureRegion: 'Missing'
       }
   };
 
@@ -41,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Simple instantiation check
           new GoogleGenAI({ apiKey });
           responseData.details.gemini = `Present ${keySource} ...${last4}`;
-          responseData.configured = true;
+          responseData.configured = true; // Minimum requirement
       } catch (e) {
           responseData.details.gemini = `Invalid Format`;
       }
@@ -65,32 +72,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       responseData.details.firebaseEmail = 'Missing (Check FIREBASE_CLIENT_EMAIL)';
   }
 
-  // 4. Check Firebase Private Key (The most common point of failure)
+  // 4. Check Firebase Private Key
   if (firebaseKey && firebaseKey.trim().length > 0) {
-      // Check for common formatting issues
       const hasBegin = firebaseKey.includes('BEGIN PRIVATE KEY');
       const hasEnd = firebaseKey.includes('END PRIVATE KEY');
-      
-      // CRITICAL: Check for newline issues.
-      // Real newlines usually aren't visible in env var console logs, but literals "\n" are.
       const hasLiteralSlashN = firebaseKey.includes('\\n');
       const hasRealNewline = firebaseKey.includes('\n');
       
       if (!hasBegin || !hasEnd) {
           responseData.details.firebaseKey = `Invalid: Missing Header/Footer`;
       } else if (hasLiteralSlashN && !hasRealNewline) {
-          // We treat this as VALID because api/feedback.ts automatically fixes it using .replace(/\\n/g, '\n')
           responseData.details.firebaseKey = `Valid (Auto-Fixed)`;
       } else if (hasRealNewline) {
           responseData.details.firebaseKey = `Valid (Multi-line)`;
       } else {
-          // Just a fallback
           responseData.details.firebaseKey = `Valid (${firebaseKey.length} chars)`;
       }
   } else {
       responseData.details.firebaseKey = 'Missing (Check FIREBASE_PRIVATE_KEY)';
   }
 
-  // Return 200 even if config is missing so the frontend can display the debug info
+  // 5. Check Azure Speech Key
+  if (azureKey && azureKey.trim().length > 0) {
+      const last4 = azureKey.length > 4 ? azureKey.slice(-4) : '****';
+      responseData.details.azureKey = `Present ...${last4}`;
+  } else {
+      responseData.details.azureKey = 'Missing (AZURE_SPEECH_KEY)';
+  }
+
+  // 6. Check Azure Region
+  if (azureRegion && azureRegion.trim().length > 0) {
+      responseData.details.azureRegion = `Present (${azureRegion})`;
+  } else {
+      responseData.details.azureRegion = 'Missing (AZURE_SPEECH_REGION)';
+  }
+
   return res.status(200).json(responseData);
 }
