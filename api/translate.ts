@@ -25,17 +25,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        // CRITICAL UPDATE: Support SAWTLI_GEMINI_KEY
         const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
         const ai = new GoogleGenAI({ apiKey: apiKey });
-        const model = 'gemini-2.5-flash';
+        
+        // Configurable Model Name for Stability
+        const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-2.5-flash';
 
         const systemInstruction = `You are a professional translator. Translate user input from ${sourceLang} to ${targetLang}. Output ONLY the translated text.`;
 
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
         
         const apiPromise = ai.models.generateContent({
-            model: model,
+            model: MODEL_NAME,
             contents: {
                 role: 'user',
                 parts: [{ text: text }]
@@ -43,7 +44,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             config: {
                 systemInstruction: systemInstruction,
                 temperature: 0.3,
-                // Safety settings removed to prevent build errors
             }
         });
 
@@ -74,7 +74,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error: any) {
         console.error("Translation Error:", error);
 
-        // Graceful handling for Quota/Rate Limit Errors
         if (error.message && (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED') || error.message.includes('quota'))) {
             return res.status(429).json({ 
                 error: "Translation service busy. Please try again later." 
