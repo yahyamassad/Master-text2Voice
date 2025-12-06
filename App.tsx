@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
@@ -621,11 +619,12 @@ const App: React.FC = () => {
                       pcmData = await generateMultiSpeakerStandardSpeech(
                           textToProcess,
                           { speakerA, speakerB, speakerC, speakerD },
-                          voice // Default voice if no speaker match
+                          voice,
+                          pauseDuration // Pass pauseDuration
                       );
                   } else {
-                      // Single Studio Voice
-                      pcmData = await generateStandardSpeech(textToProcess, voice);
+                      // Single Studio Voice with Pause Support
+                      pcmData = await generateStandardSpeech(textToProcess, voice, pauseDuration);
                   }
               }
               
@@ -810,9 +809,9 @@ const App: React.FC = () => {
              } else {
                  // Standard Mode Multi-speaker or Single
                  if (multiSpeaker) {
-                     pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice);
+                     pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice, pauseDuration);
                  } else {
-                     pcmData = await generateStandardSpeech(text, voice);
+                     pcmData = await generateStandardSpeech(text, voice, pauseDuration);
                  }
              }
 
