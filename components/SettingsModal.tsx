@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translations } from '../i18n/translations';
 import { SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES } from '../types';
@@ -97,37 +98,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         'Puck': 'voiceMale1', 'Kore': 'voiceFemale1', 'Charon': 'voiceMale2', 'Zephyr': 'voiceFemale2', 'Fenrir': 'voiceMale3',
     };
 
-    // Filter Standard Voices based on language
+    // Filter Standard Voices based on language context (Source OR Target OR UI Language)
     const relevantStandardVoices = useMemo(() => {
         if (showAllSystemVoices) return MICROSOFT_AZURE_VOICES;
 
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();
+        const uiLangCode = uiLanguage.toLowerCase(); // Also check UI lang
 
         const filtered = MICROSOFT_AZURE_VOICES.filter(v => {
             const vLang = v.lang.toLowerCase();
-            return vLang.startsWith(sourceLangCode) || vLang.startsWith(targetLangCode) || vLang.includes(sourceLangCode) || vLang.includes(targetLangCode);
+            // ALWAYS show the currently selected voice so it doesn't disappear
+            if (v.name === voice) return true;
+
+            // Loose matching: includes checking strictly part of code (ar-SA matches 'ar')
+            return vLang.includes(sourceLangCode) || 
+                   vLang.includes(targetLangCode) || 
+                   vLang.includes(uiLangCode);
         });
 
+        // If filtering leaves nothing (e.g. language not supported), fallback to all
         return filtered.length > 0 ? filtered : MICROSOFT_AZURE_VOICES;
-    }, [sourceLang, targetLang, showAllSystemVoices]);
+    }, [sourceLang, targetLang, uiLanguage, showAllSystemVoices, voice]);
 
-    // Categorize voices for display
-    // Azure voices are all "Neural" (Premium quality)
-    // We can group them by Gender or Dialect if needed, but for now flat list is fine or grouped by "High Quality"
     const neuralVoices = relevantStandardVoices;
 
-    // Auto-select voice when switching modes if current voice is invalid for mode
+    // Auto-select voice logic (Only switch if current voice is totally invalid for the mode)
     useEffect(() => {
         if (voiceMode === 'gemini' && !GEMINI_VOICES.includes(voice)) {
             setVoice(GEMINI_VOICES[0]);
         } else if (voiceMode === 'system' && GEMINI_VOICES.includes(voice)) {
-            // Pick first relevant standard voice
+            // Pick first relevant standard voice, or fallback to first available
             if (relevantStandardVoices.length > 0) {
                 setVoice(relevantStandardVoices[0].name);
             }
         }
-    }, [voiceMode, voice, setVoice, relevantStandardVoices]);
+    }, [voiceMode, setVoice]); // Removed 'voice' from dependency to prevent loop, logic handles initial switch
 
     useEffect(() => {
         return () => {
@@ -197,7 +203,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             if (GEMINI_VOICES.includes(voiceName)) {
                 pcmData = await previewVoice(voiceName, previewText, 'Default');
             } else {
-                pcmData = await generateStandardSpeech(previewText, voiceName);
+                // Pass Default emotion for preview
+                pcmData = await generateStandardSpeech(previewText, voiceName, 0, 'Default');
             }
 
             if (pcmData) {
@@ -273,7 +280,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <p className="text-xs text-slate-400">
                                         {showAllSystemVoices 
                                             ? (uiLanguage === 'ar' ? 'عرض كل الأصوات القياسية' : 'Showing ALL Standard voices')
-                                            : t('noRelevantSystemVoices', uiLanguage)}
+                                            : t('suggestedVoices', uiLanguage)}
                                     </p>
                                     <button 
                                         onClick={() => setShowAllSystemVoices(!showAllSystemVoices)} 
@@ -318,22 +325,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
                     </div>
                     
-                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative ${voiceMode === 'system' ? 'opacity-40 pointer-events-none' : ''}`}>
-                         {voiceMode === 'gemini' && !currentLimits.allowEffects && (
-                             <div className="absolute inset-0 bg-slate-900/70 rounded-lg z-10 flex items-center justify-center backdrop-blur-[1px] cursor-pointer border border-slate-700" onClick={onUpgrade}>
-                                <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-amber-500/50 shadow-lg hover:bg-slate-700 transition-colors">
-                                     <LockIcon className="text-amber-400 w-5 h-5" />
-                                     <span className="text-sm font-bold text-white">{uiLanguage === 'ar' ? 'انضم للقائمة لفتح التحكم المتقدم' : 'Join Waitlist to unlock Advanced Controls'}</span>
-                                </div>
-                             </div>
-                         )}
-
-                         <h4 className="font-semibold text-slate-200">{t('geminiVoiceSettings', uiLanguage)}</h4>
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative`}>
+                         <h4 className="font-semibold text-slate-200 flex items-center gap-2">
+                             {voiceMode === 'gemini' ? t('geminiVoiceSettings', uiLanguage) : (uiLanguage === 'ar' ? 'إعدادات الصوت (Azure)' : 'Voice Settings (Azure)')}
+                         </h4>
                          
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div className={voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}>
+                             {/* Emotion - Enabled for both now */}
+                             <div>
                                 <label htmlFor="emotion-select" className="block text-sm font-medium text-slate-300 mb-1">{t('emotionLabel', uiLanguage)}</label>
-                                 <select id="emotion-select" value={emotion} onChange={e => setEmotion(e.target.value)} disabled={voiceMode === 'system'} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md disabled:cursor-not-allowed text-white">
+                                 <select id="emotion-select" value={emotion} onChange={e => setEmotion(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md disabled:cursor-not-allowed text-white">
                                      <option value="Default">{t('emotionDefault', uiLanguage)}</option>
                                      <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
                                      <option value="Sad">{t('emotionSad', uiLanguage)}</option>
@@ -341,6 +342,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                  </select>
                              </div>
                              
+                             {/* Seed - Gemini Only */}
                              <div className={voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}>
                                     <label htmlFor="seed-input" className="block text-sm font-medium text-slate-300 mb-1">{t('seedLabel', uiLanguage)}</label>
                                     <div className="flex items-center gap-2">
@@ -364,10 +366,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              </div>
                          </div>
 
-                        <div className={voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}>
+                        {/* Pause Duration - Enabled for both now */}
+                        <div>
                             <label htmlFor="pause-duration" className="block text-sm font-medium text-slate-300 mb-1">{t('pauseLabel', uiLanguage)}</label>
                             <div className="flex items-center gap-3">
-                                 <input id="pause-duration" type="range" min="0" max="5" step="0.1" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} disabled={voiceMode === 'system'} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed" />
+                                 <input id="pause-duration" type="range" min="0" max="5" step="0.1" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:cursor-not-allowed" />
                                  <span className="text-cyan-400 font-mono">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
                             </div>
                         </div>
