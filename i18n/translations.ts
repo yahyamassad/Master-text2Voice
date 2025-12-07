@@ -50,7 +50,7 @@ export const translations = {
   // Updated Terms based on user feedback
   studioFileMode: { ar: 'Add Audio File', en: 'Add Audio File', fr: 'Ajouter Fichier', es: 'Añadir Archivo', pt: 'Adicionar Arquivo' },
   studioAiMode: { ar: 'Digital Audio', en: 'Digital Audio', fr: 'Audio Numérique', es: 'Audio Digital', pt: 'Áudio Digital' },
-  studioMicMode: { ar: 'Recording Mode', en: 'Recording Mode', fr: 'Mode Enregistrement', es: 'Modo Grabación', pt: 'Modo Gravação' }, // Using 'studioMicMode' for clarity in usage
+  studioMicMode: { ar: 'Recording Mode', en: 'Recording Mode', fr: 'Mode Enregistrement', es: 'Modo Grabación', pt: 'Modo Gravação' },
 
   studioExport: { ar: 'EXPORT', en: 'EXPORT', fr: 'EXPORTER', es: 'EXPORTAR', pt: 'EXPORTAR' },
   studioExportSettings: { ar: 'EXPORT SETTINGS', en: 'EXPORT SETTINGS', fr: 'PARAMÈTRES D\'EXPORT', es: 'AJUSTES EXPORTACIÓN', pt: 'CONFIG. EXPORTAÇÃO' },
@@ -65,6 +65,27 @@ export const translations = {
   studioShowAll: { ar: 'Show All', en: 'Show All', fr: 'Tout voir', es: 'Ver todo', pt: 'Ver tudo' },
   studioShowSuggested: { ar: 'Showing suggested', en: 'Showing suggested', fr: 'Suggérés', es: 'Sugeridos', pt: 'Sugeridos' },
   studioShowingAll: { ar: 'Showing ALL voices', en: 'Showing ALL voices', fr: 'Toutes les voix', es: 'Todas las voces', pt: 'Todas as vozes' },
+
+  // --- NEW VOICE PERSONAS (CATEGORIES & STYLES) ---
+  catLiterature: { ar: 'الأدب والإبداع', en: 'Literature & Creativity', fr: 'Littérature & Créativité', es: 'Literatura y Creatividad', pt: 'Literatura e Criatividade' },
+  styleEpicPoet: { ar: 'الشاعر الملحمي', en: 'Epic Poet', fr: 'Poète Épique', es: 'Poeta Épico', pt: 'Poeta Épico' },
+  styleHeritageNarrator: { ar: 'الراوي التراثي', en: 'Heritage Narrator', fr: 'Conteur Traditionnel', es: 'Narrador Tradicional', pt: 'Narrador Tradicional' },
+  stylePhilosopher: { ar: 'المفكر الفلسفي', en: 'Philosopher', fr: 'Philosophe', es: 'Filósofo', pt: 'Filósofo' },
+
+  catActing: { ar: 'التمثيل والإخراج', en: 'Acting & Directing', fr: 'Jeu & Réalisation', es: 'Actuación y Dirección', pt: 'Atuação e Direção' },
+  styleDramaticActor: { ar: 'الممثل الدرامي', en: 'Dramatic Actor', fr: 'Acteur Dramatique', es: 'Actor Dramático', pt: 'Ator Dramático' },
+  styleComedian: { ar: 'ممثل الكوميديا', en: 'Comedian', fr: 'Comédien', es: 'Comediante', pt: 'Comediante' },
+  styleThriller: { ar: 'الرعب والتشويق', en: 'Thriller/Horror', fr: 'Thriller/Horreur', es: 'Suspenso/Terror', pt: 'Suspense/Terror' },
+
+  catMedia: { ar: 'الإعلام والبث', en: 'Media & Broadcasting', fr: 'Médias & Diffusion', es: 'Medios y Radiodifusión', pt: 'Mídia e Transmissão' },
+  styleNewsAnchor: { ar: 'المذيع الإخباري', en: 'News Anchor', fr: 'Présentateur JT', es: 'Presentador de Noticias', pt: 'Apresentador de Notícias' },
+  styleSportsCommentator: { ar: 'معلق المباريات', en: 'Sports Commentator', fr: 'Commentateur Sportif', es: 'Comentarista Deportivo', pt: 'Comentarista Esportivo' },
+  styleTalkShow: { ar: 'مذيع حواري', en: 'Talk Show Host', fr: 'Animateur Talk-Show', es: 'Anfitrión de Talk Show', pt: 'Apresentador de Talk Show' },
+
+  catEducation: { ar: 'التعليم والإرشاد', en: 'Education & Guidance', fr: 'Éducation & Orientation', es: 'Educación y Orientación', pt: 'Educação e Orientação' },
+  styleTeacher: { ar: 'المعلم القدير', en: 'Master Teacher', fr: 'Maître Enseignant', es: 'Maestro Experto', pt: 'Mestre Professor' },
+  styleCounselor: { ar: 'المرشد النفسي', en: 'Counselor', fr: 'Conseiller', es: 'Consejero', pt: 'Conselheiro' },
+  styleMotivator: { ar: 'المدرب التحفيزي', en: 'Motivational Coach', fr: 'Coach Motivation', es: 'Entrenador Motivacional', pt: 'Treinador Motivacional' },
 
   // --- VOICE CATEGORIES ---
   proVoices: { ar: 'أصوات Pro', en: 'Pro Voices', fr: 'Voix Pro', es: 'Voces Pro', pt: 'Vozes Pro' },
@@ -218,7 +239,7 @@ export const translations = {
   suggestedVoices: { en: 'Suggested Voices', ar: 'أصوات مقترحة', fr: 'Voix Suggérées', es: 'Voces Sugeridas', pt: 'Vozes Sugeridas' },
   categoryPremium: { en: 'Premium', ar: 'مميز', fr: 'Premium', es: 'Premium', pt: 'Premium' },
   geminiVoiceSettings: { en: 'Ultra Settings', ar: 'إعدادات Ultra', fr: 'Paramètres Ultra', es: 'Ajustes Ultra', pt: 'Config. Ultra' },
-  emotionLabel: { en: 'Emotion', ar: 'المشاعر', fr: 'Émotion', es: 'Emoción', pt: 'Emoção' },
+  emotionLabel: { en: 'Voice Persona', ar: 'النبرة والشخصية', fr: 'Persona Vocale', es: 'Persona de Voz', pt: 'Persona de Voz' },
   emotionDefault: { en: 'Default', ar: 'افتراضي', fr: 'Défaut', es: 'Defecto', pt: 'Padrão' },
   emotionHappy: { en: 'Happy', ar: 'سعيد', fr: 'Joyeux', es: 'Feliz', pt: 'Feliz' },
   emotionSad: { en: 'Sad', ar: 'حزين', fr: 'Triste', es: 'Triste', pt: 'Triste' },
@@ -243,66 +264,37 @@ export const translations = {
   describeIssue: { en: 'Describe the issue...', ar: 'صف المشكلة...', fr: 'Décrivez le problème...', es: 'Describe el problema...', pt: 'Descreva o problema...' },
   screenshotOptional: { en: 'Screenshot (Optional)', ar: 'لقطة شاشة (اختياري)', fr: 'Capture (Optionnel)', es: 'Captura (Opcional)', pt: 'Captura (Opcional)' },
   chooseFile: { en: 'Choose File', ar: 'اختر ملف', fr: 'Choisir Fichier', es: 'Elegir Archivo', pt: 'Escolher Arquivo' },
-  fileSelected: { en: 'File Selected', ar: 'تم اختيار ملف', fr: 'Fichier sélectionné', es: 'Archivo seleccionado', pt: 'Arquivo selecionado' },
-  noFileChosen: { en: 'No file chosen', ar: 'لم يتم اختيار ملف', fr: 'Aucun fichier choisi', es: 'No se eligió archivo', pt: 'Nenhum arquivo escolhido' },
-  previewText_ar: { en: 'Hello, I am ready.', ar: 'مرحباً، أنا جاهز.', fr: 'Bonjour, je suis prêt.', es: 'Hola, estoy listo.', pt: 'Olá, estou pronto.' },
-  previewText_en: { en: 'Hello, I am ready.', ar: 'Hello, I am ready.', fr: 'Hello, I am ready.', es: 'Hello, I am ready.', pt: 'Hello, I am ready.' },
-  previewText_fr: { en: 'Bonjour, je suis prêt.', ar: 'Bonjour, je suis prêt.', fr: 'Bonjour, je suis prêt.', es: 'Bonjour, je suis prêt.', pt: 'Bonjour, je suis prêt.' },
-  previewText_es: { en: 'Hola, estoy listo.', ar: 'Hola, estoy listo.', fr: 'Hola, estoy listo.', es: 'Hola, estoy listo.', pt: 'Hola, estoy listo.' },
-  previewText_pt: { en: 'Olá, estou pronto.', ar: 'Olá, estou pronto.', fr: 'Olá, estou pronto.', es: 'Olá, estou pronto.', pt: 'Olá, estou pronto.' },
-  previewText_de: { en: 'Hallo, ich bin bereit.', ar: 'Hallo, ich bin bereit.', fr: 'Hallo, ich bin bereit.', es: 'Hallo, ich bin bereit.', pt: 'Hallo, ich bin bereit.' },
-  previewText_it: { en: 'Ciao, sono pronto.', ar: 'Ciao, sono pronto.', fr: 'Ciao, sono pronto.', es: 'Ciao, sono pronto.', pt: 'Ciao, sono pronto.' },
-  previewText_ja: { en: 'Konnichiwa.', ar: 'Konnichiwa.', fr: 'Konnichiwa.', es: 'Konnichiwa.', pt: 'Konnichiwa.' },
-  previewText_ko: { en: 'Annyeonghaseyo.', ar: 'Annyeonghaseyo.', fr: 'Annyeonghaseyo.', es: 'Annyeonghaseyo.', pt: 'Annyeonghaseyo.' },
-  previewText_zh: { en: 'Ni hao.', ar: 'Ni hao.', fr: 'Ni hao.', es: 'Ni hao.', pt: 'Ni hao.' },
-  previewText_ru: { en: 'Privet.', ar: 'Privet.', fr: 'Privet.', es: 'Privet.', pt: 'Privet.' },
-  previewText_tr: { en: 'Merhaba.', ar: 'Merhaba.', fr: 'Merhaba.', es: 'Merhaba.', pt: 'Merhaba.' },
-  previewText_hi: { en: 'Namaste.', ar: 'Namaste.', fr: 'Namaste.', es: 'Namaste.', pt: 'Namaste.' },
-  
-  questShareApp: { en: 'Share Sawtli', ar: 'شارك صوتلي', fr: 'Partager Sawtli', es: 'Compartir Sawtli', pt: 'Compartilhar Sawtli' },
-  questShareAppDesc: { en: 'Share with friends to get +50 chars', ar: 'شارك مع أصدقائك واحصل على +50 حرف', fr: 'Partagez pour +50 car.', es: 'Comparte para +50 caracteres', pt: 'Compartilhe para +50 car.' },
+  fileSelected: { en: 'File Selected', ar: 'تم اختيار ملف', fr: 'Fichier sélect.', es: 'Archivo selec.', pt: 'Arquivo selec.' },
+  noFileChosen: { en: 'No file chosen', ar: 'لم يتم اختيار ملف', fr: 'Aucun fichier', es: 'Sin archivo', pt: 'Sem arquivo' },
+  sendReport: { en: 'Send Report', ar: 'إرسال البلاغ', fr: 'Envoyer', es: 'Enviar', pt: 'Enviar' },
+  questShareApp: { en: 'Share App', ar: 'شارك التطبيق', fr: 'Partager App', es: 'Compartir App', pt: 'Compartilhar App' },
+  questShareAppDesc: { en: 'Share with friends', ar: 'شارك مع أصدقائك', fr: 'Partager avec amis', es: 'Compartir con amigos', pt: 'Compartilhar com amigos' },
   completed: { en: 'Completed', ar: 'مكتمل', fr: 'Terminé', es: 'Completado', pt: 'Concluído' },
-  bonusAdded: { en: 'Bonus Added!', ar: 'تمت إضافة المكافأة!', fr: 'Bonus ajouté!', es: '¡Bono añadido!', pt: 'Bônus adicionado!' },
+  bonusAdded: { en: 'Bonus Added!', ar: 'تمت إضافة المكافأة!', fr: 'Bonus Ajouté!', es: '¡Bono Añadido!', pt: 'Bônus Adicionado!' },
   claimReward: { en: 'Claim Reward', ar: 'احصل على المكافأة', fr: 'Réclamer', es: 'Reclamar', pt: 'Resgatar' },
-  questRateApp: { en: 'Rate Us', ar: 'قيمنا', fr: 'Notez-nous', es: 'Califícanos', pt: 'Avalie-nos' },
-  questRateAppDesc: { en: 'Give us 5 stars for +100 chars', ar: 'اعطنا 5 نجوم واحصل على +100 حرف', fr: '5 étoiles pour +100 car.', es: '5 estrellas para +100 car.', pt: '5 estrelas para +100 car.' },
-  questInviteFriend: { en: 'Invite a Friend', ar: 'ادعُ صديقاً', fr: 'Inviter un ami', es: 'Invitar amigo', pt: 'Convidar amigo' },
-  questInviteFriendDesc: { en: 'Coming soon...', ar: 'قريباً...', fr: 'Bientôt...', es: 'Próximamente...', pt: 'Em breve...' },
-  
-  monthly: { en: 'Monthly', ar: 'شهري', fr: 'Mensuel', es: 'Mensual', pt: 'Mensal' },
-  yearly: { en: 'Yearly', ar: 'سنوي', fr: 'Annuel', es: 'Anual', pt: 'Anual' },
-  earlyAccess: { en: 'Early Access Plans', ar: 'خطط الدخول المبكر', fr: 'Accès Anticipé', es: 'Acceso Anticipado', pt: 'Acesso Antecipado' },
-  joinWaitlist: { en: 'Join Waitlist', ar: 'انضم للقائمة', fr: 'Rejoindre liste', es: 'Unirse lista', pt: 'Entrar na lista' },
-  
-  previewVoiceTooltip: { en: 'Preview Voice', ar: 'معاينة الصوت', fr: 'Aperçu de la voix', es: 'Vista previa de voz', pt: 'Prévia da voz' },
-  
-  issueOriginalAudio: { en: 'Original Audio Issue', ar: 'مشكلة في الصوت الأصلي', fr: 'Problème audio original', es: 'Problema audio original', pt: 'Problema áudio original' },
-  issueTranslatedAudio: { en: 'Translated Audio Issue', ar: 'مشكلة في الصوت المترجم', fr: 'Problème audio traduit', es: 'Problema audio traducido', pt: 'Problema áudio traduzido' },
-  issueTranslation: { en: 'Translation Accuracy', ar: 'دقة الترجمة', fr: 'Précision traduction', es: 'Precisión traducción', pt: 'Precisão tradução' },
-  issueGeminiVoices: { en: 'Gemini Voices', ar: 'أصوات Gemini', fr: 'Voix Gemini', es: 'Voces Gemini', pt: 'Vozes Gemini' },
-  issueSystemVoices: { en: 'System Voices', ar: 'أصوات النظام', fr: 'Voix Système', es: 'Voces Sistema', pt: 'Vozes Sistema' },
-  issueVoicePreview: { en: 'Voice Preview', ar: 'معاينة الصوت', fr: 'Aperçu voix', es: 'Vista previa voz', pt: 'Prévia voz' },
-  issuePauses: { en: 'Pauses/Timing', ar: 'التوقفات/التوقيت', fr: 'Pauses/Timing', es: 'Pausas/Tiempos', pt: 'Pausas/Tempo' },
-  issueSpeed: { en: 'Speech Speed', ar: 'سرعة الكلام', fr: 'Vitesse parole', es: 'Velocidad habla', pt: 'Velocidade fala' },
-  issueMultiSpeaker: { en: 'Multi-Speaker', ar: 'تعدد المتحدثين', fr: 'Multi-locuteurs', es: 'Multi-locutor', pt: 'Multi-falante' },
-  issueInterfaceLanguage: { en: 'Interface Language', ar: 'لغة الواجهة', fr: 'Langue interface', es: 'Idioma interfaz', pt: 'Idioma interface' },
-  issueSpeechSettings: { en: 'Speech Settings', ar: 'إعدادات الصوت', fr: 'Paramètres voix', es: 'Ajustes voz', pt: 'Config. voz' },
-  issueHistory: { en: 'History/Logs', ar: 'السجل', fr: 'Historique', es: 'Historial', pt: 'Histórico' },
-  issueShareLink: { en: 'Share Link', ar: 'رابط المشاركة', fr: 'Lien partage', es: 'Enlace compartir', pt: 'Link compartilhar' },
-  issueDownload: { en: 'Download/Export', ar: 'تحميل/تصدير', fr: 'Téléchargement', es: 'Descarga', pt: 'Download' },
-  issueAudioStudio: { en: 'Audio Studio', ar: 'استوديو الصوت', fr: 'Studio Audio', es: 'Estudio Audio', pt: 'Estúdio Áudio' },
-  issueComments: { en: 'Comments/Feedback', ar: 'تعليقات/ملاحظات', fr: 'Commentaires', es: 'Comentarios', pt: 'Comentários' },
-  issueOther: { en: 'Other', ar: 'أخرى', fr: 'Autre', es: 'Otro', pt: 'Outro' },
-  sendReport: { en: 'Send Report', ar: 'إرسال البلاغ', fr: 'Envoyer signalement', es: 'Enviar reporte', pt: 'Enviar relatório' },
-  
-  yourName: { en: 'Your Name', ar: 'اسمك', fr: 'Votre Nom', es: 'Tu Nombre', pt: 'Seu Nome' },
-  
-  closeButton: { en: 'Close', ar: 'إغلاق', fr: 'Fermer', es: 'Cerrar', pt: 'Fechar' },
+  questRateApp: { en: 'Rate App', ar: 'قيم التطبيق', fr: 'Noter App', es: 'Calificar App', pt: 'Avaliar App' },
+  questRateAppDesc: { en: 'Give us 5 stars', ar: 'اعطنا 5 نجوم', fr: 'Donnez 5 étoiles', es: 'Danos 5 estrellas', pt: 'Dê 5 estrelas' },
+  questInviteFriend: { en: 'Invite Friend', ar: 'ادع صديق', fr: 'Inviter Ami', es: 'Invitar Amigo', pt: 'Convidar Amigo' },
+  questInviteFriendDesc: { en: 'Get bonus when they join', ar: 'احصل على مكافأة عند انضمامهم', fr: 'Bonus si rejoint', es: 'Bono si une', pt: 'Bônus se entrar' },
+  addLaugh: { en: 'Laugh', ar: 'ضحكة', fr: 'Rire', es: 'Risa', pt: 'Riso' },
+  addLaughter: { en: 'Laughter', ar: 'قهقهة', fr: 'Rires', es: 'Risas', pt: 'Risadas' },
+  addSigh: { en: 'Sigh', ar: 'تنهيدة', fr: 'Soupir', es: 'Suspiro', pt: 'Suspiro' },
+  addSob: { en: 'Sob', ar: 'نشيج', fr: 'Sanglot', es: 'Sollozo', pt: 'Soluço' },
+  addGasp: { en: 'Gasp', ar: 'شهقة', fr: 'Halètement', es: 'Jadeo', pt: 'Suspiro' },
+  addCough: { en: 'Cough', ar: 'سعلة', fr: 'Toux', es: 'Tos', pt: 'Tosse' },
+  addHmm: { en: 'Hmm', ar: 'همم', fr: 'Hmm', es: 'Hmm', pt: 'Hmm' },
+  addCheer: { en: 'Cheer', ar: 'تشجيع', fr: 'Acclamation', es: 'Aclamación', pt: 'Aplauso' },
+  addKiss: { en: 'Kiss', ar: 'قبلة', fr: 'Bisou', es: 'Beso', pt: 'Beijo' },
+  earlyAccess: { ar: 'الخطط والأسعار', en: 'Plans & Pricing', fr: 'Plans et Tarifs', es: 'Planes y Precios', pt: 'Planos e Preços' },
+  joinWaitlist: { ar: 'اشترك الآن', en: 'Subscribe', fr: 'S\'abonner', es: 'Suscribirse', pt: 'Inscrever-se' },
+  comingSoon: { ar: 'موصى به', en: 'Recommended', fr: 'Recommandé', es: 'Recomendado', pt: 'Recomendado' },
+  oneTime: { ar: 'مرة واحدة', en: 'One-time', fr: 'Une fois', es: 'Una vez', pt: 'Uma vez' },
+  monthly: { ar: 'شهري', en: 'Monthly', fr: 'Mensuel', es: 'Mensual', pt: 'Mensal' },
+  yearly: { ar: 'سنوي', en: 'Yearly', fr: 'Annuel', es: 'Anual', pt: 'Anual' },
 };
 
 export const t = (key: keyof typeof translations, lang: Language): string => {
-    const entry = translations[key];
-    if (!entry) return key;
-    // @ts-ignore
-    return entry[lang] || entry['en'] || key;
+    const item = translations[key];
+    if (!item) return key;
+    return (item as any)[lang] || (item as any)['en'] || key;
 };

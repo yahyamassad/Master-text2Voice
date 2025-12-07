@@ -1,6 +1,7 @@
 
 import { SpeakerConfig } from '../types';
 import { decode } from '../utils/audioUtils';
+import { getVoiceStyle } from '../utils/voiceStyles';
 
 // NOTE: We now call the Vercel Serverless Functions (/api/speak, /api/translate)
 // instead of using the GoogleGenAI SDK directly in the browser.
@@ -18,10 +19,21 @@ async function generateAudioChunk(
     seed?: number
 ): Promise<Uint8Array | null> {
     
-    // Simplified instructions logic handling moved to backend or kept here for prompt construction
+    // Inject Style Prompt if 'emotion' is actually a Style ID
     let promptText = text;
+    
+    // Check if the 'emotion' matches one of our new Voice Styles
+    // If it's a simple legacy emotion (Happy, Sad), we use the old format.
+    // If it's a Style ID (epic_poet, news_anchor), we prepend the full prompt instruction.
     if (emotion && emotion !== 'Default') {
-        promptText = `(Emotion: ${emotion}) ${text}`;
+        const style = getVoiceStyle(emotion);
+        if (style) {
+            // It's a Persona!
+            promptText = `[Instruction: ${style.prompt}] ${text}`;
+        } else {
+            // Legacy basic emotion
+            promptText = `(Emotion: ${emotion}) ${text}`;
+        }
     }
 
     try {

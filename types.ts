@@ -27,6 +27,15 @@ export interface StandardVoice {
 // Fallback Map Interface
 export type FallbackMap = Record<string, { male: string; female: string }>;
 
+// Voice Style / Persona Interface
+export interface VoiceStyle {
+    id: string;
+    categoryKey: string; // e.g., 'catLiterature'
+    labelKey: string;    // e.g., 'styleEpicPoet'
+    prompt: string;      // The instruction sent to Gemini
+    recommendedSpeed?: number;
+}
+
 // EXPANDED MICROSOFT AZURE VOICES LIST (PRO VOICES)
 export const MICROSOFT_AZURE_VOICES: StandardVoice[] = [
     // --- ARABIC (All Dialects) ---

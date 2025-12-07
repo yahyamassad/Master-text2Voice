@@ -6,6 +6,7 @@ import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, SparklesIcon, CheckIcon
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
 import { playAudio } from '../utils/audioUtils';
+import { VOICE_STYLES } from '../utils/voiceStyles';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -108,6 +109,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const neuralVoices = relevantStandardVoices;
 
+    // Group Voice Styles
+    const groupedStyles = useMemo(() => {
+        const groups: Record<string, typeof VOICE_STYLES> = {};
+        VOICE_STYLES.forEach(style => {
+            if (!groups[style.categoryKey]) groups[style.categoryKey] = [];
+            groups[style.categoryKey].push(style);
+        });
+        return groups;
+    }, []);
+
     useEffect(() => {
         if (voiceMode === 'gemini' && !GEMINI_VOICES.includes(voice)) {
             setVoice(GEMINI_VOICES[0]);
@@ -176,6 +187,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const speakerOptions = voiceMode === 'gemini' 
         ? GEMINI_VOICES.map(v => <option key={v} value={v}>{v}</option>)
         : relevantStandardVoices.map(v => <option key={v.name} value={v.name}>{v.label}</option>);
+
+    const handleStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const selectedId = e.target.value;
+        setEmotion(selectedId);
+        
+        // Auto-adjust speed based on recommended setting for that style
+        const style = VOICE_STYLES.find(s => s.id === selectedId);
+        if (style && style.recommendedSpeed) {
+            setSpeed(style.recommendedSpeed);
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
@@ -269,20 +291,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
                     </div>
                     
-                    {/* ... (Rest of the settings like Emotion, Speed etc. kept same) ... */}
+                    {/* --- NEW VOICE STYLES SELECTOR --- */}
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative`}>
                          <h4 className="font-semibold text-slate-200 flex items-center gap-2">
-                             {voiceMode === 'gemini' ? t('geminiVoiceSettings', uiLanguage) : (uiLanguage === 'ar' ? 'إعدادات الصوت (Azure)' : 'Voice Settings (Azure)')}
+                             {t('emotionLabel', uiLanguage)}
                          </h4>
                          
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div>
                                 <label htmlFor="emotion-select" className="block text-sm font-medium text-slate-300 mb-1">{t('emotionLabel', uiLanguage)}</label>
-                                 <select id="emotion-select" value={emotion} onChange={e => setEmotion(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
+                                 <select 
+                                    id="emotion-select" 
+                                    value={emotion} 
+                                    onChange={handleStyleChange} 
+                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                 >
                                      <option value="Default">{t('emotionDefault', uiLanguage)}</option>
-                                     <option value="Happy">{t('emotionHappy', uiLanguage)}</option>
-                                     <option value="Sad">{t('emotionSad', uiLanguage)}</option>
-                                     <option value="Formal">{t('emotionFormal', uiLanguage)}</option>
+                                     
+                                     {/* Grouped Styles */}
+                                     {Object.keys(groupedStyles).map(catKey => (
+                                         <optgroup key={catKey} label={t(catKey as any, uiLanguage)}>
+                                             {groupedStyles[catKey].map(style => (
+                                                 <option key={style.id} value={style.id}>
+                                                     {t(style.labelKey as any, uiLanguage)}
+                                                 </option>
+                                             ))}
+                                         </optgroup>
+                                     ))}
                                  </select>
                              </div>
                              
