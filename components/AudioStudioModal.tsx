@@ -333,7 +333,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     
     // Menu
     const [showExportMenu, setShowExportMenu] = useState(false);
-    const [showUpgradeAlert, setShowUpgradeAlert] = useState(false);
     
     // Refs
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -419,7 +418,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         if (!isPaidUser) {
             e.preventDefault();
             e.stopPropagation();
-            setShowUpgradeAlert(true);
+            if (onUpgrade) onUpgrade();
         }
     };
 
@@ -927,7 +926,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     const onMusicUploadClick = () => { 
         if (!isPaidUser) {
-            setShowUpgradeAlert(true);
+            if (onUpgrade) onUpgrade();
             return;
         }
         musicInputRef.current?.click(); 
@@ -1067,7 +1066,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const handleTabSwitch = (tab: 'ai' | 'mic' | 'upload') => {
         if (activeTab === tab) return;
         if ((tab === 'upload' || tab === 'mic') && !isPaidUser) {
-            setShowUpgradeAlert(true);
+            if (onUpgrade) onUpgrade();
             return;
         }
 
@@ -1133,21 +1132,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
                     {/* Visualizer & Timeline */}
                     <div className="bg-[#020617] rounded-xl border border-slate-800 overflow-hidden relative shadow-2xl group">
-                        {showUpgradeAlert && (
-                            <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-down pointer-events-auto" onClick={(e) => {e.stopPropagation(); setShowUpgradeAlert(false);}}>
-                                <div className="text-center bg-slate-900 border border-amber-500 p-6 rounded-xl shadow-2xl" onClick={e => e.stopPropagation()}>
-                                    <div className="text-2xl font-bold text-white mb-2">
-                                        {uiLanguage === 'ar' ? 'ميزة مقفلة' : 'Locked Feature'}
-                                    </div>
-                                    <p className="text-slate-400 mb-4">
-                                        {uiLanguage === 'ar' ? 'يتوفر استوديو الصوت الكامل للمشتركين فقط.' : 'Full Audio Studio access is available for subscribers only.'}
-                                    </p>
-                                    <button onClick={(e) => { e.stopPropagation(); if (onUpgrade) onUpgrade(); setShowUpgradeAlert(false); }} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-full font-bold uppercase tracking-wide transition-colors">
-                                        {uiLanguage === 'ar' ? 'ترقية الآن' : 'Upgrade Now'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                         <div className="h-32 sm:h-40 relative w-full">
                              <AudioVisualizer analyser={analyserNode} isPlaying={isPlaying || isRecording} />
                              {isRecording && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="animate-pulse text-red-500 font-mono text-xl font-bold tracking-widest bg-black/30 px-4 py-1 rounded">RECORDING {Math.floor(recordingTime/60)}:{String(recordingTime%60).padStart(2,'0')}</div></div>}
@@ -1171,8 +1155,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     <div className="bg-[#1e293b] p-3 rounded-2xl border border-slate-700 shadow-xl relative z-40" dir="ltr">
                         <div className="flex flex-col md:flex-row items-stretch gap-4">
                             <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-1">
-                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>FILE</span>{!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}</button>
-                                <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) handleTabSwitch('mic'); }} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>MIC</span>{!isPaidUser && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500"/>}</button>
+                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>FILE</span></button>
+                                <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) handleTabSwitch('mic'); }} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>MIC</span></button>
                                 <button onClick={() => handleTabSwitch('ai')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>GEMINI</button>
                             </div>
                             <div className="flex-shrink-0 flex justify-center items-center">
@@ -1236,7 +1220,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" dir="ltr">
                         {/* LEFT: BAND EQ-5 */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
-                            {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                             <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
@@ -1252,7 +1235,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
                         {/* CENTER: MIXER */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
-                             {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="flex items-center gap-3">
                                     <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
@@ -1295,7 +1277,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
                         {/* RIGHT: PRESETS */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
-                             {!isPaidUser && <div className="absolute top-4 right-4 z-10 text-slate-600"><LockIcon className="w-4 h-4"/></div>}
                              <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
                                 <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
@@ -1314,23 +1295,19 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     {/* Bottom Knobs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Time Stretch</div>
                             <Knob label="SPEED" value={settings.speed * 50} min={25} max={100} onChange={(v) => updateSetting('speed', v/50)} onClickCapture={handleRestrictedAction} />
                         </div>
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Ambience</div>
                             <Knob label="REVERB" value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} onClickCapture={handleRestrictedAction} />
                         </div>
                         {/* NEW ECHO KNOB */}
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Echo</div>
                             <Knob label="FEEDBACK" value={echo} onChange={setEcho} color="green" onClickCapture={handleRestrictedAction} />
                         </div>
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            {!isPaidUser && <div className="absolute top-2 right-2 z-10 text-slate-600"><LockIcon className="w-3 h-3"/></div>}
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Dynamics</div>
                             <Knob label="COMPRESSOR" value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" onClickCapture={handleRestrictedAction} />
                         </div>

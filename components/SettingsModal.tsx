@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translations } from '../i18n/translations';
 import { SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES } from '../types';
-import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, LockIcon } from './icons';
+import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
 import { playAudio } from '../utils/audioUtils';
@@ -50,17 +49,17 @@ const VoiceListItem: React.FC<{
     previewingVoice: string | null;
     onSelect: (v: string) => void;
     onPreview: (v: string) => void;
+    onUpgrade: () => void;
     t: (key: string) => string;
-}> = React.memo(({ voiceName, label, sublabel, isLocked, isSelected, previewingVoice, onSelect, onPreview, t }) => (
+}> = React.memo(({ voiceName, label, sublabel, isLocked, isSelected, previewingVoice, onSelect, onPreview, onUpgrade, t }) => (
     <div
-        onClick={() => onSelect(voiceName)}
+        onClick={() => isLocked ? onUpgrade() : onSelect(voiceName)}
         className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors cursor-pointer border ${isSelected ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg' : 'bg-slate-700 border-slate-600 hover:bg-slate-600 text-slate-300'}`}
     >
         <div className="flex items-center gap-2">
             <div>
                 <span className="font-semibold flex items-center gap-2">
                     {label}
-                    {isLocked && <LockIcon className="w-3 h-3 text-amber-400" />}
                 </span>
                 {sublabel && <span className="text-xs text-slate-400 block">{sublabel}</span>}
             </div>
@@ -247,7 +246,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         <div className="flex p-1 bg-slate-900/50 rounded-lg border border-slate-700 relative mb-4">
                              <button onClick={() => setVoiceMode('gemini')} className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'}`}>
                                  {t('geminiHdVoices', uiLanguage)}
-                                 {!currentLimits.allowGemini && <LockIcon className="w-3 h-3 text-amber-400" />}
                              </button>
                              <button onClick={() => setVoiceMode('system')} className={`flex-1 p-2 rounded-md font-semibold transition-colors ${voiceMode === 'system' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'}`}>{t('systemVoices', uiLanguage)}</button>
                         </div>
@@ -269,6 +267,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             previewingVoice={previewingVoice}
                                             onSelect={setVoice}
                                             onPreview={handlePreview}
+                                            onUpgrade={onUpgrade}
                                             t={tWrapper}
                                         />
                                     ))}
@@ -301,7 +300,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <div>
                                         <div className="text-xs font-bold text-amber-400 uppercase tracking-widest border-b border-slate-700 pb-1 mb-2 flex justify-between items-center">
                                             {t('categoryPremium', uiLanguage)} (Azure Neural)
-                                            {!currentLimits.allowWav && <LockIcon className="w-3 h-3" />}
                                         </div>
                                         <div className="space-y-2">
                                             {neuralVoices.map(v => (
@@ -315,6 +313,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     previewingVoice={previewingVoice}
                                                     onSelect={setVoice}
                                                     onPreview={handlePreview}
+                                                    onUpgrade={onUpgrade}
                                                     t={tWrapper}
                                                 />
                                             ))}
@@ -380,7 +379,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                          {!currentLimits.allowMultiSpeaker && (
                              <div className="absolute inset-0 bg-slate-900/70 rounded-lg z-10 flex items-center justify-center backdrop-blur-[1px] cursor-pointer border border-slate-700" onClick={onUpgrade}>
                                 <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-amber-500/50 shadow-lg hover:bg-slate-700 transition-colors">
-                                     <LockIcon className="text-amber-400 w-5 h-5" />
                                      <span className="text-sm font-bold text-white">{uiLanguage === 'ar' ? 'انضم للقائمة' : 'Join Waitlist'}</span>
                                 </div>
                              </div>
@@ -421,7 +419,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
                                 <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
                                     {t('speakerName', uiLanguage)} 3
-                                    {!isPlatinumOrAdmin && <LockIcon className="w-3 h-3 text-amber-400"/>}
                                 </label>
                                 <input 
                                     type="text" 
@@ -443,7 +440,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
                                 <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
                                     {t('speakerName', uiLanguage)} 4
-                                    {!isPlatinumOrAdmin && <LockIcon className="w-3 h-3 text-amber-400"/>}
                                 </label>
                                 <input 
                                     type="text" 

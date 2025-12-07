@@ -1,4 +1,5 @@
 
+import { Buffer } from 'buffer';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Microsoft Azure Text-to-Speech API Handler

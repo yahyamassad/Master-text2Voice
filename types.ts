@@ -46,7 +46,8 @@ export const MICROSOFT_AZURE_VOICES: StandardVoice[] = [
     { name: 'fr-FR-HenriNeural', label: 'Henri (France)', lang: 'fr', gender: 'Male', type: 'Azure Neural' },
 ];
 
-export type UserTier = 'visitor' | 'free' | 'gold' | 'platinum' | 'admin';
+// Updated Tiers based on the new Plan Table
+export type UserTier = 'visitor' | 'free' | 'onedollar' | 'basic' | 'creator' | 'gold' | 'professional' | 'admin';
 
 export interface UserStats {
     trialStartDate: number;
@@ -84,71 +85,118 @@ export interface MusicTrack {
     duration: number;
 }
 
-// --- STRICT LIMITS DEFINITION ---
+// --- STRICT LIMITS DEFINITION BASED ON PROVIDED TABLE ---
 export const PLAN_LIMITS = {
     visitor: {
-        maxCharsPerRequest: 50, // STRICT LIMIT FOR VISITORS
         dailyLimit: 50,
-        totalTrialLimit: 50, 
+        totalTrialLimit: 50,
         trialDays: 1,
-        maxDownloads: 0, 
-        allowDownloads: false, // NO DOWNLOADS
+        allowDownloads: false,
         allowWav: false,
-        allowGemini: true, // Allowed for demo
-        allowStudio: false, // NO STUDIO
-        allowMultiSpeaker: false,
-        allowEffects: false,
-    },
-    free: {
-        maxCharsPerRequest: 350,
-        dailyLimit: 350,
-        totalTrialLimit: 5000,
-        trialDays: 14,
-        maxDownloads: 3,
-        allowDownloads: true,
-        allowWav: false,
-        allowGemini: true,
+        allowGemini: true, // Demo
         allowStudio: false,
         allowMultiSpeaker: false,
         allowEffects: false,
+        allowTashkeel: false,
+        allowMic: false,
+        allowMusicUpload: false,
+    },
+    free: {
+        dailyLimit: 200, // Small daily cap to force spread
+        totalTrialLimit: 5000, // 5000 chars total/month as per table
+        trialDays: 30,
+        allowDownloads: true, // MP3 5 mins
+        allowWav: false,
+        allowGemini: true,
+        allowStudio: false, // Presets & Ducking only
+        allowMultiSpeaker: false,
+        allowEffects: false,
+        allowTashkeel: false,
+        allowMic: false,
+        allowMusicUpload: false, // "Add Music File" is X in table
+    },
+    onedollar: {
+        dailyLimit: 10000, 
+        totalTrialLimit: 10000, // 10k chars total
+        trialDays: 3, // 3 Days access
+        allowDownloads: true, // 10 mins
+        allowWav: true, // Included!
+        allowGemini: true,
+        allowStudio: true, // Mixer included
+        allowMultiSpeaker: true, // 2 Voices
+        allowEffects: true,
+        allowTashkeel: true,
+        allowMic: true,
+        allowMusicUpload: true,
+    },
+    basic: {
+        dailyLimit: Infinity,
+        totalTrialLimit: 75000, // 75k chars
+        trialDays: 30,
+        allowDownloads: true,
+        allowWav: false, // No WAV in Basic
+        allowGemini: true,
+        allowStudio: false, // Mixer X in table
+        allowMultiSpeaker: false, // X in table
+        allowEffects: false, // X in table
+        allowTashkeel: true,
+        allowMic: false, // X in table
+        allowMusicUpload: true,
+    },
+    creator: {
+        dailyLimit: Infinity,
+        totalTrialLimit: 150000, // 150k chars
+        trialDays: 30,
+        allowDownloads: true,
+        allowWav: false, // No WAV in Creator
+        allowGemini: true,
+        allowStudio: true,
+        allowMultiSpeaker: true, // 2 Voices
+        allowEffects: true,
+        allowTashkeel: true,
+        allowMic: true,
+        allowMusicUpload: true,
     },
     gold: {
-        maxCharsPerRequest: Infinity,
         dailyLimit: Infinity,
-        totalTrialLimit: Infinity,
-        trialDays: Infinity,
-        maxDownloads: Infinity,
+        totalTrialLimit: 300000, // 300k chars
+        trialDays: 30,
         allowDownloads: true,
         allowWav: true,
         allowGemini: true,
         allowStudio: true,
-        allowMultiSpeaker: true,
+        allowMultiSpeaker: true, // 3 Voices
         allowEffects: true,
+        allowTashkeel: true,
+        allowMic: true,
+        allowMusicUpload: true,
     },
-    platinum: {
-        maxCharsPerRequest: Infinity,
+    professional: {
         dailyLimit: Infinity,
-        totalTrialLimit: Infinity,
-        trialDays: Infinity,
-        maxDownloads: Infinity,
+        totalTrialLimit: 750000, // 750k chars
+        trialDays: 365, // Usually treated as monthly subscription renewal
         allowDownloads: true,
         allowWav: true,
         allowGemini: true,
         allowStudio: true,
-        allowMultiSpeaker: true,
+        allowMultiSpeaker: true, // 4 Voices
         allowEffects: true,
+        allowTashkeel: true,
+        allowMic: true,
+        allowMusicUpload: true,
     },
     admin: {
-        maxCharsPerRequest: Infinity,
         dailyLimit: Infinity,
         totalTrialLimit: Infinity,
         trialDays: Infinity,
-        maxDownloads: Infinity,
         allowDownloads: true,
         allowWav: true,
         allowGemini: true,
         allowStudio: true,
         allowMultiSpeaker: true,
         allowEffects: true,
+        allowTashkeel: true,
+        allowMic: true,
+        allowMusicUpload: true,
     }
 };

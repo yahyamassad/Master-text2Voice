@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { t, Language } from '../i18n/translations';
-import { WarningIcon, CopyIcon, TrashIcon, InfoIcon, CheckIcon, ChevronDownIcon } from './icons';
+import { WarningIcon, CopyIcon, TrashIcon, InfoIcon, CheckIcon, ChevronDownIcon, GearIcon } from './icons';
 
 // --- Interfaces ---
 interface ServerStatus {
@@ -15,6 +14,8 @@ interface ServerStatus {
         firebaseKey?: string;
         azureKey?: string;
         azureRegion?: string;
+        ttsModel?: string;
+        textModel?: string;
     };
 }
 
@@ -54,6 +55,22 @@ function StatusRow({ label, value }: { label: string, value?: string }) {
                     {value || 'Unknown'}
                 </span>
                 {icon}
+            </div>
+        </div>
+    );
+}
+
+function ModelRow({ label, value }: { label: string, value?: string }) {
+    const isDefault = value?.includes('Default');
+    return (
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2 last:border-0">
+            <span className="text-slate-300 text-sm font-bold flex items-center gap-2">
+                <GearIcon className="w-3 h-3 text-slate-500" /> {label}
+            </span>
+            <div className="flex items-center gap-2">
+                <span className={`font-mono text-xs font-bold ${isDefault ? 'text-slate-400' : 'text-cyan-400'}`}>
+                    {value}
+                </span>
             </div>
         </div>
     );
@@ -357,6 +374,11 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                                     <StatusRow label="Azure Speech Key" value={serverStatus.details.azureKey} />
                                     <StatusRow label="Azure Region" value={serverStatus.details.azureRegion} />
                                     
+                                    {/* New Model Rows */}
+                                    <div className="my-2 border-t border-slate-800 pt-2"></div>
+                                    <ModelRow label="Active TTS Model" value={serverStatus.details.ttsModel} />
+                                    <ModelRow label="Active Text Model" value={serverStatus.details.textModel} />
+
                                     {!isAzureReady && (
                                         <div className="mt-4 p-3 bg-red-950/20 border border-red-500/20 text-red-300 rounded-lg text-xs leading-relaxed flex gap-3 items-start font-medium">
                                             <WarningIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-400" />
