@@ -412,7 +412,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     
     const duckingAnalyserRef = useRef<AnalyserNode | null>(null);
 
-    const isPaidUser = userTier === 'gold' || userTier === 'platinum' || userTier === 'admin';
+    const isPaidUser = userTier === 'gold' || userTier === 'professional' || userTier === 'admin';
 
     const handleRestrictedAction = (e: React.MouseEvent) => {
         if (!isPaidUser) {

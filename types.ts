@@ -17,19 +17,19 @@ export const GEMINI_VOICES = ['Puck', 'Kore', 'Charon', 'Zephyr', 'Fenrir'];
 
 // Defines the "Studio" voices (Microsoft Azure Neural)
 export interface StandardVoice {
-    name: string; // The API name (e.g., ar-SA-HamedNeural)
+    name: string; // The API name
     label: string; // Display name
     lang: string;  // 'ar', 'en', 'fr', etc.
     gender: 'Female' | 'Male';
-    type: 'Azure Neural'; // Simplified type
+    type: 'Azure Neural'; 
 }
 
 // Fallback Map Interface
 export type FallbackMap = Record<string, { male: string; female: string }>;
 
-// MICROSOFT AZURE VOICES LIST
+// EXPANDED MICROSOFT AZURE VOICES LIST (PRO VOICES)
 export const MICROSOFT_AZURE_VOICES: StandardVoice[] = [
-    // ARABIC
+    // --- ARABIC (All Dialects) ---
     { name: 'ar-SA-HamedNeural', label: 'Hamed (Saudi)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-SA-ZariyahNeural', label: 'Zariyah (Saudi)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-EG-SalmaNeural', label: 'Salma (Egyptian)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
@@ -38,15 +38,78 @@ export const MICROSOFT_AZURE_VOICES: StandardVoice[] = [
     { name: 'ar-JO-SanaNeural', label: 'Sana (Jordanian)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-AE-HamdanNeural', label: 'Hamdan (UAE)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-AE-FatimaNeural', label: 'Fatima (UAE)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
-    // ENGLISH
+    { name: 'ar-KW-FahedNeural', label: 'Fahed (Kuwaiti)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-KW-NouraNeural', label: 'Noura (Kuwaiti)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-QA-AmalNeural', label: 'Amal (Qatari)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-QA-MoazNeural', label: 'Moaz (Qatari)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-BH-AliNeural', label: 'Ali (Bahraini)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-BH-LailaNeural', label: 'Laila (Bahraini)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-OM-AbdullahNeural', label: 'Abdullah (Omani)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-OM-AyshaNeural', label: 'Aysha (Omani)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-SY-AmanyNeural', label: 'Amany (Syrian)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-SY-LaithNeural', label: 'Laith (Syrian)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-MA-JamalNeural', label: 'Jamal (Moroccan)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-MA-MounaNeural', label: 'Mouna (Moroccan)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-DZ-IsmaelNeural', label: 'Ismael (Algerian)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-DZ-AminaNeural', label: 'Amina (Algerian)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-TN-HediNeural', label: 'Hedi (Tunisian)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-TN-ReemNeural', label: 'Reem (Tunisian)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-YE-MaryamNeural', label: 'Maryam (Yemeni)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-YE-SalehNeural', label: 'Saleh (Yemeni)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    { name: 'ar-LB-LaylaNeural', label: 'Layla (Lebanese)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-LB-RamiNeural', label: 'Rami (Lebanese)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- ENGLISH ---
     { name: 'en-US-AvaNeural', label: 'Ava (US Female)', lang: 'en', gender: 'Female', type: 'Azure Neural' },
     { name: 'en-US-AndrewNeural', label: 'Andrew (US Male)', lang: 'en', gender: 'Male', type: 'Azure Neural' },
-    // FRENCH
+    { name: 'en-GB-SoniaNeural', label: 'Sonia (UK Female)', lang: 'en', gender: 'Female', type: 'Azure Neural' },
+    { name: 'en-GB-RyanNeural', label: 'Ryan (UK Male)', lang: 'en', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- FRENCH ---
     { name: 'fr-FR-DeniseNeural', label: 'Denise (France)', lang: 'fr', gender: 'Female', type: 'Azure Neural' },
     { name: 'fr-FR-HenriNeural', label: 'Henri (France)', lang: 'fr', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- SPANISH ---
+    { name: 'es-ES-ElviraNeural', label: 'Elvira (Spain)', lang: 'es', gender: 'Female', type: 'Azure Neural' },
+    { name: 'es-ES-AlvaroNeural', label: 'Alvaro (Spain)', lang: 'es', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- PORTUGUESE ---
+    { name: 'pt-BR-FranciscaNeural', label: 'Francisca (Brazil)', lang: 'pt', gender: 'Female', type: 'Azure Neural' },
+    { name: 'pt-BR-AntonioNeural', label: 'Antonio (Brazil)', lang: 'pt', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- GERMAN ---
+    { name: 'de-DE-KatjaNeural', label: 'Katja (Germany)', lang: 'de', gender: 'Female', type: 'Azure Neural' },
+    { name: 'de-DE-ConradNeural', label: 'Conrad (Germany)', lang: 'de', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- ITALIAN ---
+    { name: 'it-IT-ElsaNeural', label: 'Elsa (Italy)', lang: 'it', gender: 'Female', type: 'Azure Neural' },
+    { name: 'it-IT-DiegoNeural', label: 'Diego (Italy)', lang: 'it', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- RUSSIAN ---
+    { name: 'ru-RU-SvetlanaNeural', label: 'Svetlana (Russia)', lang: 'ru', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ru-RU-DmitryNeural', label: 'Dmitry (Russia)', lang: 'ru', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- TURKISH ---
+    { name: 'tr-TR-EmelNeural', label: 'Emel (Turkey)', lang: 'tr', gender: 'Female', type: 'Azure Neural' },
+    { name: 'tr-TR-AhmetNeural', label: 'Ahmet (Turkey)', lang: 'tr', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- HINDI ---
+    { name: 'hi-IN-SwaraNeural', label: 'Swara (India)', lang: 'hi', gender: 'Female', type: 'Azure Neural' },
+    { name: 'hi-IN-MadhurNeural', label: 'Madhur (India)', lang: 'hi', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- CHINESE ---
+    { name: 'zh-CN-XiaoxiaoNeural', label: 'Xiaoxiao (China)', lang: 'zh', gender: 'Female', type: 'Azure Neural' },
+    { name: 'zh-CN-YunxiNeural', label: 'Yunxi (China)', lang: 'zh', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- JAPANESE ---
+    { name: 'ja-JP-NanamiNeural', label: 'Nanami (Japan)', lang: 'ja', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ja-JP-KeitaNeural', label: 'Keita (Japan)', lang: 'ja', gender: 'Male', type: 'Azure Neural' },
+    
+    // --- KOREAN ---
+    { name: 'ko-KR-SunHiNeural', label: 'SunHi (Korea)', lang: 'ko', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ko-KR-InJoonNeural', label: 'InJoon (Korea)', lang: 'ko', gender: 'Male', type: 'Azure Neural' },
 ];
 
-// Updated Tiers based on the new Plan Table
 export type UserTier = 'visitor' | 'free' | 'onedollar' | 'basic' | 'creator' | 'gold' | 'professional' | 'admin';
 
 export interface UserStats {
@@ -87,13 +150,13 @@ export interface MusicTrack {
 
 // --- STRICT LIMITS DEFINITION BASED ON PROVIDED TABLE ---
 export const PLAN_LIMITS = {
-    visitor: {
-        dailyLimit: 50,
-        totalTrialLimit: 50,
-        trialDays: 1,
-        allowDownloads: false,
+    visitor: { // Treated as unregistered FREE
+        dailyLimit: 200, 
+        totalTrialLimit: 5000,
+        trialDays: 30,
+        allowDownloads: true, // MP3
         allowWav: false,
-        allowGemini: true, // Demo
+        allowGemini: true, // Limited voices
         allowStudio: false,
         allowMultiSpeaker: false,
         allowEffects: false,
@@ -101,69 +164,69 @@ export const PLAN_LIMITS = {
         allowMic: false,
         allowMusicUpload: false,
     },
-    free: {
-        dailyLimit: 200, // Small daily cap to force spread
-        totalTrialLimit: 5000, // 5000 chars total/month as per table
+    free: { // Matches "مشترك مجاني"
+        dailyLimit: 200,
+        totalTrialLimit: 5000, 
         trialDays: 30,
         allowDownloads: true, // MP3 5 mins
         allowWav: false,
-        allowGemini: true,
+        allowGemini: true, // 2 Voices
         allowStudio: false, // Presets & Ducking only
         allowMultiSpeaker: false,
         allowEffects: false,
         allowTashkeel: false,
         allowMic: false,
-        allowMusicUpload: false, // "Add Music File" is X in table
+        allowMusicUpload: false,
     },
-    onedollar: {
+    onedollar: { // "تجربة مرة واحدة"
         dailyLimit: 10000, 
-        totalTrialLimit: 10000, // 10k chars total
-        trialDays: 3, // 3 Days access
+        totalTrialLimit: 10000, 
+        trialDays: 3, 
         allowDownloads: true, // 10 mins
-        allowWav: true, // Included!
-        allowGemini: true,
-        allowStudio: true, // Mixer included
+        allowWav: true, 
+        allowGemini: true, // 6 Voices
+        allowStudio: true, // Full mixer
         allowMultiSpeaker: true, // 2 Voices
         allowEffects: true,
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
     },
-    basic: {
+    basic: { // "Basic"
         dailyLimit: Infinity,
-        totalTrialLimit: 75000, // 75k chars
+        totalTrialLimit: 75000, 
         trialDays: 30,
         allowDownloads: true,
-        allowWav: false, // No WAV in Basic
-        allowGemini: true,
-        allowStudio: false, // Mixer X in table
-        allowMultiSpeaker: false, // X in table
-        allowEffects: false, // X in table
+        allowWav: false, // X in table
+        allowGemini: true, // 50 Voices
+        allowStudio: false, // Mixer X
+        allowMultiSpeaker: false, // X
+        allowEffects: false, // X
         allowTashkeel: true,
-        allowMic: false, // X in table
-        allowMusicUpload: true,
+        allowMic: false, // X
+        allowMusicUpload: true, // Music file check is Green in Basic
     },
-    creator: {
+    creator: { // "Creator"
         dailyLimit: Infinity,
-        totalTrialLimit: 150000, // 150k chars
+        totalTrialLimit: 150000, 
         trialDays: 30,
         allowDownloads: true,
-        allowWav: false, // No WAV in Creator
-        allowGemini: true,
-        allowStudio: true,
+        allowWav: false, // X in table
+        allowGemini: true, // 50 Voices
+        allowStudio: true, // Mixer Check
         allowMultiSpeaker: true, // 2 Voices
         allowEffects: true,
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
     },
-    gold: {
+    gold: { // "Gold"
         dailyLimit: Infinity,
-        totalTrialLimit: 300000, // 300k chars
+        totalTrialLimit: 300000, 
         trialDays: 30,
         allowDownloads: true,
-        allowWav: true,
-        allowGemini: true,
+        allowWav: true, // Check
+        allowGemini: true, // 50 Voices
         allowStudio: true,
         allowMultiSpeaker: true, // 3 Voices
         allowEffects: true,
@@ -171,13 +234,13 @@ export const PLAN_LIMITS = {
         allowMic: true,
         allowMusicUpload: true,
     },
-    professional: {
+    professional: { // "Professional"
         dailyLimit: Infinity,
-        totalTrialLimit: 750000, // 750k chars
-        trialDays: 365, // Usually treated as monthly subscription renewal
+        totalTrialLimit: 750000, 
+        trialDays: 30, // Monthly
         allowDownloads: true,
         allowWav: true,
-        allowGemini: true,
+        allowGemini: true, // 50 Voices
         allowStudio: true,
         allowMultiSpeaker: true, // 4 Voices
         allowEffects: true,

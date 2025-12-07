@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 // Fix: Import User type from firebase compat namespace
 import firebase from 'firebase/compat/app';
@@ -135,7 +134,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                     {/* User Info & Tier */}
                     <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-lg relative overflow-hidden">
                          {currentTier === 'gold' && <div className="absolute top-0 right-0 bg-amber-500 text-black text-xs font-bold px-2 py-1 rounded-bl">GOLD</div>}
-                         {currentTier === 'platinum' && <div className="absolute top-0 right-0 bg-cyan-400 text-black text-xs font-bold px-2 py-1 rounded-bl">PLATINUM</div>}
+                         {currentTier === 'professional' && <div className="absolute top-0 right-0 bg-cyan-400 text-black text-xs font-bold px-2 py-1 rounded-bl">PROFESSIONAL</div>}
                          {currentTier === 'admin' && <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-bl">ADMIN</div>}
                         <img src={user.photoURL || undefined} alt={user.displayName || 'User'} className="w-16 h-16 rounded-full border-2 border-cyan-500" />
                         <div>
@@ -149,7 +148,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                     <div className="bg-slate-900/30 rounded-lg p-4 border border-slate-700">
                          <div className="flex justify-between items-center mb-4">
                              <span className="text-slate-400 text-sm">Current Plan</span>
-                             <span className={`font-bold ${currentTier === 'gold' ? 'text-amber-400' : (currentTier === 'platinum' ? 'text-cyan-400' : (currentTier === 'admin' ? 'text-red-500' : 'text-white'))}`}>
+                             <span className={`font-bold ${currentTier === 'gold' ? 'text-amber-400' : (currentTier === 'professional' ? 'text-cyan-400' : (currentTier === 'admin' ? 'text-red-500' : 'text-white'))}`}>
                                  {currentTier ? currentTier.toUpperCase() : 'FREE'}
                              </span>
                          </div>
