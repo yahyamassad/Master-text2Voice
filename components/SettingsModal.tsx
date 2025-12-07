@@ -139,11 +139,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }, []);
 
     const handlePreview = async (voiceName: string) => {
-        if (previewingVoice) { 
-            if (audioSourceRef.current) { try { audioSourceRef.current.stop(); audioSourceRef.current.disconnect(); } catch (e) { } audioSourceRef.current = null; }
-            setPreviewingVoice(null);
-            if (previewingVoice === voiceName) return; 
+        // 1. Stop any existing playback immediately
+        if (audioSourceRef.current) {
+            try { audioSourceRef.current.stop(); audioSourceRef.current.disconnect(); } catch (e) { }
+            audioSourceRef.current = null;
         }
+        
+        // 2. Toggle off if clicking same voice
+        if (previewingVoice === voiceName) {
+            setPreviewingVoice(null);
+            return;
+        }
+
         setPreviewingVoice(voiceName);
         
         let langCode: string = uiLanguage; 
@@ -156,24 +163,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         const previewKey = `previewText_${langCode}` as keyof typeof translations;
         const previewText = t(previewKey, uiLanguage) || "Hello, I am ready.";
 
-        if (!audioContextRef.current || audioContextRef.current.state === 'closed') audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
+        // 3. Ensure Audio Context is ready
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        if (audioContextRef.current.state === 'suspended') {
+            await audioContextRef.current.resume();
+        }
 
         const cacheKey = `${voiceName}-${langCode}`;
+        
+        // 4. Check Cache
         if (voicePreviewCache.current.has(cacheKey)) {
             const pcmData = voicePreviewCache.current.get(cacheKey)!;
-            audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { setPreviewingVoice(null); audioSourceRef.current = null; }, speed);
+            // Use current selected speed for preview or default to 1.0
+            audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
+                setPreviewingVoice(null); 
+                audioSourceRef.current = null; 
+            }, speed);
             return;
         }
 
         try {
             let pcmData;
-            if (GEMINI_VOICES.includes(voiceName)) pcmData = await previewVoice(voiceName, previewText, 'Default');
-            else pcmData = await generateStandardSpeech(previewText, voiceName, 0, 'Default');
+            // Note: Previews use 'Default' emotion to be quick
+            if (GEMINI_VOICES.includes(voiceName)) {
+                pcmData = await previewVoice(voiceName, previewText, 'Default');
+            } else {
+                pcmData = await generateStandardSpeech(previewText, voiceName, 0, 'Default');
+            }
 
             if (pcmData) {
                 voicePreviewCache.current.set(cacheKey, pcmData); 
-                audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { setPreviewingVoice(null); audioSourceRef.current = null; }, speed);
+                audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
+                    setPreviewingVoice(null); 
+                    audioSourceRef.current = null; 
+                }, speed);
             } else {
                 setPreviewingVoice(null);
             }
@@ -196,6 +221,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         const style = VOICE_STYLES.find(s => s.id === selectedId);
         if (style && style.recommendedSpeed) {
             setSpeed(style.recommendedSpeed);
+        } else if (selectedId === 'Default') {
+            setSpeed(1.0);
         }
     };
 
@@ -342,6 +369,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </div>
                              </div>
                          </div>
+
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label htmlFor="speed-slider" className="block text-sm font-medium text-slate-300">{t('studioSpeed', uiLanguage)}</label>
+                                <span className="text-cyan-400 font-mono text-xs">{speed.toFixed(2)}x</span>
+                            </div>
+                            <input 
+                                id="speed-slider" 
+                                type="range" 
+                                min="0.5" 
+                                max="2.0" 
+                                step="0.05" 
+                                value={speed} 
+                                onChange={e => setSpeed(parseFloat(e.target.value))} 
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
+                            />
+                        </div>
 
                         <div>
                             <label htmlFor="pause-duration" className="block text-sm font-medium text-slate-300 mb-1">{t('pauseLabel', uiLanguage)}</label>
