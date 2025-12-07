@@ -33,35 +33,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let systemInstruction = "";
         
         if (type === 'tashkeel') {
-            // STRICT WAQF RULES TO FIX "INDIAN ACCENT" TTS EFFECT
-            systemInstruction = `You are an expert Arabic Voiceover Linguist. Your task is to apply "Functional Diacritics" (Tashkeel) optimized for natural-sounding Text-to-Speech (TTS).
+            // UPDATED PROMPT: Relaxed Waqf rules to support Poetry/Rhyme better
+            systemInstruction = `You are an expert Arabic Voiceover Linguist. Apply "Functional Diacritics" (Tashkeel) optimized for natural, eloquent Text-to-Speech (TTS).
 
-            !!! CRITICAL RULE: PAUSE PRONUNCIATION (WAQF) !!!
+            CRITICAL RULES FOR ENDINGS (RHYME & FLOW):
             
-            1. **FORCED SILENCE (SUKUN) AT STOPS:**
-               - Every word at the end of a sentence (.), phrase, or followed by a comma (،) MUST end with a **SUKUN (ْ)**.
-               - **FORBIDDEN:** Do NOT use Damma (ُ), Kasra (ِ), Fatha (َ), or Tanween at the end of a phrase.
-               - Example: "السَّلَامُ عَلَيْكُمْ." -> "السَّلَامُ عَلَيْكُمْ." (Correct, meem usually sakin)
-               - Example: "فِي الْمَدِينَةِ،" -> "فِي الْمَدِينَةْ،" (Ta Marbuta becomes Ha Sakin)
-               - Example: "الْكِتَابُ جَدِيدٌ." -> "الْكِتَابُ جَدِيدْ." (Strict Sukun)
+            1. **POETRY & RHYME AWARENESS:** 
+               - If the text looks like poetry or rhymed prose (Saja'), preserve the vowel on the rhyme letter if it adds musicality. 
+               - Do NOT force Sukun (ْ) at the end of every sentence if it breaks the flow or rhyme.
+               - If the word is indefinite (Tanween), pronounce it if it fits the meter/flow.
 
-            2. **SHADDA AT STOPS:**
-               - If a word ends with a Shadda letter (like حُبّ or حَقّ), maintain the Shadda but add Sukun: (ّْ).
-               - Example: "الْحَقُّ" -> "الْحَقّْ"
+            2. **PROSE & STOPS:**
+               - For standard sentences (News, Narration), you MAY use Sukun at full stops (.) for a natural pause, BUT if the sentence continues (comma, or connected thought), use the correct grammatical vowel (I'rab) to link the words.
 
-            3. **TA MARBUTA (ة):**
-               - At a stop/comma, pronounce as 'Ha' with Sukun (هْ). 
-               - Do NOT write vowels on ة at the end of a sentence.
+            3. **SHADDA:**
+               - Always preserve Shadda.
 
-            4. **INTERNAL VOWELS:**
-               - Add full vowels for internal words to ensure correct grammar (I'rab), but keep the last letter of the *utterance* silent (Sukun).
-
-            EXAMPLES:
-            - Input: "أهلا بك في صوتلي. نحن هنا للمساعدة."
-            - Output: "أَهْلًا بِكَ فِي صَوْتْلِي. نَحْنُ هُنَا لِلْمُسَاعَدَةْ." (Note: صَوْتْلِي ends naturally, للمساعدة becomes Ha Sakin)
-
-            - Input: "في يوم من الأيام، كان هناك رجل حكيم."
-            - Output: "فِي يَوْمٍ مِنَ الْأَيَّامْ، كَانَ هُنَاكَ رَجُلٌ حَكِيمْ." (Note: Ayam and Hakeem end with Sukun)
+            4. **ACCURACY:**
+               - Ensure full grammatical accuracy (I'rab) for all internal words.
 
             Output ONLY the diacritized text. No markdown, no explanations.`;
         } else {
