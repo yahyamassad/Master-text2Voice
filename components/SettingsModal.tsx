@@ -5,7 +5,7 @@ import { SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES } from '../types';
 import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, SparklesIcon, CheckIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
-import { playAudio } from '../utils/audioUtils';
+import { playAudio, encode, decode } from '../utils/audioUtils';
 import { VOICE_STYLES } from '../utils/voiceStyles';
 
 interface SettingsModalProps {
@@ -85,6 +85,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
 
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    // Use Memory Cache first
     const voicePreviewCache = useRef(new Map<string, Uint8Array>());
     const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -138,6 +139,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         };
     }, []);
 
+    // --- PREVIEW LOGIC WITH PERSISTENT CACHING ---
     const handlePreview = async (voiceName: string) => {
         // 1. Stop any existing playback immediately
         if (audioSourceRef.current) {
@@ -153,6 +155,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         setPreviewingVoice(voiceName);
         
+        // Determine Language for Preview Text
         let langCode: string = uiLanguage; 
         if (!GEMINI_VOICES.includes(voiceName)) {
             const voiceObj = MICROSOFT_AZURE_VOICES.find(v => v.name === voiceName);
@@ -160,8 +163,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             else if (voiceName.includes('-')) langCode = voiceName.split('-')[0];
         }
 
-        const previewKey = `previewText_${langCode}` as keyof typeof translations;
-        const previewText = t(previewKey, uiLanguage) || "Hello, I am ready.";
+        // Standardized Short Preview Text
+        const previewTexts: Record<string, string> = {
+            'ar': "مرحباً، أنا صوتلي. صوتك، ذكاؤنا.",
+            'en': "Hello, I am Sawtli. Your voice, our intelligence.",
+            'fr': "Bonjour, je suis Sawtli. Votre voix, notre intelligence.",
+            'es': "Hola, soy Sawtli. Tu voz, nuestra inteligencia.",
+            'pt': "Olá, eu sou Sawtli. Sua voz, nossa inteligência.",
+            'de': "Hallo, ich bin Sawtli. Ihre Stimme, unsere Intelligenz.",
+            'tr': "Merhaba, ben Sawtli.",
+            'ru': "Привет, я Sawtli.",
+            'zh': "你好，我是 Sawtli。",
+            'ja': "こんにちは、Sawtliです。",
+            'ko': "안녕하세요, Sawtli입니다.",
+            'hi': "नमस्ते, मैं Sawtli हूँ।",
+            'it': "Ciao, sono Sawtli."
+        };
+        
+        const langPrefix = langCode.split('-')[0];
+        const previewText = previewTexts[langPrefix] || previewTexts['en'];
 
         // 3. Ensure Audio Context is ready
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
@@ -171,19 +191,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             await audioContextRef.current.resume();
         }
 
-        const cacheKey = `${voiceName}-${langCode}`;
+        const cacheKey = `preview_v2_${voiceName}_${langPrefix}`;
         
-        // 4. Check Cache
+        // 4. Check RAM Cache First
         if (voicePreviewCache.current.has(cacheKey)) {
             const pcmData = voicePreviewCache.current.get(cacheKey)!;
-            // Use current selected speed for preview or default to 1.0
             audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
                 setPreviewingVoice(null); 
                 audioSourceRef.current = null; 
-            }, speed);
+            }, 1.0); // Previews play at normal speed
             return;
         }
 
+        // 5. Check LocalStorage Cache
+        try {
+            const cachedBase64 = localStorage.getItem(cacheKey);
+            if (cachedBase64) {
+                const pcmData = decode(cachedBase64);
+                voicePreviewCache.current.set(cacheKey, pcmData); // Promote to RAM
+                audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
+                    setPreviewingVoice(null); 
+                    audioSourceRef.current = null; 
+                }, 1.0);
+                return;
+            }
+        } catch (e) { console.error("LocalStorage read error", e); }
+
+        // 6. Generate New Preview (API Call)
         try {
             let pcmData;
             // Note: Previews use 'Default' emotion to be quick
@@ -194,11 +228,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             }
 
             if (pcmData) {
+                // Save to RAM
                 voicePreviewCache.current.set(cacheKey, pcmData); 
+                
+                // Save to LocalStorage (Base64)
+                try {
+                    const base64Str = encode(pcmData);
+                    localStorage.setItem(cacheKey, base64Str);
+                } catch(e) { console.warn("Quota exceeded likely", e); }
+
                 audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
                     setPreviewingVoice(null); 
                     audioSourceRef.current = null; 
-                }, speed);
+                }, 1.0);
             } else {
                 setPreviewingVoice(null);
             }
