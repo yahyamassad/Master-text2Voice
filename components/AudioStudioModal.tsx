@@ -1155,9 +1155,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     <div className="bg-[#1e293b] p-3 rounded-2xl border border-slate-700 shadow-xl relative z-40" dir="ltr">
                         <div className="flex flex-col md:flex-row items-stretch gap-4">
                             <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-1">
-                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>FILE</span></button>
-                                <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) handleTabSwitch('mic'); }} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>MIC</span></button>
-                                <button onClick={() => handleTabSwitch('ai')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>GEMINI</button>
+                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>{t('studioFileMode', uiLanguage)}</span></button>
+                                <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) handleTabSwitch('mic'); }} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><span>{t('tblMic', uiLanguage)}</span></button>
+                                <button onClick={() => handleTabSwitch('ai')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{t('studioAiMode', uiLanguage)}</button>
                             </div>
                             <div className="flex-shrink-0 flex justify-center items-center">
                                  <button onClick={handlePlayPause} disabled={!voiceBuffer && !musicBuffer} className={`w-20 h-full min-h-[4rem] rounded-xl flex items-center justify-center border-2 transition-all active:scale-95 shadow-xl ${isPlaying ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-cyan-600 border-cyan-400 text-white'}`}>
@@ -1176,37 +1176,37 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         </div>
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs uppercase font-bold tracking-widest">
-                                           {activeTab === 'upload' ? 'FILE MODE' : 'AI MODE'}
+                                           {activeTab === 'upload' ? t('studioFileMode', uiLanguage) : t('studioAiMode', uiLanguage)}
                                         </div>
                                     )}
                                 </div>
                                 <div className="flex-1 relative" ref={exportMenuRef}>
-                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={!voiceBuffer && !musicBuffer} className="w-full h-16 rounded-lg flex flex-col items-center justify-center bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 font-bold uppercase">{isProcessing ? <LoaderIcon className="w-5 h-5 mb-1"/> : <DownloadIcon className="w-5 h-5 mb-1" />}<span>{uiLanguage === 'ar' ? 'تصدير' : 'Export'}</span></button>
+                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={!voiceBuffer && !musicBuffer} className="w-full h-16 rounded-lg flex flex-col items-center justify-center bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 font-bold uppercase">{isProcessing ? <LoaderIcon className="w-5 h-5 mb-1"/> : <DownloadIcon className="w-5 h-5 mb-1" />}<span>{t('studioExport', uiLanguage)}</span></button>
                                     {showExportMenu && (
                                         <div className="absolute top-full right-0 mt-2 w-72 bg-[#0f172a] border border-slate-600 rounded-xl shadow-2xl z-[100] p-4 flex flex-col gap-4">
-                                            <div className="flex items-center justify-between border-b border-slate-700 pb-2"><h4 className="text-xs font-bold text-cyan-400 tracking-widest uppercase">EXPORT SETTINGS</h4></div>
+                                            <div className="flex items-center justify-between border-b border-slate-700 pb-2"><h4 className="text-xs font-bold text-cyan-400 tracking-widest uppercase">{t('studioExportSettings', uiLanguage)}</h4></div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Source</label>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">{t('studioSource', uiLanguage)}</label>
                                                 <div className="flex bg-slate-800 rounded p-1">
-                                                    <button onClick={() => setExportSource('mix')} className={`flex-1 py-1.5 text-[10px] font-bold rounded ${exportSource === 'mix' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>FULL MIX</button>
-                                                    <button onClick={() => setExportSource('voice')} className={`flex-1 py-1.5 text-[10px] font-bold rounded ${exportSource === 'voice' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>VOICE ONLY</button>
+                                                    <button onClick={() => setExportSource('mix')} className={`flex-1 py-1.5 text-[10px] font-bold rounded ${exportSource === 'mix' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>{t('studioFullMix', uiLanguage)}</button>
+                                                    <button onClick={() => setExportSource('voice')} className={`flex-1 py-1.5 text-[10px] font-bold rounded ${exportSource === 'voice' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>{t('studioVoiceOnly', uiLanguage)}</button>
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Duration</label>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">{t('studioDuration', uiLanguage)}</label>
                                                 <div className="flex flex-col gap-2">
-                                                    <button onClick={() => setTrimToVoice(true)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>{trimToVoice && <CheckIcon className="w-3 h-3"/>}End when Voice ends</button>
-                                                    <button onClick={() => setTrimToVoice(false)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${!trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>{!trimToVoice && <CheckIcon className="w-3 h-3"/>}Keep Full Music Length</button>
+                                                    <button onClick={() => setTrimToVoice(true)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>{trimToVoice && <CheckIcon className="w-3 h-3"/>}{t('studioTrimVoice', uiLanguage)}</button>
+                                                    <button onClick={() => setTrimToVoice(false)} className={`flex items-center gap-2 p-2 rounded text-[10px] font-bold border transition-colors ${!trimToVoice ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-transparent border-slate-700 text-slate-500'}`}>{!trimToVoice && <CheckIcon className="w-3 h-3"/>}{t('studioFullLength', uiLanguage)}</button>
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Format</label>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">{t('studioFormat', uiLanguage)}</label>
                                                 <div className="flex flex-col gap-2">
                                                     <button onClick={() => setExportFormat('mp3')} className={`flex items-center justify-between p-2 rounded border transition-colors ${exportFormat === 'mp3' ? 'bg-slate-800 border-cyan-500' : 'bg-transparent border-slate-700'}`}><span className={`text-[10px] font-bold ${exportFormat === 'mp3' ? 'text-white' : 'text-slate-500'}`}>MP3 <span className="opacity-50">320kbps</span></span>{exportFormat === 'mp3' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}</button>
                                                     <button onClick={() => setExportFormat('wav')} className={`flex items-center justify-between p-2 rounded border transition-colors ${exportFormat === 'wav' ? 'bg-slate-800 border-cyan-500' : 'bg-transparent border-slate-700'}`}><span className={`text-[10px] font-bold ${exportFormat === 'wav' ? 'text-white' : 'text-slate-500'}`}>WAV <span className="opacity-50">48khz 24-bit</span></span>{exportFormat === 'wav' && <CheckIcon className="w-3 h-3 text-cyan-400"/>}</button>
                                                 </div>
                                             </div>
-                                            <button onClick={handleExportClick} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-2 shadow-lg mt-2"><DownloadIcon className="w-4 h-4" /> DOWNLOAD</button>
+                                            <button onClick={handleExportClick} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-2 shadow-lg mt-2"><DownloadIcon className="w-4 h-4" /> {t('studioDownload', uiLanguage)}</button>
                                         </div>
                                     )}
                                 </div>
@@ -1222,7 +1222,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                             <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
-                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">BAND EQ-5</div>
+                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">{t('studioEq', uiLanguage)}</div>
                             </div>
                             <div className="flex justify-between px-1 gap-2 flex-1 items-end bg-black/20 rounded-xl p-3 border border-slate-800/50">
                                 <EqSlider value={settings.eqBands[0]} label="60Hz" onChange={(v) => {const b=[...settings.eqBands]; b[0]=v; updateSetting('eqBands',b);}} onClickCapture={handleRestrictedAction} />
@@ -1238,26 +1238,26 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="flex items-center gap-3">
                                     <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
-                                    <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
+                                    <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">{t('studioMixer', uiLanguage)}</div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 w-full max-w-[140px]">
-                                    <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) onMusicUploadClick(); }} className="text-[9px] bg-slate-800 h-6 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors flex items-center justify-center">ADD MUSIC</button>
+                                    <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) onMusicUploadClick(); }} className="text-[9px] bg-slate-800 h-6 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors flex items-center justify-center">{t('studioAddMusic', uiLanguage)}</button>
                                     <div className="relative w-full h-6">
-                                        <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setAutoDucking(!autoDucking); }} className={`w-full h-full text-[9px] rounded border font-bold uppercase transition-all flex items-center justify-center ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>DUCKING</button>
+                                        <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setAutoDucking(!autoDucking); }} className={`w-full h-full text-[9px] rounded border font-bold uppercase transition-all flex items-center justify-center ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>{t('studioDucking', uiLanguage)}</button>
                                         {duckingActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></div>}
                                     </div>
                                 </div>
                              </div>
                              <div className="flex gap-4 items-end justify-center pb-2 flex-grow overflow-hidden relative">
-                                <Fader label="VOICE" value={voiceVolume} onChange={setVoiceVolume} height="h-full max-h-48" disabled={!voiceBuffer} muted={isVoiceMuted} onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)} onClickCapture={handleRestrictedAction} />
+                                <Fader label={t('studioVoice', uiLanguage)} value={voiceVolume} onChange={setVoiceVolume} height="h-full max-h-48" disabled={!voiceBuffer} muted={isVoiceMuted} onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)} onClickCapture={handleRestrictedAction} />
                                 <div className="flex flex-col items-center justify-center pb-6 mx-2 h-full">
-                                    <Knob label="DELAY" value={voiceDelay} min={0} max={10} onChange={setVoiceDelay} color="green" onClickCapture={handleRestrictedAction} displaySuffix="s" size="md" />
+                                    <Knob label={t('studioDelay', uiLanguage)} value={voiceDelay} min={0} max={10} onChange={setVoiceDelay} color="green" onClickCapture={handleRestrictedAction} displaySuffix="s" size="md" />
                                 </div>
-                                <Fader label="MUSIC" value={musicVolume} onChange={setMusicVolume} color="amber" height="h-full max-h-48" disabled={!musicFileName && isPaidUser} muted={isMusicMuted} onMuteToggle={() => setIsMusicMuted(!isMusicMuted)} onClickCapture={handleRestrictedAction} />
+                                <Fader label={t('studioMusic', uiLanguage)} value={musicVolume} onChange={setMusicVolume} color="amber" height="h-full max-h-48" disabled={!musicFileName && isPaidUser} muted={isMusicMuted} onMuteToggle={() => setIsMusicMuted(!isMusicMuted)} onClickCapture={handleRestrictedAction} />
                              </div>
                              <div className="mt-auto pt-2 w-full relative z-20" ref={libraryMenuRef}>
                                 <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setIsLibraryOpen(!isLibraryOpen); }} className="w-full flex items-center justify-between text-[10px] bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:border-slate-500 transition-colors shadow-lg">
-                                    <span className="truncate flex-1 text-left font-bold">{activeMusicTrack ? activeMusicTrack.name : 'Select Music Track...'}</span>
+                                    <span className="truncate flex-1 text-left font-bold">{activeMusicTrack ? activeMusicTrack.name : t('studioSelectTrack', uiLanguage)}</span>
                                     <ChevronDownIcon className={`w-3 h-3 transition-transform ml-2 ${isLibraryOpen ? 'rotate-180' : ''}`} />
                                 </button>
                                 {isLibraryOpen && (
@@ -1269,7 +1269,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                                     <button onClick={(e) => removeTrackFromLibrary(e, track.id)} className="text-slate-600 hover:text-red-500 p-1"><TrashIcon className="w-3 h-3"/></button>
                                                 </div>
                                             ))
-                                        ) : (<div className="text-[10px] text-center text-slate-500 py-4 italic">No tracks loaded</div>)}
+                                        ) : (<div className="text-[10px] text-center text-slate-500 py-4 italic">{t('studioNoTracks', uiLanguage)}</div>)}
                                     </div>
                                 )}
                             </div>
@@ -1279,10 +1279,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                              <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
-                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
+                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest text-left">{t('studioPresets', uiLanguage)}</div>
                              </div>
                              <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
-                                 <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});} }} className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}>RESET DEFAULT</button>
+                                 <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});} }} className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}>{t('studioReset', uiLanguage)}</button>
                                 {AUDIO_PRESETS.slice(1).map(p => (
                                     <button key={p.name} onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName(p.name); setSettings({...p.settings});} }} className={`w-full px-1 py-4 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-[10px] flex items-center justify-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`} title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}>
                                         {p.label[uiLanguage === 'ar' ? 'ar' : 'en']}
@@ -1295,21 +1295,21 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     {/* Bottom Knobs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Time Stretch</div>
-                            <Knob label="SPEED" value={settings.speed * 50} min={25} max={100} onChange={(v) => updateSetting('speed', v/50)} onClickCapture={handleRestrictedAction} />
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">{t('studioTimeStretch', uiLanguage)}</div>
+                            <Knob label={t('studioSpeed', uiLanguage)} value={settings.speed * 50} min={25} max={100} onChange={(v) => updateSetting('speed', v/50)} onClickCapture={handleRestrictedAction} />
                         </div>
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Ambience</div>
-                            <Knob label="REVERB" value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} onClickCapture={handleRestrictedAction} />
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">{t('studioAmbience', uiLanguage)}</div>
+                            <Knob label={t('studioReverb', uiLanguage)} value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} onClickCapture={handleRestrictedAction} />
                         </div>
                         {/* NEW ECHO KNOB */}
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Echo</div>
-                            <Knob label="FEEDBACK" value={echo} onChange={setEcho} color="green" onClickCapture={handleRestrictedAction} />
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">{t('studioEcho', uiLanguage)}</div>
+                            <Knob label={t('studioFeedback', uiLanguage)} value={echo} onChange={setEcho} color="green" onClickCapture={handleRestrictedAction} />
                         </div>
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Dynamics</div>
-                            <Knob label="COMPRESSOR" value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" onClickCapture={handleRestrictedAction} />
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">{t('studioDynamics', uiLanguage)}</div>
+                            <Knob label={t('studioCompressor', uiLanguage)} value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" onClickCapture={handleRestrictedAction} />
                         </div>
                     </div>
                 </div>
