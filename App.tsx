@@ -106,7 +106,7 @@ const QuotaIndicator: React.FC<{
             <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
                  <span className="text-cyan-500/70">VISITOR MODE (50 CHARS MAX)</span>
                  <span className="text-amber-500 cursor-pointer hover:underline" onClick={onUpgrade}>
-                     {uiLanguage === 'ar' ? 'سجل لزيادة الحد' : 'Sign In to Increase Limit'}
+                     {uiLanguage === 'ar' ? 'سجل لزيادة الحد اليومي' : 'Register to Increase Limit'}
                  </span>
             </div>
         );

@@ -34,12 +34,12 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
 
     // --- DATA ---
     const plans = [
-        { key: 'free', name: t('planFree', uiLanguage), color: 'slate', priceMo: '$0', priceYr: '$0' },
-        { key: 'onedollar', name: t('planOneDollar', uiLanguage), color: 'amber', priceMo: '$1', priceYr: 'X' },
-        { key: 'basic', name: t('planBasic', uiLanguage), color: 'cyan', priceMo: '$12.99', priceYr: '$10.39' },
-        { key: 'creator', name: t('planCreator', uiLanguage), color: 'blue', priceMo: '$24.99', priceYr: '$19.99' },
-        { key: 'gold', name: t('planGold', uiLanguage), color: 'yellow', priceMo: '$49.99', priceYr: '$39.99' },
-        { key: 'pro', name: t('planPro', uiLanguage), color: 'purple', priceMo: '$99.99', priceYr: '$79.99' },
+        { key: 'free', name: t('planFree', uiLanguage), color: 'slate', priceMo: '$0', priceYr: '$0', bg: 'bg-slate-900/50' },
+        { key: 'onedollar', name: t('planOneDollar', uiLanguage), color: 'amber', priceMo: '$1', priceYr: 'X', bg: 'bg-amber-950/20' },
+        { key: 'basic', name: t('planBasic', uiLanguage), color: 'cyan', priceMo: '$12.99', priceYr: '$10.39', bg: 'bg-slate-900/50' },
+        { key: 'creator', name: t('planCreator', uiLanguage), color: 'blue', priceMo: '$24.99', priceYr: '$19.99', bg: 'bg-slate-900/50' },
+        { key: 'gold', name: t('planGold', uiLanguage), color: 'yellow', priceMo: '$49.99', priceYr: '$39.99', bg: 'bg-yellow-950/20' },
+        { key: 'pro', name: t('planPro', uiLanguage), color: 'purple', priceMo: '$99.99', priceYr: '$79.99', bg: 'bg-slate-900/50' },
     ];
 
     const rows = [
@@ -65,10 +65,10 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
     ];
 
     const getCellContent = (value: string | boolean) => {
-        if (value === true) return <CheckIcon className="w-6 h-6 sm:w-8 sm:h-8 text-green-400 mx-auto" />;
-        if (value === false) return <div className="text-xl sm:text-2xl text-red-500 font-bold mx-auto">✕</div>;
-        if (value === 'X') return <div className="text-xl sm:text-2xl text-red-500 font-bold mx-auto">✕</div>;
-        return <span className="text-[10px] sm:text-xs font-bold text-slate-200 text-center block">{value}</span>;
+        if (value === true) return <CheckIcon className="w-5 h-5 text-green-400 mx-auto drop-shadow-md" />;
+        if (value === false) return <div className="text-lg text-red-500/50 font-bold mx-auto">✕</div>;
+        if (value === 'X') return <div className="text-lg text-red-500/50 font-bold mx-auto">✕</div>;
+        return <span className="text-[10px] font-bold text-slate-200 text-center block leading-tight">{value}</span>;
     };
 
     return (
@@ -106,38 +106,40 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                     </button>
                 </div>
 
-                {/* THE MATRIX TABLE */}
+                {/* THE MATRIX TABLE - STRIPED & COMPACT */}
                 <div className="overflow-x-auto flex-grow bg-[#0f172a] custom-scrollbar relative">
-                    <table className="w-full text-left border-collapse min-w-[700px]">
+                    <table className="w-full text-left border-collapse min-w-[800px]">
                         <thead className="sticky top-0 z-10 bg-[#0f172a] shadow-lg">
                             <tr>
-                                <th className="p-2 text-xs font-bold text-slate-400 border-b border-slate-700 bg-[#0f172a] min-w-[120px] sticky left-0 z-20">
-                                    {uiLanguage === 'ar' ? 'الميزة' : 'Feature'}
+                                <th className="p-3 text-[11px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-700 bg-[#0f172a] min-w-[130px] sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                                    {uiLanguage === 'ar' ? 'الميزة' : 'FEATURE'}
                                 </th>
                                 {plans.map((plan) => (
-                                    <th key={plan.key} className={`p-2 text-center border-b border-slate-700 relative min-w-[90px] ${plan.key === 'onedollar' ? 'bg-amber-900/10 border-amber-500/30' : ''} ${plan.key === 'gold' ? 'bg-yellow-900/10' : ''}`}>
-                                        {plan.key === 'onedollar' && <div className="absolute top-0 inset-x-0 h-1 bg-amber-500"></div>}
-                                        {plan.key === 'gold' && <div className="absolute top-0 inset-x-0 h-1 bg-yellow-500"></div>}
-                                        <div className={`text-xs sm:text-sm font-black uppercase tracking-wider text-${plan.color}-400 mb-1`}>{plan.name}</div>
-                                        <div className="text-[10px] sm:text-xs text-slate-500 font-mono">
+                                    <th key={plan.key} className={`p-2 text-center border-b border-r border-slate-800 border-opacity-50 relative min-w-[90px] ${plan.bg}`}>
+                                        {/* Highlight Bar for Premium Plans */}
+                                        {plan.key === 'onedollar' && <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500"></div>}
+                                        {plan.key === 'gold' && <div className="absolute top-0 inset-x-0 h-1 bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>}
+                                        
+                                        <div className={`text-[10px] sm:text-xs font-black uppercase tracking-wider text-${plan.color}-400 mb-1`}>{plan.name}</div>
+                                        <div className="text-[10px] sm:text-xs text-white font-mono bg-slate-800/80 inline-block px-2 py-0.5 rounded border border-slate-700">
                                             {plan.key === 'onedollar' ? '$1' : (billingCycle === 'yearly' ? plan.priceYr : plan.priceMo)}
                                         </div>
                                     </th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/50">
+                        <tbody className="divide-y divide-slate-800/30 text-[11px]">
                             {rows.map((row, idx) => {
                                 // Skip pricing rows in body
                                 if (row.type === 'price') return null;
                                 
                                 return (
-                                    <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
-                                        <td className="p-2 text-[10px] sm:text-xs font-bold text-slate-300 border-r border-slate-800 bg-[#0f172a] sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.3)]">
+                                    <tr key={idx} className="group transition-colors odd:bg-transparent even:bg-slate-800/30 hover:bg-white/5">
+                                        <td className="p-2 font-bold text-slate-300 border-r border-slate-800 bg-[#0f172a] group-even:bg-[#131c31] sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.5)] group-hover:bg-[#1e293b]">
                                             {row.label}
                                         </td>
                                         {row.keys.map((val, i) => (
-                                            <td key={i} className={`p-1 text-center border-r border-slate-800/50 ${plans[i].key === 'onedollar' ? 'bg-amber-900/5' : ''}`}>
+                                            <td key={i} className={`p-1 text-center border-r border-slate-800/50 ${plans[i].bg}`}>
                                                 {getCellContent(val as string|boolean)}
                                             </td>
                                         ))}
@@ -149,17 +151,17 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                             <tr>
                                 <td className="p-2 bg-[#0f172a] sticky left-0 z-10 border-t border-slate-700"></td>
                                 {plans.map((plan) => (
-                                    <td key={plan.key} className="p-2 text-center border-t border-slate-700">
+                                    <td key={plan.key} className={`p-2 text-center border-t border-r border-slate-800 border-opacity-50 ${plan.bg}`}>
                                         <button 
                                             onClick={() => handleSelectPlan(plan.key)}
                                             disabled={plan.key === 'free' && currentTier !== 'visitor'}
                                             className={`w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all transform active:scale-95 shadow-lg
                                                 ${plan.key === 'free' ? 
-                                                    (currentTier === 'visitor' ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-slate-800 text-slate-500 cursor-default') : 
-                                                  plan.key === 'onedollar' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:brightness-110' :
-                                                  plan.key === 'gold' ? 'bg-yellow-600 hover:bg-yellow-500 text-white' :
-                                                  plan.key === 'pro' ? 'bg-purple-600 hover:bg-purple-500 text-white' :
-                                                  'bg-slate-700 hover:bg-slate-600 text-white'
+                                                    (currentTier === 'visitor' ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-slate-800 text-slate-500 cursor-default border border-slate-700') : 
+                                                  plan.key === 'onedollar' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:brightness-110 shadow-amber-500/20' :
+                                                  plan.key === 'gold' ? 'bg-yellow-600 hover:bg-yellow-500 text-white shadow-yellow-500/20' :
+                                                  plan.key === 'pro' ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/20' :
+                                                  'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600'
                                                 }`}
                                         >
                                             {processing === plan.key ? <LoaderIcon className="mx-auto w-3 h-3"/> : 
