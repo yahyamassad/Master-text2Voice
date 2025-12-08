@@ -67,6 +67,8 @@ export const translations = {
   studioShowingAll: { ar: 'Showing ALL voices', en: 'Showing ALL voices', fr: 'Toutes les voix', es: 'Todas las voces', pt: 'Todas as vozes' },
 
   // --- NEW VOICE PERSONAS (CATEGORIES & STYLES) ---
+  catStandard: { ar: 'مشاعر أساسية', en: 'Standard Emotions', fr: 'Émotions Standard', es: 'Emociones Estándar', pt: 'Emoções Padrão' },
+  
   catLiterature: { ar: 'الأدب والإبداع', en: 'Literature & Creativity', fr: 'Littérature & Créativité', es: 'Literatura y Creatividad', pt: 'Literatura e Criatividade' },
   styleEpicPoet: { ar: 'الشاعر الملحمي', en: 'Epic Poet', fr: 'Poète Épique', es: 'Poeta Épico', pt: 'Poeta Épico' },
   styleHeritageNarrator: { ar: 'الراوي التراثي', en: 'Heritage Narrator', fr: 'Conteur Traditionnel', es: 'Narrador Tradicional', pt: 'Narrador Tradicional' },
