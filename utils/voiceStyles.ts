@@ -2,14 +2,43 @@
 import { VoiceStyle } from "../types";
 
 export const VOICE_STYLES: VoiceStyle[] = [
+    // --- 0. Standard Emotions (Restored Classics) ---
+    {
+        id: 'Default',
+        categoryKey: 'catStandard',
+        labelKey: 'emotionDefault',
+        prompt: 'Speak naturally and clearly. Tone: Neutral, balanced.',
+        recommendedSpeed: 1.0
+    },
+    {
+        id: 'happy',
+        categoryKey: 'catStandard',
+        labelKey: 'emotionHappy',
+        prompt: 'Speak with a bright, cheerful smile in your voice. Be optimistic and warm. Tone: Happy, uplifting.',
+        recommendedSpeed: 1.05
+    },
+    {
+        id: 'sad',
+        categoryKey: 'catStandard',
+        labelKey: 'emotionSad',
+        prompt: 'Speak softly with a heavy heart. Use a slower pace and lower pitch to convey sorrow. Tone: Sad, melancholic, empathetic.',
+        recommendedSpeed: 0.9
+    },
+    {
+        id: 'formal',
+        categoryKey: 'catStandard',
+        labelKey: 'emotionFormal',
+        prompt: 'Speak with absolute professionalism and distance. Clear, crisp, and objective. Tone: Formal, business-like.',
+        recommendedSpeed: 1.0
+    },
+
     // --- 1. Literature & Creativity ---
     {
         id: 'epic_poet',
         categoryKey: 'catLiterature',
         labelKey: 'styleEpicPoet',
-        // CRITICAL UPDATE: Explicit instruction to pronounce ending vowels (No Waqf on Sukun) for Rhyme.
         prompt: 'Recite as a legendary Arab poet. IMPORTANT: Do NOT silence the last letter of the line (No Sukun). You MUST pronounce the vowel (Harakat) at the end of sentences to maintain the Rhyme (Qafiya) and Meter. Tone: Rhythmic, resonant, grand, musical.',
-        recommendedSpeed: 1.0
+        recommendedSpeed: 0.9 // Slower for poetry
     },
     {
         id: 'heritage_narrator',
