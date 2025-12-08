@@ -51,8 +51,7 @@ export async function generateStandardSpeech(
                 // CRITICAL FOR POETRY:
                 // We use 'empathetic' as it flows better than standard reading.
                 // Rate -15% gives time for the listener to process the weight of words.
-                // Pitch +5% adds a "recitation" quality, making it sound less like reading news.
-                // This combination helps "carry" the vowel at the end of lines better than default speed.
+                // Pitch +5% adds a "recitation" quality.
                 azureStyle = 'empathetic'; 
                 rate = '-15%'; 
                 pitch = '+5%'; 
@@ -91,18 +90,22 @@ export async function generateStandardSpeech(
         paragraphs.forEach((para, index) => {
             let cleanPara = para.trim();
             if (cleanPara) {
-                // --- POETRY RHYME HACK (The ZWJ Fix) ---
-                // If it's poetry, we want to force the pronunciation of the last vowel (I'rab)
-                // instead of letting Azure force a Sukun (Waqf) due to end of sentence.
+                // --- POETRY RHYME HACK (The Tatweel Fix) ---
+                // Problem: Azure forces Sukun (Silence) at end of sentences/lines.
+                // Solution: If the line ends with a vowel (Haraka), we append a Tatweel (ـ).
+                // This tricks the engine into thinking the word is elongated/connected, thus pronouncing the vowel.
                 if (emotion === 'epic_poet') {
-                    // 1. Remove end punctuation that triggers "Stop" logic (., !, ?)
-                    // We keep comma inside but remove sentence terminators at end.
-                    cleanPara = cleanPara.replace(/[.!?؟]+$/, '');
+                    // 1. Remove ending punctuation that triggers stops
+                    cleanPara = cleanPara.replace(/[.!?؟,،]+$/, '');
                     
-                    // 2. Append Zero Width Joiner (\u200D)
-                    // This trick makes the TTS engine think the word is connected to something else invisible,
-                    // thus preserving the vowel sound (Harakah) at the end.
-                    cleanPara += '\u200D';
+                    // 2. Check if the last character is a vowel (Fatha, Damma, Kasra, Tanween)
+                    // Unicode Arabic vowels range roughly \u064B to \u0652
+                    const endsWithVowel = /[\u064B-\u0652]$/.test(cleanPara);
+                    
+                    if (endsWithVowel) {
+                        // Append Tatweel (Kashida)
+                        cleanPara += 'ـ'; 
+                    }
                 }
 
                 innerContent += escapeXml(cleanPara);
