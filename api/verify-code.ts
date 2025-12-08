@@ -18,39 +18,37 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
         const lowerInput = input.toLowerCase();
 
         // 1. Get the Secret from Server Environment (Secure)
-        // Check for both ADMIN_ACCESS_CODE (preferred) and legacy VITE_ADMIN_ACCESS_CODE
         const serverSecret = process.env.ADMIN_ACCESS_CODE || process.env.VITE_ADMIN_ACCESS_CODE;
 
         // 2. Define Hardcoded Friendly Codes
-        const friendlyCodes = ['sawtli-master', 'friend', 'صديق', 'dinner'];
+        // 'dev' grants admin access
+        const devCodes = ['sawtli-master', 'friend', 'صديق', 'dinner'];
+        
+        // 'student' grants OneDollar tier access (Educational License)
+        const studentCodes = ['student', 'edu2025', 'class', 'طالب', 'مدرسة', 'sawtli-edu'];
 
-        let isValid = false;
+        // Response Object
+        let result = { valid: false, type: 'invalid' };
 
-        // Check Hardcoded
-        if (friendlyCodes.includes(lowerInput)) {
-            isValid = true;
-        }
-
-        // Check Environment Variable (Robust Comparison)
-        if (serverSecret) {
+        // Check Admin/Dev Codes
+        if (devCodes.includes(lowerInput)) {
+            result = { valid: true, type: 'admin' };
+        } else if (serverSecret) {
             const cleanSecret = serverSecret.trim();
-            // Allow case-insensitive match for the environment secret as well for ease of use
             if (input === cleanSecret || lowerInput === cleanSecret.toLowerCase()) {
-                isValid = true;
+                result = { valid: true, type: 'admin' };
             }
         }
 
-        // Return result
-        if (isValid) {
-            return res.status(200).json({ valid: true });
-        } else {
-            return res.status(200).json({ valid: false });
+        // Check Student Codes (If not already admin)
+        if (!result.valid && studentCodes.includes(lowerInput)) {
+            result = { valid: true, type: 'onedollar' };
         }
+
+        return res.status(200).json(result);
 
     } catch (error) {
         console.error("Verification Error:", error);
-        // Even if there's an error, we return 200 with valid: false to avoid client-side crash/error alerts
-        // unless it's a critical system failure.
         return res.status(200).json({ valid: false, error: 'Internal validation error' });
     }
 }

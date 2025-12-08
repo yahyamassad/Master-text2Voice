@@ -20,6 +20,7 @@ interface AccountModalProps {
     limits: any;
     onUpgrade: () => void;
     onSetDevMode: (enabled: boolean) => void;
+    onRedeemPlan?: (plan: 'onedollar') => void; // New prop
     onOpenOwnerGuide: () => void;
 }
 
@@ -55,10 +56,9 @@ const QuotaProgressBar: React.FC<{ label: string, used: number, total: number, c
     );
 };
 
-const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, onSignOut, onClearHistory, onDeleteAccount, currentTier, userStats, limits, onUpgrade, onSetDevMode, onOpenOwnerGuide }) => {
-    // Safety check: if user is null (logged out while modal open), close or return null
-    if (!user) return null;
-
+const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, onSignOut, onClearHistory, onDeleteAccount, currentTier, userStats, limits, onUpgrade, onSetDevMode, onRedeemPlan, onOpenOwnerGuide }) => {
+    // Note: We allow AccountModal even if user is null to support redeeming codes for students
+    
     const [secretKeyInput, setSecretKeyInput] = useState('');
     const [isDevMode, setIsDevMode] = useState(false);
     const [uidCopied, setUidCopied] = useState(false);
@@ -87,12 +87,17 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
             const data = await res.json();
             
             if (data.valid) {
-                onSetDevMode(true);
-                setIsDevMode(true);
-                alert(t('keySaved', uiLanguage));
+                if (data.type === 'admin') {
+                    onSetDevMode(true);
+                    setIsDevMode(true);
+                    alert(t('keySaved', uiLanguage));
+                } else if (data.type === 'onedollar' && onRedeemPlan) {
+                    onRedeemPlan('onedollar');
+                    alert(uiLanguage === 'ar' ? 'تم تفعيل خطة الطالب بنجاح!' : 'Student Plan Activated!');
+                }
                 setSecretKeyInput('');
             } else {
-                alert("Invalid Coupon Code");
+                alert("Invalid Code");
             }
         } catch (e) {
             console.error(e);
@@ -142,8 +147,8 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
     
     // Safe access to user properties
     const safePhotoURL = user?.photoURL || undefined;
-    const safeDisplayName = user?.displayName || 'User';
-    const safeEmail = user?.email || 'No Email';
+    const safeDisplayName = user?.displayName || (currentTier === 'onedollar' ? 'Student' : 'Guest');
+    const safeEmail = user?.email || (currentTier === 'onedollar' ? 'Educational Access' : 'No Email');
     const safeUid = user?.uid || 'Unknown';
 
     return (
@@ -162,11 +167,13 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                          {currentTier === 'gold' && <div className="absolute top-0 right-0 bg-amber-500 text-black text-xs font-bold px-2 py-1 rounded-bl">GOLD</div>}
                          {currentTier === 'professional' && <div className="absolute top-0 right-0 bg-cyan-400 text-black text-xs font-bold px-2 py-1 rounded-bl">PROFESSIONAL</div>}
                          {currentTier === 'admin' && <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-bl">ADMIN</div>}
-                        <img src={safePhotoURL} alt={safeDisplayName} className="w-16 h-16 rounded-full border-2 border-cyan-500" />
+                         {currentTier === 'onedollar' && <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-bl">STUDENT</div>}
+                        
+                        <img src={safePhotoURL} alt={safeDisplayName} className="w-16 h-16 rounded-full border-2 border-cyan-500 bg-slate-700 object-cover" />
                         <div>
                             <p className="text-lg font-bold text-white flex items-center gap-2">{safeDisplayName}</p>
                             <p className="text-sm text-slate-400">{safeEmail}</p>
-                            <p className="text-xs text-slate-500 mt-1">{t('joinedDate', uiLanguage)}: {creationDate}</p>
+                            {user && <p className="text-xs text-slate-500 mt-1">{t('joinedDate', uiLanguage)}: {creationDate}</p>}
                         </div>
                     </div>
                     
@@ -174,13 +181,13 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                     <div className="bg-slate-900/30 rounded-lg p-4 border border-slate-700">
                          <div className="flex justify-between items-center mb-4">
                              <span className="text-slate-400 text-sm">Current Plan</span>
-                             <span className={`font-bold ${currentTier === 'gold' ? 'text-amber-400' : (currentTier === 'professional' ? 'text-cyan-400' : (currentTier === 'admin' ? 'text-red-500' : 'text-white'))}`}>
+                             <span className={`font-bold ${currentTier === 'gold' ? 'text-amber-400' : (currentTier === 'professional' ? 'text-cyan-400' : (currentTier === 'admin' ? 'text-red-500' : (currentTier === 'onedollar' ? 'text-orange-400' : 'text-white')))}`}>
                                  {currentTier ? currentTier.toUpperCase() : 'FREE'}
                              </span>
                          </div>
 
-                         {/* Usage Stats for Free/Visitor */}
-                         {(currentTier === 'free' || currentTier === 'visitor') && (
+                         {/* Usage Stats for Limited Tiers */}
+                         {(currentTier === 'free' || currentTier === 'visitor' || currentTier === 'onedollar') && (
                              <div className="mb-4 pt-2 border-t border-slate-800">
                                  <QuotaProgressBar label={t('dailyUsageLabel', uiLanguage)} used={userStats?.dailyCharsUsed || 0} total={safeDailyLimit} color="cyan" />
                                  <QuotaProgressBar label={t('trialUsageLabel', uiLanguage)} used={userStats?.totalCharsUsed || 0} total={safeTotalLimit} color="amber" />
@@ -213,11 +220,11 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                         </div>
                     </div>
                     
-                    {/* "Redeem Code" Section - Stealth Developer Entry */}
+                    {/* "Redeem Code" Section - Students & Devs */}
                     <div className="border-t-2 border-slate-700/50 pt-4">
                         <div className="flex items-center gap-2 mb-2">
                             <SparklesIcon className="text-slate-500 w-4 h-4" />
-                            <h4 className="text-sm font-bold text-slate-400">{uiLanguage === 'ar' ? 'هل لديك قسيمة؟' : 'Have a Code?'}</h4>
+                            <h4 className="text-sm font-bold text-slate-400">{uiLanguage === 'ar' ? 'هل لديك قسيمة (طالب/مطور)؟' : 'Have a Code (Student/Dev)?'}</h4>
                         </div>
                         
                         {isDevMode && (
@@ -232,7 +239,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                                     type="text"
                                     value={secretKeyInput}
                                     onChange={(e) => setSecretKeyInput(e.target.value)}
-                                    placeholder="Enter code..."
+                                    placeholder={uiLanguage === 'ar' ? 'أدخل الكود...' : 'Enter code...'}
                                     className="flex-grow p-2 bg-slate-900/50 border border-slate-600 rounded-md focus:ring-1 focus:ring-cyan-500 placeholder-slate-600 text-sm"
                                     disabled={isVerifying}
                                 />
@@ -257,19 +264,21 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                         )}
                     </div>
                     
-                    {/* Danger Zone */}
-                    <div className="border-t-2 border-red-500/30 pt-4">
-                        <h4 className="text-md font-bold text-red-400">{t('dangerZone', uiLanguage)}</h4>
-                         <div className="flex items-center justify-between mt-3">
-                             <div>
-                                <p className="font-semibold text-red-300">{t('deleteAccount', uiLanguage)}</p>
-                                <p className="text-xs text-slate-400 max-w-md">{t('deleteAccountInfo', uiLanguage)}</p>
+                    {/* Danger Zone - Only if user is logged in */}
+                    {user && (
+                        <div className="border-t-2 border-red-500/30 pt-4">
+                            <h4 className="text-md font-bold text-red-400">{t('dangerZone', uiLanguage)}</h4>
+                             <div className="flex items-center justify-between mt-3">
+                                 <div>
+                                    <p className="font-semibold text-red-300">{t('deleteAccount', uiLanguage)}</p>
+                                    <p className="text-xs text-slate-400 max-w-md">{t('deleteAccountInfo', uiLanguage)}</p>
+                                </div>
+                                <button onClick={onDeleteAccount} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg flex items-center gap-2 text-sm transition-colors flex-shrink-0">
+                                    <TrashIcon className="w-4 h-4" /> {t('deleteConfirmation', uiLanguage)}
+                                </button>
                             </div>
-                            <button onClick={onDeleteAccount} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg flex items-center gap-2 text-sm transition-colors flex-shrink-0">
-                                <TrashIcon className="w-4 h-4" /> {t('deleteConfirmation', uiLanguage)}
-                            </button>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 <div className="mt-6 border-t border-slate-700 pt-4 flex justify-between items-center gap-4">
@@ -280,9 +289,15 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                         </span>
                         {uidCopied && <CheckIcon className="inline-block ml-1 h-4 w-4 text-green-400" />}
                     </div>
-                    <button onClick={onSignOut} className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-semibold transition-colors flex-shrink-0">
-                        {t('signOut', uiLanguage)}
-                    </button>
+                    {user ? (
+                        <button onClick={onSignOut} className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-semibold transition-colors flex-shrink-0">
+                            {t('signOut', uiLanguage)}
+                        </button>
+                    ) : (
+                        <button onClick={onClose} className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-semibold transition-colors flex-shrink-0">
+                            {t('closeButton', uiLanguage)}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

@@ -104,7 +104,7 @@ const QuotaIndicator: React.FC<{
     if (tier === 'visitor') {
         return (
             <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-                 <span className="text-cyan-500/70">VISITOR MODE (50 CHARS MAX)</span>
+                 <span className="text-cyan-500/70">VISITOR MODE (200 CHARS MAX)</span>
                  <span className="text-amber-500 cursor-pointer hover:underline" onClick={onUpgrade}>
                      {uiLanguage === 'ar' ? 'سجل لزيادة الحد اليومي' : 'Register to Increase Limit'}
                  </span>
@@ -144,6 +144,7 @@ const QuotaIndicator: React.FC<{
 };
 
 // ... (LanguageSelect, ActionButton, ActionCard) ...
+// (Kept standard implementations from previous file content for brevity, they are unchanged)
 const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
     const isValidCode = translationLanguages.some(l => l.code === value);
     const safeValue = isValidCode ? value : 'ar';
@@ -244,6 +245,7 @@ const App: React.FC = () => {
   const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); 
   const [userSubscription, setUserSubscription] = useState<UserTier>('free'); // Updated default type
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
+  const [localTier, setLocalTier] = useState<UserTier | null>(null); // For OneDollar codes
 
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
@@ -324,8 +326,8 @@ const App: React.FC = () => {
   }, []);
   const removeToast = (id: number) => setToasts(prev => prev.filter(t => t.id !== id));
 
-  // Determine User Tier
-  const userTier: UserTier = isDevMode ? 'admin' : (user ? userSubscription : 'visitor');
+  // Determine User Tier with priority: Admin > Local Code Plan > User Sub > Visitor
+  const userTier: UserTier = isDevMode ? 'admin' : (localTier ? localTier : (user ? userSubscription : 'visitor'));
   const planConfig = PLAN_LIMITS[userTier];
   
   // LOGIC TO CHECK LIMITS
@@ -335,14 +337,14 @@ const App: React.FC = () => {
       // VISITOR HARD LIMIT
       if (userTier === 'visitor') {
           if (textLength > planConfig.dailyLimit) {
-              showToast(uiLanguage === 'ar' ? "النص طويل جداً للزوار (الحد 50 حرف). يرجى التسجيل." : "Text too long for visitors (Limit 50). Please sign in.", 'error');
+              showToast(uiLanguage === 'ar' ? "النص طويل جداً للزوار (الحد 200 حرف). يرجى التسجيل." : "Text too long for visitors (Limit 200). Please sign in.", 'error');
               setIsUpgradeOpen(true);
               return false;
           }
           return true; 
       }
 
-      // REGISTERED USER LIMITS
+      // REGISTERED USER LIMITS (Includes OneDollar)
       const isTrialExpired = daysSinceStart > planConfig.trialDays;
       const isDailyLimitReached = userStats.dailyCharsUsed >= planConfig.dailyLimit;
       const isTotalLimitReached = userStats.totalCharsUsed >= (planConfig.totalTrialLimit + userStats.bonusChars);
@@ -393,8 +395,12 @@ const App: React.FC = () => {
               totalCharsUsed: prev.totalCharsUsed + charsConsumed,
               dailyCharsUsed: prev.dailyCharsUsed + charsConsumed
           };
+          
+          // Save for user OR local plan
           if (user) {
               localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
+          } else if (localTier) {
+              localStorage.setItem(`sawtli_stats_local_${localTier}`, JSON.stringify(newStats));
           }
           return newStats;
       });
@@ -402,19 +408,22 @@ const App: React.FC = () => {
 
   // ... (handleBoost, stopAll, useEffects same as before) ...
   const handleBoost = (type: 'share' | 'rate' | 'invite') => {
-      if (!user) return;
+      // Allow boosting for localTier too
+      if (!user && !localTier) return;
       let bonus = 0;
       setUserStats(prev => {
           if (type === 'share' && !prev.hasShared) {
               bonus = 50;
               const newStats = { ...prev, hasShared: true, bonusChars: prev.bonusChars + 50 };
-              localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
+              if(user) localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
+              else localStorage.setItem(`sawtli_stats_local_${localTier}`, JSON.stringify(newStats));
               return newStats;
           }
           if (type === 'rate' && !prev.hasRated) {
               bonus = 100;
               const newStats = { ...prev, hasRated: true, bonusChars: prev.bonusChars + 100 };
-              localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
+              if(user) localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
+              else localStorage.setItem(`sawtli_stats_local_${localTier}`, JSON.stringify(newStats));
               return newStats;
           }
           return prev;
@@ -460,6 +469,27 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetch('/api/check-config').then(res => res.json()).then(data => setIsApiConfigured(!!data.configured)).catch(() => setIsApiConfigured(false));
+    
+    // CHECK LOCAL PLAN
+    try {
+        const localPlanData = localStorage.getItem('sawtli_local_plan');
+        if (localPlanData) {
+            const { tier, expiry } = JSON.parse(localPlanData);
+            if (Date.now() < expiry) {
+                setLocalTier(tier);
+                // Load stats for this local plan
+                const key = `sawtli_stats_local_${tier}`;
+                const stored = localStorage.getItem(key);
+                if (stored) {
+                    setUserStats(JSON.parse(stored));
+                }
+            } else {
+                localStorage.removeItem('sawtli_local_plan');
+                setLocalTier(null);
+            }
+        }
+    } catch (e) { console.error("Error checking local plan", e); }
+
     const { auth } = getFirebase();
     if (auth) {
         // @ts-ignore
@@ -502,6 +532,7 @@ const App: React.FC = () => {
     }
   }, []); 
 
+  // ... (Settings effects) ...
   useEffect(() => {
       if (!voice) setVoice('Puck');
   }, []);
@@ -514,7 +545,6 @@ const App: React.FC = () => {
       };
   }, []);
 
-  // ... (Settings load effect) ...
   useEffect(() => {
     try {
       const savedSettingsRaw = localStorage.getItem('sawtli_settings');
@@ -545,7 +575,6 @@ const App: React.FC = () => {
     }
   }, []); 
 
-  // ... (Settings save effect) ...
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
@@ -556,6 +585,7 @@ const App: React.FC = () => {
     } catch (e) {}
   }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, history, sourceLang, targetLang, uiLanguage, user]);
 
+  // ... rest of boilerplate ...
   useEffect(() => {
     document.documentElement.lang = uiLanguage;
     document.documentElement.dir = languageOptions.find(l => l.value === uiLanguage)?.dir || 'ltr';
@@ -577,6 +607,31 @@ const App: React.FC = () => {
   const getCacheKey = (text: string) => {
       const speakers = multiSpeaker ? `${speakerA.voice}-${speakerB.voice}-${speakerC.voice}-${speakerD.voice}` : 'single';
       return `${text}_${voice}_${emotion}_${speed}_${seed}_${pauseDuration}_${speakers}`;
+  };
+
+  const handleRedeemPlan = (plan: 'onedollar') => {
+      // 3 Days Expiry
+      const expiry = Date.now() + (3 * 24 * 60 * 60 * 1000); 
+      const planData = { tier: plan, expiry };
+      localStorage.setItem('sawtli_local_plan', JSON.stringify(planData));
+      setLocalTier(plan);
+      
+      // Reset stats for the new plan
+      const newStats: UserStats = {
+          trialStartDate: Date.now(),
+          totalCharsUsed: 0,
+          dailyCharsUsed: 0,
+          lastUsageDate: new Date().toISOString().split('T')[0],
+          hasRated: false,
+          hasShared: false,
+          invitedCount: 0,
+          bonusChars: 0
+      };
+      const key = `sawtli_stats_local_${plan}`;
+      localStorage.setItem(key, JSON.stringify(newStats));
+      setUserStats(newStats);
+      
+      showToast(uiLanguage === 'ar' ? 'تم تفعيل الخطة التعليمية بنجاح!' : 'Student Plan Activated!', 'success');
   };
 
   // ... (handleSpeak) ...
@@ -610,8 +665,8 @@ const App: React.FC = () => {
       // FOR VISITORS: TRUNCATE IF THEY BYPASS UI CHECK (Double safety)
       let textToProcess = text;
       let isTruncated = false;
-      if (userTier === 'visitor' && text.length > 50) { 
-          textToProcess = text.substring(0, 50); 
+      if (userTier === 'visitor' && text.length > 200) { 
+          textToProcess = text.substring(0, 200); 
           isTruncated = true; 
       }
 
@@ -686,7 +741,7 @@ const App: React.FC = () => {
           audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
                    if (!isPausedRef.current) {
                        setActivePlayer(null); audioSourceRef.current = null; setIsLoading(false); setLoadingTask(''); playbackOffsetRef.current = 0;
-                       if (isTruncated) { setTimeout(() => { showToast(uiLanguage === 'ar' ? "هذه معاينة للزوار (50 حرف)." : "Visitor Preview (50 chars).", 'info'); setIsUpgradeOpen(true); }, 500); }
+                       if (isTruncated) { setTimeout(() => { showToast(uiLanguage === 'ar' ? "هذه معاينة للزوار (200 حرف)." : "Visitor Preview (200 chars).", 'info'); setIsUpgradeOpen(true); }, 500); }
                    }
               }, speed, startOffset);
           setIsLoading(false);
@@ -805,7 +860,7 @@ const App: React.FC = () => {
       navigator.clipboard.writeText(url);
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
-      if (user) handleBoost('share');
+      if (user || localTier) handleBoost('share');
   };
 
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
@@ -910,7 +965,14 @@ const App: React.FC = () => {
       const provider = new firebase.auth.GoogleAuthProvider();
       auth.signInWithPopup(provider).catch((error: any) => { console.error(error); showToast(t('signInError', uiLanguage), 'error'); }).finally(() => setIsAuthLoading(false));
   };
-  const handleSignOutAndClose = () => { const { auth } = getFirebase(); if (auth) auth.signOut().then(() => { setIsAccountOpen(false); showToast("Signed out", 'info'); }); };
+  const handleSignOutAndClose = () => { 
+      const { auth } = getFirebase(); 
+      if (auth) auth.signOut().then(() => { 
+          setIsAccountOpen(false); 
+          // If using local plan, do we keep it? Yes, why not.
+          showToast("Signed out", 'info'); 
+      }); 
+  };
   const handleClearHistory = async () => {
       if (user) { try { await clearHistoryForUser(user.uid); setHistory([]); showToast(t('historyClearSuccess', uiLanguage), 'success'); } catch (error) { showToast(t('historyClearError', uiLanguage), 'error'); } } 
       else { setHistory([]); localStorage.removeItem('sawtli_history'); showToast(t('historyClearSuccess', uiLanguage), 'success'); }
@@ -1165,7 +1227,7 @@ const App: React.FC = () => {
       {isPrivacyOpen && <PrivacyModal onClose={() => setIsPrivacyOpen(false)} uiLanguage={uiLanguage} />}
 
       <Suspense fallback={null}>
-          {isAccountOpen && <AccountModal onClose={() => setIsAccountOpen(false)} uiLanguage={uiLanguage} user={user} onSignOut={handleSignOutAndClose} onClearHistory={handleClearHistory} onDeleteAccount={handleDeleteAccount} currentTier={userTier} userStats={userStats} limits={planConfig} onUpgrade={() => { setIsAccountOpen(false); setIsUpgradeOpen(true); }} onSetDevMode={handleSetDevMode} onOpenOwnerGuide={() => { setIsAccountOpen(false); setShowSetupGuide(true); }} />}
+          {isAccountOpen && <AccountModal onClose={() => setIsAccountOpen(false)} uiLanguage={uiLanguage} user={user} onSignOut={handleSignOutAndClose} onClearHistory={handleClearHistory} onDeleteAccount={handleDeleteAccount} currentTier={userTier} userStats={userStats} limits={planConfig} onUpgrade={() => { setIsAccountOpen(false); setIsUpgradeOpen(true); }} onSetDevMode={handleSetDevMode} onRedeemPlan={handleRedeemPlan} onOpenOwnerGuide={() => { setIsAccountOpen(false); setShowSetupGuide(true); }} />}
           {isReportOpen && <ReportModal onClose={() => setIsReportOpen(false)} uiLanguage={uiLanguage} user={user} />}
       </Suspense>
       

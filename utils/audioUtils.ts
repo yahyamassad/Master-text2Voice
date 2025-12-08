@@ -163,7 +163,8 @@ export async function processAudio(
     autoDucking: boolean = false,
     voiceVolume: number = 80,
     trimToVoice: boolean = true,
-    voiceDelay: number = 0 // Delay in seconds
+    voiceDelay: number = 0, // Delay in seconds
+    echoAmount: number = 0 // 0-100
 ): Promise<AudioBuffer> {
     // USE 44100Hz for better compatibility with MP3 encoders and players
     const renderSampleRate = 44100; 
@@ -215,6 +216,7 @@ export async function processAudio(
     // Ensure minimum duration
     if (!Number.isFinite(outputDuration) || outputDuration < 1.0) outputDuration = 1.0;
 
+    // CRITICAL: Force 2 channels (Stereo) for correct panning and mixdown
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
     // --- VOICE CHAIN ---
@@ -230,8 +232,11 @@ export async function processAudio(
         const hasEq = settings.eqBands.some(v => v !== 0);
         const hasCompression = settings.compression > 0;
         const hasReverb = settings.reverb > 0;
+        const hasEcho = echoAmount > 0;
+        const hasPan = settings.stereoWidth !== 0;
 
-        let currentNode: AudioNode = source;
+        // Start of voice chain
+        let headNode: AudioNode = source;
 
         // 1. EQ
         if (hasEq) {
@@ -247,57 +252,85 @@ export async function processAudio(
                 filter.Q.value = 1.0;
                 return filter;
             });
-            filters.forEach(f => { currentNode.connect(f); currentNode = f; });
+            filters.forEach(f => { headNode.connect(f); headNode = f; });
         }
 
-        // 2. Dynamics / Reverb (Parallel)
-        // If we have effects, we need to construct the chain
-        if (hasCompression || hasReverb) {
+        // 2. Dynamics (ONLY if > 0)
+        // If hasCompression is false, we SKIP this entirely to avoid nasality/coloration.
+        if (hasCompression) {
             const compressor = offlineCtx.createDynamicsCompressor();
             const compAmount = settings.compression / 100; 
             
-            // Only apply compression params if active
-            if (hasCompression) {
-                compressor.threshold.value = -10 - (compAmount * 40); 
-                compressor.ratio.value = 1 + (compAmount * 11);       
-                compressor.attack.value = 0.003; 
-                compressor.release.value = 0.25;
-            } else {
-                // Transparent settings
-                compressor.threshold.value = 0;
-                compressor.ratio.value = 1;
-            }
+            compressor.threshold.value = -10 - (compAmount * 40); 
+            compressor.ratio.value = 1 + (compAmount * 11);       
+            compressor.attack.value = 0.003; 
+            compressor.release.value = 0.25;
 
-            currentNode.connect(compressor);
+            headNode.connect(compressor);
+            headNode = compressor;
+        }
+
+        // Split Point (Dry Signal for effects)
+        const dryNode = headNode;
+
+        // 3. Reverb (Parallel)
+        if (hasReverb) {
+            const reverbNode = offlineCtx.createConvolver();
+            const reverbGain = offlineCtx.createGain(); 
+            const dryGain = offlineCtx.createGain();    
             
-            if (hasReverb) {
-                const reverbNode = offlineCtx.createConvolver();
-                const reverbGain = offlineCtx.createGain(); 
-                const dryGain = offlineCtx.createGain();    
-                
-                const revDuration = 1.5 + (settings.reverb / 100) * 2.0; 
-                reverbNode.buffer = createImpulseResponse(offlineCtx, revDuration, 2.0, false);
-                
-                const mix = settings.reverb / 100;
-                reverbGain.gain.value = mix;
-                dryGain.gain.value = 1 - (mix * 0.5); 
+            const revDuration = 1.5 + (settings.reverb / 100) * 2.0; 
+            reverbNode.buffer = createImpulseResponse(offlineCtx, revDuration, 2.0, false);
+            
+            const mix = settings.reverb / 100;
+            reverbGain.gain.value = mix;
+            dryGain.gain.value = 1 - (mix * 0.5); 
 
-                compressor.connect(reverbNode);
-                reverbNode.connect(reverbGain);
-                reverbGain.connect(voiceGain);
-                
-                compressor.connect(dryGain);
-                dryGain.connect(voiceGain);
-            } else {
-                // Just compression, no reverb
-                compressor.connect(voiceGain);
-            }
-        } else {
-            // No compression, no reverb.
-            // Connect EQ output (or source) directly to gain
-            currentNode.connect(voiceGain);
+            dryNode.connect(reverbNode);
+            reverbNode.connect(reverbGain);
+            
+            dryNode.connect(dryGain);
+            
+            // Merge back
+            const reverbMerge = offlineCtx.createGain();
+            reverbGain.connect(reverbMerge);
+            dryGain.connect(reverbMerge);
+            headNode = reverbMerge;
+        }
+
+        // 4. Echo (Parallel)
+        if (hasEcho) {
+            const delayNode = offlineCtx.createDelay();
+            delayNode.delayTime.value = 0.4;
+            const feedbackNode = offlineCtx.createGain();
+            feedbackNode.gain.value = 0.3;
+            const echoGain = offlineCtx.createGain();
+            echoGain.gain.value = echoAmount / 100;
+
+            delayNode.connect(feedbackNode);
+            feedbackNode.connect(delayNode);
+            
+            headNode.connect(delayNode);
+            delayNode.connect(echoGain);
+            
+            // Merge Echo
+            const echoMerge = offlineCtx.createGain();
+            headNode.connect(echoMerge);
+            echoGain.connect(echoMerge);
+            headNode = echoMerge;
         }
         
+        // 5. Stereo Panner
+        // Always create panner if setting exists, otherwise skip for efficiency
+        if (hasPan) {
+            const panner = offlineCtx.createStereoPanner();
+            // -100 to 100 -> -1.0 to 1.0
+            panner.pan.value = Math.max(-1, Math.min(1, settings.stereoWidth / 100));
+            headNode.connect(panner);
+            headNode = panner;
+        }
+        
+        headNode.connect(voiceGain);
         voiceGain.connect(offlineCtx.destination);
         
         // Start with delay
@@ -411,6 +444,7 @@ export async function processAudio(
         }
         
         musicSource.connect(musicGain);
+        // Connect music gain to destination (mix)
         musicGain.connect(offlineCtx.destination);
         musicSource.start(0);
     }

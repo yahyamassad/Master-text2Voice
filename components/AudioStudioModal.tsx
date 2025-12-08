@@ -228,7 +228,7 @@ const Fader: React.FC<{
                     </div>
                 ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
-                        <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217z" />
+                        <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217z" />
                     </svg>
                 )}
              </button>
@@ -294,7 +294,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const [autoDucking, setAutoDucking] = useState(false);
     const [duckingActive, setDuckingActive] = useState(false); 
     
-    // Additional Effects (Not in AudioSettings yet but UI logic needed)
+    // Additional Effects
     const [echo, setEcho] = useState(0); // 0-100%
 
     // Export Settings
@@ -347,7 +347,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const voiceDelayRef = useRef(voiceDelay);
     const trimToVoiceRef = useRef(trimToVoice);
     const settingsRef = useRef(settings);
-    const echoRef = useRef(echo); // Echo Ref
+    const echoRef = useRef(echo); 
     
     // Playback Request ID to prevent race conditions (Double Audio)
     const playRequestIdRef = useRef<number>(0);
@@ -388,12 +388,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const voiceGainRef = useRef<GainNode | null>(null);
     const musicGainRef = useRef<GainNode | null>(null);
     
-    // DSP Nodes References (to update parameters in real-time)
+    // DSP Nodes References
     const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
     const reverbRef = useRef<ConvolverNode | null>(null);
     const reverbGainRef = useRef<GainNode | null>(null);
     const dryGainRef = useRef<GainNode | null>(null);
     const compressorRef = useRef<DynamicsCompressorNode | null>(null);
+    const pannerNodeRef = useRef<StereoPannerNode | null>(null); // NEW: Panner
     
     // Echo Nodes
     const delayNodeRef = useRef<DelayNode | null>(null);
@@ -522,13 +523,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         // Update Compressor
         if (compressorRef.current) {
             const compAmount = settings.compression / 100;
-            compressorRef.current.threshold.setTargetAtTime(-10 - (compAmount * 40), getAudioContext().currentTime, 0.1);
-            compressorRef.current.ratio.setTargetAtTime(1 + (compAmount * 11), getAudioContext().currentTime, 0.1);
+            if (compAmount > 0) {
+                compressorRef.current.threshold.setTargetAtTime(-10 - (compAmount * 40), getAudioContext().currentTime, 0.1);
+                compressorRef.current.ratio.setTargetAtTime(1 + (compAmount * 11), getAudioContext().currentTime, 0.1);
+            }
         }
         
         // Update Echo
         if (echoGainRef.current) {
             echoGainRef.current.gain.setTargetAtTime(echo / 100, getAudioContext().currentTime, 0.1);
+        }
+        
+        // Update Panner (Stereo Pan)
+        if (pannerNodeRef.current) {
+            // stereoWidth in settings acts as Pan (-100 to 100 maps to -1 to 1)
+            const panVal = Math.max(-1, Math.min(1, settings.stereoWidth / 100));
+            pannerNodeRef.current.pan.setTargetAtTime(panVal, getAudioContext().currentTime, 0.1);
         }
 
         // Speed changes require restarting the source or using playbackRate
@@ -565,6 +575,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         delayNodeRef.current = null;
         feedbackNodeRef.current = null;
         echoGainRef.current = null;
+        pannerNodeRef.current = null;
         
         if (!isRecording) setAnalyserNode(null);
         setIsPlaying(false);
@@ -639,13 +650,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 vGain = ctx.createGain();
                 vGain.gain.value = isVoiceMuted ? 0 : (voiceVolume / 100);
                 
-                // --- SMART BYPASS LOGIC ---
+                // --- SMART BYPASS LOGIC (TRUE BYPASS) ---
                 const hasEq = settingsRef.current.eqBands.some(v => v !== 0);
                 const hasCompression = settingsRef.current.compression > 0;
                 const hasReverb = settingsRef.current.reverb > 0;
                 const hasEcho = echoRef.current > 0;
+                const hasPan = settingsRef.current.stereoWidth !== 0;
 
-                let currentNode: AudioNode = vSource;
+                // Start of chain
+                let headNode: AudioNode = vSource;
 
                 // 1. EQ
                 if (hasEq) {
@@ -658,32 +671,25 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         return f;
                     });
                     eqFiltersRef.current = filters;
-                    filters.forEach(f => { currentNode.connect(f); currentNode = f; });
+                    filters.forEach(f => { headNode.connect(f); headNode = f; });
                 }
 
-                // 2. Dynamics
-                const comp = ctx.createDynamicsCompressor();
+                // 2. Dynamics (ONLY ADD IF ACTIVE)
                 if (hasCompression) {
+                    const comp = ctx.createDynamicsCompressor();
                     const compAmount = settingsRef.current.compression / 100;
                     comp.threshold.value = -10 - (compAmount * 40);
                     comp.ratio.value = 1 + (compAmount * 11);
-                } else {
-                    comp.threshold.value = 0; 
-                    comp.ratio.value = 1;
+                    compressorRef.current = comp;
+                    
+                    headNode.connect(comp);
+                    headNode = comp;
                 }
-                compressorRef.current = comp;
-                currentNode.connect(comp);
-                
-                // Parallel Effects Chain (Reverb & Echo)
-                // Source (Comp) -> Reverb -> ReverbGain -> vGain
-                // Source (Comp) -> Delay -> EchoGain -> vGain
-                // Source (Comp) -> DryGain -> vGain
 
-                const dGain = ctx.createGain(); // Dry Gain
-                dryGainRef.current = dGain;
-                comp.connect(dGain);
-                dGain.connect(vGain); // Default connection
+                // Effects Split point (Dry/Wet)
+                const dryNode = headNode;
 
+                // 3. Reverb (Parallel)
                 if (hasReverb) {
                     const revNode = ctx.createConvolver();
                     const revDuration = 1.5 + (settingsRef.current.reverb / 100) * 2.0; 
@@ -694,32 +700,66 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     const mix = settingsRef.current.reverb / 100;
                     revGain.gain.value = mix;
                     reverbGainRef.current = revGain;
+                    
+                    // Create dry gain to balance
+                    const dGain = ctx.createGain();
                     dGain.gain.value = 1 - (mix * 0.5);
+                    dryGainRef.current = dGain;
 
-                    comp.connect(revNode);
+                    // Routing
+                    dryNode.connect(revNode);
                     revNode.connect(revGain);
-                    revGain.connect(vGain);
+                    // Output of reverb chain goes to gain
+                    
+                    dryNode.connect(dGain);
+                    // Output of dry chain goes to gain
+                    
+                    // We need to merge them back before Panner/Gain
+                    // Simple hack: connect both to vGain directly? No, Panner is next.
+                    // We need a merger or intermediate gain.
+                    const mergeNode = ctx.createGain();
+                    revGain.connect(mergeNode);
+                    dGain.connect(mergeNode);
+                    headNode = mergeNode; // Update head
+                } 
+
+                // 4. Echo (Parallel)
+                if (hasEcho) {
+                    const delayNode = ctx.createDelay();
+                    delayNode.delayTime.value = 0.4; // 400ms delay
+                    const feedbackNode = ctx.createGain();
+                    feedbackNode.gain.value = 0.3; // 30% feedback
+                    const echoGain = ctx.createGain();
+                    echoGain.gain.value = echoRef.current / 100;
+
+                    delayNode.connect(feedbackNode);
+                    feedbackNode.connect(delayNode);
+                    
+                    // Input to echo is current head
+                    headNode.connect(delayNode);
+                    delayNode.connect(echoGain);
+                    
+                    // We need to merge Echo output with Dry output
+                    const echoMerge = ctx.createGain();
+                    headNode.connect(echoMerge); // Dry signal passing through
+                    echoGain.connect(echoMerge); // Wet signal
+                    
+                    headNode = echoMerge; // Update head
+
+                    delayNodeRef.current = delayNode;
+                    feedbackNodeRef.current = feedbackNode;
+                    echoGainRef.current = echoGain;
                 }
-
-                // ECHO LOGIC
-                // Always create nodes so we can automate them, just set gain to 0 if off
-                const delayNode = ctx.createDelay();
-                delayNode.delayTime.value = 0.4; // 400ms delay
-                const feedbackNode = ctx.createGain();
-                feedbackNode.gain.value = 0.3; // 30% feedback
-                const echoGain = ctx.createGain();
-                echoGain.gain.value = echoRef.current / 100;
-
-                delayNode.connect(feedbackNode);
-                feedbackNode.connect(delayNode);
                 
-                comp.connect(delayNode);
-                delayNode.connect(echoGain);
-                echoGain.connect(vGain);
-
-                delayNodeRef.current = delayNode;
-                feedbackNodeRef.current = feedbackNode;
-                echoGainRef.current = echoGain;
+                // 5. Stereo Panner (NEW)
+                // Always add panner to allow control
+                const panner = ctx.createStereoPanner();
+                const panVal = Math.max(-1, Math.min(1, settingsRef.current.stereoWidth / 100));
+                panner.pan.value = panVal;
+                pannerNodeRef.current = panner;
+                
+                headNode.connect(panner);
+                headNode = panner;
 
                 // Analyzers
                 visualizerAnalyser = ctx.createAnalyser();
@@ -727,6 +767,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 duckingAnalyser = ctx.createAnalyser();
                 duckingAnalyser.fftSize = 512; 
 
+                // Final Connection
+                headNode.connect(vGain);
                 vGain.connect(visualizerAnalyser).connect(ctx.destination);
                 vGain.connect(duckingAnalyser); 
                 
@@ -1027,14 +1069,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 autoDucking, 
                 finalVoiceVolume,
                 trimToVoice,
-                voiceDelay
+                voiceDelay,
+                echo // Pass echo setting to processor
             );
             
             let blob;
             if (exportFormat === 'wav') {
-                 blob = createWavBlob(buffer, 1, buffer.sampleRate);
+                 // Important: pass 2 channels for stereo export
+                 blob = createWavBlob(buffer, 2, buffer.sampleRate);
             } else {
-                 blob = await createMp3Blob(buffer, 1, buffer.sampleRate);
+                 blob = await createMp3Blob(buffer, 2, buffer.sampleRate);
             }
 
             const url = URL.createObjectURL(blob);
@@ -1250,8 +1294,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                              </div>
                              <div className="flex gap-4 items-end justify-center pb-2 flex-grow overflow-hidden relative">
                                 <Fader label={t('studioVoice', uiLanguage)} value={voiceVolume} onChange={setVoiceVolume} height="h-full max-h-48" disabled={!voiceBuffer} muted={isVoiceMuted} onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)} onClickCapture={handleRestrictedAction} />
-                                <div className="flex flex-col items-center justify-center pb-6 mx-2 h-full">
+                                <div className="flex flex-col items-center justify-center pb-6 mx-2 h-full gap-2">
+                                    {/* Delay Knob */}
                                     <Knob label={t('studioDelay', uiLanguage)} value={voiceDelay} min={0} max={10} onChange={setVoiceDelay} color="green" onClickCapture={handleRestrictedAction} displaySuffix="s" size="md" />
+                                    {/* NEW: Pan Knob */}
+                                    <div className="mt-2">
+                                        <Knob 
+                                            label="PAN L/R" 
+                                            value={settings.stereoWidth} 
+                                            min={-100} 
+                                            max={100} 
+                                            onChange={(v) => updateSetting('stereoWidth', v)} 
+                                            color="purple" 
+                                            onClickCapture={handleRestrictedAction} 
+                                            size="md" 
+                                        />
+                                    </div>
                                 </div>
                                 <Fader label={t('studioMusic', uiLanguage)} value={musicVolume} onChange={setMusicVolume} color="amber" height="h-full max-h-48" disabled={!musicFileName && isPaidUser} muted={isMusicMuted} onMuteToggle={() => setIsMusicMuted(!isMusicMuted)} onClickCapture={handleRestrictedAction} />
                              </div>
@@ -1302,7 +1360,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">{t('studioAmbience', uiLanguage)}</div>
                             <Knob label={t('studioReverb', uiLanguage)} value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} onClickCapture={handleRestrictedAction} />
                         </div>
-                        {/* NEW ECHO KNOB */}
+                        {/* Echo Knob */}
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">{t('studioEcho', uiLanguage)}</div>
                             <Knob label={t('studioFeedback', uiLanguage)} value={echo} onChange={setEcho} color="green" onClickCapture={handleRestrictedAction} />
