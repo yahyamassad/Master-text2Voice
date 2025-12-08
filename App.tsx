@@ -752,7 +752,7 @@ const App: React.FC = () => {
               updateUserStats(sourceText.length);
 
               const newHistoryItem: HistoryItem = { id: new Date().toISOString(), sourceText, translatedText: result.translatedText, sourceLang, targetLang, timestamp: Date.now() };
-              if (user) { const { id, timestamp, ...itemToSave } = newHistoryItem; addHistoryItem(user.uid, itemToSave).catch(e => console.error("History fail:", e)); } 
+              if (user) { const { id, timestamp, ...itemToSave } = newHistoryItem; addHistoryItem(user.uid, itemToSave).catch(e => console.error("History save error:", e)); } 
               else { setHistory(prev => [newHistoryItem, ...prev.slice(49)]); }
           }
       } catch (err: any) {
@@ -1045,12 +1045,12 @@ const App: React.FC = () => {
                     <LanguageSelect value={sourceLang} onChange={setSourceLang} />
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className="p-2 bg-slate-800 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-700 flex items-center gap-2" title={t('soundEffects', uiLanguage)}>
-                        <SparklesIcon className="w-4 h-4" />
+                    <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className="h-10 px-3 bg-slate-800 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-700 flex items-center gap-2 text-xs font-bold" title={t('soundEffects', uiLanguage)}>
+                        <SparklesIcon className="w-4 h-4" /> <span>{t('soundEffects', uiLanguage)}</span>
                     </button>
                     {/* Effects Dropdown */}
                     {isEffectsOpen && (
-                        <div className="absolute top-10 right-0 z-50 w-48 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1 animate-fade-in" ref={effectsDropdownRef}>
+                        <div className="absolute top-10 left-0 z-50 w-48 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1 animate-fade-in" ref={effectsDropdownRef}>
                             {soundEffects.map(effect => (
                                 <button key={effect.tag} onClick={() => handleInsertTag(effect.tag)} className="p-2 hover:bg-slate-700 rounded text-xl flex justify-center items-center" title={t(effect.labelKey as any, uiLanguage)}>
                                     {effect.emoji}
@@ -1058,8 +1058,8 @@ const App: React.FC = () => {
                             ))}
                         </div>
                     )}
-                    <button onClick={handleTashkeel} disabled={isEnhancing} className={`p-2 rounded-lg transition-colors ${sourceLang.startsWith('ar') ? 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700' : 'hidden'}`} title={t('tashkeel', uiLanguage)}>
-                        {isEnhancing ? <LoaderIcon className="w-4 h-4"/> : <span className="font-bold text-xs">{t('tashkeel', uiLanguage)}</span>}
+                    <button onClick={handleTashkeel} disabled={isEnhancing} className={`h-10 px-3 rounded-lg transition-colors flex items-center gap-2 ${sourceLang.startsWith('ar') ? 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700' : 'hidden'}`} title={t('tashkeel', uiLanguage)}>
+                        {isEnhancing ? <LoaderIcon className="w-4 h-4"/> : <WandIcon className="w-4 h-4" />} <span className="font-bold text-xs">{t('tashkeel', uiLanguage)}</span>
                     </button>
                     <button onClick={() => handleCopy(sourceText, 'source')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
                         {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
@@ -1091,14 +1091,14 @@ const App: React.FC = () => {
     const translatedTextArea = (
         <div className="flex-1 relative group flex flex-col h-full">
             <div className={`flex items-center mb-3 justify-between`}>
-                <div className="flex items-center gap-2">
-                    <LanguageSelect value={targetLang} onChange={setTargetLang} />
-                </div>
                 <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
                     {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
                 </button>
+                <div className="flex items-center gap-2">
+                    <LanguageSelect value={targetLang} onChange={setTargetLang} />
+                </div>
             </div>
-            <div className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-955/30 border-2 border-slate-800 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner ${!translatedText ? 'text-slate-600 italic flex items-center justify-center' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} dir={targetLang === 'ar' ? 'rtl' : 'ltr'}>
+            <div className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/30 border-2 border-slate-800 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner ${!translatedText ? 'text-slate-600 italic flex items-start' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} dir={targetLang === 'ar' ? 'rtl' : 'ltr'}>
                 {translatedText || t('translationPlaceholder', uiLanguage)}
             </div>
             <div className="flex justify-end mt-2 text-xs font-bold text-slate-500">
@@ -1120,7 +1120,7 @@ const App: React.FC = () => {
         if (target === 'target') label = uiLanguage === 'ar' ? 'استمع للترجمة' : 'Listen to Translation';
 
         let icon = <SpeakerIcon className="w-6 h-6" />;
-        let className = "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)]";
+        let className = "bg-slate-800 border-2 border-slate-600 hover:border-cyan-500 text-cyan-500 hover:text-white shadow-lg";
 
         if (isLoadingState) {
             icon = <LoaderIcon className="w-6 h-6" />;
