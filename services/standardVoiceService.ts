@@ -1,5 +1,4 @@
 
-
 import { decode, createWavBlob } from '../utils/audioUtils';
 import { SpeakerConfig } from '../types';
 
@@ -35,12 +34,47 @@ export async function generateStandardSpeech(
         const parts = voiceId.split('-');
         const langCode = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : 'en-US';
 
-        // Map UI Emotion to Azure Style
+        // Map UI Emotion to Azure Style & Prosody
         let azureStyle = '';
+        let rate = '0%';
+        let pitch = '0%';
+
+        // Style Mapping Logic
         switch (emotion) {
-            case 'Happy': azureStyle = 'cheerful'; break;
-            case 'Sad': azureStyle = 'sad'; break;
-            case 'Formal': azureStyle = 'newscast'; break; // Or 'serious' depending on voice support
+            // Standard Emotions
+            case 'happy': azureStyle = 'cheerful'; break;
+            case 'sad': azureStyle = 'sad'; rate = '-5%'; break;
+            case 'formal': azureStyle = 'newscast'; break;
+            
+            // New Personas - Mapping to SSML Logic
+            case 'epic_poet': 
+                // Try to use 'poetry-reading' if available, otherwise rely on prosody
+                // Note: 'empathetic' is good but limited. 'poetry-reading' is specific to en-US mainly.
+                // We'll stick to a safe visual style or just prosody.
+                // For Arabic, 'empathetic' works on some voices, otherwise prosody handles it.
+                azureStyle = 'empathetic'; 
+                rate = '-10%'; // Slow down for poetry
+                pitch = '0%'; 
+                break;
+            case 'heritage_narrator':
+                azureStyle = 'narration-professional'; // or default
+                rate = '-5%';
+                break;
+            case 'news_anchor':
+                azureStyle = 'newscast';
+                rate = '+5%';
+                break;
+            case 'sports_commentator':
+                azureStyle = 'shouting'; // or excited
+                rate = '+15%';
+                pitch = '+5%';
+                break;
+            case 'thriller':
+                azureStyle = 'whispering';
+                rate = '-10%';
+                break;
+            
+            // Legacy/Default
             default: azureStyle = '';
         }
 
@@ -62,8 +96,15 @@ export async function generateStandardSpeech(
             }
         });
 
+        // Wrap in Prosody (Rate/Pitch)
+        if (rate !== '0%' || pitch !== '0%') {
+            innerContent = `<prosody rate="${rate}" pitch="${pitch}">${innerContent}</prosody>`;
+        }
+
         // Wrap in Style if selected
         if (azureStyle) {
+            // Note: Not all voices support all styles. Azure ignores invalid styles gracefully usually,
+            // but for robust support we blindly apply it.
             innerContent = `<mstts:express-as style="${azureStyle}">${innerContent}</mstts:express-as>`;
         }
         
