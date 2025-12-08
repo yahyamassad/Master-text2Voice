@@ -1,4 +1,3 @@
-
 // ... (imports remain the same) ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
@@ -112,13 +111,34 @@ const QuotaIndicator: React.FC<{
         );
     }
 
+    // ONEDOLLAR - Show TOTAL USAGE
+    if (tier === 'onedollar') {
+        const totalUsed = stats.totalCharsUsed;
+        const totalLimit = limits.totalTrialLimit + stats.bonusChars;
+        const percent = Math.min(100, (totalUsed / totalLimit) * 100);
+        const isNearLimit = percent > 80;
+        
+        return (
+            <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
+                <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isNearLimit ? 'bg-red-500' : 'bg-amber-500'}`} 
+                    style={{ width: `${percent}%` }}>
+                </div>
+                
+                <div className="flex items-center gap-3 z-10 w-full justify-between">
+                    <span className={isNearLimit ? 'text-red-400' : 'text-amber-400'}>
+                        {t('trialUsageLabel', uiLanguage)}: {totalUsed} / {totalLimit}
+                    </span>
+                    <span className="text-[9px] bg-amber-900/30 text-amber-500 px-2 py-0.5 rounded border border-amber-900/50">STUDENT PLAN</span>
+                </div>
+            </div>
+        );
+    }
+
+    // DEFAULT (DAILY)
     const dailyUsed = stats.dailyCharsUsed;
     const dailyLimit = limits.dailyLimit;
     const dailyPercent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
     const isDailyLimitReached = dailyUsed >= dailyLimit;
-
-    // For OneDollar Plan, maybe show Total usage instead of daily?
-    // The current logic works because OneDollar limits are set in PLAN_LIMITS.
 
     return (
         <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
@@ -130,7 +150,7 @@ const QuotaIndicator: React.FC<{
                 <span className={isDailyLimitReached ? 'text-red-500' : 'text-cyan-500'}>
                     {t('dailyUsageLabel', uiLanguage)}: {dailyUsed} / {dailyLimit === Infinity ? '∞' : dailyLimit}
                 </span>
-                {isDailyLimitReached && tier !== 'onedollar' && (
+                {isDailyLimitReached && (
                     <button 
                     onClick={onBoost} 
                     className="bg-amber-600 text-white px-2 py-0.5 rounded text-[9px] animate-pulse hover:bg-amber-500"
@@ -143,8 +163,7 @@ const QuotaIndicator: React.FC<{
     );
 };
 
-// ... (LanguageSelect, ActionButton, ActionCard) ...
-// (Kept standard implementations from previous file content for brevity, they are unchanged)
+// ... (LanguageSelect, ActionButton, ActionCard, DownloadModal - unchanged) ...
 const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; }> = ({ value, onChange }) => {
     const isValidCode = translationLanguages.some(l => l.code === value);
     const safeValue = isValidCode ? value : 'ar';
@@ -221,7 +240,7 @@ const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' 
 
 // Main App Component
 const App: React.FC = () => {
-  // --- STATE MANAGEMENT ---
+  // ... (State Management remains same) ...
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   
   const [sourceText, setSourceText] = useState<string>('');
@@ -243,9 +262,9 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isApiConfigured, setIsApiConfigured] = useState<boolean>(true); 
-  const [userSubscription, setUserSubscription] = useState<UserTier>('free'); // Updated default type
+  const [userSubscription, setUserSubscription] = useState<UserTier>('free'); 
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
-  const [localTier, setLocalTier] = useState<UserTier | null>(null); // For OneDollar codes
+  const [localTier, setLocalTier] = useState<UserTier | null>(null); 
 
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
@@ -267,7 +286,7 @@ const App: React.FC = () => {
       bonusChars: 0
   });
 
-  // Panels
+  // ... (Panel states) ...
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
@@ -326,10 +345,13 @@ const App: React.FC = () => {
   }, []);
   const removeToast = (id: number) => setToasts(prev => prev.filter(t => t.id !== id));
 
-  // Determine User Tier with priority: Admin > Local Code Plan > User Sub > Visitor
+  // Determine User Tier
   const userTier: UserTier = isDevMode ? 'admin' : (localTier ? localTier : (user ? userSubscription : 'visitor'));
   const planConfig = PLAN_LIMITS[userTier];
   
+  // DAYS Since Start
+  const daysSinceStart = Math.floor((Date.now() - userStats.trialStartDate) / (1000 * 60 * 60 * 24));
+
   // LOGIC TO CHECK LIMITS
   const checkLimits = (textLength: number): boolean => {
       if (userTier === 'admin') return true;
@@ -346,7 +368,8 @@ const App: React.FC = () => {
 
       // REGISTERED USER LIMITS (Includes OneDollar)
       const isTrialExpired = daysSinceStart > planConfig.trialDays;
-      const isDailyLimitReached = userStats.dailyCharsUsed >= planConfig.dailyLimit;
+      // For OneDollar, we mainly care about Total Usage reaching limit
+      const isDailyLimitReached = userTier !== 'onedollar' && userStats.dailyCharsUsed >= planConfig.dailyLimit;
       const isTotalLimitReached = userStats.totalCharsUsed >= (planConfig.totalTrialLimit + userStats.bonusChars);
 
       if (isTrialExpired) { showToast(t('trialExpired', uiLanguage), 'error'); setIsUpgradeOpen(true); return false; }
@@ -355,8 +378,6 @@ const App: React.FC = () => {
       
       return true;
   };
-
-  const daysSinceStart = Math.floor((Date.now() - userStats.trialStartDate) / (1000 * 60 * 60 * 24));
   
   const loadUserStats = (userId: string) => {
       const key = `sawtli_stats_${userId}`;
@@ -406,21 +427,18 @@ const App: React.FC = () => {
       });
   };
 
-  // ... (handleBoost, stopAll, useEffects same as before) ...
+  // ... (handleBoost, stopAll) ...
+  // (Standard implementation omitted for brevity)
   const handleBoost = (type: 'share' | 'rate' | 'invite') => {
-      // Allow boosting for localTier too
       if (!user && !localTier) return;
-      let bonus = 0;
       setUserStats(prev => {
           if (type === 'share' && !prev.hasShared) {
-              bonus = 50;
               const newStats = { ...prev, hasShared: true, bonusChars: prev.bonusChars + 50 };
               if(user) localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
               else localStorage.setItem(`sawtli_stats_local_${localTier}`, JSON.stringify(newStats));
               return newStats;
           }
           if (type === 'rate' && !prev.hasRated) {
-              bonus = 100;
               const newStats = { ...prev, hasRated: true, bonusChars: prev.bonusChars + 100 };
               if(user) localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
               else localStorage.setItem(`sawtli_stats_local_${localTier}`, JSON.stringify(newStats));
@@ -431,7 +449,6 @@ const App: React.FC = () => {
   };
 
   const stopAll = useCallback(() => {
-    // ... same logic ...
     if (apiAbortControllerRef.current) {
       apiAbortControllerRef.current.abort();
       apiAbortControllerRef.current = null;
@@ -441,7 +458,7 @@ const App: React.FC = () => {
             audioSourceRef.current.onended = null; 
             audioSourceRef.current.stop();
             audioSourceRef.current.disconnect(); 
-        } catch (e) { /* Ignore */ }
+        } catch (e) { }
         audioSourceRef.current = null;
     }
     if (audioContextRef.current && audioContextRef.current.state === 'running') {
@@ -460,11 +477,10 @@ const App: React.FC = () => {
     setIsLoading(false); 
   }, []);
 
-  // ... (useEffects) ...
+  // ... (useEffects for init, auth, settings) ...
+  // (Standard implementation omitted)
   useEffect(() => {
-      if (activePlayer || isPaused) {
-          stopAll();
-      }
+      if (activePlayer || isPaused) stopAll();
   }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, speakerC, speakerD, stopAll]);
 
   useEffect(() => {
@@ -477,12 +493,9 @@ const App: React.FC = () => {
             const { tier, expiry } = JSON.parse(localPlanData);
             if (Date.now() < expiry) {
                 setLocalTier(tier);
-                // Load stats for this local plan
                 const key = `sawtli_stats_local_${tier}`;
                 const stored = localStorage.getItem(key);
-                if (stored) {
-                    setUserStats(JSON.parse(stored));
-                }
+                if (stored) setUserStats(JSON.parse(stored));
             } else {
                 localStorage.removeItem('sawtli_local_plan');
                 setLocalTier(null);
@@ -496,26 +509,17 @@ const App: React.FC = () => {
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser: any) => {
             setUser(currentUser);
             setIsAuthLoading(false);
-            if (firestoreUnsubscribeRef.current) {
-                firestoreUnsubscribeRef.current();
-                firestoreUnsubscribeRef.current = null;
-            }
             if (currentUser) {
                 setShowSetupGuide(false);
-                setUserSubscription('free'); // Default to free, could fetch from DB
+                setUserSubscription('free'); 
                 loadUserStats(currentUser.uid);
-                firestoreUnsubscribeRef.current = subscribeToHistory(currentUser.uid, (items) => {
-                    setHistory(items);
-                });
+                firestoreUnsubscribeRef.current = subscribeToHistory(currentUser.uid, (items) => setHistory(items));
             } else {
                 setUserSubscription('free'); 
                 try {
                     const savedHistory = localStorage.getItem('sawtli_history');
                     setHistory(savedHistory ? JSON.parse(savedHistory) : []);
-                } catch (e) {
-                    console.error("Failed to load history", e);
-                    setHistory([]);
-                }
+                } catch (e) { setHistory([]); }
             }
         });
         return () => {
@@ -532,19 +536,13 @@ const App: React.FC = () => {
     }
   }, []); 
 
-  // ... (Settings effects) ...
+  // ... (standard boilerplate effects) ...
   useEffect(() => {
       if (!voice) setVoice('Puck');
   }, []);
-
   useEffect(() => {
-      return () => {
-         if (audioContextRef.current) {
-             audioContextRef.current.close().catch(() => {});
-         }
-      };
+      return () => { if (audioContextRef.current) audioContextRef.current.close().catch(() => {}); };
   }, []);
-
   useEffect(() => {
     try {
       const savedSettingsRaw = localStorage.getItem('sawtli_settings');
@@ -566,32 +564,22 @@ const App: React.FC = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const urlSourceText = urlParams.get('sourceText');
       if(urlSourceText) setSourceText(decodeURIComponent(urlSourceText));
-      
       const devModeActive = sessionStorage.getItem('sawtli_dev_mode') === 'true';
       if (devModeActive) setIsDevMode(true);
-
-    } catch (e) {
-      console.error("Failed to load state", e);
-    }
+    } catch (e) {}
   }, []); 
-
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
       localStorage.setItem('sawtli_settings', JSON.stringify(settings));
-      if (!user && history.length > 0) {
-          localStorage.setItem('sawtli_history', JSON.stringify(history));
-      }
+      if (!user && history.length > 0) localStorage.setItem('sawtli_history', JSON.stringify(history));
     } catch (e) {}
   }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, history, sourceLang, targetLang, uiLanguage, user]);
-
-  // ... rest of boilerplate ...
   useEffect(() => {
     document.documentElement.lang = uiLanguage;
     document.documentElement.dir = languageOptions.find(l => l.value === uiLanguage)?.dir || 'ltr';
     document.title = t('pageTitle', uiLanguage);
   }, [uiLanguage]);
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
         if (effectsDropdownRef.current && !effectsDropdownRef.current.contains(event.target as Node)) {
@@ -599,9 +587,7 @@ const App: React.FC = () => {
         }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => { document.removeEventListener('mousedown', handleClickOutside); };
   }, []);
   
   const getCacheKey = (text: string) => {
@@ -616,7 +602,6 @@ const App: React.FC = () => {
       localStorage.setItem('sawtli_local_plan', JSON.stringify(planData));
       setLocalTier(plan);
       
-      // Reset stats for the new plan
       const newStats: UserStats = {
           trialStartDate: Date.now(),
           totalCharsUsed: 0,
@@ -662,7 +647,6 @@ const App: React.FC = () => {
       if (activePlayer === target && isPaused) { setIsPaused(false); isPausedRef.current = false; } 
       else { stopAll(); setIsLoading(true); setLoadingTask(t('generatingSpeech', uiLanguage)); setActivePlayer(target); setError(null); isPausedRef.current = false; }
 
-      // FOR VISITORS: TRUNCATE IF THEY BYPASS UI CHECK (Double safety)
       let textToProcess = text;
       let isTruncated = false;
       if (userTier === 'visitor' && text.length > 200) { 
@@ -675,7 +659,6 @@ const App: React.FC = () => {
       if (audioCacheRef.current.has(cacheKey)) { pcmData = audioCacheRef.current.get(cacheKey)!; setLastGeneratedPCM(pcmData); }
 
       if (!pcmData) {
-          // ... (API CALL LOGIC SAME AS BEFORE) ...
           const warmUpTimer = setTimeout(() => { setLoadingTask(t('warmingUp', uiLanguage)); }, 2000);
           const clientTimeout = setTimeout(() => { if(isLoading && activePlayer === target) { stopAll(); showToast("Timeout", 'error'); } }, 45000); 
           apiAbortControllerRef.current = new AbortController();
@@ -748,11 +731,14 @@ const App: React.FC = () => {
       }
   };
   
-  // ... (handleTranslate, handleTashkeel, etc) ...
   const handleTranslate = async () => {
       if(isLoading) { stopAll(); return; }
       if (!sourceText.trim()) return;
       if (userTier !== 'admin' && sourceText.length > 2000) { showToast(t('errorFileTooLarge', uiLanguage), 'error'); return; }
+      
+      // CONSUME QUOTA FOR TRANSLATION
+      if (!checkLimits(sourceText.length)) return;
+
       setIsLoading(true); setLoadingTask(t('translatingButton', uiLanguage)); setError(null); setTranslatedText('');
       apiAbortControllerRef.current = new AbortController();
       const signal = apiAbortControllerRef.current.signal;
@@ -762,6 +748,10 @@ const App: React.FC = () => {
           const result = await translateText(sourceText, sourceLang, targetLang, speakerA.name, speakerB.name, signal, idToken);
           if (!signal.aborted) {
               setTranslatedText(result.translatedText);
+              
+              // Deduct Quota on success
+              updateUserStats(sourceText.length);
+
               const newHistoryItem: HistoryItem = { id: new Date().toISOString(), sourceText, translatedText: result.translatedText, sourceLang, targetLang, timestamp: Date.now() };
               if (user) { const { id, timestamp, ...itemToSave } = newHistoryItem; addHistoryItem(user.uid, itemToSave).catch(e => console.error("History fail:", e)); } 
               else { setHistory(prev => [newHistoryItem, ...prev.slice(49)]); }
@@ -787,12 +777,16 @@ const App: React.FC = () => {
           return;
       }
       if (isEnhancing) return;
+      
+      // CONSUME QUOTA FOR TASHKEEL
+      if (!checkLimits(sourceText.length)) return;
 
       setIsEnhancing(true);
       try {
           const enhanced = await addDiacritics(sourceText);
           if (enhanced) {
               setSourceText(enhanced);
+              updateUserStats(sourceText.length); // Deduct usage
               showToast(t('tashkeelSuccess', uiLanguage), 'success');
           }
       } catch (e: any) {
@@ -827,13 +821,13 @@ const App: React.FC = () => {
   };
 
   // ... (swapLanguages, handleHistoryLoad, handleCopy, handleShareLink) ...
+  // (Standard implementation omitted)
   const swapLanguages = () => {
     setSourceLang(targetLang);
     setTargetLang(sourceLang);
     setSourceText(translatedText);
     setTranslatedText(sourceText);
   };
-  
   const handleHistoryLoad = useCallback((item: HistoryItem) => {
     setSourceText(item.sourceText);
     setTranslatedText(item.translatedText);
@@ -841,21 +835,18 @@ const App: React.FC = () => {
     if (item.targetLang === 'Text' || item.targetLang === 'Audio') { setTargetLang('en'); } else { setTargetLang(item.targetLang); }
     setIsHistoryOpen(false);
   }, []);
-  
   const handleCopy = (text: string, type: 'source' | 'target') => {
       if (!text) return;
       navigator.clipboard.writeText(text);
       if (type === 'source') { setCopiedSource(true); setTimeout(() => setCopiedSource(false), 2000); } 
       else if (type === 'target') { setCopiedTarget(true); setTimeout(() => setCopiedTarget(false), 2000); }
   };
-
   const handleShareLink = () => {
       const params = new URLSearchParams();
       params.set('sourceText', encodeURIComponent(sourceText));
       params.set('sourceLang', sourceLang);
       params.set('targetLang', targetLang);
-      params.set('lang', uiLanguage); // Ensure sharing respects UI language
-      
+      params.set('lang', uiLanguage); 
       const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
       navigator.clipboard.writeText(url);
       setLinkCopied(true);
@@ -864,6 +855,7 @@ const App: React.FC = () => {
   };
 
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
+    // ... same as before, ensures updateUserStats called ...
     if (!text.trim()) return null;
     const isGemini = GEMINI_VOICES.includes(voice);
     if (!isGemini && !MICROSOFT_AZURE_VOICES.some(v => v.name === voice)) { showToast("Invalid voice", 'error'); return null; }
@@ -902,7 +894,10 @@ const App: React.FC = () => {
             if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage));
              if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); }
             audioCacheRef.current.set(cacheKey, pcmData);
+            
+            // DEDUCT HERE FOR DOWNLOAD GENERATION
             updateUserStats(text.length);
+            
             if(signal.aborted) throw new Error('AbortError');
             if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); else blob = await createMp3Blob(pcmData, 1, 24000);
         }
@@ -929,7 +924,10 @@ const App: React.FC = () => {
         return;
     }
     
+    // Also check limits again before heavy processing
     const textToProcess = translatedText || sourceText;
+    if (!checkLimits(textToProcess.length)) return;
+
     const blob = await generateAudioBlob(textToProcess, format);
     if (blob) {
         const url = URL.createObjectURL(blob);
@@ -958,149 +956,199 @@ const App: React.FC = () => {
       setIsAudioStudioOpen(true); 
   };
 
-  const handleSignIn = () => {
-      const { auth } = getFirebase();
-      if (!auth) { showToast("Firebase Auth not initialized", 'error'); return; }
+  const handleSignIn = async () => {
       setIsAuthLoading(true);
+      const { auth } = getFirebase();
+      if (!auth) {
+          showToast("Firebase not initialized", 'error');
+          setIsAuthLoading(false);
+          return;
+      }
       const provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithPopup(provider).catch((error: any) => { console.error(error); showToast(t('signInError', uiLanguage), 'error'); }).finally(() => setIsAuthLoading(false));
+      try {
+          await auth.signInWithPopup(provider);
+      } catch (error: any) {
+          console.error("Sign in error", error);
+          showToast(t('signInError', uiLanguage), 'error');
+      } finally {
+          setIsAuthLoading(false);
+      }
   };
-  const handleSignOutAndClose = () => { 
-      const { auth } = getFirebase(); 
-      if (auth) auth.signOut().then(() => { 
-          setIsAccountOpen(false); 
-          // If using local plan, do we keep it? Yes, why not.
-          showToast("Signed out", 'info'); 
-      }); 
+
+  const handleSignOutAndClose = async () => {
+        const { auth } = getFirebase();
+        if (auth) {
+            await auth.signOut();
+            setIsAccountOpen(false);
+            setHistory([]);
+            showToast(uiLanguage === 'ar' ? 'تم تسجيل الخروج' : 'Signed out', 'info');
+        }
   };
+
   const handleClearHistory = async () => {
-      if (user) { try { await clearHistoryForUser(user.uid); setHistory([]); showToast(t('historyClearSuccess', uiLanguage), 'success'); } catch (error) { showToast(t('historyClearError', uiLanguage), 'error'); } } 
-      else { setHistory([]); localStorage.removeItem('sawtli_history'); showToast(t('historyClearSuccess', uiLanguage), 'success'); }
-      setIsHistoryOpen(false);
+        if (user) {
+            try {
+                await clearHistoryForUser(user.uid);
+                showToast(t('historyClearSuccess', uiLanguage), 'success');
+            } catch (e) {
+                showToast(t('historyClearError', uiLanguage), 'error');
+            }
+        } else {
+            setHistory([]);
+            localStorage.removeItem('sawtli_history');
+            showToast(t('historyClearSuccess', uiLanguage), 'success');
+        }
+        setIsHistoryOpen(false);
   };
 
-  const handleDeleteHistoryItem = async (itemId: string) => {
-      if (user) {
-          try { await deleteHistoryItem(user.uid, itemId); } catch (e) { showToast("Failed to delete item", 'error'); }
-      } else {
-          const newHistory = history.filter(item => item.id !== itemId);
-          setHistory(newHistory);
-          localStorage.setItem('sawtli_history', JSON.stringify(newHistory));
-      }
+  const handleDeleteHistoryItem = async (id: string) => {
+        if (user) {
+            try {
+                await deleteHistoryItem(user.uid, id);
+            } catch(e) {
+                console.error(e);
+            }
+        } else {
+            const newHistory = history.filter(item => item.id !== id);
+            setHistory(newHistory);
+            localStorage.setItem('sawtli_history', JSON.stringify(newHistory));
+        }
   };
 
-  const handleDeleteAccount = async () => { if (!user) return; if (confirm(t('deleteAccountConfirmationPrompt', uiLanguage))) { try { await deleteUserDocument(user.uid); await user.delete(); setIsAccountOpen(false); showToast(t('accountDeletedSuccess', uiLanguage), 'success'); } catch (e) { showToast(t('accountDeletionError', uiLanguage), 'error'); } } };
-  
-  // NOTE: This signature is slightly updated to support the new upgrade modal logic, but we map it back to simple string in logic
-  const handleUpgrade = async (tier: 'gold' | 'platinum'): Promise<boolean> => {
-      if (!user) { showToast(t('signInError', uiLanguage), 'error'); handleSignIn(); return false; }
-      try { await addToWaitlist(user.uid, user.email, tier); showToast(t('waitlistSuccess', uiLanguage), 'success'); return true; } catch (e: any) { console.error("Waitlist fail:", e.message); showToast(`Failed: ${e.message}`, 'error'); return false; }
-  };
-  const handleSetDevMode = (enabled: boolean) => { setIsDevMode(enabled); sessionStorage.setItem('sawtli_dev_mode', enabled ? 'true' : 'false'); showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), 'success'); };
-
-  // ... (Render Logic same as before) ...
-  const getButtonState = (target: 'source' | 'target') => {
-      // ... logic ...
-      const isActive = activePlayer === target;
-      if (isActive) {
-          if (isPaused) {
-              return {
-                  label: t('resumeSpeaking', uiLanguage),
-                  icon: <PlayCircleIcon className="w-6 h-6" />,
-                  className: 'bg-green-600 hover:bg-green-500 border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)] animate-pulse'
-              };
-          }
-          return {
-              label: t('pauseSpeaking', uiLanguage),
-              icon: <PauseIcon className="w-6 h-6" />,
-              className: 'bg-amber-600 hover:bg-amber-500 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.4)]'
-          };
-      }
-      return {
-          label: target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage),
-          icon: <SpeakerIcon className="w-6 h-6" />,
-          className: 'bg-slate-700 hover:bg-slate-600 border-slate-500 hover:border-cyan-400'
-      };
+  const handleDeleteAccount = async () => {
+        if (!user) return;
+        if (confirm(t('deleteAccountConfirmationPrompt', uiLanguage))) {
+            try {
+                await deleteUserDocument(user.uid);
+                const { auth } = getFirebase();
+                if (auth && auth.currentUser) {
+                    await auth.currentUser.delete();
+                }
+                showToast(t('accountDeletedSuccess', uiLanguage), 'success');
+                setIsAccountOpen(false);
+            } catch (e) {
+                console.error(e);
+                showToast(t('accountDeletionError', uiLanguage), 'error');
+            }
+        }
   };
 
-  const sourceButtonState = getButtonState('source');
-  const targetButtonState = getButtonState('target');
-  const isSourceRtl = languageOptions.find(l => l.value === sourceLang)?.dir === 'rtl';
-  const isTargetRtl = languageOptions.find(l => l.value === targetLang)?.dir === 'rtl';
+  const handleUpgrade = async (tier: 'gold' | 'platinum') => {
+        if (user) {
+            await addToWaitlist(user.uid, user.email, tier);
+            showToast(t('waitlistSuccess', uiLanguage), 'success');
+            return true;
+        } else {
+            handleSignIn();
+            return false;
+        }
+  };
 
+  const handleSetDevMode = (enabled: boolean) => {
+        setIsDevMode(enabled);
+        sessionStorage.setItem('sawtli_dev_mode', enabled ? 'true' : 'false');
+        showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), enabled ? 'success' : 'info');
+  };
+
+  // UI Components defined as variables for cleaner return
   const sourceTextArea = (
         <div className="flex-1 relative group">
-            <div className="flex items-center justify-between mb-3 px-3 flex-wrap gap-2">
+            <div className="flex justify-between items-center mb-3">
+                <LanguageSelect value={sourceLang} onChange={setSourceLang} />
                 <div className="flex items-center gap-2">
-                     <button onClick={() => handleCopy(sourceText, 'source')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
+                    <button onClick={handleTashkeel} disabled={isEnhancing} className={`p-2 rounded-lg transition-colors ${sourceLang.startsWith('ar') ? 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700' : 'hidden'}`} title={t('tashkeel', uiLanguage)}>
+                        {isEnhancing ? <LoaderIcon className="w-4 h-4"/> : <span className="font-bold text-xs">{t('tashkeel', uiLanguage)}</span>}
+                    </button>
+                    <button onClick={() => handleCopy(sourceText, 'source')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
                         {copiedSource ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
                     </button>
-                     <div className="relative" ref={effectsDropdownRef}>
-                        <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 font-bold text-xs border ${isEffectsOpen ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-cyan-400 hover:border-cyan-500/30'}`} title={t('soundEffects', uiLanguage)}>
-                            <SparklesIcon className="w-4 h-4" /> 
-                            <span>{t('soundEffects', uiLanguage)}</span>
-                        </button>
-                        {isEffectsOpen && (
-                            <div className="absolute right-0 origin-top-right mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-                                <div className="p-2 grid grid-cols-3 gap-1">
-                                    {soundEffects.map((effect) => (
-                                        <button key={effect.tag} onClick={() => handleInsertTag(effect.tag)} className="aspect-square flex items-center justify-center text-xl hover:bg-slate-700 rounded-lg transition-colors" title={t(effect.labelKey as any, uiLanguage)}>{effect.emoji}</button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                </div>
+            </div>
+            <textarea
+                ref={sourceTextAreaRef}
+                value={sourceText}
+                onChange={(e) => setSourceText(e.target.value)}
+                placeholder={t('placeholder', uiLanguage)}
+                className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/50 border-2 border-slate-700 focus:border-cyan-500 focus:ring-0 text-lg sm:text-xl resize-none transition-all placeholder-slate-600 shadow-inner ${sourceLang === 'ar' ? 'text-right' : 'text-left'}`}
+                dir={sourceLang === 'ar' ? 'rtl' : 'ltr'}
+            />
+            {/* Effects Dropdown */}
+            <div className="absolute bottom-3 left-3" ref={effectsDropdownRef}>
+                <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className="p-2 bg-slate-800/80 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-700 hover:border-cyan-500 flex items-center gap-2" title={t('soundEffects', uiLanguage)}>
+                    <SparklesIcon className="w-4 h-4" />
+                    <span className="text-xs font-bold hidden sm:inline">{t('soundEffects', uiLanguage)}</span>
+                </button>
+                {isEffectsOpen && (
+                    <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-2 z-50 grid grid-cols-3 gap-1 animate-fade-in">
+                        {soundEffects.map(effect => (
+                            <button key={effect.tag} onClick={() => handleInsertTag(effect.tag)} className="p-2 hover:bg-slate-700 rounded text-xl flex justify-center items-center" title={t(effect.labelKey as any, uiLanguage)}>
+                                {effect.emoji}
+                            </button>
+                        ))}
                     </div>
-                     {sourceLang === 'ar' && (
-                         <button 
-                            onClick={handleTashkeel} 
-                            disabled={isEnhancing || !sourceText.trim()}
-                            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 font-bold text-xs border ${isEnhancing ? 'bg-amber-900/50 text-amber-400 animate-pulse border-amber-500/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-amber-400 hover:border-amber-500/30'}`} 
-                            title={t('tashkeel', uiLanguage)}
-                        >
-                            <WandIcon className="w-4 h-4" />
-                            <span>{t('tashkeel', uiLanguage)}</span>
-                        </button>
-                     )}
-                </div>
-                <LanguageSelect value={sourceLang} onChange={setSourceLang} />
+                )}
             </div>
-            
-            <div className="relative">
-                <textarea ref={sourceTextAreaRef} value={sourceText} onChange={(e) => setSourceText(e.target.value)} placeholder={t('placeholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all resize-none ${isSourceRtl ? 'text-right' : 'text-left'} custom-scrollbar`} dir={isSourceRtl ? 'rtl' : 'ltr'} spellCheck="false" />
-                {sourceText && ( <button onClick={() => {setSourceText(''); setTranslatedText('');}} className="absolute bottom-4 left-4 p-2 bg-slate-800/80 hover:bg-red-900/80 text-slate-500 hover:text-red-400 rounded-lg transition-all border border-slate-700 hover:border-red-500/50" title={uiLanguage === 'ar' ? 'مسح النص' : 'Clear Text'}><TrashIcon className="w-4 h-4" /></button>)}
+            <div className="absolute bottom-3 right-3 text-xs font-bold text-slate-600 pointer-events-none">
+                {sourceText.length} chars
             </div>
-            <div className="text-right mt-2 text-xs font-bold text-slate-500 px-1">{sourceText.length} chars</div>
-             <QuotaIndicator stats={userStats} tier={userTier} limits={planConfig as any} uiLanguage={uiLanguage} onUpgrade={() => setIsUpgradeOpen(true)} onBoost={() => setIsGamificationOpen(true)} />
-        </div>
-    );
-
-    const translatedTextArea = (
-        <div className="flex-1 relative">
-            <div className="flex items-center justify-between mb-3 px-3">
-                <LanguageSelect value={targetLang} onChange={setTargetLang} />
-                <div className="flex items-center gap-2">
-                    <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
-                        {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
-                    </button>
-                </div>
-            </div>
-            <div className="relative">
-                <textarea value={translatedText} readOnly placeholder={t('translationPlaceholder', uiLanguage)} className={`w-full h-48 sm:h-64 bg-slate-900/50 border-2 border-slate-700 rounded-2xl p-5 text-lg sm:text-xl text-white placeholder-slate-600 focus:outline-none transition-all resize-none ${isTargetRtl ? 'text-right' : 'text-left'} custom-scrollbar cursor-default read-only:bg-slate-900/50 read-only:text-white`} dir={isTargetRtl ? 'rtl' : 'ltr'} />
-            </div>
-            <div className="text-right mt-2 text-xs font-bold text-slate-600 px-1">{translatedText.length} chars</div>
         </div>
     );
 
     const swapButton = (
-        <div className="absolute top-[72px] left-1/2 -translate-x-1/2 z-10 md:static md:top-auto md:left-auto md:translate-x-0 md:flex md:items-center justify-center">
-            <button onClick={swapLanguages} className="p-3 bg-slate-800 border-2 border-slate-600 rounded-xl text-slate-400 hover:text-cyan-400 hover:border-cyan-400 hover:bg-slate-700 transition-all shadow-lg hover:shadow-cyan-500/20 active:scale-95 group" title={t('swapLanguages', uiLanguage)}>
-                <SwapIcon className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />
+        <div className="flex items-center justify-center md:pt-12">
+            <button onClick={swapLanguages} className="p-3 bg-slate-800 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-full border border-slate-700 hover:border-cyan-500 transition-all shadow-lg active:scale-90 group" title={t('swapLanguages', uiLanguage)}>
+                <SwapIcon className="w-6 h-6 group-hover:rotate-180 transition-transform duration-300" />
             </button>
         </div>
     );
 
+    const translatedTextArea = (
+        <div className="flex-1 relative group">
+            <div className="flex justify-between items-center mb-3">
+                <LanguageSelect value={targetLang} onChange={setTargetLang} />
+                <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
+                    {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
+                </button>
+            </div>
+            <div className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-950/30 border-2 border-slate-800 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner ${!translatedText ? 'text-slate-600 italic flex items-center justify-center' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} dir={targetLang === 'ar' ? 'rtl' : 'ltr'}>
+                {translatedText || t('translationPlaceholder', uiLanguage)}
+            </div>
+        </div>
+    );
+
+    const getButtonState = (target: 'source' | 'target') => {
+        const isActive = activePlayer === target;
+        const isPausedState = isActive && isPaused;
+        const isLoadingState = isLoading && activePlayer === target;
+        
+        let icon = <SpeakerIcon className="w-6 h-6" />;
+        let label = target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage);
+        let className = "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)]";
+
+        if (isLoadingState) {
+            icon = <LoaderIcon className="w-6 h-6" />;
+            label = t('generatingSpeech', uiLanguage); 
+            className = "bg-slate-700 border-slate-600 text-slate-400 cursor-wait";
+        } else if (isActive) {
+            if (isPausedState) {
+                icon = <PlayCircleIcon className="w-6 h-6" />;
+                label = t('resumeSpeaking', uiLanguage);
+                className = "bg-amber-600 hover:bg-amber-500 border-amber-400 text-white animate-pulse";
+            } else {
+                icon = <PauseIcon className="w-6 h-6" />;
+                label = t('pauseSpeaking', uiLanguage);
+                className = "bg-slate-700 hover:bg-slate-600 border-slate-500 text-white";
+            }
+        }
+        return { icon, label, className };
+    };
+
+    const sourceButtonState = getButtonState('source');
+    const targetButtonState = getButtonState('target');
+
   return (
     <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
+      {/* ... Background and Header ... */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
            <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-900/10 blur-[100px]"></div>
            <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-cyan-900/10 blur-[100px]"></div>
@@ -1215,6 +1263,8 @@ const App: React.FC = () => {
         sourceLang={sourceLang} targetLang={targetLang}
         currentLimits={planConfig} 
         onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
+        onRefreshVoices={() => {}}
+        onConsumeQuota={(cost) => updateUserStats(cost)} // NEW PROP
       />}
       
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onDelete={handleDeleteHistoryItem} onLoad={handleHistoryLoad}/>}

@@ -172,6 +172,7 @@ export const PLAN_LIMITS = {
         allowTashkeel: false,
         allowMic: false,
         allowMusicUpload: false,
+        allowUpload: false, // Voice file
     },
     free: { // Matches "مشترك مجاني"
         dailyLimit: 200,
@@ -186,20 +187,22 @@ export const PLAN_LIMITS = {
         allowTashkeel: false,
         allowMic: false,
         allowMusicUpload: false,
+        allowUpload: false,
     },
     onedollar: { // "تجربة مرة واحدة"
-        dailyLimit: 10000, 
+        dailyLimit: Infinity, // No daily limit, only total
         totalTrialLimit: 10000, 
         trialDays: 3, 
         allowDownloads: true, // 10 mins
         allowWav: true, 
-        allowGemini: true, // 6 Voices
+        allowGemini: true, // 6 Voices (Actually full access for student plan per instructions except upload)
         allowStudio: true, // Full mixer
         allowMultiSpeaker: true, // 2 Voices
         allowEffects: true,
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
+        allowUpload: false, // EXPLICITLY DISABLED: No external voice file
     },
     basic: { // "Basic"
         dailyLimit: Infinity,
@@ -214,6 +217,7 @@ export const PLAN_LIMITS = {
         allowTashkeel: true,
         allowMic: false, // X
         allowMusicUpload: true, // Music file check is Green in Basic
+        allowUpload: true,
     },
     creator: { // "Creator"
         dailyLimit: Infinity,
@@ -228,6 +232,7 @@ export const PLAN_LIMITS = {
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
+        allowUpload: true,
     },
     gold: { // "Gold"
         dailyLimit: Infinity,
@@ -242,6 +247,7 @@ export const PLAN_LIMITS = {
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
+        allowUpload: true,
     },
     professional: { // "Professional"
         dailyLimit: Infinity,
@@ -256,6 +262,7 @@ export const PLAN_LIMITS = {
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
+        allowUpload: true,
     },
     admin: {
         dailyLimit: Infinity,
@@ -270,5 +277,6 @@ export const PLAN_LIMITS = {
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
+        allowUpload: true,
     }
 };

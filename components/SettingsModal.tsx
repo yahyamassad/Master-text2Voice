@@ -36,7 +36,8 @@ interface SettingsModalProps {
   targetLang: string;
   currentLimits: any; 
   onUpgrade: () => void;
-  onRefreshVoices?: () => void; 
+  onRefreshVoices?: () => void;
+  onConsumeQuota?: (cost: number) => void; // New prop to track usage
 }
 
 const VoiceListItem: React.FC<{ 
@@ -77,7 +78,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose, uiLanguage, voice, setVoice, emotion, setEmotion, 
     pauseDuration, setPauseDuration, speed, setSpeed, seed, setSeed,
     multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, speakerC, setSpeakerC, speakerD, setSpeakerD, sourceLang, targetLang,
-    currentLimits, onUpgrade
+    currentLimits, onUpgrade, onConsumeQuota
 }) => {
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
     const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
@@ -217,8 +218,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             }
         } catch (e) { console.error("LocalStorage read error", e); }
 
-        // 6. Generate New Preview (API Call)
+        // 6. Generate New Preview (API Call) - CONSUME QUOTA HERE
         try {
+            // CHARGE THE USER FOR GENERATING PREVIEW (e.g. 50 chars)
+            if (onConsumeQuota) onConsumeQuota(50);
+
             let pcmData;
             // Note: Previews use 'Default' emotion to be quick
             if (GEMINI_VOICES.includes(voiceName)) {
@@ -360,6 +364,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
                     </div>
                     
+                    {/* ... Rest of modal remains same ... */}
                     {/* --- NEW VOICE STYLES SELECTOR --- */}
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative`}>
                          <h4 className="font-semibold text-slate-200 flex items-center gap-2">
@@ -375,7 +380,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     onChange={handleStyleChange} 
                                     className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                  >
-                                     {/* Removed the duplicate "Default" option */}
                                      {/* Grouped Styles */}
                                      {Object.keys(groupedStyles).map(catKey => (
                                          <optgroup key={catKey} label={t(catKey as any, uiLanguage)}>
