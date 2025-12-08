@@ -48,17 +48,19 @@ export async function generateStandardSpeech(
             
             // New Personas - Mapping to SSML Logic
             case 'epic_poet': 
-                // Try to use 'poetry-reading' if available, otherwise rely on prosody
-                // Note: 'empathetic' is good but limited. 'poetry-reading' is specific to en-US mainly.
-                // We'll stick to a safe visual style or just prosody.
-                // For Arabic, 'empathetic' works on some voices, otherwise prosody handles it.
+                // CRITICAL FOR POETRY:
+                // We use 'empathetic' as it flows better than standard reading.
+                // Rate -15% gives time for the listener to process the weight of words.
+                // Pitch +5% adds a "recitation" quality, making it sound less like reading news.
+                // This combination helps "carry" the vowel at the end of lines better than default speed.
                 azureStyle = 'empathetic'; 
-                rate = '-10%'; // Slow down for poetry
-                pitch = '0%'; 
+                rate = '-15%'; 
+                pitch = '+5%'; 
                 break;
             case 'heritage_narrator':
-                azureStyle = 'narration-professional'; // or default
-                rate = '-5%';
+                azureStyle = 'narration-professional'; 
+                rate = '-10%'; // Slower for storytelling
+                pitch = '-2%'; // Slightly deeper for authority
                 break;
             case 'news_anchor':
                 azureStyle = 'newscast';
