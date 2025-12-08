@@ -375,8 +375,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     onChange={handleStyleChange} 
                                     className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                  >
-                                     <option value="Default">{t('emotionDefault', uiLanguage)}</option>
-                                     
+                                     {/* Removed the duplicate "Default" option */}
                                      {/* Grouped Styles */}
                                      {Object.keys(groupedStyles).map(catKey => (
                                          <optgroup key={catKey} label={t(catKey as any, uiLanguage)}>
