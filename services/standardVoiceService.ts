@@ -90,22 +90,25 @@ export async function generateStandardSpeech(
         paragraphs.forEach((para, index) => {
             let cleanPara = para.trim();
             if (cleanPara) {
-                // --- POETRY RHYME HACK (The Tatweel Fix) ---
-                // Problem: Azure forces Sukun (Silence) at end of sentences/lines.
-                // Solution: If the line ends with a vowel (Haraka), we append a Tatweel (ـ).
-                // This tricks the engine into thinking the word is elongated/connected, thus pronouncing the vowel.
+                // --- POETRY RHYME HACK (The Ishba' Fix) ---
+                // Problem: Azure strictly silences (Sukun) the end of sentences.
+                // Solution: We apply "Ishba'" (Saturation) by converting the final short vowel 
+                // into its corresponding long vowel letter. 
+                // Damma -> Waw, Kasra -> Ya, Fatha -> Alif.
+                // This tricks the engine into pronouncing the sound fully as if singing/reciting.
                 if (emotion === 'epic_poet') {
                     // 1. Remove ending punctuation that triggers stops
                     cleanPara = cleanPara.replace(/[.!?؟,،]+$/, '');
                     
-                    // 2. Check if the last character is a vowel (Fatha, Damma, Kasra, Tanween)
-                    // Unicode Arabic vowels range roughly \u064B to \u0652
-                    const endsWithVowel = /[\u064B-\u0652]$/.test(cleanPara);
-                    
-                    if (endsWithVowel) {
-                        // Append Tatweel (Kashida)
-                        cleanPara += 'ـ'; 
+                    // 2. Check for short vowels at the very end
+                    if (/[\u064F]$/.test(cleanPara)) { // Ends with Damma (ُ)
+                        cleanPara += 'و'; 
+                    } else if (/[\u0650]$/.test(cleanPara)) { // Ends with Kasra (ِ)
+                        cleanPara += 'ي';
+                    } else if (/[\u064E]$/.test(cleanPara)) { // Ends with Fatha (َ)
+                        cleanPara += 'ا';
                     }
+                    // Note: We leave Sukun or no-vowel as is.
                 }
 
                 innerContent += escapeXml(cleanPara);
