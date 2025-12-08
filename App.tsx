@@ -1037,6 +1037,20 @@ const App: React.FC = () => {
         showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), enabled ? 'success' : 'info');
   };
 
+  const handleSourceChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const val = e.target.value;
+      setSourceText(val);
+      // Auto-clear translation if source is cleared
+      if (val.trim() === '') {
+          setTranslatedText('');
+      }
+  };
+
+  const handleClearAll = () => {
+      setSourceText('');
+      setTranslatedText('');
+  };
+
   // --- UI PARTIALS ---
   const sourceTextArea = (
         <div className="flex-1 relative group flex flex-col h-full">
@@ -1069,7 +1083,7 @@ const App: React.FC = () => {
             <textarea
                 ref={sourceTextAreaRef}
                 value={sourceText}
-                onChange={(e) => setSourceText(e.target.value)}
+                onChange={handleSourceChange}
                 placeholder={t('placeholder', uiLanguage)}
                 className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/50 border-2 border-slate-700 focus:border-cyan-500 focus:ring-0 text-lg sm:text-xl resize-none transition-all placeholder-slate-600 shadow-inner ${sourceLang === 'ar' ? 'text-right' : 'text-left'}`}
                 dir={sourceLang === 'ar' ? 'rtl' : 'ltr'}
@@ -1081,7 +1095,10 @@ const App: React.FC = () => {
     );
 
     const swapButton = (
-        <div className="flex items-center justify-center md:pt-12">
+        <div className="flex flex-col items-center justify-center gap-4 md:pt-12">
+            <button onClick={handleClearAll} className="p-2 text-slate-500 hover:text-red-400 transition-colors rounded-full hover:bg-slate-800/50" title="Clear All">
+                <TrashIcon className="w-5 h-5" />
+            </button>
             <button onClick={swapLanguages} className="p-3 bg-slate-800 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-full border border-slate-700 hover:border-cyan-500 transition-all shadow-lg active:scale-90 group" title={t('swapLanguages', uiLanguage)}>
                 <SwapIcon className="w-6 h-6 group-hover:rotate-180 transition-transform duration-300" />
             </button>
@@ -1098,7 +1115,10 @@ const App: React.FC = () => {
                     <LanguageSelect value={targetLang} onChange={setTargetLang} />
                 </div>
             </div>
-            <div className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/30 border-2 border-slate-800 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner ${!translatedText ? 'text-slate-600 italic flex items-start' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} dir={targetLang === 'ar' ? 'rtl' : 'ltr'}>
+            <div 
+                className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/50 border-2 border-slate-700 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner ${!translatedText ? 'text-slate-600 flex items-start' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} 
+                dir={targetLang === 'ar' ? 'rtl' : 'ltr'}
+            >
                 {translatedText || t('translationPlaceholder', uiLanguage)}
             </div>
             <div className="flex justify-end mt-2 text-xs font-bold text-slate-500">
