@@ -1,3 +1,4 @@
+
 // ... (imports remain the same) ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
@@ -428,7 +429,6 @@ const App: React.FC = () => {
   };
 
   // ... (handleBoost, stopAll) ...
-  // (Standard implementation omitted for brevity)
   const handleBoost = (type: 'share' | 'rate' | 'invite') => {
       if (!user && !localTier) return;
       setUserStats(prev => {
@@ -478,7 +478,6 @@ const App: React.FC = () => {
   }, []);
 
   // ... (useEffects for init, auth, settings) ...
-  // (Standard implementation omitted)
   useEffect(() => {
       if (activePlayer || isPaused) stopAll();
   }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, speakerC, speakerD, stopAll]);
@@ -765,12 +764,10 @@ const App: React.FC = () => {
   };
   
   const handleTashkeel = async () => {
-      // TASHKEEL CHECK
       if (!planConfig.allowTashkeel && !isDevMode) {
           setIsUpgradeOpen(true);
           return;
       }
-
       if (!sourceText.trim()) return;
       if (!sourceLang.startsWith('ar')) {
           showToast(t('tashkeelError', uiLanguage), 'error');
@@ -801,7 +798,6 @@ const App: React.FC = () => {
         setIsUpgradeOpen(true);
         return;
     }
-    // ... mic logic ...
     if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) { setMicError(t('errorMicNotSupported', uiLanguage)); return; }
@@ -820,8 +816,6 @@ const App: React.FC = () => {
     recognition.start();
   };
 
-  // ... (swapLanguages, handleHistoryLoad, handleCopy, handleShareLink) ...
-  // (Standard implementation omitted)
   const swapLanguages = () => {
     setSourceLang(targetLang);
     setTargetLang(sourceLang);
@@ -855,7 +849,6 @@ const App: React.FC = () => {
   };
 
   const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => {
-    // ... same as before, ensures updateUserStats called ...
     if (!text.trim()) return null;
     const isGemini = GEMINI_VOICES.includes(voice);
     if (!isGemini && !MICROSOFT_AZURE_VOICES.some(v => v.name === voice)) { showToast("Invalid voice", 'error'); return null; }
@@ -910,21 +903,16 @@ const App: React.FC = () => {
   }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier, targetLang]);
 
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => {
-    // STRICT DOWNLOAD CHECK FOR VISITORS
     if (userTier === 'visitor') { 
         showToast(uiLanguage === 'ar' ? "التحميل غير متاح للزوار. سجل الآن." : "Downloads are locked for visitors. Sign in.", 'error');
         setIsUpgradeOpen(true); 
         return; 
     }
-    
-    // Check if format is allowed
     if (format === 'wav' && !planConfig.allowWav) {
         showToast(uiLanguage === 'ar' ? "تحميل WAV متاح في الخطط المدفوعة فقط" : "WAV download requires a premium plan", 'error');
         setIsUpgradeOpen(true);
         return;
     }
-    
-    // Also check limits again before heavy processing
     const textToProcess = translatedText || sourceText;
     if (!checkLimits(textToProcess.length)) return;
 
@@ -951,7 +939,6 @@ const App: React.FC = () => {
   };
   
   const handleAudioStudioOpen = () => { 
-      // ALLOW VISITORS TO OPEN STUDIO (Preview Mode)
       stopAll(); 
       setIsAudioStudioOpen(true); 
   };
@@ -1050,12 +1037,27 @@ const App: React.FC = () => {
         showToast(enabled ? t('devModeActive', uiLanguage) : t('devModeInactive', uiLanguage), enabled ? 'success' : 'info');
   };
 
-  // UI Components defined as variables for cleaner return
+  // --- UI PARTIALS ---
   const sourceTextArea = (
-        <div className="flex-1 relative group">
-            <div className="flex justify-between items-center mb-3">
-                <LanguageSelect value={sourceLang} onChange={setSourceLang} />
+        <div className="flex-1 relative group flex flex-col h-full">
+            <div className={`flex items-center mb-3 justify-between`}>
                 <div className="flex items-center gap-2">
+                    <LanguageSelect value={sourceLang} onChange={setSourceLang} />
+                </div>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className="p-2 bg-slate-800 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-700 flex items-center gap-2" title={t('soundEffects', uiLanguage)}>
+                        <SparklesIcon className="w-4 h-4" />
+                    </button>
+                    {/* Effects Dropdown */}
+                    {isEffectsOpen && (
+                        <div className="absolute top-10 right-0 z-50 w-48 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1 animate-fade-in" ref={effectsDropdownRef}>
+                            {soundEffects.map(effect => (
+                                <button key={effect.tag} onClick={() => handleInsertTag(effect.tag)} className="p-2 hover:bg-slate-700 rounded text-xl flex justify-center items-center" title={t(effect.labelKey as any, uiLanguage)}>
+                                    {effect.emoji}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <button onClick={handleTashkeel} disabled={isEnhancing} className={`p-2 rounded-lg transition-colors ${sourceLang.startsWith('ar') ? 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700' : 'hidden'}`} title={t('tashkeel', uiLanguage)}>
                         {isEnhancing ? <LoaderIcon className="w-4 h-4"/> : <span className="font-bold text-xs">{t('tashkeel', uiLanguage)}</span>}
                     </button>
@@ -1072,24 +1074,8 @@ const App: React.FC = () => {
                 className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/50 border-2 border-slate-700 focus:border-cyan-500 focus:ring-0 text-lg sm:text-xl resize-none transition-all placeholder-slate-600 shadow-inner ${sourceLang === 'ar' ? 'text-right' : 'text-left'}`}
                 dir={sourceLang === 'ar' ? 'rtl' : 'ltr'}
             />
-            {/* Effects Dropdown */}
-            <div className="absolute bottom-3 left-3" ref={effectsDropdownRef}>
-                <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className="p-2 bg-slate-800/80 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-700 hover:border-cyan-500 flex items-center gap-2" title={t('soundEffects', uiLanguage)}>
-                    <SparklesIcon className="w-4 h-4" />
-                    <span className="text-xs font-bold hidden sm:inline">{t('soundEffects', uiLanguage)}</span>
-                </button>
-                {isEffectsOpen && (
-                    <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-2 z-50 grid grid-cols-3 gap-1 animate-fade-in">
-                        {soundEffects.map(effect => (
-                            <button key={effect.tag} onClick={() => handleInsertTag(effect.tag)} className="p-2 hover:bg-slate-700 rounded text-xl flex justify-center items-center" title={t(effect.labelKey as any, uiLanguage)}>
-                                {effect.emoji}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
-            <div className="absolute bottom-3 right-3 text-xs font-bold text-slate-600 pointer-events-none">
-                {sourceText.length} chars
+            <div className="flex justify-end mt-2 text-xs font-bold text-slate-500">
+                <span>{sourceText.length} chars</span>
             </div>
         </div>
     );
@@ -1103,15 +1089,20 @@ const App: React.FC = () => {
     );
 
     const translatedTextArea = (
-        <div className="flex-1 relative group">
-            <div className="flex justify-between items-center mb-3">
-                <LanguageSelect value={targetLang} onChange={setTargetLang} />
+        <div className="flex-1 relative group flex flex-col h-full">
+            <div className={`flex items-center mb-3 justify-between`}>
+                <div className="flex items-center gap-2">
+                    <LanguageSelect value={targetLang} onChange={setTargetLang} />
+                </div>
                 <button onClick={() => handleCopy(translatedText, 'target')} className="p-2 text-slate-400 hover:text-white transition-colors" title={t('copyTooltip', uiLanguage)}>
                     {copiedTarget ? <CheckIcon className="w-5 h-5 text-green-400" /> : <CopyIcon className="w-5 h-5" />}
                 </button>
             </div>
-            <div className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-950/30 border-2 border-slate-800 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner ${!translatedText ? 'text-slate-600 italic flex items-center justify-center' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} dir={targetLang === 'ar' ? 'rtl' : 'ltr'}>
+            <div className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-955/30 border-2 border-slate-800 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner ${!translatedText ? 'text-slate-600 italic flex items-center justify-center' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} dir={targetLang === 'ar' ? 'rtl' : 'ltr'}>
                 {translatedText || t('translationPlaceholder', uiLanguage)}
+            </div>
+            <div className="flex justify-end mt-2 text-xs font-bold text-slate-500">
+                <span>{translatedText.length} chars</span>
             </div>
         </div>
     );
@@ -1121,8 +1112,14 @@ const App: React.FC = () => {
         const isPausedState = isActive && isPaused;
         const isLoadingState = isLoading && activePlayer === target;
         
+        // Corrected Labels
+        let labelKey = target === 'source' ? 'speakSource' : 'speakTarget';
+        // Override with explicit labels if needed, or rely on translations update
+        let label = t(labelKey as any, uiLanguage);
+        if (target === 'source') label = uiLanguage === 'ar' ? 'استمع للنص الأصلي' : 'Listen to Original';
+        if (target === 'target') label = uiLanguage === 'ar' ? 'استمع للترجمة' : 'Listen to Translation';
+
         let icon = <SpeakerIcon className="w-6 h-6" />;
-        let label = target === 'source' ? t('speakSource', uiLanguage) : t('speakTarget', uiLanguage);
         let className = "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)]";
 
         if (isLoadingState) {
@@ -1264,7 +1261,7 @@ const App: React.FC = () => {
         currentLimits={planConfig} 
         onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
         onRefreshVoices={() => {}}
-        onConsumeQuota={(cost) => updateUserStats(cost)} // NEW PROP
+        onConsumeQuota={(cost) => updateUserStats(cost)} 
       />}
       
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onDelete={handleDeleteHistoryItem} onLoad={handleHistoryLoad}/>}

@@ -37,7 +37,7 @@ interface SettingsModalProps {
   currentLimits: any; 
   onUpgrade: () => void;
   onRefreshVoices?: () => void;
-  onConsumeQuota?: (cost: number) => void; // New prop to track usage
+  onConsumeQuota?: (cost: number) => void;
 }
 
 const VoiceListItem: React.FC<{ 
@@ -86,7 +86,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
 
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    // Use Memory Cache first
     const voicePreviewCache = useRef(new Map<string, Uint8Array>());
     const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -109,9 +108,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         return filtered.length > 0 ? filtered : MICROSOFT_AZURE_VOICES;
     }, [sourceLang, targetLang, uiLanguage, showAllSystemVoices, voice]);
 
-    const neuralVoices = relevantStandardVoices;
-
-    // Group Voice Styles
     const groupedStyles = useMemo(() => {
         const groups: Record<string, typeof VOICE_STYLES> = {};
         VOICE_STYLES.forEach(style => {
@@ -140,15 +136,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         };
     }, []);
 
-    // --- PREVIEW LOGIC WITH PERSISTENT CACHING ---
     const handlePreview = async (voiceName: string) => {
-        // 1. Stop any existing playback immediately
         if (audioSourceRef.current) {
             try { audioSourceRef.current.stop(); audioSourceRef.current.disconnect(); } catch (e) { }
             audioSourceRef.current = null;
         }
         
-        // 2. Toggle off if clicking same voice
         if (previewingVoice === voiceName) {
             setPreviewingVoice(null);
             return;
@@ -156,7 +149,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         setPreviewingVoice(voiceName);
         
-        // Determine Language for Preview Text
         let langCode: string = uiLanguage; 
         if (!GEMINI_VOICES.includes(voiceName)) {
             const voiceObj = MICROSOFT_AZURE_VOICES.find(v => v.name === voiceName);
@@ -164,27 +156,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             else if (voiceName.includes('-')) langCode = voiceName.split('-')[0];
         }
 
-        // Standardized Short Preview Text
+        // VERY SHORT PREVIEW TEXTS TO SAVE QUOTA
         const previewTexts: Record<string, string> = {
-            'ar': "مرحباً، أنا صوتلي. صوتك، ذكاؤنا.",
-            'en': "Hello, I am Sawtli. Your voice, our intelligence.",
-            'fr': "Bonjour, je suis Sawtli. Votre voix, notre intelligence.",
-            'es': "Hola, soy Sawtli. Tu voz, nuestra inteligencia.",
-            'pt': "Olá, eu sou Sawtli. Sua voz, nossa inteligência.",
-            'de': "Hallo, ich bin Sawtli. Ihre Stimme, unsere Intelligenz.",
-            'tr': "Merhaba, ben Sawtli.",
-            'ru': "Привет, я Sawtli.",
-            'zh': "你好，我是 Sawtli。",
-            'ja': "こんにちは、Sawtliです。",
-            'ko': "안녕하세요, Sawtli입니다.",
-            'hi': "नमस्ते, मैं Sawtli हूँ।",
-            'it': "Ciao, sono Sawtli."
+            'ar': "أهلاً بك في صوتلي.",
+            'en': "Welcome to Sawtli.",
+            'fr': "Bienvenue sur Sawtli.",
+            'es': "Hola, soy Sawtli.",
+            'pt': "Olá, sou Sawtli.",
+            'de': "Willkommen bei Sawtli.",
+            'tr': "Sawtli'ye hoş geldiniz.",
+            'ru': "Привет, это Sawtli.",
+            'zh': "你好",
+            'ja': "こんにちは",
+            'ko': "안녕하세요",
+            'hi': "नमस्ते",
+            'it': "Ciao da Sawtli."
         };
         
         const langPrefix = langCode.split('-')[0];
         const previewText = previewTexts[langPrefix] || previewTexts['en'];
 
-        // 3. Ensure Audio Context is ready
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
@@ -192,39 +183,35 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             await audioContextRef.current.resume();
         }
 
-        const cacheKey = `preview_v2_${voiceName}_${langPrefix}`;
+        const cacheKey = `preview_short_${voiceName}_${langPrefix}`;
         
-        // 4. Check RAM Cache First
         if (voicePreviewCache.current.has(cacheKey)) {
             const pcmData = voicePreviewCache.current.get(cacheKey)!;
             audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
                 setPreviewingVoice(null); 
                 audioSourceRef.current = null; 
-            }, 1.0); // Previews play at normal speed
+            }, 1.0);
             return;
         }
 
-        // 5. Check LocalStorage Cache
         try {
             const cachedBase64 = localStorage.getItem(cacheKey);
             if (cachedBase64) {
                 const pcmData = decode(cachedBase64);
-                voicePreviewCache.current.set(cacheKey, pcmData); // Promote to RAM
+                voicePreviewCache.current.set(cacheKey, pcmData);
                 audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
                     setPreviewingVoice(null); 
                     audioSourceRef.current = null; 
                 }, 1.0);
                 return;
             }
-        } catch (e) { console.error("LocalStorage read error", e); }
+        } catch (e) { }
 
-        // 6. Generate New Preview (API Call) - CONSUME QUOTA HERE
         try {
-            // CHARGE THE USER FOR GENERATING PREVIEW (e.g. 50 chars)
-            if (onConsumeQuota) onConsumeQuota(50);
+            // Minimal charge for short preview
+            if (onConsumeQuota) onConsumeQuota(20);
 
             let pcmData;
-            // Note: Previews use 'Default' emotion to be quick
             if (GEMINI_VOICES.includes(voiceName)) {
                 pcmData = await previewVoice(voiceName, previewText, 'Default');
             } else {
@@ -232,14 +219,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             }
 
             if (pcmData) {
-                // Save to RAM
                 voicePreviewCache.current.set(cacheKey, pcmData); 
-                
-                // Save to LocalStorage (Base64)
                 try {
                     const base64Str = encode(pcmData);
                     localStorage.setItem(cacheKey, base64Str);
-                } catch(e) { console.warn("Quota exceeded likely", e); }
+                } catch(e) {}
 
                 audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
                     setPreviewingVoice(null); 
@@ -262,8 +246,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const handleStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedId = e.target.value;
         setEmotion(selectedId);
-        
-        // Auto-adjust speed based on recommended setting for that style
         const style = VOICE_STYLES.find(s => s.id === selectedId);
         if (style && style.recommendedSpeed) {
             setSpeed(style.recommendedSpeed);
@@ -271,6 +253,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             setSpeed(1.0);
         }
     };
+
+    // --- BETTER SPEED CONTROL ---
+    const incrementSpeed = () => setSpeed(prev => Math.min(2.0, parseFloat((prev + 0.1).toFixed(1))));
+    const decrementSpeed = () => setSpeed(prev => Math.max(0.5, parseFloat((prev - 0.1).toFixed(1))));
+    const resetSpeed = () => setSpeed(1.0);
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
@@ -285,7 +272,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="overflow-y-auto pr-2 space-y-6">
                      <div className="space-y-3">
                         <label className="text-lg font-bold text-slate-200">{t('voiceLabel', uiLanguage)}</label>
-                        
                         <div className="flex p-1 bg-slate-900/50 rounded-lg border border-slate-700 relative mb-4">
                              <button onClick={() => setVoiceMode('gemini')} className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'}`}>
                                  <SparklesIcon className="w-4 h-4"/> {t('geminiHdVoices', uiLanguage)}
@@ -295,7 +281,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              </button>
                         </div>
                         
-                        {/* Voice Marketing Fluff */}
                         <div className="text-xs text-center mb-3 text-slate-400 bg-slate-900/30 p-2 rounded border border-slate-700">
                             {voiceMode === 'gemini' ? t('ultraVoicesDesc', uiLanguage) : t('proVoicesDesc', uiLanguage)}
                         </div>
@@ -323,9 +308,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              <div className="space-y-2">
                                 <div className="flex justify-between items-center mb-2">
                                     <p className="text-xs text-slate-400">
-                                        {showAllSystemVoices 
-                                            ? (uiLanguage === 'ar' ? 'عرض كل الأصوات' : 'Showing ALL voices')
-                                            : t('suggestedVoices', uiLanguage)}
+                                        {showAllSystemVoices ? (uiLanguage === 'ar' ? 'عرض كل الأصوات' : 'Showing ALL voices') : t('suggestedVoices', uiLanguage)}
                                     </p>
                                     <button 
                                         onClick={() => setShowAllSystemVoices(!showAllSystemVoices)} 
@@ -334,23 +317,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         {uiLanguage === 'ar' ? 'إظهار الكل' : 'Show All'}
                                     </button>
                                 </div>
-
                                 {relevantStandardVoices.length === 0 && (
                                     <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3 text-slate-500 italic">
                                         No voices available for this language.
                                     </div>
                                 )}
-
-                                {neuralVoices.length > 0 && (
+                                {relevantStandardVoices.length > 0 && (
                                     <div className="space-y-2">
-                                        {neuralVoices.map(v => (
+                                        {relevantStandardVoices.map(v => (
                                             <VoiceListItem 
                                                 key={v.name} 
                                                 voiceName={v.name} 
                                                 label={v.label} 
                                                 sublabel={`${v.lang} • ${v.gender}`} 
                                                 isSelected={voice === v.name}
-                                                isLocked={!currentLimits.allowWav && false} // Basic allows Azures too
+                                                isLocked={!currentLimits.allowWav && false}
                                                 previewingVoice={previewingVoice}
                                                 onSelect={setVoice}
                                                 onPreview={handlePreview}
@@ -364,8 +345,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
                     </div>
                     
-                    {/* ... Rest of modal remains same ... */}
-                    {/* --- NEW VOICE STYLES SELECTOR --- */}
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative`}>
                          <h4 className="font-semibold text-slate-200 flex items-center gap-2">
                              {t('emotionLabel', uiLanguage)}
@@ -374,13 +353,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div>
                                 <label htmlFor="emotion-select" className="block text-sm font-medium text-slate-300 mb-1">{t('emotionLabel', uiLanguage)}</label>
-                                 <select 
-                                    id="emotion-select" 
-                                    value={emotion} 
-                                    onChange={handleStyleChange} 
-                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                 >
-                                     {/* Grouped Styles */}
+                                 <select id="emotion-select" value={emotion} onChange={handleStyleChange} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
                                      {Object.keys(groupedStyles).map(catKey => (
                                          <optgroup key={catKey} label={t(catKey as any, uiLanguage)}>
                                              {groupedStyles[catKey].map(style => (
@@ -415,21 +388,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              </div>
                          </div>
 
+                        {/* --- BETTER SPEED SLIDER --- */}
                         <div>
-                            <div className="flex items-center justify-between mb-1">
-                                <label htmlFor="speed-slider" className="block text-sm font-medium text-slate-300">{t('studioSpeed', uiLanguage)}</label>
-                                <span className="text-cyan-400 font-mono text-xs">{speed.toFixed(2)}x</span>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-slate-300">{t('studioSpeed', uiLanguage)}</label>
+                                <button onClick={resetSpeed} className="text-[10px] text-slate-400 underline hover:text-white">{t('studioReset', uiLanguage)}</button>
                             </div>
-                            <input 
-                                id="speed-slider" 
-                                type="range" 
-                                min="0.5" 
-                                max="2.0" 
-                                step="0.05" 
-                                value={speed} 
-                                onChange={e => setSpeed(parseFloat(e.target.value))} 
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
-                            />
+                            <div className="flex items-center gap-4 bg-slate-800 p-2 rounded-lg border border-slate-700">
+                                <button onClick={decrementSpeed} className="w-8 h-8 flex items-center justify-center bg-slate-700 rounded hover:bg-slate-600 text-white font-bold">-</button>
+                                <div className="flex-grow relative">
+                                    <input 
+                                        type="range" 
+                                        min="0.5" 
+                                        max="2.0" 
+                                        step="0.1" 
+                                        value={speed} 
+                                        onChange={e => setSpeed(parseFloat(e.target.value))} 
+                                        className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
+                                    />
+                                    {/* Tick for Default (1.0) */}
+                                    <div className="absolute top-1/2 left-[33.33%] w-0.5 h-3 bg-slate-400 -translate-y-1/2 pointer-events-none opacity-50"></div>
+                                </div>
+                                <span className="text-cyan-400 font-mono font-bold w-12 text-center text-lg">{speed.toFixed(1)}x</span>
+                                <button onClick={incrementSpeed} className="w-8 h-8 flex items-center justify-center bg-slate-700 rounded hover:bg-slate-600 text-white font-bold">+</button>
+                            </div>
                         </div>
 
                         <div>

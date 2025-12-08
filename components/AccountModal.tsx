@@ -20,19 +20,17 @@ interface AccountModalProps {
     limits: any;
     onUpgrade: () => void;
     onSetDevMode: (enabled: boolean) => void;
-    onRedeemPlan?: (plan: 'onedollar') => void; // New prop
+    onRedeemPlan?: (plan: 'onedollar') => void; 
     onOpenOwnerGuide: () => void;
 }
 
 const QuotaProgressBar: React.FC<{ label: string, used: number, total: number, color?: string }> = ({ label, used, total, color = 'cyan' }) => {
-    // CRITICAL FIX: Safe defaults to prevent NaN/Infinity crashes
     const safeTotal = (typeof total === 'number' && !isNaN(total)) ? total : 0;
     const safeUsed = (typeof used === 'number' && !isNaN(used)) ? used : 0;
     
-    // Avoid division by zero
     let percent = 0;
     if (safeTotal === Infinity) {
-        percent = 0; // Visual preference for infinity
+        percent = 0; 
     } else if (safeTotal > 0) {
         percent = Math.min(100, (safeUsed / safeTotal) * 100);
     }
@@ -57,8 +55,6 @@ const QuotaProgressBar: React.FC<{ label: string, used: number, total: number, c
 };
 
 const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, onSignOut, onClearHistory, onDeleteAccount, currentTier, userStats, limits, onUpgrade, onSetDevMode, onRedeemPlan, onOpenOwnerGuide }) => {
-    // Note: We allow AccountModal even if user is null to support redeeming codes for students
-    
     const [secretKeyInput, setSecretKeyInput] = useState('');
     const [isDevMode, setIsDevMode] = useState(false);
     const [uidCopied, setUidCopied] = useState(false);
@@ -120,32 +116,25 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
         setTimeout(() => setUidCopied(false), 2000);
     };
 
-    // Safe date formatting to prevent crashes
     const getCreationDate = () => {
         try {
-            // Robust check for metadata availability. 
-            // In some auth flows, creationTime is string, in others it might be missing.
-            const creationTime = user?.metadata?.creationTime;
-            if (creationTime) {
-                const date = new Date(creationTime);
+            if (user && user.metadata && user.metadata.creationTime) {
+                const date = new Date(user.metadata.creationTime);
                 if (!isNaN(date.getTime())) {
                     return date.toLocaleDateString(uiLanguage, { year: 'numeric', month: 'long', day: 'numeric' });
                 }
             }
         } catch (e) {
-            console.error("Date formatting error in AccountModal:", e);
+            console.error("Date error:", e);
         }
         return 'N/A';
     };
 
     const creationDate = getCreationDate();
     
-    // Extreme safety for limits accessing
-    // If limits prop is missing entirely, default to 0 to prevent "cannot read property of undefined"
     const safeTotalLimit = (limits?.totalTrialLimit || 0) + (userStats?.bonusChars || 0);
     const safeDailyLimit = limits?.dailyLimit || 0;
     
-    // Safe access to user properties
     const safePhotoURL = user?.photoURL || undefined;
     const safeDisplayName = user?.displayName || (currentTier === 'onedollar' ? 'Student' : 'Guest');
     const safeEmail = user?.email || (currentTier === 'onedollar' ? 'Educational Access' : 'No Email');
@@ -186,7 +175,6 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                              </span>
                          </div>
 
-                         {/* Usage Stats for Limited Tiers */}
                          {(currentTier === 'free' || currentTier === 'visitor' || currentTier === 'onedollar') && (
                              <div className="mb-4 pt-2 border-t border-slate-800">
                                  <QuotaProgressBar label={t('dailyUsageLabel', uiLanguage)} used={userStats?.dailyCharsUsed || 0} total={safeDailyLimit} color="cyan" />
@@ -198,11 +186,6 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                              <button onClick={onUpgrade} className="w-full py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold rounded-lg text-sm hover:from-amber-500 hover:to-orange-500 flex items-center justify-center gap-2">
                                  <SparklesIcon className="w-4 h-4" /> {uiLanguage === 'ar' ? 'ترقية الخطة' : 'Upgrade Plan'}
                              </button>
-                         )}
-                         {currentTier === 'admin' && (
-                             <div className="text-center text-xs text-red-400 mt-2 font-mono">
-                                 {uiLanguage === 'ar' ? 'صلاحيات المطور مفعلة' : 'Developer Powers Active'}
-                             </div>
                          )}
                     </div>
                     
@@ -220,19 +203,12 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                         </div>
                     </div>
                     
-                    {/* "Redeem Code" Section - Students & Devs */}
                     <div className="border-t-2 border-slate-700/50 pt-4">
                         <div className="flex items-center gap-2 mb-2">
                             <SparklesIcon className="text-slate-500 w-4 h-4" />
-                            <h4 className="text-sm font-bold text-slate-400">{uiLanguage === 'ar' ? 'هل لديك قسيمة (طالب/مطور)؟' : 'Have a Code (Student/Dev)?'}</h4>
+                            <h4 className="text-sm font-bold text-slate-400">{uiLanguage === 'ar' ? 'هل لديك قسيمة (طالب/مطور)؟' : 'Redeem Code'}</h4>
                         </div>
                         
-                        {isDevMode && (
-                            <div className="mb-3 p-2 bg-green-900/30 border border-green-500/30 rounded text-xs text-green-400 text-center">
-                                {uiLanguage === 'ar' ? 'تم تفعيل وضع المطور' : 'Developer Mode Active'}
-                            </div>
-                        )}
-
                         {!isDevMode ? (
                             <div className="flex gap-2">
                                 <input
@@ -264,7 +240,6 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                         )}
                     </div>
                     
-                    {/* Danger Zone - Only if user is logged in */}
                     {user && (
                         <div className="border-t-2 border-red-500/30 pt-4">
                             <h4 className="text-md font-bold text-red-400">{t('dangerZone', uiLanguage)}</h4>
