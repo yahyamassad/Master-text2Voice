@@ -356,29 +356,43 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const timerIntervalRef = useRef<any>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
+    // STATE REFS FOR ANIMATION LOOP
+    const musicVolumeRef = useRef(musicVolume);
+    const voiceVolumeRef = useRef(voiceVolume);
+    const isMusicMutedRef = useRef(isMusicMuted);
+    const isVoiceMutedRef = useRef(isVoiceMuted);
+    const autoDuckingRef = useRef(autoDucking);
+    const voiceDelayRef = useRef(voiceDelay);
+    const settingsRef = useRef(settings);
+    const echoRef = useRef(echo);
+
     const isPaidUser = userTier !== 'visitor' && userTier !== 'free';
     const canUploadVoice = userTier === 'gold' || userTier === 'professional' || userTier === 'admin' || userTier === 'basic' || userTier === 'creator';
     const canUseMic = isPaidUser; 
 
     // --- RE-SYNC SETTINGS TO AUDIO GRAPH ---
-    // This ensures smooth slider operation and preset switching without stopping audio
+    useEffect(() => { musicVolumeRef.current = musicVolume; }, [musicVolume]);
+    useEffect(() => { voiceVolumeRef.current = voiceVolume; }, [voiceVolume]);
+    useEffect(() => { isMusicMutedRef.current = isMusicMuted; }, [isMusicMuted]);
+    useEffect(() => { isVoiceMutedRef.current = isVoiceMuted; }, [isVoiceMuted]);
+    useEffect(() => { autoDuckingRef.current = autoDucking; }, [autoDucking]);
+    useEffect(() => { voiceDelayRef.current = voiceDelay; }, [voiceDelay]);
+    useEffect(() => { settingsRef.current = settings; }, [settings]);
+    useEffect(() => { echoRef.current = echo; }, [echo]);
+
+    // Live Parameter Updates
     useEffect(() => {
         const ctx = audioContextRef.current;
         if (!ctx) return;
         const now = ctx.currentTime;
         const rampTime = 0.1; // Smooth transition
 
-        // Volume
+        // Voice Volume
         if (voiceGainRef.current) {
             const targetVol = isVoiceMuted ? 0 : (voiceVolume / 100);
             voiceGainRef.current.gain.setTargetAtTime(targetVol, now, rampTime);
         }
-        // Music volume handled in animation loop for ducking, but update base here
-        if (musicGainRef.current && !autoDucking) {
-             const targetVol = isMusicMuted ? 0 : (musicVolume / 100);
-             musicGainRef.current.gain.setTargetAtTime(targetVol, now, rampTime);
-        }
-
+        
         // Speed
         if (voiceSourceRef.current) {
             voiceSourceRef.current.playbackRate.setValueAtTime(settings.speed, now);
@@ -406,7 +420,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         // Compressor
         if (compressorRef.current) {
             const compAmount = settings.compression / 100;
-            // Only update active params if node exists
             compressorRef.current.threshold.setTargetAtTime(-10 - (compAmount * 40), now, rampTime);
             compressorRef.current.ratio.setTargetAtTime(1 + (compAmount * 11), now, rampTime);
         }
@@ -417,7 +430,37 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             pannerNodeRef.current.pan.setTargetAtTime(panVal, now, rampTime);
         }
 
-    }, [settings, voiceVolume, musicVolume, isVoiceMuted, isMusicMuted, autoDucking, echo, isPlaying]);
+    }, [settings, voiceVolume, isVoiceMuted, echo, isPlaying]); // Exclude musicVolume, handled in loop
+
+    // --- HOT SWAP MUSIC BUFFER ---
+    useEffect(() => {
+        if (isPlaying && musicBuffer && audioContextRef.current) {
+            // Stop old
+            try { musicSourceRef.current?.stop(); } catch(e){}
+            
+            // Create new
+            const ctx = audioContextRef.current;
+            const newSource = ctx.createBufferSource();
+            newSource.buffer = musicBuffer;
+            newSource.loop = true;
+            
+            // Connect to EXISTING gain node to keep volume/ducking settings
+            if (musicGainRef.current) {
+                newSource.connect(musicGainRef.current);
+                
+                // Sync start time
+                const offset = playbackOffsetRef.current;
+                // Music loops, so modulo duration
+                const startOffset = offset % musicBuffer.duration;
+                
+                newSource.start(0, startOffset);
+                musicSourceRef.current = newSource;
+            }
+        } else if (isPlaying && !musicBuffer) {
+             try { musicSourceRef.current?.stop(); } catch(e){}
+             musicSourceRef.current = null;
+        }
+    }, [musicBuffer]); // Dependency on the buffer object
 
     useEffect(() => {
         let total = 0;
@@ -545,13 +588,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
                 // Voice Analyser for Ducking
                 const vAnalyser = ctx.createAnalyser();
-                vAnalyser.fftSize = 256; // Smaller FFT for faster response
+                vAnalyser.fftSize = 256; 
                 setVoiceAnalyserNode(vAnalyser);
 
                 // Chain
                 let head: AudioNode = source;
                 
-                // EQ (Always create filters, just change gain)
+                // EQ
                 const frequencies = [60, 250, 1000, 4000, 12000];
                 eqFiltersRef.current = frequencies.map((freq, i) => {
                     const filter = ctx.createBiquadFilter();
@@ -562,7 +605,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 });
                 eqFiltersRef.current.forEach(f => { head.connect(f); head = f; });
 
-                // Compressor (Always create)
+                // Compressor
                 const comp = ctx.createDynamicsCompressor();
                 comp.threshold.value = -10 - (settings.compression / 100 * 40);
                 comp.ratio.value = 1 + (settings.compression / 100 * 11);
@@ -635,7 +678,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 musicSourceRef.current = source;
                 
                 const mGain = ctx.createGain();
-                mGain.gain.value = isMusicMuted ? 0 : (musicVolume / 100);
+                // Initial volume
+                mGain.gain.value = isMusicMutedRef.current ? 0 : (musicVolumeRef.current / 100);
                 musicGainRef.current = mGain;
                 
                 source.connect(mGain);
@@ -674,38 +718,52 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
             setIsPlaying(true);
 
-            // Animation Loop (Updates UI & DUCKING)
+            // Animation Loop (Updates UI & DUCKING & VOLUME)
             const updateUI = () => {
                 if (!isPlaying && ctx.state !== 'running') return;
                 const now = ctx.currentTime;
-                const totalTime = playbackOffsetRef.current + ((now - startTime) * settings.speed);
+                const totalTime = playbackOffsetRef.current + ((now - startTime) * settingsRef.current.speed);
                 setCurrentTime(totalTime);
 
-                // --- REAL-TIME AUTO DUCKING LOGIC ---
-                if (autoDucking && voiceAnalyserNode && musicGainRef.current && !isMusicMuted) {
-                    const data = new Uint8Array(voiceAnalyserNode.frequencyBinCount);
-                    voiceAnalyserNode.getByteTimeDomainData(data);
-                    
-                    let sum = 0;
-                    for(let i = 0; i < data.length; i++) {
-                        const val = (data[i] - 128) / 128;
-                        sum += val * val;
+                const currentMusicGain = musicGainRef.current;
+                const isMusicMuted = isMusicMutedRef.current;
+                const duckingOn = autoDuckingRef.current;
+                const manualVol = musicVolumeRef.current / 100;
+
+                // --- REAL-TIME AUTO DUCKING & VOLUME LOGIC ---
+                // We handle ALL volume logic here to prevent fighting between loop and useEffect
+                if (currentMusicGain) {
+                    let targetVol = isMusicMuted ? 0 : manualVol;
+
+                    if (duckingOn && voiceAnalyserNode && !isMusicMuted) {
+                        const data = new Uint8Array(voiceAnalyserNode.frequencyBinCount);
+                        voiceAnalyserNode.getByteTimeDomainData(data);
+                        
+                        let sum = 0;
+                        for(let i = 0; i < data.length; i++) {
+                            const val = (data[i] - 128) / 128;
+                            sum += val * val;
+                        }
+                        const rms = Math.sqrt(sum / data.length);
+                        
+                        // Threshold ~0.015 works well for voice
+                        const threshold = 0.015;
+                        const isTalking = rms > threshold;
+                        
+                        if (isTalking) {
+                            targetVol = manualVol * 0.2; // Duck to 20%
+                            setDuckingActive(true);
+                        } else {
+                            setDuckingActive(false);
+                        }
+                        // Slower ramp for smooth ducking
+                        currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.15);
+                    } else {
+                        // Ducking OFF: Enforce manual volume
+                        setDuckingActive(false);
+                        // Faster ramp for responsiveness
+                        currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.05);
                     }
-                    const rms = Math.sqrt(sum / data.length);
-                    
-                    const threshold = 0.01;
-                    const isTalking = rms > threshold;
-                    const baseVol = musicVolume / 100;
-                    const duckVol = baseVol * 0.2; // 20%
-                    
-                    const target = isTalking ? duckVol : baseVol;
-                    // Smooth transition (0.1s)
-                    musicGainRef.current.gain.setTargetAtTime(target, now, 0.2);
-                    setDuckingActive(isTalking);
-                } else if (!autoDucking && musicGainRef.current && !isMusicMuted) {
-                     // Ensure volume is reset if ducking turned off during play
-                     musicGainRef.current.gain.setTargetAtTime(musicVolume / 100, now, 0.1);
-                     setDuckingActive(false);
                 }
 
                 if (voiceBuffer && totalTime >= fileDuration) {
@@ -751,8 +809,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         const file = e.target.files?.[0];
         if (!file) return;
         
-        // Stop current playback explicitly to release old buffer
-        stopPlayback();
+        // NO NEED TO STOP PLAYBACK HERE ANYMORE
+        // We let the useEffect hot-swap logic handle it
 
         try {
             const arrayBuffer = await file.arrayBuffer();
@@ -768,7 +826,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             
             setMusicLibrary(prev => [...prev, newTrack]);
             setActiveMusicId(newTrack.id);
-            // Don't auto-play, let user click play
+            // Don't auto-play if paused, but update buffer logic will handle hot swap if playing
         } catch (err) {
             console.error("Error decoding music file", err);
             alert("Could not decode music file.");
