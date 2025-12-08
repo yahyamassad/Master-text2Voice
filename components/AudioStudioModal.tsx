@@ -177,7 +177,7 @@ const Knob: React.FC<{
                      <span className={`text-[8px] sm:text-[10px] sm:text-xs font-mono font-bold select-none pointer-events-none ${textColor}`}>{Math.round(value * 10) / 10}{displaySuffix}</span>
                  </div>
              </div>
-             <span className="text-[9px] sm:text-xs font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-200 transition-colors text-center leading-tight select-none">{label}</span>
+             <span className="text-xs font-bold uppercase tracking-widest text-slate-400 group-hover:text-slate-200 transition-colors text-center leading-tight select-none">{label}</span>
         </div>
     );
 };
@@ -721,9 +721,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 <div className="text-sm font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
                              </div>
                              <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
-                                 <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});} }} className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}>RESET DEFAULT</button>
+                                 <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});} }} className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs sm:text-sm ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}>RESET DEFAULT</button>
                                 {AUDIO_PRESETS.slice(1).map(p => (
-                                    <button key={p.name} onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName(p.name); setSettings({...p.settings});} }} className={`w-full px-1 py-4 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-[10px] flex items-center justify-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`} title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}>
+                                    <button key={p.name} onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName(p.name); setSettings({...p.settings});} }} className={`w-full px-1 py-4 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-xs sm:text-sm flex items-center justify-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`} title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}>
                                         {/* Force Arabic Label if available, otherwise English */}
                                         {p.label['ar']}
                                     </button>
@@ -735,19 +735,19 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     {/* Bottom Knobs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Time Stretch</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Time Stretch</div>
                             <Knob label="Speed" value={settings.speed * 50} min={25} max={100} onChange={(v) => updateSetting('speed', v/50)} onClickCapture={handleRestrictedAction} />
                         </div>
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Ambience</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Ambience</div>
                             <Knob label="Reverb" value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} onClickCapture={handleRestrictedAction} />
                         </div>
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Echo</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Echo</div>
                             <Knob label="Feedback" value={echo} onChange={setEcho} color="green" onClickCapture={handleRestrictedAction} />
                         </div>
                         <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Dynamics</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Dynamics</div>
                             <Knob label="Compressor" value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" onClickCapture={handleRestrictedAction} />
                         </div>
                     </div>
