@@ -89,8 +89,22 @@ export async function generateStandardSpeech(
         let innerContent = '';
         
         paragraphs.forEach((para, index) => {
-            const cleanPara = para.trim();
+            let cleanPara = para.trim();
             if (cleanPara) {
+                // --- POETRY RHYME HACK (The ZWJ Fix) ---
+                // If it's poetry, we want to force the pronunciation of the last vowel (I'rab)
+                // instead of letting Azure force a Sukun (Waqf) due to end of sentence.
+                if (emotion === 'epic_poet') {
+                    // 1. Remove end punctuation that triggers "Stop" logic (., !, ?)
+                    // We keep comma inside but remove sentence terminators at end.
+                    cleanPara = cleanPara.replace(/[.!?؟]+$/, '');
+                    
+                    // 2. Append Zero Width Joiner (\u200D)
+                    // This trick makes the TTS engine think the word is connected to something else invisible,
+                    // thus preserving the vowel sound (Harakah) at the end.
+                    cleanPara += '\u200D';
+                }
+
                 innerContent += escapeXml(cleanPara);
                 if (index < paragraphs.length - 1 && pauseDuration > 0) {
                     innerContent += `<break time="${Math.round(pauseDuration * 1000)}ms"/>`;
