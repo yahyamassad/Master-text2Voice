@@ -18,7 +18,6 @@ interface AudioStudioModalProps {
 }
 
 const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: boolean }> = ({ analyser, isPlaying }) => {
-    // ... (Visualizer code same)
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationRef = useRef<number>(0);
 
@@ -79,7 +78,6 @@ const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: bool
     );
 };
 
-// ... Knob, Fader, EqSlider remain exactly the same as previous file ...
 const Knob: React.FC<{ 
     label: string, 
     value: number, 
@@ -275,6 +273,23 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
     </div>
 );
 
+// Helper for Impulse Response
+function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: number, reverse: boolean): AudioBuffer {
+    const sampleRate = ctx.sampleRate;
+    const length = sampleRate * duration;
+    const impulse = ctx.createBuffer(2, length, sampleRate);
+    const left = impulse.getChannelData(0);
+    const right = impulse.getChannelData(1);
+
+    for (let i = 0; i < length; i++) {
+        const n = reverse ? length - i : i;
+        const amount = (Math.random() * 2 - 1) * Math.pow(1 - n / length, decay);
+        left[i] = amount;
+        right[i] = amount;
+    }
+    return impulse;
+}
+
 export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = true, onClose, uiLanguage, voice, sourceAudioPCM, allowDownloads = false, onUpgrade, userTier = 'visitor' }) => {
     const [activeTab, setActiveTab] = useState<'ai' | 'mic' | 'upload'>('ai');
     const [presetName, setPresetName] = useState<AudioPresetName>('Default');
@@ -300,7 +315,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const activeMusicTrack = musicLibrary.find(t => t.id === activeMusicId) || null;
     const musicBuffer = activeMusicTrack?.buffer || null;
     const musicFileName = activeMusicTrack?.name || null;
-    const musicDuration = activeMusicTrack?.duration || 0;
 
     const [fileName, setFileName] = useState<string>('Gemini AI Audio');
     const [fileDuration, setFileDuration] = useState<number>(0);
@@ -313,33 +327,97 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState<string>('default');
     const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+    const [voiceAnalyserNode, setVoiceAnalyserNode] = useState<AnalyserNode | null>(null);
     const [showExportMenu, setShowExportMenu] = useState(false);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const musicInputRef = useRef<HTMLInputElement>(null);
     
-    const musicVolumeRef = useRef(musicVolume);
-    const voiceVolumeRef = useRef(voiceVolume);
-    const isMusicMutedRef = useRef(isMusicMuted);
-    const isVoiceMutedRef = useRef(isVoiceMuted);
-    const autoDuckingRef = useRef(autoDucking);
-    const voiceDelayRef = useRef(voiceDelay);
-    const trimToVoiceRef = useRef(trimToVoice);
-    const settingsRef = useRef(settings);
-    const echoRef = useRef(echo); 
-    
-    const playRequestIdRef = useRef<number>(0);
+    // Refs for Real-Time DSP Control
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const voiceSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const musicSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const voiceGainRef = useRef<GainNode | null>(null);
+    const musicGainRef = useRef<GainNode | null>(null);
+    const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
+    const reverbGainRef = useRef<GainNode | null>(null);
+    const dryGainRef = useRef<GainNode | null>(null);
+    const compressorRef = useRef<DynamicsCompressorNode | null>(null);
+    const echoGainRef = useRef<GainNode | null>(null);
+    const pannerNodeRef = useRef<StereoPannerNode | null>(null);
+
+    const playbackStartTimeRef = useRef<number>(0);
+    const playbackOffsetRef = useRef<number>(0);
+    const playAnimationFrameRef = useRef<number>(0);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
     const libraryMenuRef = useRef<HTMLDivElement>(null);
-    
-    useEffect(() => { musicVolumeRef.current = musicVolume; }, [musicVolume]);
-    useEffect(() => { voiceVolumeRef.current = voiceVolume; }, [voiceVolume]);
-    useEffect(() => { isMusicMutedRef.current = isMusicMuted; }, [isMusicMuted]);
-    useEffect(() => { isVoiceMutedRef.current = isVoiceMuted; }, [isVoiceMuted]);
-    useEffect(() => { autoDuckingRef.current = autoDucking; }, [autoDucking]);
-    useEffect(() => { voiceDelayRef.current = voiceDelay; }, [voiceDelay]);
-    useEffect(() => { trimToVoiceRef.current = trimToVoice; }, [trimToVoice]);
-    useEffect(() => { settingsRef.current = settings; }, [settings]);
-    useEffect(() => { echoRef.current = echo; }, [echo]);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordingChunksRef = useRef<Blob[]>([]);
+    const timerIntervalRef = useRef<any>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+
+    const isPaidUser = userTier !== 'visitor' && userTier !== 'free';
+    const canUploadVoice = userTier === 'gold' || userTier === 'professional' || userTier === 'admin' || userTier === 'basic' || userTier === 'creator';
+    const canUseMic = isPaidUser; 
+
+    // --- RE-SYNC SETTINGS TO AUDIO GRAPH ---
+    // This ensures smooth slider operation and preset switching without stopping audio
+    useEffect(() => {
+        const ctx = audioContextRef.current;
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const rampTime = 0.1; // Smooth transition
+
+        // Volume
+        if (voiceGainRef.current) {
+            const targetVol = isVoiceMuted ? 0 : (voiceVolume / 100);
+            voiceGainRef.current.gain.setTargetAtTime(targetVol, now, rampTime);
+        }
+        // Music volume handled in animation loop for ducking, but update base here
+        if (musicGainRef.current && !autoDucking) {
+             const targetVol = isMusicMuted ? 0 : (musicVolume / 100);
+             musicGainRef.current.gain.setTargetAtTime(targetVol, now, rampTime);
+        }
+
+        // Speed
+        if (voiceSourceRef.current) {
+            voiceSourceRef.current.playbackRate.setValueAtTime(settings.speed, now);
+        }
+
+        // EQ
+        if (eqFiltersRef.current.length > 0) {
+            eqFiltersRef.current.forEach((filter, i) => {
+                if (filter) filter.gain.setTargetAtTime(settings.eqBands[i] || 0, now, rampTime);
+            });
+        }
+
+        // Reverb Mix
+        if (reverbGainRef.current && dryGainRef.current) {
+            const mix = settings.reverb / 100;
+            reverbGainRef.current.gain.setTargetAtTime(mix, now, rampTime);
+            dryGainRef.current.gain.setTargetAtTime(1 - (mix * 0.5), now, rampTime);
+        }
+
+        // Echo Gain
+        if (echoGainRef.current) {
+            echoGainRef.current.gain.setTargetAtTime(echo / 100, now, rampTime);
+        }
+
+        // Compressor
+        if (compressorRef.current) {
+            const compAmount = settings.compression / 100;
+            // Only update active params if node exists
+            compressorRef.current.threshold.setTargetAtTime(-10 - (compAmount * 40), now, rampTime);
+            compressorRef.current.ratio.setTargetAtTime(1 + (compAmount * 11), now, rampTime);
+        }
+
+        // Pan
+        if (pannerNodeRef.current) {
+            const panVal = Math.max(-1, Math.min(1, settings.stereoWidth / 100));
+            pannerNodeRef.current.pan.setTargetAtTime(panVal, now, rampTime);
+        }
+
+    }, [settings, voiceVolume, musicVolume, isVoiceMuted, isMusicMuted, autoDucking, echo, isPlaying]);
 
     useEffect(() => {
         let total = 0;
@@ -354,36 +432,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
         setFileDuration(Math.max(1, total));
     }, [voiceBuffer, musicBuffer, voiceDelay, trimToVoice, settings.speed]);
-
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const voiceSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const musicSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const voiceGainRef = useRef<GainNode | null>(null);
-    const musicGainRef = useRef<GainNode | null>(null);
-    const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
-    const reverbRef = useRef<ConvolverNode | null>(null);
-    const reverbGainRef = useRef<GainNode | null>(null);
-    const dryGainRef = useRef<GainNode | null>(null);
-    const compressorRef = useRef<DynamicsCompressorNode | null>(null);
-    const pannerNodeRef = useRef<StereoPannerNode | null>(null); 
-    const delayNodeRef = useRef<DelayNode | null>(null);
-    const feedbackNodeRef = useRef<GainNode | null>(null);
-    const echoGainRef = useRef<GainNode | null>(null);
-
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const recordingChunksRef = useRef<Blob[]>([]);
-    const timerIntervalRef = useRef<any>(null);
-    const streamRef = useRef<MediaStream | null>(null);
-    
-    const playbackStartTimeRef = useRef<number>(0);
-    const playbackOffsetRef = useRef<number>(0);
-    const playAnimationFrameRef = useRef<number>(0);
-    const exportMenuRef = useRef<HTMLDivElement>(null);
-    const duckingAnalyserRef = useRef<AnalyserNode | null>(null);
-
-    const isPaidUser = userTier !== 'visitor' && userTier !== 'free';
-    const canUploadVoice = userTier === 'gold' || userTier === 'professional' || userTier === 'admin' || userTier === 'basic' || userTier === 'creator';
-    const canUseMic = isPaidUser; 
 
     const handleRestrictedAction = (e: React.MouseEvent) => {
         if (!isPaidUser) {
@@ -400,12 +448,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             setInputDevices(audioInputs);
         });
         const handleClickOutside = (event: MouseEvent) => {
-            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-                setShowExportMenu(false);
-            }
-            if (libraryMenuRef.current && !libraryMenuRef.current.contains(event.target as Node)) {
-                setIsLibraryOpen(false);
-            }
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) setShowExportMenu(false);
+            if (libraryMenuRef.current && !libraryMenuRef.current.contains(event.target as Node)) setIsLibraryOpen(false);
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
@@ -413,9 +457,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             document.removeEventListener('mousedown', handleClickOutside);
             stopPlayback();
             stopRecording();
-            if (audioContextRef.current) {
-                audioContextRef.current.close().catch(() => {});
-            }
+            if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
         };
     }, []);
 
@@ -432,31 +474,23 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         }
     }, [isOpen]);
 
-    // --- LOAD AI AUDIO ---
+    // --- LOAD AUDIO LOGIC ---
     useEffect(() => {
         if (activeTab === 'ai' && sourceAudioPCM) {
             const loadAudio = async () => {
                 const ctx = getAudioContext();
                 try {
-                    const isGemini = GEMINI_VOICES.includes(voice);
                     let buf;
-                    if (isGemini) {
-                        buf = rawPcmToAudioBuffer(sourceAudioPCM);
-                    } else {
-                        // Standard voice (MP3 likely), need decode
+                    try {
                         const bufferCopy = sourceAudioPCM.slice(0).buffer;
-                        // Use offline context workaround if main context is tricky or suspended, 
-                        // but usually decodeAudioData works best on standard context
-                        try {
-                            buf = await ctx.decodeAudioData(bufferCopy);
-                        } catch(e) {
-                            buf = rawPcmToAudioBuffer(sourceAudioPCM); // Fallback
-                        }
+                        buf = await ctx.decodeAudioData(bufferCopy);
+                    } catch(e) {
+                        buf = rawPcmToAudioBuffer(sourceAudioPCM);
                     }
                     setVoiceBuffer(buf);
-                    setFileName(isGemini ? `Gemini ${voice} Session` : `${voice} Session`);
+                    setFileName(`${voice} Session`);
                 } catch (e) {
-                    console.error("Failed to load audio into Studio", e);
+                    console.error("Failed to load audio", e);
                 }
             };
             loadAudio();
@@ -470,41 +504,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         return audioContextRef.current;
     };
 
-    // --- UPDATE DSP ---
-    useEffect(() => {
-        if (eqFiltersRef.current.length > 0) {
-            eqFiltersRef.current.forEach((filter, i) => {
-                if (filter) {
-                    filter.gain.setTargetAtTime(settings.eqBands[i] || 0, getAudioContext().currentTime, 0.1);
-                }
-            });
-        }
-        if (reverbGainRef.current && dryGainRef.current) {
-            const mix = settings.reverb / 100;
-            reverbGainRef.current.gain.setTargetAtTime(mix, getAudioContext().currentTime, 0.1);
-            dryGainRef.current.gain.setTargetAtTime(1 - (mix * 0.5), getAudioContext().currentTime, 0.1);
-        }
-        if (compressorRef.current) {
-            const compAmount = settings.compression / 100;
-            if (compAmount > 0) {
-                compressorRef.current.threshold.setTargetAtTime(-10 - (compAmount * 40), getAudioContext().currentTime, 0.1);
-                compressorRef.current.ratio.setTargetAtTime(1 + (compAmount * 11), getAudioContext().currentTime, 0.1);
-            }
-        }
-        if (echoGainRef.current) {
-            echoGainRef.current.gain.setTargetAtTime(echo / 100, getAudioContext().currentTime, 0.1);
-        }
-        if (pannerNodeRef.current) {
-            const panVal = Math.max(-1, Math.min(1, settings.stereoWidth / 100));
-            pannerNodeRef.current.pan.setTargetAtTime(panVal, getAudioContext().currentTime, 0.1);
-        }
-        if (voiceSourceRef.current) {
-             voiceSourceRef.current.playbackRate.value = settings.speed;
-        }
-    }, [settings, echo]);
-
     const stopPlayback = useCallback(() => { 
-        playRequestIdRef.current += 1; 
         if (playAnimationFrameRef.current) cancelAnimationFrame(playAnimationFrameRef.current); 
         
         if (voiceSourceRef.current) try { voiceSourceRef.current.stop(); voiceSourceRef.current.disconnect(); } catch(e){} 
@@ -512,18 +512,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         
         voiceSourceRef.current = null; 
         musicSourceRef.current = null; 
-        duckingAnalyserRef.current = null; 
-        eqFiltersRef.current = []; 
-        reverbRef.current = null; 
-        reverbGainRef.current = null; 
-        dryGainRef.current = null; 
-        compressorRef.current = null; 
-        delayNodeRef.current = null; 
-        feedbackNodeRef.current = null; 
-        echoGainRef.current = null; 
-        pannerNodeRef.current = null; 
-        
-        if (!isRecording) setAnalyserNode(null); 
+        setAnalyserNode(null); 
+        setVoiceAnalyserNode(null);
         setIsPlaying(false); 
         setDuckingActive(false); 
         setIsProcessing(false); 
@@ -531,36 +521,37 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     const handlePlayPause = async () => {
         if (isPlaying) {
-            // Stop and save position
             if (audioContextRef.current) {
-                // Calculate where we stopped based on elapsed time and playback rate
                 const elapsed = audioContextRef.current.currentTime - playbackStartTimeRef.current;
-                playbackOffsetRef.current += elapsed * settings.speed; // Adjust for speed
+                playbackOffsetRef.current += elapsed * settings.speed; 
             }
             stopPlayback();
         } else {
-            // Start
             const ctx = getAudioContext();
             if (ctx.state === 'suspended') await ctx.resume();
 
-            // Rebuild Graph
-            // Voice
-            let voiceNode: AudioNode | null = null;
+            // --- BUILD GRAPH ---
+            // Voice Path
+            let voiceOut: AudioNode | null = null;
             if (voiceBuffer) {
                 const source = ctx.createBufferSource();
                 source.buffer = voiceBuffer;
                 source.playbackRate.value = settings.speed;
                 voiceSourceRef.current = source;
                 
-                // Create Gain
                 const vGain = ctx.createGain();
-                vGain.gain.value = isVoiceMutedRef.current ? 0 : (voiceVolumeRef.current / 100);
+                vGain.gain.value = isVoiceMuted ? 0 : (voiceVolume / 100);
                 voiceGainRef.current = vGain;
 
-                // Chain Effects
-                let head = source as AudioNode;
+                // Voice Analyser for Ducking
+                const vAnalyser = ctx.createAnalyser();
+                vAnalyser.fftSize = 256; // Smaller FFT for faster response
+                setVoiceAnalyserNode(vAnalyser);
+
+                // Chain
+                let head: AudioNode = source;
                 
-                // EQ
+                // EQ (Always create filters, just change gain)
                 const frequencies = [60, 250, 1000, 4000, 12000];
                 eqFiltersRef.current = frequencies.map((freq, i) => {
                     const filter = ctx.createBiquadFilter();
@@ -571,72 +562,72 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 });
                 eqFiltersRef.current.forEach(f => { head.connect(f); head = f; });
 
-                // Compressor
-                if (settings.compression > 0) {
-                    const comp = ctx.createDynamicsCompressor();
-                    comp.threshold.value = -10 - (settings.compression / 100 * 40);
-                    comp.ratio.value = 1 + (settings.compression / 100 * 11);
-                    head.connect(comp);
-                    head = comp;
-                    compressorRef.current = comp;
-                }
+                // Compressor (Always create)
+                const comp = ctx.createDynamicsCompressor();
+                comp.threshold.value = -10 - (settings.compression / 100 * 40);
+                comp.ratio.value = 1 + (settings.compression / 100 * 11);
+                head.connect(comp);
+                head = comp;
+                compressorRef.current = comp;
 
+                // Split for Parallel Effects
                 const dryNode = head; 
                 
                 // Reverb
-                if (settings.reverb > 0) {
-                    const rev = ctx.createConvolver();
-                    // Dummy impulse response generation for demo
-                    // In real app, load impulse file or use noise buffer
-                    // ... (omitted impulse gen for brevity, assuming generic buffer or silence if not implemented)
-                    // Simplified: just connect gain for now if no buffer
-                    const revGain = ctx.createGain();
-                    const dGain = ctx.createGain();
-                    revGain.gain.value = settings.reverb / 100;
-                    dGain.gain.value = 1 - (settings.reverb / 200);
-                    
-                    reverbGainRef.current = revGain;
-                    dryGainRef.current = dGain;
-                    
-                    dryNode.connect(dGain);
-                    // dryNode.connect(rev); rev.connect(revGain); // Uncomment if buffer exists
-                    
-                    const merge = ctx.createGain();
-                    dGain.connect(merge);
-                    revGain.connect(merge); // connects nothing if rev buffer missing, that's fine
-                    head = merge;
-                }
+                const rev = ctx.createConvolver();
+                const revDuration = 2.0; 
+                rev.buffer = createImpulseResponse(ctx, revDuration, 2.0, false);
+                const revGain = ctx.createGain();
+                const dryGain = ctx.createGain();
+                revGain.gain.value = settings.reverb / 100;
+                dryGain.gain.value = 1 - (settings.reverb / 200);
+                
+                reverbGainRef.current = revGain;
+                dryGainRef.current = dryGain;
+                
+                dryNode.connect(dryGain);
+                dryNode.connect(rev); rev.connect(revGain);
+                
+                const reverbMerge = ctx.createGain();
+                dryGain.connect(reverbMerge);
+                revGain.connect(reverbMerge);
+                head = reverbMerge;
 
                 // Echo
-                if (echoRef.current > 0) {
-                    const delay = ctx.createDelay();
-                    delay.delayTime.value = 0.4;
-                    const feedback = ctx.createGain();
-                    feedback.gain.value = 0.3;
-                    const eGain = ctx.createGain();
-                    eGain.gain.value = echoRef.current / 100;
-                    
-                    delayNodeRef.current = delay;
-                    feedbackNodeRef.current = feedback;
-                    echoGainRef.current = eGain;
+                const delay = ctx.createDelay();
+                delay.delayTime.value = 0.4;
+                const feedback = ctx.createGain();
+                feedback.gain.value = 0.3;
+                const eGain = ctx.createGain();
+                eGain.gain.value = echo / 100;
+                echoGainRef.current = eGain;
 
-                    head.connect(delay);
-                    delay.connect(feedback);
-                    feedback.connect(delay);
-                    delay.connect(eGain);
-                    
-                    const merge = ctx.createGain();
-                    head.connect(merge);
-                    eGain.connect(merge);
-                    head = merge;
-                }
+                head.connect(delay);
+                delay.connect(feedback);
+                feedback.connect(delay);
+                delay.connect(eGain);
+                
+                const echoMerge = ctx.createGain();
+                head.connect(echoMerge);
+                eGain.connect(echoMerge);
+                head = echoMerge;
+
+                // Panner
+                const panner = ctx.createStereoPanner();
+                panner.pan.value = Math.max(-1, Math.min(1, settings.stereoWidth / 100));
+                pannerNodeRef.current = panner;
+                head.connect(panner);
+                head = panner;
 
                 head.connect(vGain);
-                voiceNode = vGain;
+                // Also connect to analyser for ducking
+                source.connect(vAnalyser);
+                
+                voiceOut = vGain;
             }
 
-            // Music
-            let musicNode: AudioNode | null = null;
+            // Music Path
+            let musicOut: AudioNode | null = null;
             if (musicBuffer) {
                 const source = ctx.createBufferSource();
                 source.buffer = musicBuffer;
@@ -644,11 +635,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 musicSourceRef.current = source;
                 
                 const mGain = ctx.createGain();
-                mGain.gain.value = isMusicMutedRef.current ? 0 : (musicVolumeRef.current / 100);
+                mGain.gain.value = isMusicMuted ? 0 : (musicVolume / 100);
                 musicGainRef.current = mGain;
                 
                 source.connect(mGain);
-                musicNode = mGain;
+                musicOut = mGain;
             }
 
             // Master Mix
@@ -657,33 +648,24 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             analyser.fftSize = 2048;
             setAnalyserNode(analyser);
 
-            if (voiceNode) voiceNode.connect(masterGain);
-            if (musicNode) musicNode.connect(masterGain);
+            if (voiceOut) voiceOut.connect(masterGain);
+            if (musicOut) musicOut.connect(masterGain);
             
             masterGain.connect(analyser);
             analyser.connect(ctx.destination);
 
-            // Start Logic
+            // Start Time
             const startTime = ctx.currentTime;
             playbackStartTimeRef.current = startTime;
             
-            // Calculate effective start time for voice (considering delay)
-            // If offset is less than delay, wait. If offset > delay, jump into file.
-            const delayTime = voiceDelayRef.current;
+            const delayTime = voiceDelay;
             const currentOffset = playbackOffsetRef.current;
             
             if (voiceSourceRef.current) {
                 if (currentOffset < delayTime) {
-                    // We are in the delay period
                     voiceSourceRef.current.start(startTime + (delayTime - currentOffset));
                 } else {
-                    // We are past delay
-                    // Calculate where in the file we are: (offset - delay) adjusted for speed?
-                    // Actually, playbackOffsetRef tracks *real time* passed.
-                    // Start position in buffer = (currentOffset - delayTime) * speed? 
-                    // No, usually offset is buffer time. Let's simplify: 
-                    // playbackOffsetRef = Buffer Time played.
-                    voiceSourceRef.current.start(startTime, currentOffset); 
+                    voiceSourceRef.current.start(startTime, currentOffset - delayTime); 
                 }
             }
             if (musicSourceRef.current) {
@@ -692,20 +674,42 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
             setIsPlaying(true);
 
-            // Animation Loop
+            // Animation Loop (Updates UI & DUCKING)
             const updateUI = () => {
                 if (!isPlaying && ctx.state !== 'running') return;
                 const now = ctx.currentTime;
-                // Rough estimate of current playhead position relative to file logic
-                const rawElapsed = now - startTime;
-                // Add speed factor? usually timeline scrubbing is absolute seconds.
-                const totalTime = playbackOffsetRef.current + rawElapsed; // Simple increment
-                
+                const totalTime = playbackOffsetRef.current + ((now - startTime) * settings.speed);
                 setCurrentTime(totalTime);
-                
+
+                // --- REAL-TIME AUTO DUCKING LOGIC ---
+                if (autoDucking && voiceAnalyserNode && musicGainRef.current && !isMusicMuted) {
+                    const data = new Uint8Array(voiceAnalyserNode.frequencyBinCount);
+                    voiceAnalyserNode.getByteTimeDomainData(data);
+                    
+                    let sum = 0;
+                    for(let i = 0; i < data.length; i++) {
+                        const val = (data[i] - 128) / 128;
+                        sum += val * val;
+                    }
+                    const rms = Math.sqrt(sum / data.length);
+                    
+                    const threshold = 0.01;
+                    const isTalking = rms > threshold;
+                    const baseVol = musicVolume / 100;
+                    const duckVol = baseVol * 0.2; // 20%
+                    
+                    const target = isTalking ? duckVol : baseVol;
+                    // Smooth transition (0.1s)
+                    musicGainRef.current.gain.setTargetAtTime(target, now, 0.2);
+                    setDuckingActive(isTalking);
+                } else if (!autoDucking && musicGainRef.current && !isMusicMuted) {
+                     // Ensure volume is reset if ducking turned off during play
+                     musicGainRef.current.gain.setTargetAtTime(musicVolume / 100, now, 0.1);
+                     setDuckingActive(false);
+                }
+
                 if (voiceBuffer && totalTime >= fileDuration) {
-                    // End of "track" logic
-                    handleSeek({ target: { value: 0 } } as any); // Reset or stop
+                    handleSeek({ target: { value: 0 } } as any); 
                     stopPlayback();
                     return;
                 }
@@ -720,17 +724,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         setCurrentTime(time);
         playbackOffsetRef.current = time;
         if (isPlaying) {
-            // Restart at new time
             stopPlayback();
             setTimeout(() => handlePlayPause(), 10);
         }
     };
 
-    // File Handlers
     const handleVoiceFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        
         try {
             const arrayBuffer = await file.arrayBuffer();
             const ctx = getAudioContext();
@@ -749,6 +750,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const handleMusicFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
+        // Stop current playback explicitly to release old buffer
+        stopPlayback();
 
         try {
             const arrayBuffer = await file.arrayBuffer();
@@ -764,14 +768,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             
             setMusicLibrary(prev => [...prev, newTrack]);
             setActiveMusicId(newTrack.id);
-            stopPlayback();
+            // Don't auto-play, let user click play
         } catch (err) {
             console.error("Error decoding music file", err);
             alert("Could not decode music file.");
         }
     };
 
-    // Placeholders for recording (simplified for this update)
     const startRecording = async () => {
         if (!navigator.mediaDevices) return;
         try {
@@ -780,7 +783,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const recorder = new MediaRecorder(stream);
             mediaRecorderRef.current = recorder;
             recordingChunksRef.current = [];
-            
             recorder.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
             recorder.onstop = async () => {
                 const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
@@ -793,19 +795,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     setFileName("New Recording");
                 }
             };
-            
             recorder.start();
             setIsRecording(true);
             setRecordingTime(0);
             timerIntervalRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
-            
-            // Visualizer for Mic
             const ctx = getAudioContext();
             const source = ctx.createMediaStreamSource(stream);
             const analyser = ctx.createAnalyser();
             source.connect(analyser);
             setAnalyserNode(analyser);
-            
         } catch (e) {
             console.error(e);
             alert("Microphone access denied or error.");
@@ -841,19 +839,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         if (activeTab === tab) return; 
         if (tab === 'mic' && !canUseMic) { if (onUpgrade) onUpgrade(); return; } 
         if (tab === 'upload' && !canUploadVoice) { if (onUpgrade) onUpgrade(); return; } 
-        
         stopPlayback(); 
         setActiveTab(tab); 
-        
-        if (tab === 'ai') { 
-             // Reload AI logic if needed, usually handled by useEffect
-        } else if (tab === 'mic') { 
+        if (tab === 'mic') { 
             setVoiceBuffer(micAudioBuffer); 
             setFileName(micAudioBuffer ? "Recording" : "Ready to Record"); 
-        } else { 
+        } else if (tab === 'upload') {
             setVoiceBuffer(null); 
             setFileName("Upload a File..."); 
-        } 
+        }
         playbackOffsetRef.current = 0; 
         setCurrentTime(0); 
     };
@@ -861,7 +855,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const performDownload = async () => {
         setIsProcessing(true);
         try {
-            // Process offline
             const renderedBuffer = await processAudio(
                 voiceBuffer,
                 settings,
@@ -873,14 +866,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 voiceDelay,
                 echo
             );
-            
             let blob;
             if (exportFormat === 'wav') {
                 blob = createWavBlob(renderedBuffer, 2, renderedBuffer.sampleRate);
             } else {
                 blob = await createMp3Blob(renderedBuffer, 2, renderedBuffer.sampleRate, 192);
             }
-            
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -889,7 +880,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
         } catch (e) {
             console.error("Export failed", e);
             alert("Export failed. Please try again.");
@@ -902,7 +892,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     function updateSetting<K extends keyof AudioSettings>(key: K, value: AudioSettings[K]) {
         setSettings(prev => ({ ...prev, [key]: value }));
-        setPresetName('Default');
+        // Don't reset preset name, allow "modified" state implicitly or handle UI elsewhere
     }
 
     if (!isOpen) return null;
