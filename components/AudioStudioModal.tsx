@@ -345,6 +345,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const compressorRef = useRef<DynamicsCompressorNode | null>(null);
     const echoGainRef = useRef<GainNode | null>(null);
     const pannerNodeRef = useRef<StereoPannerNode | null>(null);
+    const voiceAnalyserRef = useRef<AnalyserNode | null>(null);
 
     const playbackStartTimeRef = useRef<number>(0);
     const playbackOffsetRef = useRef<number>(0);
@@ -385,7 +386,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         const ctx = audioContextRef.current;
         if (!ctx) return;
         const now = ctx.currentTime;
-        const rampTime = 0.1; // Smooth transition
+        const rampTime = 0.1; // Smooth transition for general sliders
 
         // Voice Volume
         if (voiceGainRef.current) {
@@ -430,7 +431,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             pannerNodeRef.current.pan.setTargetAtTime(panVal, now, rampTime);
         }
 
-    }, [settings, voiceVolume, isVoiceMuted, echo, isPlaying]); // Exclude musicVolume, handled in loop
+    }, [settings, voiceVolume, isVoiceMuted, echo, isPlaying]); 
 
     // --- HOT SWAP MUSIC BUFFER ---
     useEffect(() => {
@@ -557,6 +558,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         musicSourceRef.current = null; 
         setAnalyserNode(null); 
         setVoiceAnalyserNode(null);
+        voiceAnalyserRef.current = null;
         setIsPlaying(false); 
         setDuckingActive(false); 
         setIsProcessing(false); 
@@ -586,10 +588,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 vGain.gain.value = isVoiceMuted ? 0 : (voiceVolume / 100);
                 voiceGainRef.current = vGain;
 
-                // Voice Analyser for Ducking
+                // Voice Analyser for Ducking - Using Ref for immediate access in loop
                 const vAnalyser = ctx.createAnalyser();
                 vAnalyser.fftSize = 256; 
                 setVoiceAnalyserNode(vAnalyser);
+                voiceAnalyserRef.current = vAnalyser; // CRITICAL FIX: Save to Ref
 
                 // Chain
                 let head: AudioNode = source;
@@ -729,15 +732,18 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 const isMusicMuted = isMusicMutedRef.current;
                 const duckingOn = autoDuckingRef.current;
                 const manualVol = musicVolumeRef.current / 100;
+                
+                // CRITICAL FIX: Use Ref instead of state variable for analyser access in loop
+                const duckingAnalyser = voiceAnalyserRef.current;
 
                 // --- REAL-TIME AUTO DUCKING & VOLUME LOGIC ---
                 // We handle ALL volume logic here to prevent fighting between loop and useEffect
                 if (currentMusicGain) {
                     let targetVol = isMusicMuted ? 0 : manualVol;
 
-                    if (duckingOn && voiceAnalyserNode && !isMusicMuted) {
-                        const data = new Uint8Array(voiceAnalyserNode.frequencyBinCount);
-                        voiceAnalyserNode.getByteTimeDomainData(data);
+                    if (duckingOn && duckingAnalyser && !isMusicMuted) {
+                        const data = new Uint8Array(duckingAnalyser.frequencyBinCount);
+                        duckingAnalyser.getByteTimeDomainData(data);
                         
                         let sum = 0;
                         for(let i = 0; i < data.length; i++) {
@@ -757,12 +763,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             setDuckingActive(false);
                         }
                         // Slower ramp for smooth ducking
-                        currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.15);
+                        currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.2);
                     } else {
                         // Ducking OFF: Enforce manual volume
                         setDuckingActive(false);
-                        // Faster ramp for responsiveness
-                        currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.05);
+                        
+                        // SMOOTHER TRANSITION FOR MANUAL/MUTE CHANGES
+                        // Increased from 0.05s to 0.5s for fade effect if muted, 0.3s for slider
+                        const ramp = isMusicMuted ? 0.5 : 0.3;
+                        currentMusicGain.gain.setTargetAtTime(targetVol, now, ramp);
                     }
                 }
 
@@ -796,6 +805,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
             setVoiceBuffer(audioBuffer);
             setFileName(file.name);
+            // CRITICAL FIX: Set active tab to upload so button lights up
+            setActiveTab('upload');
+            
             stopPlayback();
             setCurrentTime(0);
             playbackOffsetRef.current = 0;
