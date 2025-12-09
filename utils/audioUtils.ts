@@ -185,19 +185,17 @@ export async function processAudio(
     
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // --- 2. THE CUTOFF FIX: PHYSICAL PADDING ---
-    // Instead of relying on timeline calculations, we Physically extend the voice buffer
-    // by adding 2 seconds of silence to the actual audio data. 
-    // This forces the renderer to process the "tail" even if it miscalculates end times.
+    // --- 2. THE CUTOFF FIX: PHYSICAL PADDING (EXTENDED) ---
+    // We add 5.0 seconds of silence to the ACTUAL audio data.
     let sourceBuffer: AudioBuffer | null = null;
     
     if (initialSourceBuffer) {
-        // Create a new buffer: Original Length + 2 Seconds of Silence
-        const paddingSeconds = 2.0;
+        // Create a new buffer: Original Length + 5 Seconds of Silence
+        const paddingSeconds = 5.0;
         const paddingSamples = Math.ceil(initialSourceBuffer.sampleRate * paddingSeconds);
         const newLength = initialSourceBuffer.length + paddingSamples;
         
-        // Use OfflineContext to create buffer (safest way in non-window contexts)
+        // Use OfflineContext to create buffer
         const tempCtx = new OfflineAudioContext(initialSourceBuffer.numberOfChannels, newLength, initialSourceBuffer.sampleRate);
         sourceBuffer = tempCtx.createBuffer(initialSourceBuffer.numberOfChannels, newLength, initialSourceBuffer.sampleRate);
         
@@ -210,14 +208,16 @@ export async function processAudio(
     }
 
     // 3. CALCULATE DURATIONS
-    const END_PADDING = 15.0; // Extra safety on top of physical padding
+    // CRITICAL FIX: We must use the PADDED buffer (sourceBuffer) for the end calculation, 
+    // otherwise the offline context will be too short and cut off the end.
+    const END_PADDING = 15.0; 
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
     
-    // Effective end time of the *original content* (excluding our new physical padding)
-    // We use initialSourceBuffer for calculation to key fade-outs correctly
-    if (initialSourceBuffer) {
-        absoluteVoiceEnd = voiceDelay + (initialSourceBuffer.duration / speed);
+    if (sourceBuffer) {
+        // Formula: Delay + (PADDED Voice Duration)
+        // Using the padded buffer ensures the "Voice End" point includes our safety silence.
+        absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
     }
 
     if (sourceBuffer && backgroundMusicBuffer) {
@@ -352,7 +352,7 @@ export async function processAudio(
         const startVolume = (musicVolume / 100);
         musicGain.gain.setValueAtTime(startVolume, 0);
 
-        // --- PRO AUTO DUCKING (With Gap Bridging) ---
+        // --- PRO AUTO DUCKING (SURGICAL PRECISION) ---
         if (autoDucking && sourceBuffer && voiceVolume > 0) {
             const channelData = sourceBuffer.getChannelData(0);
             const sampleRate = sourceBuffer.sampleRate;
@@ -365,7 +365,7 @@ export async function processAudio(
             let inSpeech = false;
             let startT = 0;
 
-            // Important: Analyze ONLY the original length (ignore the silence padding we added)
+            // Important: Analyze the original content length to find speech
             const analysisLength = initialSourceBuffer ? initialSourceBuffer.length : channelData.length;
 
             for (let i = 0; i < analysisLength; i += windowSize) {
@@ -396,7 +396,7 @@ export async function processAudio(
                 speechBlocks.push({ start: startT, end: voiceDelay + (analysisLength / sampleRate / speed) });
             }
 
-            // Gap Bridging (1.2s Rule)
+            // Gap Bridging (1.2s Rule) - Preserved
             const mergedBlocks: {start: number, end: number}[] = [];
             if (speechBlocks.length > 0) {
                 let currentBlock = speechBlocks[0];
@@ -414,13 +414,16 @@ export async function processAudio(
                 mergedBlocks.push(currentBlock);
             }
 
-            // Apply Automation
-            const attackTime = 0.05; // Instant attack
-            const releaseTime = 1.0; // Slow release
+            // --- SURGICAL TIMING ---
+            // Look-ahead: 0.2s (Reduced from 0.5s for tighter fit)
+            // Attack Time: 0.4s (Increased from 0.05s for smoother slide)
+            // This creates a "bowing" effect where music dips gracefully just as voice enters.
+            const lookAhead = 0.2;
+            const attackTime = 0.4; 
+            const releaseTime = 0.8; // Faster release to bring energy back
 
             for (const block of mergedBlocks) {
-                // LOOK AHEAD: Drop music 0.5s BEFORE voice starts
-                const duckStart = Math.max(0, block.start - 0.5);
+                const duckStart = Math.max(0, block.start - lookAhead);
                 const duckEnd = block.end + 0.5;
 
                 musicGain.gain.setValueAtTime(startVolume, duckStart);
@@ -432,7 +435,7 @@ export async function processAudio(
 
         // Final Fade Out logic
         if (trimToVoice && sourceBuffer) {
-            // Wait 5 seconds after the REAL voice ends before fading music
+            // Wait 5 seconds after the REAL voice ends (plus padding) before fading music
             const safeFadeStart = absoluteVoiceEnd + 5.0; 
             try { 
                 musicGain.gain.cancelScheduledValues(safeFadeStart); 
