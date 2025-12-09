@@ -469,15 +469,15 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     useEffect(() => {
         let total = 0;
         const currentSpeed = settings.speed || 1.0;
+        // NOTE: voiceBuffer.duration includes the 4.0s physical padding.
         const voiceEnd = voiceBuffer ? voiceDelay + (voiceBuffer.duration / currentSpeed) : 0;
         const musicEnd = musicBuffer ? musicBuffer.duration : 0;
 
         if (trimToVoice && voiceBuffer) {
-            // CRITICAL FIX: Add 4.0s buffer to the timeline duration in Studio.
-            // This matches the "safeFadeStart" logic in the exporter (audioUtils).
-            // This prevents the Studio progress bar from hitting 100% and stopping 
-            // playback before the music fade-out is complete.
-            total = voiceEnd + 4.0; 
+            // VISUAL FIX: Matches the new tight export logic. 
+            // voiceEnd already includes the 4s padding which contains the fade out.
+            // No extra padding added here.
+            total = voiceEnd; 
         } else {
             total = Math.max(voiceEnd, musicEnd);
         }
