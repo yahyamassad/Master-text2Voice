@@ -357,6 +357,8 @@ export async function processAudio(
         // FORCE INITIAL VALUE to avoid any "0" defaults
         musicGain.gain.setValueAtTime(startVolume, 0);
 
+        let fadeStartVolume = startVolume; // Default for fade out anchoring
+
         // --- PRO AUTO DUCKING (CINEMATIC SMOOTH) ---
         if (autoDucking && sourceBuffer && voiceVolume > 0) {
             const channelData = sourceBuffer.getChannelData(0);
@@ -427,6 +429,9 @@ export async function processAudio(
             const lookAhead = 0.1;
             const attackTime = 0.8; 
             const releaseTime = 1.5;
+            
+            // Calculate where the final fade out will start
+            const fadeOutPoint = absoluteVoiceEnd - 3.0;
 
             for (const block of mergedBlocks) {
                 // Ensure we don't start before 0
@@ -443,28 +448,34 @@ export async function processAudio(
                 // 3. Hold low volume until speech ends
                 musicGain.gain.setValueAtTime(duckLevel, duckEnd);
                 
-                // 4. Slow swell up
-                musicGain.gain.linearRampToValueAtTime(startVolume, duckEnd + releaseTime);
+                // 4. SMART RELEASE:
+                // If this is the last block AND it ends too close to the file end,
+                // DO NOT swell back up. Stay low and let the fade-out take over.
+                // "Too close" means the release ramp would overlap with the fade out.
+                // We add a 1.0s buffer. If release finishes later than (fadeStart - 1s), skip it.
+                if (trimToVoice && (duckEnd + releaseTime > fadeOutPoint - 1.0)) {
+                    // Skip Release Ramp!
+                    // We update the 'fadeStartVolume' so the fade logic knows to start from 'low'
+                    fadeStartVolume = duckLevel;
+                } else {
+                    // Normal behavior: Slow swell up
+                    musicGain.gain.linearRampToValueAtTime(startVolume, duckEnd + releaseTime);
+                }
             }
         }
 
-        // --- AUTOMATED FADE OUT (TIGHT) ---
+        // --- AUTOMATED FADE OUT (TIGHT & SMOOTH) ---
         if (trimToVoice && sourceBuffer) {
-            // Logic:
-            // absoluteVoiceEnd includes the 4s physical padding.
-            // We want to fade out perfectly within that padding so the file ends tightly.
-            //
-            // We start fading 3.0s BEFORE the absolute end (which is effectively 1s after real voice ends).
-            // This leaves 1s of silence buffer between voice end and fade start.
-            
-            const fadeDuration = 3.0; 
             const fadeStart = Math.max(0, absoluteVoiceEnd - 3.0);
             
             try { 
-                // Cancel any automation that might conflict (like ducking release)
+                // Cancel any automation that might conflict
                 musicGain.gain.cancelScheduledValues(fadeStart); 
-                // Anchor volume at that point
-                musicGain.gain.setValueAtTime(musicGain.gain.value, fadeStart);
+                
+                // CRITICAL FIX: Anchor the volume at fadeStart.
+                // Use the calculated `fadeStartVolume` (which might be 'duckLevel' if we skipped release)
+                // This prevents the "spike" where it tries to jump back to 100% before fading.
+                musicGain.gain.setValueAtTime(fadeStartVolume, fadeStart);
             } catch(e){}
             
             // Fade to zero right at the end
