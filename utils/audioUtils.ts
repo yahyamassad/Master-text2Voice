@@ -186,9 +186,9 @@ export async function processAudio(
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // 1. FIX CUTOFF: Massive Padding
-    // We add 15 seconds to ensure reverb tails and delayed voice segments are never cut.
-    const END_PADDING = 15.0; 
+    // 1. FIX CUTOFF: Extreme Padding (30 Seconds)
+    // We add 30 seconds to ensure absolutely no cutoff even with very long pauses.
+    const END_PADDING = 30.0; 
     
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
@@ -348,8 +348,7 @@ export async function processAudio(
         const musicGain = offlineCtx.createGain();
         const startVolume = (musicVolume / 100);
         
-        // 2. FIX MUSIC VOLUME: Match Live settings exactly
-        // Live uses musicVolume/100. We do the same.
+        // 2. FIX MUSIC VOLUME: Apply gain directly
         musicGain.gain.setValueAtTime(startVolume, 0);
 
         // --- 3. PRO AUTO DUCKING (Gap Bridging / Look-Ahead) ---
@@ -421,8 +420,8 @@ export async function processAudio(
             }
 
             // --- APPLY AUTOMATION ---
-            const attackTime = 0.2; // Fast fade down
-            const releaseTime = 1.5; // Slow fade up
+            const attackTime = 0.05; // Instant attack (matches Live update)
+            const releaseTime = 1.0; // Slow fade up
 
             for (const block of mergedBlocks) {
                 // Start ducking slightly BEFORE speech starts (Look-ahead)
@@ -442,7 +441,9 @@ export async function processAudio(
 
         // Apply Fade Out at the very end if Trimming
         if (trimToVoice && sourceBuffer) {
-            const safeFadeStart = absoluteVoiceEnd + 2.0; 
+            // WAIT 5.0 SECONDS AFTER VOICE ENDS BEFORE FADING MUSIC
+            // This ensures reverb tails and final words are fully clear.
+            const safeFadeStart = absoluteVoiceEnd + 5.0; 
             try { 
                 musicGain.gain.cancelScheduledValues(safeFadeStart); 
                 musicGain.gain.setValueAtTime(musicGain.gain.value, safeFadeStart);
