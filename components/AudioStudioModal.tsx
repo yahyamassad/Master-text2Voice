@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
 import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon, ChevronDownIcon, MicrophoneIcon } from './icons';
@@ -311,13 +310,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const [activeMusicId, setActiveMusicId] = useState<string | null>(null);
     const [isLibraryOpen, setIsLibraryOpen] = useState(false);
     const [voiceBuffer, setVoiceBuffer] = useState<AudioBuffer | null>(null); 
+    const [fileName, setFileName] = useState<string>(''); 
     
     const activeMusicTrack = musicLibrary.find(t => t.id === activeMusicId) || null;
     const musicBuffer = activeMusicTrack?.buffer || null;
     const musicFileName = activeMusicTrack?.name || null;
 
     const [projectName, setProjectName] = useState<string>('New Project'); // Project Name (Master)
-    const [fileName, setFileName] = useState<string>('Gemini AI Audio'); // Source File Name (Info)
     const [fileDuration, setFileDuration] = useState<number>(0);
     const [currentTime, setCurrentTime] = useState<number>(0);
 
@@ -541,8 +540,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         buf = rawPcmToAudioBuffer(sourceAudioPCM);
                     }
                     setVoiceBuffer(buf);
-                    setFileName(`${voice} Session`);
-                    setProjectName(`Project ${new Date().toLocaleDateString()}`);
+                    // Don't set filename here to sourceAudioPCM if we already have a project name logic
+                    // But if it's a fresh load from main app, we can use a default
+                    if (projectName === 'New Project') {
+                        setProjectName(`Project ${new Date().toLocaleDateString()}`);
+                    }
                 } catch (e) {
                     console.error("Failed to load audio", e);
                 }
@@ -821,8 +823,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const ctx = getAudioContext();
             const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
             setVoiceBuffer(audioBuffer);
+            // Just set a visual name, don't overwrite Project Name immediately if it exists
             setFileName(file.name);
-            setProjectName(file.name.split('.')[0] || 'My Project');
+            // Default project name if empty
+            if (projectName === 'New Project') {
+                setProjectName(file.name.replace(/\.[^/.]+$/, "")); // Remove extension
+            }
             // CRITICAL FIX: Set active tab to upload so button lights up
             setActiveTab('upload');
             
@@ -890,7 +896,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 if (activeTab === 'mic') {
                     setVoiceBuffer(audioBuf);
                     setFileName("New Recording");
-                    setProjectName("Recording Session");
+                    if (projectName === 'New Project') {
+                        setProjectName("Recording Session");
+                    }
                 }
             };
             recorder.start();
@@ -1100,7 +1108,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 // 3. Restore Name
                 if (json.name) {
                     setProjectName(json.name);
-                    setFileName(json.name); // Keep sync
+                    // Don't overwrite filename visual if possible, or set it to project name
+                    setFileName(json.name); 
                 }
 
                 // 4. Restore Voice Audio
@@ -1159,17 +1168,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         <SawtliLogoIcon className="h-16 sm:h-20 w-auto" />
                     </div>
                     
-                    {/* NEW: Project Name Input */}
-                    <div className="flex-1 mx-4 max-w-md hidden sm:block">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold tracking-widest block mb-1">Project Name</label>
-                        <input 
-                            type="text" 
-                            value={projectName} 
-                            onChange={(e) => setProjectName(e.target.value)} 
-                            className="w-full bg-transparent border-b-2 border-slate-800 focus:border-cyan-500 text-white font-bold text-lg px-2 py-1 outline-none transition-colors"
-                            placeholder="My Awesome Project"
-                        />
-                    </div>
+                    {/* Removed Project Name Input from Header as requested */}
 
                     <div className="flex items-center gap-6">
                         <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full">
@@ -1196,9 +1195,19 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 <input type="range" min="0" max={fileDuration || 1} step="0.01" value={currentTime} onChange={handleSeek} disabled={!voiceBuffer && !musicBuffer} className="w-full h-full opacity-0 cursor-pointer z-10" />
                                 <div className="absolute h-3 w-3 bg-white rounded-full shadow pointer-events-none" style={{ left: `calc(${((currentTime / (fileDuration || 1)) * 100)}% - 6px)` }}></div>
                             </div>
-                            <div className="flex items-center gap-2 max-w-[150px]">
-                                <span className="text-slate-400 truncate" title={fileName}>{fileName}</span>
-                                {voiceBuffer && (<button onClick={handleRemoveVoice} className="text-slate-500 hover:text-red-500 transition-colors" title="Remove Voice"><TrashIcon className="w-3 h-3" /></button>)}
+                            <div className="flex items-center gap-2 max-w-[200px] sm:max-w-[300px]">
+                                {voiceBuffer && (
+                                    <div className="flex items-center bg-slate-900 border border-slate-700 rounded px-2">
+                                        <input 
+                                            type="text" 
+                                            value={projectName} 
+                                            onChange={(e) => setProjectName(e.target.value)} 
+                                            className="bg-transparent border-none focus:ring-0 text-slate-300 text-[10px] sm:text-xs font-bold w-full outline-none py-1"
+                                            placeholder="Project Name"
+                                        />
+                                        <button onClick={handleRemoveVoice} className="text-slate-500 hover:text-red-500 transition-colors ml-2" title="Remove Voice"><TrashIcon className="w-3 h-3" /></button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1226,7 +1235,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             </div>
                             
                             {/* Center: Playback (Hero Button) */}
-                            <div className="flex-shrink-0 flex justify-center items-center">
+                            <div className="flex-shrink-0 flex flex-col justify-center items-center gap-2">
                                  {activeTab === 'mic' && isRecording ? (
                                      <button onClick={stopRecording} className="w-20 h-14 rounded-xl flex items-center justify-center border-2 border-red-500 bg-red-500/20 text-red-500 animate-pulse transition-all active:scale-95 shadow-xl">
                                          <div className="w-6 h-6 bg-red-500 rounded-sm"></div>
@@ -1241,6 +1250,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                             {isPlaying ? <PauseIcon className="w-8 h-8"/> : <PlayCircleIcon className="w-10 h-10 ml-1"/>}
                                         </button>
                                      )
+                                 )}
+                                 
+                                 {/* Microphone Selector - Appears only when Mic tab is active */}
+                                 {activeTab === 'mic' && (
+                                     <select 
+                                        value={selectedDeviceId} 
+                                        onChange={(e) => setSelectedDeviceId(e.target.value)}
+                                        className="w-32 text-[10px] bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-300 outline-none focus:border-red-500 truncate"
+                                     >
+                                         <option value="default">Default Mic</option>
+                                         {inputDevices.map(device => (
+                                             <option key={device.deviceId} value={device.deviceId}>
+                                                 {device.label || `Microphone ${device.deviceId.slice(0,4)}`}
+                                             </option>
+                                         ))}
+                                     </select>
                                  )}
                             </div>
 
