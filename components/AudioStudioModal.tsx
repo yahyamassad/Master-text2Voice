@@ -763,12 +763,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             lastSpeechTimeRef.current = now; // Update timestamp of last speech
                             targetVol = manualVol * 0.2; // Duck to 20%
                             setDuckingActive(true);
-                            // FAST ATTACK: 0.1s - Drops instantly to avoid clash
-                            currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.1);
+                            // FAST ATTACK: 0.05s - Instant drop for live preview snappy feel
+                            currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.05);
                         } else {
-                            // HOLD TIME: 1.2s - The Sweet Spot for poetry
+                            // HOLD TIME: 1.2s - The Sweet Spot for poetry bridging
                             // Wait 1.2s to ensure the sentence is truly done, then release.
-                            // If gap is 3.0s, music will rise after 1.2s (giving ~1.8s of high volume).
                             if (now - lastSpeechTimeRef.current > 1.2) {
                                 setDuckingActive(false);
                                 // RELEASE: 1.0s - Smoother return
