@@ -40,6 +40,32 @@ export function encode(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+// --- NEW: Helper to convert Blob to Base64 String for Project Saving ---
+export function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            // Remove data url prefix (e.g. "data:audio/wav;base64,") to get raw base64
+            const base64Data = base64String.split(',')[1] || base64String;
+            resolve(base64Data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+// --- NEW: Helper to convert Base64 String back to ArrayBuffer for Loading ---
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
 /**
  * Plays audio data handling both MP3 (AWS) and Raw PCM (Gemini).
  */
