@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
-import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon, ChevronDownIcon } from './icons';
+import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon, ChevronDownIcon, MicrophoneIcon } from './icons';
 import { AudioSettings, AudioPresetName, UserTier, MusicTrack, GEMINI_VOICES } from '../types';
 import { AUDIO_PRESETS, processAudio, createMp3Blob, createWavBlob, rawPcmToAudioBuffer, decodeAudioData, blobToBase64, base64ToArrayBuffer } from '../utils/audioUtils';
 
@@ -975,23 +975,23 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     const handleExportClick = () => { setShowExportMenu(false); if (!allowDownloads) { if (onUpgrade) onUpgrade(); return; } performDownload(); };
 
-    // --- SAVE PROJECT ---
+    // --- SAVE PROJECT (OPTIMIZED MP3) ---
     const handleSaveProject = async () => {
         setIsProcessing(true);
         try {
-            // 1. Serialize Voice Buffer
+            // 1. Serialize Voice Buffer (AS MP3 320KBPS) - Reduces Size by 90%
             let voiceBase64 = null;
             if (voiceBuffer) {
-                // Convert current buffer to WAV blob then to Base64
-                const wav = createWavBlob(voiceBuffer, voiceBuffer.numberOfChannels, voiceBuffer.sampleRate);
-                voiceBase64 = await blobToBase64(wav);
+                // High quality MP3 encoding for storage
+                const mp3Blob = await createMp3Blob(voiceBuffer, voiceBuffer.numberOfChannels, voiceBuffer.sampleRate, 320);
+                voiceBase64 = await blobToBase64(mp3Blob);
             }
 
-            // 2. Serialize Active Music
+            // 2. Serialize Active Music (AS MP3 320KBPS)
             let musicBase64 = null;
             if (activeMusicTrack && activeMusicTrack.buffer) {
-                const wav = createWavBlob(activeMusicTrack.buffer, activeMusicTrack.buffer.numberOfChannels, activeMusicTrack.buffer.sampleRate);
-                musicBase64 = await blobToBase64(wav);
+                const mp3Blob = await createMp3Blob(activeMusicTrack.buffer, activeMusicTrack.buffer.numberOfChannels, activeMusicTrack.buffer.sampleRate, 320);
+                musicBase64 = await blobToBase64(mp3Blob);
             }
 
             // 3. Construct Project Object
@@ -1151,61 +1151,57 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         </div>
                     </div>
 
-                    {/* Control Deck */}
+                    {/* REDESIGNED COMPACT CONTROL DECK */}
                     <div className="bg-[#1e293b] p-3 rounded-2xl border border-slate-700 shadow-xl relative z-40" dir="ltr">
                         <div className="flex flex-col md:flex-row items-stretch gap-4">
-                            {/* Input Source Buttons */}
-                            <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-1">
-                                <button onClick={onReplaceVoiceClick} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} ${!canUploadVoice ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                    <span>ADD AUDIO FILE</span>
+                            
+                            {/* Left Group: Input Sources */}
+                            <div className="flex-1 grid grid-cols-3 gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-700/50">
+                                <button onClick={onReplaceVoiceClick} className={`h-12 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} ${!canUploadVoice ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <span>FILE</span>
                                     {!canUploadVoice && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500" />}
                                 </button>
-                                <button onClick={() => handleTabSwitch('mic')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} ${!canUseMic ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                    <span>Recording Mode</span>
+                                <button onClick={() => handleTabSwitch('mic')} className={`h-12 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} ${!canUseMic ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <MicrophoneIcon className="w-4 h-4"/> <span>REC</span>
                                     {!canUseMic && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500" />}
                                 </button>
-                                <button onClick={() => handleTabSwitch('ai')} className={`flex-1 h-16 rounded-lg text-xs sm:text-sm font-extrabold uppercase tracking-wider flex flex-col items-center justify-center gap-1 ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Digital Audio</button>
+                                <button onClick={() => handleTabSwitch('ai')} className={`h-12 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+                                    <span>AI AUDIO</span>
+                                </button>
                             </div>
                             
-                            {/* Playback Controls */}
+                            {/* Center: Playback (Hero Button) */}
                             <div className="flex-shrink-0 flex justify-center items-center">
-                                 <button onClick={handlePlayPause} disabled={!voiceBuffer && !musicBuffer} className={`w-20 h-full min-h-[4rem] rounded-xl flex items-center justify-center border-2 transition-all active:scale-95 shadow-xl ${isPlaying ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-cyan-600 border-cyan-400 text-white'}`}>
+                                 <button onClick={handlePlayPause} disabled={!voiceBuffer && !musicBuffer} className={`w-20 h-14 rounded-xl flex items-center justify-center border-2 transition-all active:scale-95 shadow-xl ${isPlaying ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-cyan-600 border-cyan-400 text-white'}`}>
                                     {isPlaying ? <PauseIcon className="w-8 h-8"/> : <PlayCircleIcon className="w-10 h-10 ml-1"/>}
                                  </button>
                             </div>
 
-                            {/* Project & Export Controls */}
-                            <div className="flex-1 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/50 flex items-center gap-2">
-                                <div className="flex-1 relative flex flex-col justify-center gap-1">
-                                    {/* Project Management Buttons */}
-                                    <div className="flex gap-1 h-full">
-                                        <button 
-                                            onClick={handleSaveProject} 
-                                            disabled={!voiceBuffer}
-                                            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex flex-col items-center justify-center transition-colors"
-                                            title="Save Project (.sawtli)"
-                                        >
-                                            {isProcessing ? <LoaderIcon className="w-3 h-3 mb-1"/> : "SAVE PROJECT"}
-                                        </button>
-                                        <button 
-                                            onClick={() => projectInputRef.current?.click()} 
-                                            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex flex-col items-center justify-center transition-colors"
-                                            title="Open Project"
-                                        >
-                                            OPEN PROJECT
-                                        </button>
-                                    </div>
-                                    {/* Hidden File Input for Project Loading */}
-                                    <input 
-                                        type="file" 
-                                        ref={projectInputRef} 
-                                        onChange={handleLoadProject} 
-                                        accept=".sawtli,.json" 
-                                        className="hidden" 
-                                    />
-                                </div>
-                                <div className="flex-1 relative" ref={exportMenuRef}>
-                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={!voiceBuffer && !musicBuffer} className="w-full h-16 rounded-lg flex flex-col items-center justify-center bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 font-bold uppercase">{isProcessing ? <LoaderIcon className="w-5 h-5 mb-1"/> : <DownloadIcon className="w-5 h-5 mb-1" />}<span>EXPORT</span></button>
+                            {/* Right Group: Project Management & Export */}
+                            <div className="flex-1 grid grid-cols-3 gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-700/50">
+                                <button 
+                                    onClick={handleSaveProject} 
+                                    disabled={!voiceBuffer}
+                                    className="h-12 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
+                                    title="Save Project (.sawtli)"
+                                >
+                                    {isProcessing ? <LoaderIcon className="w-3 h-3"/> : "SAVE"}
+                                </button>
+                                <button 
+                                    onClick={() => projectInputRef.current?.click()} 
+                                    className="h-12 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
+                                    title="Open Project"
+                                >
+                                    OPEN
+                                </button>
+                                
+                                <div className="relative h-12" ref={exportMenuRef}>
+                                    <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={!voiceBuffer && !musicBuffer} className="w-full h-full rounded-lg flex items-center justify-center gap-2 bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 text-[10px] font-bold uppercase transition-colors">
+                                        {isProcessing ? <LoaderIcon className="w-4 h-4"/> : <DownloadIcon className="w-4 h-4" />}
+                                        <span>EXPORT</span>
+                                    </button>
+                                    
+                                    {/* Export Menu Dropdown (Unchanged logic) */}
                                     {showExportMenu && (
                                         <div className="absolute top-full right-0 mt-2 w-72 bg-[#0f172a] border border-slate-600 rounded-xl shadow-2xl z-[100] p-4 flex flex-col gap-4">
                                             <div className="flex items-center justify-between border-b border-slate-700 pb-2"><h4 className="text-xs font-bold text-cyan-400 tracking-widest uppercase">{t('studioExportSettings', uiLanguage)}</h4></div>
@@ -1236,8 +1232,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 </div>
                             </div>
                         </div>
+                        
+                        {/* Hidden Inputs */}
                         <input type="file" ref={fileInputRef} onChange={handleVoiceFileChange} accept="audio/*" className="hidden" />
                         <input type="file" ref={musicInputRef} onChange={handleMusicFileChange} accept="audio/*" className="hidden" />
+                        <input type="file" ref={projectInputRef} onChange={handleLoadProject} accept=".sawtli,.json" className="hidden" />
                     </div>
 
                     {/* Main Grid */}
