@@ -766,11 +766,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             // FAST ATTACK: 0.1s - Drops instantly to avoid clash
                             currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.1);
                         } else {
-                            // HOLD TIME: 0.5s - Wait less time before release
-                            if (now - lastSpeechTimeRef.current > 0.5) {
+                            // HOLD TIME: 1.2s - The Sweet Spot for poetry
+                            // Wait 1.2s to ensure the sentence is truly done, then release.
+                            // If gap is 3.0s, music will rise after 1.2s (giving ~1.8s of high volume).
+                            if (now - lastSpeechTimeRef.current > 1.2) {
                                 setDuckingActive(false);
-                                // RELEASE: 0.8s - Smoother, faster return
-                                currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.8);
+                                // RELEASE: 1.0s - Smoother return
+                                currentMusicGain.gain.setTargetAtTime(targetVol, now, 1.0);
                             }
                         }
                     } else {
