@@ -187,8 +187,8 @@ export async function processAudio(
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
     // Explicit padding to prevent cutoff and allow fadeout
-    // Increased to 5.0 seconds to allow smooth music fade out if delay is used
-    const END_PADDING = 5.0; 
+    // Increased to 10.0 seconds to resolve cutoff issues
+    const END_PADDING = 10.0; 
     
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
@@ -359,13 +359,12 @@ export async function processAudio(
             // Params
             const windowSize = Math.floor(sampleRate * 0.1); // 100ms analysis window
             const duckLevel = startVolume * 0.15; // Duck down to 15%
-            const threshold = 0.01; // Slightly lowered threshold for better sensitivity
+            const threshold = 0.005; // Matches new real-time sensitivity
             
-            const attackTime = 0.3; // Fast fade down
-            
-            // SMOOTHER & SLOWER RELEASE with HOLD
-            const releaseTime = 2.0; // Slower fade up
-            const holdTime = 1.0; // Hold low volume for 1s after silence starts
+            // ADJUSTED TIMINGS FOR SNAPPIER RESPONSE
+            const attackTime = 0.1; // Fast fade down (was 0.3)
+            const releaseTime = 0.8; // Faster smooth fade up (was 2.0)
+            const holdTime = 0.6; // Hold low volume for less time (was 1.0)
 
             let lastSpeechTime = -10.0;
             let musicIsLow = false; 
@@ -405,7 +404,7 @@ export async function processAudio(
                     if (!musicIsLow) {
                         // Speech started! Duck music immediately.
                         const rampTime = Math.max(lastEventTime, currentTime - 0.1);
-                        musicGain.gain.setTargetAtTime(duckLevel, rampTime, attackTime / 3);
+                        musicGain.gain.setTargetAtTime(duckLevel, rampTime, attackTime);
                         musicIsLow = true;
                         lastEventTime = rampTime;
                     }
@@ -415,7 +414,7 @@ export async function processAudio(
                         // Only release if silence has persisted longer than holdTime
                         if (currentTime - lastSpeechTime > holdTime) {
                             // Release music UP slowly
-                            musicGain.gain.setTargetAtTime(startVolume, currentTime, releaseTime / 3);
+                            musicGain.gain.setTargetAtTime(startVolume, currentTime, releaseTime);
                             musicIsLow = false;
                             lastEventTime = currentTime;
                         }
@@ -425,7 +424,7 @@ export async function processAudio(
             
             // Ensure volume returns to normal at end of voice regardless
             if (musicIsLow) {
-                 musicGain.gain.setTargetAtTime(startVolume, absoluteVoiceEnd + 0.5, releaseTime / 3);
+                 musicGain.gain.setTargetAtTime(startVolume, absoluteVoiceEnd + 0.5, releaseTime);
             }
         }
 
