@@ -168,57 +168,73 @@ export async function processAudio(
 ): Promise<AudioBuffer> {
     // USE 44100Hz for better compatibility with MP3 encoders and players
     const renderSampleRate = 44100; 
-    let sourceBuffer: AudioBuffer | null = null;
+    let initialSourceBuffer: AudioBuffer | null = null;
 
+    // 1. DECODE SOURCE
     if (input instanceof Uint8Array) {
-        // Use the smart decoder logic
         try {
              const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
              const bufferCopy = input.slice(0).buffer;
-             sourceBuffer = await tempCtx.decodeAudioData(bufferCopy);
+             initialSourceBuffer = await tempCtx.decodeAudioData(bufferCopy);
         } catch(e) {
-             sourceBuffer = rawPcmToAudioBuffer(input);
+             initialSourceBuffer = rawPcmToAudioBuffer(input);
         }
     } else if (input instanceof AudioBuffer) {
-        sourceBuffer = input;
+        initialSourceBuffer = input;
     }
     
-    // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // 1. FIX CUTOFF: Extreme Padding (30 Seconds)
-    // We add 30 seconds to ensure absolutely no cutoff even with very long pauses.
-    const END_PADDING = 30.0; 
+    // --- 2. THE CUTOFF FIX: PHYSICAL PADDING ---
+    // Instead of relying on timeline calculations, we Physically extend the voice buffer
+    // by adding 2 seconds of silence to the actual audio data. 
+    // This forces the renderer to process the "tail" even if it miscalculates end times.
+    let sourceBuffer: AudioBuffer | null = null;
     
+    if (initialSourceBuffer) {
+        // Create a new buffer: Original Length + 2 Seconds of Silence
+        const paddingSeconds = 2.0;
+        const paddingSamples = Math.ceil(initialSourceBuffer.sampleRate * paddingSeconds);
+        const newLength = initialSourceBuffer.length + paddingSamples;
+        
+        // Use OfflineContext to create buffer (safest way in non-window contexts)
+        const tempCtx = new OfflineAudioContext(initialSourceBuffer.numberOfChannels, newLength, initialSourceBuffer.sampleRate);
+        sourceBuffer = tempCtx.createBuffer(initialSourceBuffer.numberOfChannels, newLength, initialSourceBuffer.sampleRate);
+        
+        // Copy data
+        for (let channel = 0; channel < initialSourceBuffer.numberOfChannels; channel++) {
+            const originalData = initialSourceBuffer.getChannelData(channel);
+            const newData = sourceBuffer.getChannelData(channel);
+            newData.set(originalData); // Rest remains 0 (silence)
+        }
+    }
+
+    // 3. CALCULATE DURATIONS
+    const END_PADDING = 15.0; // Extra safety on top of physical padding
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
     
-    // Calculate effective voice end time accounting for DELAY AND SPEED
-    if (sourceBuffer) {
-        // Formula: Delay + (Real Voice Duration)
-        absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
+    // Effective end time of the *original content* (excluding our new physical padding)
+    // We use initialSourceBuffer for calculation to key fade-outs correctly
+    if (initialSourceBuffer) {
+        absoluteVoiceEnd = voiceDelay + (initialSourceBuffer.duration / speed);
     }
 
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: Voice End + Reverb/Echo Tail + Fadeout padding
-            // We ensure we cover the entire delay period plus the voice length.
             outputDuration = absoluteVoiceEnd + END_PADDING;
         } else {
-            // Full mode: Longest of either (voice + padding) or music
             outputDuration = Math.max(absoluteVoiceEnd + END_PADDING, backgroundMusicBuffer.duration);
         }
     } else if (sourceBuffer) {
-        // Voice only: Ensure we don't cut off if there is a delay
         outputDuration = absoluteVoiceEnd + END_PADDING;
     } else if (backgroundMusicBuffer) {
         outputDuration = backgroundMusicBuffer.duration;
     }
     
-    // Ensure minimum duration
     if (!Number.isFinite(outputDuration) || outputDuration < 1.0) outputDuration = 1.0;
 
-    // CRITICAL: Force 2 channels (Stereo) for correct panning and mixdown
+    // 4. SETUP RENDER CONTEXT
     const offlineCtx = new OfflineAudioContext(2, Math.ceil(renderSampleRate * outputDuration), renderSampleRate);
 
     // --- VOICE CHAIN ---
@@ -237,10 +253,9 @@ export async function processAudio(
         const hasEcho = echoAmount > 0;
         const hasPan = settings.stereoWidth !== 0;
 
-        // Start of voice chain
         let headNode: AudioNode = source;
 
-        // 1. EQ
+        // EQ
         if (hasEq) {
             const frequencies = [60, 250, 1000, 4000, 12000];
             const filters = frequencies.map((freq, i) => {
@@ -257,25 +272,21 @@ export async function processAudio(
             filters.forEach(f => { headNode.connect(f); headNode = f; });
         }
 
-        // 2. Dynamics (ONLY if > 0)
-        // If hasCompression is false, we SKIP this entirely to avoid nasality/coloration.
+        // Dynamics
         if (hasCompression) {
             const compressor = offlineCtx.createDynamicsCompressor();
             const compAmount = settings.compression / 100; 
-            
             compressor.threshold.value = -10 - (compAmount * 40); 
             compressor.ratio.value = 1 + (compAmount * 11);       
             compressor.attack.value = 0.003; 
             compressor.release.value = 0.25;
-
             headNode.connect(compressor);
             headNode = compressor;
         }
 
-        // Split Point (Dry Signal for effects)
         const dryNode = headNode;
 
-        // 3. Reverb (Parallel)
+        // Reverb
         if (hasReverb) {
             const reverbNode = offlineCtx.createConvolver();
             const reverbGain = offlineCtx.createGain(); 
@@ -290,17 +301,15 @@ export async function processAudio(
 
             dryNode.connect(reverbNode);
             reverbNode.connect(reverbGain);
-            
             dryNode.connect(dryGain);
             
-            // Merge back
             const reverbMerge = offlineCtx.createGain();
             reverbGain.connect(reverbMerge);
             dryGain.connect(reverbMerge);
             headNode = reverbMerge;
         }
 
-        // 4. Echo (Parallel)
+        // Echo
         if (hasEcho) {
             const delayNode = offlineCtx.createDelay();
             delayNode.delayTime.value = 0.4;
@@ -311,22 +320,18 @@ export async function processAudio(
 
             delayNode.connect(feedbackNode);
             feedbackNode.connect(delayNode);
-            
             headNode.connect(delayNode);
             delayNode.connect(echoGain);
             
-            // Merge Echo
             const echoMerge = offlineCtx.createGain();
             headNode.connect(echoMerge);
             echoGain.connect(echoMerge);
             headNode = echoMerge;
         }
         
-        // 5. Stereo Panner
-        // Always create panner if setting exists, otherwise skip for efficiency
+        // Panner
         if (hasPan) {
             const panner = offlineCtx.createStereoPanner();
-            // -100 to 100 -> -1.0 to 1.0
             panner.pan.value = Math.max(-1, Math.min(1, settings.stereoWidth / 100));
             headNode.connect(panner);
             headNode = panner;
@@ -334,8 +339,6 @@ export async function processAudio(
         
         headNode.connect(voiceGain);
         voiceGain.connect(offlineCtx.destination);
-        
-        // Start with delay
         source.start(voiceDelay);
     }
     
@@ -347,35 +350,33 @@ export async function processAudio(
         
         const musicGain = offlineCtx.createGain();
         const startVolume = (musicVolume / 100);
-        
-        // 2. FIX MUSIC VOLUME: Apply gain directly
         musicGain.gain.setValueAtTime(startVolume, 0);
 
-        // --- 3. PRO AUTO DUCKING (Gap Bridging / Look-Ahead) ---
+        // --- PRO AUTO DUCKING (With Gap Bridging) ---
         if (autoDucking && sourceBuffer && voiceVolume > 0) {
             const channelData = sourceBuffer.getChannelData(0);
             const sampleRate = sourceBuffer.sampleRate;
             
-            // 20% duck level (Matches Live)
             const duckLevel = startVolume * 0.2;
             const threshold = 0.005; 
             
-            // Analyze the ENTIRE voice buffer to find speech blocks
-            const windowSize = Math.floor(sampleRate * 0.1); // 100ms blocks
+            const windowSize = Math.floor(sampleRate * 0.1); 
             const speechBlocks: {start: number, end: number}[] = [];
             let inSpeech = false;
             let startT = 0;
 
-            for (let i = 0; i < channelData.length; i += windowSize) {
+            // Important: Analyze ONLY the original length (ignore the silence padding we added)
+            const analysisLength = initialSourceBuffer ? initialSourceBuffer.length : channelData.length;
+
+            for (let i = 0; i < analysisLength; i += windowSize) {
                 let sum = 0;
-                const end = Math.min(i + windowSize, channelData.length);
+                const end = Math.min(i + windowSize, analysisLength);
                 for (let j = i; j < end; j++) {
                     const s = channelData[j];
                     sum += s * s;
                 }
                 const rms = Math.sqrt(sum / (end - i));
                 
-                // Convert buffer time to absolute timeline time (accounting for delay and speed)
                 const bufferTime = i / sampleRate;
                 const absoluteTime = voiceDelay + (bufferTime / speed);
 
@@ -392,26 +393,20 @@ export async function processAudio(
                 }
             }
             if (inSpeech) {
-                // Close final block
-                speechBlocks.push({ start: startT, end: voiceDelay + (sourceBuffer.duration / speed) });
+                speechBlocks.push({ start: startT, end: voiceDelay + (analysisLength / sampleRate / speed) });
             }
 
-            // --- BRIDGE GAPS (The 1.2s Rule) ---
-            // If the silence between two blocks is less than 1.2 seconds, merge them.
-            // This prevents pumping during normal speech but allows music rise during pauses > 1.2s.
+            // Gap Bridging (1.2s Rule)
             const mergedBlocks: {start: number, end: number}[] = [];
             if (speechBlocks.length > 0) {
                 let currentBlock = speechBlocks[0];
-                
                 for (let i = 1; i < speechBlocks.length; i++) {
                     const nextBlock = speechBlocks[i];
                     const gap = nextBlock.start - currentBlock.end;
                     
                     if (gap < 1.2) { 
-                        // Merge! Gap is too short (normal speech breath)
                         currentBlock.end = nextBlock.end; 
                     } else {
-                        // Gap is big enough (dramatic pause), finalize current and start new
                         mergedBlocks.push(currentBlock);
                         currentBlock = nextBlock;
                     }
@@ -419,36 +414,31 @@ export async function processAudio(
                 mergedBlocks.push(currentBlock);
             }
 
-            // --- APPLY AUTOMATION ---
-            const attackTime = 0.05; // Instant attack (matches Live update)
-            const releaseTime = 1.0; // Slow fade up
+            // Apply Automation
+            const attackTime = 0.05; // Instant attack
+            const releaseTime = 1.0; // Slow release
 
             for (const block of mergedBlocks) {
-                // Start ducking slightly BEFORE speech starts (Look-ahead)
-                const duckStart = Math.max(0, block.start - 0.2);
-                const duckEnd = block.end + 0.5; // Hold for 0.5s after speech ends before releasing
+                // LOOK AHEAD: Drop music 0.5s BEFORE voice starts
+                const duckStart = Math.max(0, block.start - 0.5);
+                const duckEnd = block.end + 0.5;
 
-                // Set start volume anchor
                 musicGain.gain.setValueAtTime(startVolume, duckStart);
-                // Duck down
                 musicGain.gain.linearRampToValueAtTime(duckLevel, duckStart + attackTime);
-                
-                // Hold... then Release back up
                 musicGain.gain.setValueAtTime(duckLevel, duckEnd);
                 musicGain.gain.linearRampToValueAtTime(startVolume, duckEnd + releaseTime);
             }
         }
 
-        // Apply Fade Out at the very end if Trimming
+        // Final Fade Out logic
         if (trimToVoice && sourceBuffer) {
-            // WAIT 5.0 SECONDS AFTER VOICE ENDS BEFORE FADING MUSIC
-            // This ensures reverb tails and final words are fully clear.
+            // Wait 5 seconds after the REAL voice ends before fading music
             const safeFadeStart = absoluteVoiceEnd + 5.0; 
             try { 
                 musicGain.gain.cancelScheduledValues(safeFadeStart); 
                 musicGain.gain.setValueAtTime(musicGain.gain.value, safeFadeStart);
             } catch(e){}
-            musicGain.gain.linearRampToValueAtTime(0.0001, safeFadeStart + 5.0); // Longer fadeout
+            musicGain.gain.linearRampToValueAtTime(0.0001, safeFadeStart + 5.0); 
         }
         
         musicSource.connect(musicGain);
