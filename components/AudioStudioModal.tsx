@@ -316,7 +316,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const musicBuffer = activeMusicTrack?.buffer || null;
     const musicFileName = activeMusicTrack?.name || null;
 
-    const [fileName, setFileName] = useState<string>('Gemini AI Audio');
+    const [projectName, setProjectName] = useState<string>('New Project'); // Project Name (Master)
+    const [fileName, setFileName] = useState<string>('Gemini AI Audio'); // Source File Name (Info)
     const [fileDuration, setFileDuration] = useState<number>(0);
     const [currentTime, setCurrentTime] = useState<number>(0);
 
@@ -541,6 +542,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     }
                     setVoiceBuffer(buf);
                     setFileName(`${voice} Session`);
+                    setProjectName(`Project ${new Date().toLocaleDateString()}`);
                 } catch (e) {
                     console.error("Failed to load audio", e);
                 }
@@ -820,6 +822,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
             setVoiceBuffer(audioBuffer);
             setFileName(file.name);
+            setProjectName(file.name.split('.')[0] || 'My Project');
             // CRITICAL FIX: Set active tab to upload so button lights up
             setActiveTab('upload');
             
@@ -862,6 +865,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     const startRecording = async () => {
         if (!navigator.mediaDevices) return;
+        
+        // BUG FIX: Prevent accidental voice overwrite. Check if voice buffer exists.
+        if (voiceBuffer) {
+            const confirmReplace = window.confirm(uiLanguage === 'ar' ? 'هل تريد استبدال المقطع الصوتي الحالي بتسجيل جديد؟' : 'Replace current voice track with new recording?');
+            if (!confirmReplace) return;
+        }
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: selectedDeviceId } });
             streamRef.current = stream;
@@ -875,9 +885,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 const ctx = getAudioContext();
                 const audioBuf = await ctx.decodeAudioData(arrayBuffer);
                 setMicAudioBuffer(audioBuf);
+                
+                // Only replace voice buffer if user is still on Mic tab
                 if (activeTab === 'mic') {
                     setVoiceBuffer(audioBuf);
                     setFileName("New Recording");
+                    setProjectName("Recording Session");
                 }
             };
             recorder.start();
@@ -924,17 +937,17 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         if (activeTab === tab) return; 
         if (tab === 'mic' && !canUseMic) { if (onUpgrade) onUpgrade(); return; } 
         if (tab === 'upload' && !canUploadVoice) { if (onUpgrade) onUpgrade(); return; } 
+        
         stopPlayback(); 
         setActiveTab(tab); 
-        if (tab === 'mic') { 
-            setVoiceBuffer(micAudioBuffer); 
-            setFileName(micAudioBuffer ? "Recording" : "Ready to Record"); 
-        } else if (tab === 'upload') {
-            setVoiceBuffer(null); 
-            setFileName("Upload a File..."); 
-        }
-        playbackOffsetRef.current = 0; 
-        setCurrentTime(0); 
+        
+        // BUG FIX: Do NOT automatically clear voiceBuffer when switching tabs to prevent accidental data loss.
+        // Instead, we only switch the *context* of what buttons do (Record vs Upload).
+        // The visual feedback of the active button tells the user what mode they are in.
+        // If they start a new recording or upload a new file, THEN we replace.
+        
+        // EXCEPT: If switching to 'ai' (Digital), we assume they might want to reload the AI buffer if valid?
+        // Actually, safer to just leave the buffer alone until an explicit action changes it.
     };
 
     const performDownload = async () => {
@@ -976,13 +989,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const handleExportClick = () => { setShowExportMenu(false); if (!allowDownloads) { if (onUpgrade) onUpgrade(); return; } performDownload(); };
 
     // --- SAVE PROJECT (OPTIMIZED MP3) ---
-    const handleSaveProject = async () => {
+    // Helper to perform the actual download
+    const triggerSaveDownload = async (name: string) => {
         setIsProcessing(true);
         try {
-            // 1. Serialize Voice Buffer (AS MP3 320KBPS) - Reduces Size by 90%
+            // 1. Serialize Voice Buffer (AS MP3 320KBPS)
             let voiceBase64 = null;
             if (voiceBuffer) {
-                // High quality MP3 encoding for storage
                 const mp3Blob = await createMp3Blob(voiceBuffer, voiceBuffer.numberOfChannels, voiceBuffer.sampleRate, 320);
                 voiceBase64 = await blobToBase64(mp3Blob);
             }
@@ -998,10 +1011,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const projectData = {
                 version: 1,
                 date: Date.now(),
-                name: fileName,
+                name: name,
                 voiceBase64,
                 musicBase64,
                 musicName: activeMusicTrack?.name || '',
+                presetName: presetName, // Ensure preset name is saved
                 settings: settings, 
                 mixer: {
                     voiceVolume, musicVolume, voiceDelay, isVoiceMuted, isMusicMuted, 
@@ -1009,14 +1023,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                 }
             };
 
-            // 4. Create and Download JSON file
             const jsonString = JSON.stringify(projectData);
             const blob = new Blob([jsonString], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            // Name file: sawtli_project_[timestamp].sawtli
-            a.download = `sawtli_project_${Date.now()}.sawtli`;
+            // Clean filename
+            const cleanName = name.replace(/[^a-z0-9_\u0600-\u06FF]/gi, '_').toLowerCase();
+            a.download = `${cleanName}.sawtli`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1027,6 +1041,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             alert(uiLanguage === 'ar' ? "فشل حفظ المشروع" : "Failed to save project");
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    // "SAVE": Updates current project (Quick Save)
+    const handleSaveProject = () => {
+        if (!voiceBuffer) return;
+        triggerSaveDownload(projectName);
+    };
+
+    // "SAVE AS": Prompts for new name
+    const handleSaveProjectAs = () => {
+        if (!voiceBuffer) return;
+        const newName = prompt(uiLanguage === 'ar' ? "اسم المشروع الجديد:" : "New Project Name:", projectName);
+        if (newName && newName.trim().length > 0) {
+            setProjectName(newName);
+            triggerSaveDownload(newName);
         }
     };
 
@@ -1055,13 +1085,23 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     setEcho(json.mixer.echo ?? 0);
                 }
 
-                // 2. Restore DSP Settings
+                // 2. Restore DSP Settings & Preset Visuals
                 if (json.settings) {
                     setSettings(json.settings);
                 }
+                
+                // VISUAL FIX: Explicitly set preset name to light up the button
+                if (json.presetName) {
+                    setPresetName(json.presetName);
+                } else {
+                    setPresetName('Default');
+                }
 
                 // 3. Restore Name
-                if (json.name) setFileName(json.name);
+                if (json.name) {
+                    setProjectName(json.name);
+                    setFileName(json.name); // Keep sync
+                }
 
                 // 4. Restore Voice Audio
                 if (json.voiceBase64) {
@@ -1071,8 +1111,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     setVoiceBuffer(audioBuf);
                     
                     // Update active tab logic if needed
-                    // If it was originally an AI voice, we treat it as such or 'upload' mode visually
-                    setActiveTab('upload'); // Treat restored project voice as "file" for simplicity
+                    setActiveTab('upload'); 
                 }
 
                 // 5. Restore Music
@@ -1119,6 +1158,19 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                     <div className="flex items-center">
                         <SawtliLogoIcon className="h-16 sm:h-20 w-auto" />
                     </div>
+                    
+                    {/* NEW: Project Name Input */}
+                    <div className="flex-1 mx-4 max-w-md hidden sm:block">
+                        <label className="text-[10px] text-slate-500 uppercase font-bold tracking-widest block mb-1">Project Name</label>
+                        <input 
+                            type="text" 
+                            value={projectName} 
+                            onChange={(e) => setProjectName(e.target.value)} 
+                            className="w-full bg-transparent border-b-2 border-slate-800 focus:border-cyan-500 text-white font-bold text-lg px-2 py-1 outline-none transition-colors"
+                            placeholder="My Awesome Project"
+                        />
+                    </div>
+
                     <div className="flex items-center gap-6">
                         <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1161,7 +1213,10 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     <span>FILE</span>
                                     {!canUploadVoice && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500" />}
                                 </button>
-                                <button onClick={() => handleTabSwitch('mic')} className={`h-12 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} ${!canUseMic ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                <button 
+                                    onClick={() => handleTabSwitch('mic')} 
+                                    className={`h-12 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} ${!canUseMic ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
                                     <MicrophoneIcon className="w-4 h-4"/> <span>REC</span>
                                     {!canUseMic && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500" />}
                                 </button>
@@ -1172,24 +1227,46 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             
                             {/* Center: Playback (Hero Button) */}
                             <div className="flex-shrink-0 flex justify-center items-center">
-                                 <button onClick={handlePlayPause} disabled={!voiceBuffer && !musicBuffer} className={`w-20 h-14 rounded-xl flex items-center justify-center border-2 transition-all active:scale-95 shadow-xl ${isPlaying ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-cyan-600 border-cyan-400 text-white'}`}>
-                                    {isPlaying ? <PauseIcon className="w-8 h-8"/> : <PlayCircleIcon className="w-10 h-10 ml-1"/>}
-                                 </button>
+                                 {activeTab === 'mic' && isRecording ? (
+                                     <button onClick={stopRecording} className="w-20 h-14 rounded-xl flex items-center justify-center border-2 border-red-500 bg-red-500/20 text-red-500 animate-pulse transition-all active:scale-95 shadow-xl">
+                                         <div className="w-6 h-6 bg-red-500 rounded-sm"></div>
+                                     </button>
+                                 ) : (
+                                     activeTab === 'mic' ? (
+                                        <button onClick={startRecording} className="w-20 h-14 rounded-xl flex items-center justify-center border-2 border-red-600 bg-slate-800 text-red-500 hover:bg-red-950 transition-all active:scale-95 shadow-xl">
+                                            <div className="w-6 h-6 bg-red-600 rounded-full shadow-[0_0_10px_red]"></div>
+                                        </button>
+                                     ) : (
+                                        <button onClick={handlePlayPause} disabled={!voiceBuffer && !musicBuffer} className={`w-20 h-14 rounded-xl flex items-center justify-center border-2 transition-all active:scale-95 shadow-xl ${isPlaying ? 'bg-slate-800 border-cyan-500 text-cyan-400' : 'bg-cyan-600 border-cyan-400 text-white'}`}>
+                                            {isPlaying ? <PauseIcon className="w-8 h-8"/> : <PlayCircleIcon className="w-10 h-10 ml-1"/>}
+                                        </button>
+                                     )
+                                 )}
                             </div>
 
                             {/* Right Group: Project Management & Export */}
                             <div className="flex-1 grid grid-cols-3 gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-700/50">
-                                <button 
-                                    onClick={handleSaveProject} 
-                                    disabled={!voiceBuffer}
-                                    className="h-12 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
-                                    title="Save Project (.sawtli)"
-                                >
-                                    {isProcessing ? <LoaderIcon className="w-3 h-3"/> : "SAVE"}
-                                </button>
+                                <div className="grid grid-rows-2 gap-1 h-full">
+                                    <button 
+                                        onClick={handleSaveProject} 
+                                        disabled={!voiceBuffer}
+                                        className="rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[9px] font-bold uppercase tracking-wider flex items-center justify-center transition-colors"
+                                        title="Quick Save"
+                                    >
+                                        {isProcessing ? <LoaderIcon className="w-3 h-3"/> : "SAVE"}
+                                    </button>
+                                    <button 
+                                        onClick={handleSaveProjectAs} 
+                                        disabled={!voiceBuffer}
+                                        className="rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[9px] font-bold uppercase tracking-wider flex items-center justify-center transition-colors"
+                                        title="Save As New File"
+                                    >
+                                        SAVE AS
+                                    </button>
+                                </div>
                                 <button 
                                     onClick={() => projectInputRef.current?.click()} 
-                                    className="h-12 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
+                                    className="h-full rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
                                     title="Open Project"
                                 >
                                     OPEN
