@@ -755,22 +755,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         }
                         const rms = Math.sqrt(sum / data.length);
                         
-                        // Threshold Tuning: 0.01 is sensitive enough for speech
-                        const threshold = 0.01;
+                        // Threshold Tuning: 0.005 is very sensitive
+                        const threshold = 0.005;
                         const isTalking = rms > threshold;
                         
                         if (isTalking) {
                             lastSpeechTimeRef.current = now; // Update timestamp of last speech
                             targetVol = manualVol * 0.2; // Duck to 20%
                             setDuckingActive(true);
-                            // Fast attack (duck down quickly)
-                            currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.3);
+                            // FAST ATTACK: 0.1s - Drops instantly to avoid clash
+                            currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.1);
                         } else {
-                            // Hold Time Logic: Wait 1.0s before releasing
-                            if (now - lastSpeechTimeRef.current > 1.0) {
+                            // HOLD TIME: 0.5s - Wait less time before release
+                            if (now - lastSpeechTimeRef.current > 0.5) {
                                 setDuckingActive(false);
-                                // Slow release (fade up smoothly)
-                                currentMusicGain.gain.setTargetAtTime(targetVol, now, 1.5);
+                                // RELEASE: 0.8s - Smoother, faster return
+                                currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.8);
                             }
                         }
                     } else {
