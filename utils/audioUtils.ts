@@ -163,8 +163,8 @@ export async function processAudio(
     autoDucking: boolean = false,
     voiceVolume: number = 80,
     trimToVoice: boolean = true,
-    voiceDelay: number = 0, // Delay in seconds
-    echoAmount: number = 0 // 0-100
+    voiceDelay: number = 0, 
+    echoAmount: number = 0 
 ): Promise<AudioBuffer> {
     // USE 44100Hz for better compatibility with MP3 encoders and players
     const renderSampleRate = 44100; 
@@ -186,9 +186,9 @@ export async function processAudio(
     // Safety check for speed to prevent division by zero
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // Explicit padding to prevent cutoff and allow fadeout
-    // Increased to 10.0 seconds to resolve cutoff issues
-    const END_PADDING = 10.0; 
+    // 1. FIX CUTOFF: Massive Padding
+    // We add 15 seconds to ensure reverb tails and delayed voice segments are never cut.
+    const END_PADDING = 15.0; 
     
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
@@ -348,33 +348,26 @@ export async function processAudio(
         const musicGain = offlineCtx.createGain();
         const startVolume = (musicVolume / 100);
         
-        // Initialize music volume
+        // 2. FIX MUSIC VOLUME: Match Live settings exactly
+        // Live uses musicVolume/100. We do the same.
         musicGain.gain.setValueAtTime(startVolume, 0);
 
-        // --- BROADCAST QUALITY OFFLINE AUTO DUCKING ---
+        // --- 3. PRO AUTO DUCKING (Gap Bridging / Look-Ahead) ---
         if (autoDucking && sourceBuffer && voiceVolume > 0) {
             const channelData = sourceBuffer.getChannelData(0);
             const sampleRate = sourceBuffer.sampleRate;
             
-            // Params
-            const windowSize = Math.floor(sampleRate * 0.1); // 100ms analysis window
-            const duckLevel = startVolume * 0.15; // Duck down to 15%
-            const threshold = 0.005; // Matches new real-time sensitivity
+            // 20% duck level (Matches Live)
+            const duckLevel = startVolume * 0.2;
+            const threshold = 0.005; 
             
-            // ADJUSTED TIMINGS FOR SNAPPIER RESPONSE
-            const attackTime = 0.1; // Fast fade down (was 0.3)
-            const releaseTime = 0.8; // Faster smooth fade up (was 2.0)
-            const holdTime = 0.6; // Hold low volume for less time (was 1.0)
-
-            let lastSpeechTime = -10.0;
-            let musicIsLow = false; 
-
-            const timelineResolution = 0.1; // 100ms
-            const timelineLength = Math.ceil(outputDuration / timelineResolution);
-            const speechMap = new Array(timelineLength).fill(false);
+            // Analyze the ENTIRE voice buffer to find speech blocks
+            const windowSize = Math.floor(sampleRate * 0.1); // 100ms blocks
+            const speechBlocks: {start: number, end: number}[] = [];
+            let inSpeech = false;
+            let startT = 0;
 
             for (let i = 0; i < channelData.length; i += windowSize) {
-                // Calculate RMS
                 let sum = 0;
                 const end = Math.min(i + windowSize, channelData.length);
                 for (let j = i; j < end; j++) {
@@ -383,69 +376,81 @@ export async function processAudio(
                 }
                 const rms = Math.sqrt(sum / (end - i));
                 
-                // Map to timeline taking Delay and Speed into account
-                const currentTimeInVoice = i / sampleRate;
-                const absoluteTime = voiceDelay + (currentTimeInVoice / speed);
-                const timelineIndex = Math.floor(absoluteTime / timelineResolution);
-                
-                if (rms > threshold && timelineIndex < timelineLength) {
-                    speechMap[timelineIndex] = true;
-                }
-            }
+                // Convert buffer time to absolute timeline time (accounting for delay and speed)
+                const bufferTime = i / sampleRate;
+                const absoluteTime = voiceDelay + (bufferTime / speed);
 
-            let lastEventTime = 0;
-
-            for (let t = 0; t < timelineLength; t++) {
-                const currentTime = t * timelineResolution;
-                const speechPresent = speechMap[t];
-
-                if (speechPresent) {
-                    lastSpeechTime = currentTime;
-                    if (!musicIsLow) {
-                        // Speech started! Duck music immediately.
-                        const rampTime = Math.max(lastEventTime, currentTime - 0.1);
-                        musicGain.gain.setTargetAtTime(duckLevel, rampTime, attackTime);
-                        musicIsLow = true;
-                        lastEventTime = rampTime;
+                if (rms > threshold) {
+                    if (!inSpeech) {
+                        inSpeech = true;
+                        startT = absoluteTime;
                     }
                 } else {
-                    // Silence
-                    if (musicIsLow) {
-                        // Only release if silence has persisted longer than holdTime
-                        if (currentTime - lastSpeechTime > holdTime) {
-                            // Release music UP slowly
-                            musicGain.gain.setTargetAtTime(startVolume, currentTime, releaseTime);
-                            musicIsLow = false;
-                            lastEventTime = currentTime;
-                        }
+                    if (inSpeech) {
+                        inSpeech = false;
+                        speechBlocks.push({ start: startT, end: absoluteTime });
                     }
                 }
             }
-            
-            // Ensure volume returns to normal at end of voice regardless
-            if (musicIsLow) {
-                 musicGain.gain.setTargetAtTime(startVolume, absoluteVoiceEnd + 0.5, releaseTime);
+            if (inSpeech) {
+                // Close final block
+                speechBlocks.push({ start: startT, end: voiceDelay + (sourceBuffer.duration / speed) });
+            }
+
+            // --- BRIDGE GAPS (The 1.2s Rule) ---
+            // If the silence between two blocks is less than 1.2 seconds, merge them.
+            // This prevents pumping during normal speech but allows music rise during pauses > 1.2s.
+            const mergedBlocks: {start: number, end: number}[] = [];
+            if (speechBlocks.length > 0) {
+                let currentBlock = speechBlocks[0];
+                
+                for (let i = 1; i < speechBlocks.length; i++) {
+                    const nextBlock = speechBlocks[i];
+                    const gap = nextBlock.start - currentBlock.end;
+                    
+                    if (gap < 1.2) { 
+                        // Merge! Gap is too short (normal speech breath)
+                        currentBlock.end = nextBlock.end; 
+                    } else {
+                        // Gap is big enough (dramatic pause), finalize current and start new
+                        mergedBlocks.push(currentBlock);
+                        currentBlock = nextBlock;
+                    }
+                }
+                mergedBlocks.push(currentBlock);
+            }
+
+            // --- APPLY AUTOMATION ---
+            const attackTime = 0.2; // Fast fade down
+            const releaseTime = 1.5; // Slow fade up
+
+            for (const block of mergedBlocks) {
+                // Start ducking slightly BEFORE speech starts (Look-ahead)
+                const duckStart = Math.max(0, block.start - 0.2);
+                const duckEnd = block.end + 0.5; // Hold for 0.5s after speech ends before releasing
+
+                // Set start volume anchor
+                musicGain.gain.setValueAtTime(startVolume, duckStart);
+                // Duck down
+                musicGain.gain.linearRampToValueAtTime(duckLevel, duckStart + attackTime);
+                
+                // Hold... then Release back up
+                musicGain.gain.setValueAtTime(duckLevel, duckEnd);
+                musicGain.gain.linearRampToValueAtTime(startVolume, duckEnd + releaseTime);
             }
         }
 
         // Apply Fade Out at the very end if Trimming
         if (trimToVoice && sourceBuffer) {
-            // Start fading out music significantly AFTER voice ends + reverb
-            // We use absoluteVoiceEnd + 2.0s to ensure full voice clarity before music fades
             const safeFadeStart = absoluteVoiceEnd + 2.0; 
-            
-            // Cancel any automations at this point to take control
             try { 
                 musicGain.gain.cancelScheduledValues(safeFadeStart); 
                 musicGain.gain.setValueAtTime(musicGain.gain.value, safeFadeStart);
             } catch(e){}
-            
-            // Fade out over 2 seconds
-            musicGain.gain.linearRampToValueAtTime(0.0001, safeFadeStart + 2.0);
+            musicGain.gain.linearRampToValueAtTime(0.0001, safeFadeStart + 5.0); // Longer fadeout
         }
         
         musicSource.connect(musicGain);
-        // Connect music gain to destination (mix)
         musicGain.connect(offlineCtx.destination);
         musicSource.start(0);
     }
