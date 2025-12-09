@@ -185,12 +185,12 @@ export async function processAudio(
     
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // --- 2. PHYSICAL PADDING OPTIMIZED (2.0 Seconds) ---
-    // Reduced from 5.0s to 2.0s to avoid excessive silence while still preventing cutoff.
+    // --- 2. PHYSICAL PADDING OPTIMIZED (4.0 Seconds) ---
+    // Increased from 2.0s to 4.0s to absolutely guarantee no cutoff at the end.
     let sourceBuffer: AudioBuffer | null = null;
     
     if (initialSourceBuffer) {
-        const paddingSeconds = 2.0;
+        const paddingSeconds = 4.0;
         const paddingSamples = Math.ceil(initialSourceBuffer.sampleRate * paddingSeconds);
         const newLength = initialSourceBuffer.length + paddingSamples;
         
@@ -207,14 +207,14 @@ export async function processAudio(
     }
 
     // 3. TIMELINE CALCULATION (Optimized)
-    // Reduced END_PADDING from 15.0s to 5.0s for tighter exports
+    // We add 5.0s END_PADDING to ensure the Auto Fade Out finishes completely.
     const END_PADDING = 5.0; 
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
     
     if (sourceBuffer) {
         // Voice End = Delay + (Physical Length / Speed)
-        // Physical Length already includes the 2s safety padding.
+        // Physical Length already includes the 4s safety padding.
         absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
     }
 
@@ -449,9 +449,7 @@ export async function processAudio(
         // --- AUTOMATED FADE OUT ---
         if (trimToVoice && sourceBuffer) {
             // Start fading out 0.5s after the voice (including padding) ends
-            // The absoluteVoiceEnd already includes the 2s physical padding.
-            // But user requested "3 to 5 seconds after voice".
-            // Since absoluteVoiceEnd has +2s silence, we start fade 1s after that.
+            // The absoluteVoiceEnd already includes the 4s physical padding.
             // Result: Fade starts ~3s after real voice ends.
             
             const fadeDuration = 4.0; // 4 Seconds Fade Out
