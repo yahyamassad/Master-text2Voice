@@ -201,13 +201,15 @@ export async function processAudio(
 
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Trim mode: Voice End + Padding
+            // Trim mode: Voice End + Reverb/Echo Tail + Fadeout padding
+            // We ensure we cover the entire delay period plus the voice length.
             outputDuration = absoluteVoiceEnd + END_PADDING;
         } else {
             // Full mode: Longest of either (voice + padding) or music
             outputDuration = Math.max(absoluteVoiceEnd + END_PADDING, backgroundMusicBuffer.duration);
         }
     } else if (sourceBuffer) {
+        // Voice only: Ensure we don't cut off if there is a delay
         outputDuration = absoluteVoiceEnd + END_PADDING;
     } else if (backgroundMusicBuffer) {
         outputDuration = backgroundMusicBuffer.duration;
@@ -357,13 +359,13 @@ export async function processAudio(
             // Params
             const windowSize = Math.floor(sampleRate * 0.1); // 100ms analysis window
             const duckLevel = startVolume * 0.15; // Duck down to 15%
-            const threshold = 0.015; // Silence threshold
+            const threshold = 0.01; // Slightly lowered threshold for better sensitivity
             
-            const attackTime = 0.4; // Time to fade music DOWN (speech starts)
+            const attackTime = 0.3; // Fast fade down
             
-            // INCREASED RELEASE & HOLD for smoother transitions
-            const releaseTime = 1.5; // Time to fade music UP (speech ends)
-            const holdTime = 1.5; // Wait 1.5s after speech ends before rising
+            // SMOOTHER & SLOWER RELEASE with HOLD
+            const releaseTime = 2.0; // Slower fade up
+            const holdTime = 1.0; // Hold low volume for 1s after silence starts
 
             let lastSpeechTime = -10.0;
             let musicIsLow = false; 
