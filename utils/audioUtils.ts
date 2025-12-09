@@ -185,8 +185,9 @@ export async function processAudio(
     
     const speed = (settings.speed && settings.speed > 0) ? settings.speed : 1.0;
     
-    // --- 2. PHYSICAL PADDING OPTIMIZED (4.0 Seconds) ---
-    // Increased from 2.0s to 4.0s to absolutely guarantee no cutoff at the end.
+    // --- 2. PHYSICAL PADDING (The Safe Buffer) ---
+    // We KEEP the 4.0s physical padding. This is the "canvas" we print the voice onto.
+    // It prevents cutoff. We will use this space for the fade out too.
     let sourceBuffer: AudioBuffer | null = null;
     
     if (initialSourceBuffer) {
@@ -206,27 +207,27 @@ export async function processAudio(
         }
     }
 
-    // 3. TIMELINE CALCULATION (Optimized)
-    // We add 5.0s END_PADDING to ensure the Auto Fade Out finishes completely.
-    const END_PADDING = 5.0; 
+    // 3. TIMELINE CALCULATION (Tight Fit)
+    // absoluteVoiceEnd already includes the 4s padding calculated above.
     let outputDuration = 1.0;
     let absoluteVoiceEnd = 0;
     
     if (sourceBuffer) {
-        // Voice End = Delay + (Physical Length / Speed)
-        // Physical Length already includes the 4s safety padding.
+        // This timestamp represents: Start Delay + Voice Duration + 4s Silence
         absoluteVoiceEnd = voiceDelay + (sourceBuffer.duration / speed);
     }
 
     if (sourceBuffer && backgroundMusicBuffer) {
         if (trimToVoice) {
-            // Voice End + 5s Fade Out Space
-            outputDuration = absoluteVoiceEnd + END_PADDING;
+            // FIX: We do NOT add extra END_PADDING here. 
+            // We use the existing 4s padding inside `absoluteVoiceEnd` for the fade.
+            // This cuts the 10s tail down to ~4s (which includes the fade).
+            outputDuration = absoluteVoiceEnd; 
         } else {
-            outputDuration = Math.max(absoluteVoiceEnd + END_PADDING, backgroundMusicBuffer.duration);
+            outputDuration = Math.max(absoluteVoiceEnd, backgroundMusicBuffer.duration);
         }
     } else if (sourceBuffer) {
-        outputDuration = absoluteVoiceEnd + END_PADDING;
+        outputDuration = absoluteVoiceEnd;
     } else if (backgroundMusicBuffer) {
         outputDuration = backgroundMusicBuffer.duration;
     }
@@ -369,8 +370,9 @@ export async function processAudio(
             let inSpeech = false;
             let startT = 0;
 
-            // Analyze only valid content
-            const analysisLength = initialSourceBuffer ? initialSourceBuffer.length : channelData.length;
+            // Analyze only valid content (Ignore the 4s padding at end for ducking detection)
+            // initialSourceBuffer is the data BEFORE padding
+            const analysisLength = initialSourceBuffer ? initialSourceBuffer.length : (channelData.length - (4 * sampleRate));
 
             for (let i = 0; i < analysisLength; i += windowSize) {
                 let sum = 0;
@@ -446,14 +448,17 @@ export async function processAudio(
             }
         }
 
-        // --- AUTOMATED FADE OUT ---
+        // --- AUTOMATED FADE OUT (TIGHT) ---
         if (trimToVoice && sourceBuffer) {
-            // Start fading out 0.5s after the voice (including padding) ends
-            // The absoluteVoiceEnd already includes the 4s physical padding.
-            // Result: Fade starts ~3s after real voice ends.
+            // Logic:
+            // absoluteVoiceEnd includes the 4s physical padding.
+            // We want to fade out perfectly within that padding so the file ends tightly.
+            //
+            // We start fading 3.0s BEFORE the absolute end (which is effectively 1s after real voice ends).
+            // This leaves 1s of silence buffer between voice end and fade start.
             
-            const fadeDuration = 4.0; // 4 Seconds Fade Out
-            const fadeStart = absoluteVoiceEnd + 1.0;
+            const fadeDuration = 3.0; 
+            const fadeStart = Math.max(0, absoluteVoiceEnd - 3.0);
             
             try { 
                 // Cancel any automation that might conflict (like ducking release)
@@ -462,8 +467,8 @@ export async function processAudio(
                 musicGain.gain.setValueAtTime(musicGain.gain.value, fadeStart);
             } catch(e){}
             
-            // Fade to zero
-            musicGain.gain.linearRampToValueAtTime(0, fadeStart + fadeDuration);
+            // Fade to zero right at the end
+            musicGain.gain.linearRampToValueAtTime(0, absoluteVoiceEnd);
         }
         
         musicSource.connect(musicGain);
