@@ -473,7 +473,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         const musicEnd = musicBuffer ? musicBuffer.duration : 0;
 
         if (trimToVoice && voiceBuffer) {
-            total = voiceEnd + 0.5; 
+            // CRITICAL FIX: Add 4.0s buffer to the timeline duration in Studio.
+            // This matches the "safeFadeStart" logic in the exporter (audioUtils).
+            // This prevents the Studio progress bar from hitting 100% and stopping 
+            // playback before the music fade-out is complete.
+            total = voiceEnd + 4.0; 
         } else {
             total = Math.max(voiceEnd, musicEnd);
         }
