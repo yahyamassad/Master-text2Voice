@@ -366,6 +366,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const voiceDelayRef = useRef(voiceDelay);
     const settingsRef = useRef(settings);
     const echoRef = useRef(echo);
+    
+    // Auto Ducking Hold Ref
+    const lastSpeechTimeRef = useRef<number>(0);
 
     const isPaidUser = userTier !== 'visitor' && userTier !== 'free';
     const canUploadVoice = userTier === 'gold' || userTier === 'professional' || userTier === 'admin' || userTier === 'basic' || userTier === 'creator';
@@ -752,18 +755,24 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         }
                         const rms = Math.sqrt(sum / data.length);
                         
-                        // Threshold ~0.015 works well for voice
-                        const threshold = 0.015;
+                        // Threshold Tuning: 0.01 is sensitive enough for speech
+                        const threshold = 0.01;
                         const isTalking = rms > threshold;
                         
                         if (isTalking) {
+                            lastSpeechTimeRef.current = now; // Update timestamp of last speech
                             targetVol = manualVol * 0.2; // Duck to 20%
                             setDuckingActive(true);
+                            // Fast attack (duck down quickly)
+                            currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.3);
                         } else {
-                            setDuckingActive(false);
+                            // Hold Time Logic: Wait 1.0s before releasing
+                            if (now - lastSpeechTimeRef.current > 1.0) {
+                                setDuckingActive(false);
+                                // Slow release (fade up smoothly)
+                                currentMusicGain.gain.setTargetAtTime(targetVol, now, 1.5);
+                            }
                         }
-                        // Slower ramp for smooth ducking
-                        currentMusicGain.gain.setTargetAtTime(targetVol, now, 0.2);
                     } else {
                         // Ducking OFF: Enforce manual volume
                         setDuckingActive(false);
