@@ -19,49 +19,39 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
- * INTELLIGENT VOICE MAPPING V3 (The "Rule Breaker" Strategy)
- * Goal: Maximize "Tafkhim" (Phonetic Weight) and Correct Dialect Identity.
+ * INTELLIGENT VOICE MAPPING V4 (The "Authenticity" Strategy)
  * 
- * Logic based on User Feedback:
- * 1. Egypt: Native engine is weak/thin. Syrian is too light. 
- *    -> Map to SAUDI (Zariyah/Hamed) for a heavier, "News Anchor" Fusha style.
- * 2. Jordan: Native engine sounds Syrian. Jordan is acoustically closer to Gulf/Bedouin.
- *    -> Map to UAE (Fatima/Hamdan) for better weight and distinctness from Syria.
- * 3. Gulf: Omani engine is the "Gold Standard" for Tafkhim.
- *    -> Map Qatari, Bahraini, Kuwaiti to OMANI (Aysha/Abdullah).
+ * Logic based on User Feedback (Identity vs Quality):
+ * 1. Egypt & Lebanon: REMOVED from mapping. We must use native engines to keep the "G" (Egypt) 
+ *    and Levantine melody. We will fix their quality via DSP/Styles in `getVoiceOptimizations`.
+ * 2. Gulf: Consolidate to Omani/Saudi. The acoustic difference is subtle enough that 
+ *    using the higher-quality Omani engine is a worthy trade-off for better Tafkhim.
+ * 3. Jordan: Map to UAE (Closest Bedouin/Tribal tone available).
  */
 const QUALITY_MAPPING: Record<string, string> = {
-    // --- EGYPTIAN STRATEGY: HEAVY FUSHA ---
-    // Map to Saudi to get the "Weight" (Tafkhim) missing in the native engine.
-    'ar-EG-SalmaNeural': 'ar-SA-ZariyahNeural', 
-    'ar-EG-ShakirNeural': 'ar-SA-HamedNeural',
+    // --- EGYPTIAN & LEBANESE: RESTORED TO NATIVE ---
+    // We removed the mapping here. They will pass through as their original IDs.
+    // 'ar-EG-SalmaNeural' -> Stays Salma (Fixed via Style below)
+    // 'ar-LB-LaylaNeural' -> Stays Layla (Fixed via Speed below)
 
-    // --- JORDANIAN STRATEGY: BEDOUIN/GULF PROXIMITY ---
-    // Map to UAE instead of Syria. UAE engine has better authority and closer intonation.
+    // --- JORDANIAN STRATEGY ---
+    // Native Taim is too Syrian. Map to UAE for Bedouin weight.
     'ar-JO-TaimNeural': 'ar-AE-HamdanNeural',
     'ar-JO-SanaNeural': 'ar-AE-FatimaNeural',
     
-    // --- LEBANESE STRATEGY: LEVANTINE PURITY ---
-    // Keep with Syrian (Amany/Laith) as it's the closest accurate dialect.
-    'ar-LB-LaylaNeural': 'ar-SY-AmanyNeural',
-    'ar-LB-RamiNeural': 'ar-SY-LaithNeural',
-
-    // --- GULF CONSOLIDATION: THE OMANI STANDARD ---
-    // User rated Omani as "Very Good" for Tafkhim. Use it everywhere in Gulf.
-    // Qatar
+    // --- GULF CONSOLIDATION (The "Good" Engines) ---
+    // Qatar -> Omani
     'ar-QA-AmalNeural': 'ar-OM-AyshaNeural',
     'ar-QA-MoazNeural': 'ar-OM-AbdullahNeural',
-    // Bahrain
+    // Bahrain -> Omani
     'ar-BH-AliNeural': 'ar-OM-AbdullahNeural',
     'ar-BH-LailaNeural': 'ar-OM-AyshaNeural',
-    // Kuwait
+    // Kuwait -> Omani
     'ar-KW-FahedNeural': 'ar-OM-AbdullahNeural',
     'ar-KW-NouraNeural': 'ar-OM-AyshaNeural',
-    // Yemen - Map to Omani (closest heavy semitic neighbor)
+    // Yemen -> Omani (Closest regional match)
     'ar-YE-MaryamNeural': 'ar-OM-AyshaNeural',
     'ar-YE-SalehNeural': 'ar-OM-AbdullahNeural',
-    
-    // Saudi & UAE & Omani & Syrian natives are kept as is (The "Good" list).
 };
 
 /**
@@ -73,34 +63,61 @@ function getBackendVoiceId(uiVoiceId: string): string {
 
 /**
  * INTELLIGENT LOCALE MAPPING
- * Ensures the locale matches the ENGINE being used, not the UI label.
  */
 function getOptimizedLocale(voiceId: string): string {
-    // 1. Resolve the ACTUAL engine being used first
     const actualVoiceId = getBackendVoiceId(voiceId);
-
-    // 2. Return the native locale of that engine to ensure best pronunciation
     const parts = actualVoiceId.split('-');
     if (parts.length >= 2) {
         return `${parts[0]}-${parts[1]}`;
     }
-    return 'ar-SA'; // Fallback to Standard Arabic
+    return 'ar-SA';
 }
 
 /**
- * TAFKHIM BOOSTER (The "Weight" Algorithm)
- * Adjusts Pitch and Speed slightly to create a fuller, deeper sound 
- * for voices that tend to be "thin" (Tarqiq).
+ * VOICE OPTIMIZER (The "Fine-Tuner")
+ * Instead of changing the voice, we tune its physics to hide robotic artifacts.
  */
-function getTafkhimSettings(uiVoiceId: string): { pitch: string, rateOffset: number } {
-    // Egyptian mapped to Saudi: Lower pitch slightly (-2%) to differentiate from pure Saudi 
-    // and give it that "Masri" heaviness.
-    if (uiVoiceId.includes('ar-EG')) return { pitch: '-2%', rateOffset: -2 };
-    
-    // Jordanian mapped to UAE: Slightly slower for gravitas/Bedouin feel
-    if (uiVoiceId.includes('ar-JO')) return { pitch: '-1%', rateOffset: -3 };
+interface VoiceSettings {
+    pitch: string;
+    rateOffset: number;
+    forcedStyle?: string; // Some voices sound better only in specific styles
+}
 
-    // Default: No adjustment
+function getVoiceOptimizations(voiceId: string): VoiceSettings {
+    // 1. EGYPTIAN FIX (The "G" Preserver)
+    // Salma/Shakir are robotic in default mode. 
+    // 'cheerful' or 'empathetic' style smooths the waveform, making it sound more human.
+    if (voiceId.includes('ar-EG')) {
+        return { 
+            pitch: '-2%', // Slight depth for "Hiba" (Prestige)
+            rateOffset: -4, // Slow down to let the "G" and vowels ring
+            forcedStyle: 'cheerful' // Hides the robotic buzz
+        };
+    }
+
+    // 2. LEBANESE FIX (The Melody Preserver)
+    // Layla speaks too fast and eats letters.
+    if (voiceId.includes('ar-LB')) {
+        return { 
+            pitch: '+2%', // Slightly higher for Levantine "brightness"
+            rateOffset: -8, // Significantly slower to articulate clear pronunciation
+            forcedStyle: 'empathetic' // Adds breathiness common in Lebanese broadcasting
+        };
+    }
+
+    // 3. JORDANIAN (Mapped to UAE)
+    // Needs to sound heavier.
+    if (voiceId.includes('ar-JO') || voiceId.includes('ar-AE')) {
+        return { pitch: '-1%', rateOffset: -2 };
+    }
+
+    // 4. OMANI (The Gold Standard)
+    // Already good, just a tiny slow down for gravitas.
+    if (voiceId.includes('ar-OM')) {
+        return { pitch: '0%', rateOffset: -2 };
+    }
+
+    // Default
     return { pitch: '0%', rateOffset: 0 };
 }
 
@@ -114,51 +131,46 @@ export async function generateStandardSpeech(
     emotion: string = 'Default' 
 ): Promise<Uint8Array | null> {
     try {
-        // 1. SWAP THE VOICE ENGINE
+        // 1. RESOLVE ENGINE (Map if generic, Keep if Unique)
         const backendVoiceId = getBackendVoiceId(voiceId);
-        
-        // 2. SET LOCALE
         const langCode = getOptimizedLocale(backendVoiceId);
 
         let payload: any = { voiceId: backendVoiceId };
 
-        // 3. APPLY TAFKHIM (Weight) SETTINGS
-        const tafkhim = getTafkhimSettings(voiceId);
+        // 2. APPLY OPTIMIZATIONS (The Fix)
+        const settings = getVoiceOptimizations(backendVoiceId);
 
-        let azureStyle = '';
-        let rate = '0%';
-        let pitch = tafkhim.pitch; // Base pitch from Tafkhim
+        let azureStyle = settings.forcedStyle || '';
+        let pitch = settings.pitch;
+        
+        // Base rate from optimization
+        let baseRate = settings.rateOffset; 
 
-        // Global Rate Tweak + Tafkhim Offset
-        // Default slowing (-2%) to improve articulation + specific offset
-        let baseRate = -2 + tafkhim.rateOffset; 
-
-        // Style Mapping Logic (Emotions override default pitch if needed, but we try to combine)
+        // 3. APPLY USER EMOTION (Overlays on top of optimization)
+        // Note: If we forced a style (like 'cheerful' for Egyptian), we stick to it 
+        // unless the user EXPLICITLY asks for 'sad' or 'fear'.
         switch (emotion) {
             case 'happy': 
                 azureStyle = 'cheerful'; 
-                baseRate += 5; // Happy is faster
-                pitch = '+2%'; // Lighter
+                baseRate += 5; 
+                pitch = '+2%'; 
                 break;
             case 'sad': 
                 azureStyle = 'sad'; 
                 baseRate -= 10; 
-                pitch = '-5%'; // Deep sadness
+                pitch = '-5%'; 
                 break;
             case 'formal': 
                 azureStyle = 'newscast'; 
-                // Keep Tafkhim pitch for formal
                 break;
-            
             case 'epic_poet': 
                 azureStyle = 'empathetic'; 
                 baseRate -= 12; 
-                pitch = '-4%'; // Very deep for poetry
+                pitch = '-4%'; 
                 break;
             case 'heritage_narrator':
                 azureStyle = 'narration-professional'; 
                 baseRate -= 5; 
-                pitch = '-3%'; 
                 break;
             case 'news_anchor':
                 azureStyle = 'newscast';
@@ -173,12 +185,10 @@ export async function generateStandardSpeech(
                 azureStyle = 'whispering';
                 baseRate -= 10;
                 break;
-            default: 
-                // For default, we stick to the Tafkhim pitch calculated above
-                azureStyle = '';
+            // Default case: We keep the `forcedStyle` from optimization (e.g. cheerful for Egypt)
         }
 
-        rate = `${baseRate}%`;
+        const rate = `${baseRate}%`;
 
         const paragraphs = text.split(/\n\s*\n/);
         let innerContent = '';
@@ -201,7 +211,7 @@ export async function generateStandardSpeech(
             }
         });
 
-        // Apply Prosody (Rate & Pitch)
+        // Apply Prosody
         if (rate !== '0%' || pitch !== '0%') {
             innerContent = `<prosody rate="${rate}" pitch="${pitch}">${innerContent}</prosody>`;
         }
@@ -310,7 +320,7 @@ export async function generateMultiSpeakerStandardSpeech(
 
     for (const seg of segments) {
         try {
-            // Mapping and Tafkhim handled inside generateStandardSpeech
+            // Mapping and Optimization handled inside generateStandardSpeech
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
             if (mp3Bytes) {
                 const bufferCopy = mp3Bytes.slice(0).buffer;
