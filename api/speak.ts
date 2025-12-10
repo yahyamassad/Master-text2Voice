@@ -33,6 +33,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const MODEL_NAME = process.env.GEMINI_MODEL_TTS || 'gemini-2.5-flash-preview-tts';
     const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
 
+    // --- GENDER ENFORCEMENT ---
+    // User reported Puck and Charon drifting to female voices.
+    // We add explicit instructions to the prompt to lock the gender persona.
+    let genderInstruction = "";
+    if (selectedVoiceName === 'Puck' || selectedVoiceName === 'Charon' || selectedVoiceName === 'Fenrir') {
+        genderInstruction = "Identity: You are a MALE speaker with a deep, resonant voice. Do NOT speak with a high pitch or female tone.";
+    } else if (selectedVoiceName === 'Kore' || selectedVoiceName === 'Zephyr') {
+        genderInstruction = "Identity: You are a FEMALE speaker.";
+    }
+
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     try {
@@ -40,12 +50,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
                 // STRICT System Instruction to prevent hallucination
-                // We wrap the input text in a way that Gemini knows exactly what to read.
                 const cleanText = text.trim();
                 
-                // Enhanced protection prompt against code reading/hallucinations
+                // Enhanced protection prompt against code reading/hallucinations AND gender drift
                 const protectedPrompt = `
 Task: Read the following text aloud exactly as written.
+${genderInstruction}
 Strict Constraints:
 1. Do NOT read any technical metadata, code snippets, or introductory phrases.
 2. Do NOT explain the text.
