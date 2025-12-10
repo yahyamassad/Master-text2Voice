@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { t, Language } from '../i18n/translations';
 import { SawtliLogoIcon, PlayCircleIcon, PauseIcon, DownloadIcon, LoaderIcon, LockIcon, CheckIcon, TrashIcon, SoundEnhanceIcon, ChevronDownIcon, MicrophoneIcon } from './icons';
@@ -823,11 +824,12 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             const ctx = getAudioContext();
             const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
             setVoiceBuffer(audioBuffer);
-            // Just set a visual name, don't overwrite Project Name immediately if it exists
-            setFileName(file.name);
+            
+            const cleanName = file.name.replace(/\.[^/.]+$/, "");
+            setFileName(cleanName);
             // Default project name if empty
             if (projectName === 'New Project') {
-                setProjectName(file.name.replace(/\.[^/.]+$/, "")); // Remove extension
+                setProjectName(cleanName);
             }
             // CRITICAL FIX: Set active tab to upload so button lights up
             setActiveTab('upload');
@@ -933,9 +935,16 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     };
 
     const handleRemoveVoice = () => {
-        setVoiceBuffer(null);
-        setFileName('');
-        stopPlayback();
+        if (!voiceBuffer) return;
+        const confirmDelete = window.confirm(uiLanguage === 'ar' 
+            ? 'هل أنت متأكد من حذف المقطع الصوتي من المشروع؟ هذا لن يحذف الملف الأصلي من جهازك.' 
+            : 'Remove voice track from this project? This will not delete the original file from your device.');
+        
+        if (confirmDelete) {
+            setVoiceBuffer(null);
+            setFileName('');
+            stopPlayback();
+        }
     };
 
     const onMusicUploadClick = () => { if (!isPaidUser) { if (onUpgrade) onUpgrade(); return; } musicInputRef.current?.click(); };
@@ -1033,16 +1042,50 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
             const jsonString = JSON.stringify(projectData);
             const blob = new Blob([jsonString], { type: 'application/json' });
+            
+            // Clean filename
+            const cleanName = name.replace(/[^a-z0-9_\u0600-\u06FF\s-]/gi, '_').trim();
+            const fileNameWithExt = `${cleanName}.sawtli`;
+
+            // --- MODERN SAVE: File System Access API ---
+            // If browser supports it, show a real "Save As" dialog
+            // @ts-ignore
+            if (window.showSaveFilePicker) {
+                try {
+                    // @ts-ignore
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: fileNameWithExt,
+                        types: [{
+                            description: 'Sawtli Project File',
+                            accept: { 'application/json': ['.sawtli'] },
+                        }],
+                    });
+                    
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    return; // Success, exit
+                } catch (err: any) {
+                    // Fail silently if user canceled picker
+                    if (err.name === 'AbortError') return;
+                    console.warn("File System Access API failed, falling back to download", err);
+                }
+            }
+
+            // --- FALLBACK: Standard Download ---
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            // Clean filename
-            const cleanName = name.replace(/[^a-z0-9_\u0600-\u06FF]/gi, '_').toLowerCase();
-            a.download = `${cleanName}.sawtli`;
+            a.download = fileNameWithExt;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            
+            // Notify user where it went since we couldn't show a dialog
+            alert(uiLanguage === 'ar' 
+                ? `تم حفظ المشروع في مجلد "التنزيلات" باسم ${fileNameWithExt}` 
+                : `Project saved to your Downloads folder as ${fileNameWithExt}`);
 
         } catch (e) {
             console.error("Save failed:", e);
@@ -1058,7 +1101,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         triggerSaveDownload(projectName);
     };
 
-    // "SAVE AS": Prompts for new name
+    // "SAVE AS": Prompts for new name and triggers save flow
     const handleSaveProjectAs = () => {
         if (!voiceBuffer) return;
         const newName = prompt(uiLanguage === 'ar' ? "اسم المشروع الجديد:" : "New Project Name:", projectName);
@@ -1196,7 +1239,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 <div className="absolute h-3 w-3 bg-white rounded-full shadow pointer-events-none" style={{ left: `calc(${((currentTime / (fileDuration || 1)) * 100)}% - 6px)` }}></div>
                             </div>
                             <div className="flex items-center gap-2 max-w-[200px] sm:max-w-[300px]">
-                                {voiceBuffer && (
+                                {voiceBuffer ? (
                                     <div className="flex items-center bg-slate-900 border border-slate-700 rounded px-2">
                                         <input 
                                             type="text" 
@@ -1207,6 +1250,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         />
                                         <button onClick={handleRemoveVoice} className="text-slate-500 hover:text-red-500 transition-colors ml-2" title="Remove Voice"><TrashIcon className="w-3 h-3" /></button>
                                     </div>
+                                ) : (
+                                    <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider ml-auto">No Voice Track</span>
                                 )}
                             </div>
                         </div>

@@ -31,6 +31,8 @@ export async function generateStandardSpeech(
         let payload: any = { voiceId };
 
         // Derive lang from voiceId (e.g. ar-EG-SalmaNeural -> ar-EG)
+        // CRITICAL FIX: We must use the FULL locale (e.g., 'ar-JO', 'ar-QA') as the xml:lang
+        // to force Azure to use the correct dialect engine, otherwise it defaults to standard Arabic or Egyptian.
         const parts = voiceId.split('-');
         const langCode = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : 'en-US';
 
@@ -131,7 +133,7 @@ export async function generateStandardSpeech(
         }
         
         // Construct the final full SSML
-        // Note: added xmlns:mstts for style support
+        // Note: We enforce xml:lang to the specific voice locale (e.g. ar-JO) to help with dialect pronunciation.
         const fullSSML = `
             <speak version='1.0' xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang='${langCode}'>
                 <voice xml:lang='${langCode}' xml:gender='Female' name='${voiceId}'>

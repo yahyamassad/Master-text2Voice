@@ -7,28 +7,28 @@ export const VOICE_STYLES: VoiceStyle[] = [
         id: 'Default',
         categoryKey: 'catStandard',
         labelKey: 'emotionDefault',
-        prompt: 'Speak naturally and clearly. Tone: Neutral, balanced.',
+        prompt: 'Speak naturally, clearly, and with a balanced tone. Do not be monotone, but maintain a professional and engaging delivery suitable for general reading.',
         recommendedSpeed: 1.0
     },
     {
         id: 'happy',
         categoryKey: 'catStandard',
         labelKey: 'emotionHappy',
-        prompt: 'Speak with a bright, cheerful smile in your voice. Be optimistic and warm. Tone: Happy, uplifting.',
+        prompt: 'Speak with a genuine smile audible in your voice. Your tone should be warm, optimistic, and welcoming. Use slightly upward inflection at the end of sentences to convey positivity.',
         recommendedSpeed: 1.05
     },
     {
         id: 'sad',
         categoryKey: 'catStandard',
         labelKey: 'emotionSad',
-        prompt: 'Speak softly with a heavy heart. Use a slower pace and lower pitch to convey sorrow. Tone: Sad, melancholic, empathetic.',
+        prompt: 'Speak softly and slowly, with a heavy heart. Introduce slight pauses between phrases to convey sorrow and reflection. The tone should be empathetic and melancholic.',
         recommendedSpeed: 0.9
     },
     {
         id: 'formal',
         categoryKey: 'catStandard',
         labelKey: 'emotionFormal',
-        prompt: 'Speak with absolute professionalism and distance. Clear, crisp, and objective. Tone: Formal, business-like.',
+        prompt: 'Speak with absolute professionalism and clarity. Articulate every letter precisely. The tone should be objective, serious, and business-like, suitable for official announcements.',
         recommendedSpeed: 1.0
     },
 
@@ -37,21 +37,21 @@ export const VOICE_STYLES: VoiceStyle[] = [
         id: 'epic_poet',
         categoryKey: 'catLiterature',
         labelKey: 'styleEpicPoet',
-        prompt: 'Recite as a legendary Arab poet. IMPORTANT: Do NOT silence the last letter of the line (No Sukun). You MUST pronounce the vowel (Harakat) at the end of sentences to maintain the Rhyme (Qafiya) and Meter. Tone: Rhythmic, resonant, grand, musical.',
+        prompt: 'Perform as a legendary Arabic poet reciting a masterpiece. Your voice must be resonant, grand, and rhythmic. CRITICAL: Pronounce the vowel movements (Harakat) at the end of verses if it maintains the rhyme (Qafiya). Do not rush; let the words breathe.',
         recommendedSpeed: 0.9 // Slower for poetry
     },
     {
         id: 'heritage_narrator',
         categoryKey: 'catLiterature',
         labelKey: 'styleHeritageNarrator',
-        prompt: 'Speak like a traditional Hakawati telling a gripping tale by the fire. Use dynamic intonation—whisper when mysterious, raise voice when exciting. Do not be monotone. Tone: Storyteller, warm, fluctuating.',
+        prompt: 'You are a traditional Hakawati (Storyteller) sitting by a fire. Use a dynamic vocal range: whisper when the scene is mysterious, and raise your voice when the action peaks. Your goal is to captivate the listener completely.',
         recommendedSpeed: 1.0
     },
     {
         id: 'philosopher',
         categoryKey: 'catLiterature',
         labelKey: 'stylePhilosopher',
-        prompt: 'Speak with deep wisdom but flow like water. Connect your ideas smoothly. Do not sound sleepy; sound like you have discovered a great truth. Tone: Profound, clear, flowing.',
+        prompt: 'Speak with deep wisdom and contemplation. Your flow should be liquid and smooth, connecting ideas seamlessly. Sound like a thinker who has just discovered a profound truth and is sharing it gently.',
         recommendedSpeed: 0.95
     },
 
@@ -60,21 +60,21 @@ export const VOICE_STYLES: VoiceStyle[] = [
         id: 'dramatic_actor',
         categoryKey: 'catActing',
         labelKey: 'styleDramaticActor',
-        prompt: 'Act this out with full theatrical presence. Feel the words. If it is sad, sound heartbroken. If angry, sound fierce. Use the full range of human emotion. Tone: Theatrical, intense, expressive.',
-        recommendedSpeed: 1.05
+        prompt: 'Perform this script with intense theatrical presence. Fully embody the emotions in the text—if it screams, you scream; if it weeps, you weep. Do not just read; act. Use pauses for dramatic effect.',
+        recommendedSpeed: 1.0
     },
     {
         id: 'comedian',
         categoryKey: 'catActing',
         labelKey: 'styleComedian',
-        prompt: 'Deliver lines with punchy timing and a smile in the voice. Keep it upbeat and energetic. Sound like you are telling a funny anecdote to friends. Tone: Humorous, bouncy, quick.',
-        recommendedSpeed: 1.15
+        prompt: 'Deliver the lines with punchy, energetic timing. Sound like you are telling a hilarious story to your best friends. Use a playful, bouncy tone with a smile in your voice.',
+        recommendedSpeed: 1.10
     },
     {
         id: 'thriller',
         categoryKey: 'catActing',
         labelKey: 'styleThriller',
-        prompt: 'Whisper intensely close to the mic. Create a spine-chilling atmosphere. Every word should sound like a dangerous secret. Tone: Breathless, ominous, sharp.',
+        prompt: 'Whisper intensely, as if sharing a dangerous secret. Keep the tension high and the pace controlled. Every word should sound ominous and spine-chilling.',
         recommendedSpeed: 0.95
     },
 
@@ -83,21 +83,21 @@ export const VOICE_STYLES: VoiceStyle[] = [
         id: 'news_anchor',
         categoryKey: 'catMedia',
         labelKey: 'styleNewsAnchor',
-        prompt: 'Project a commanding, "Breaking News" authority. articulate every syllable perfectly. Fast, urgent, and credible. Tone: Professional, authoritative, urgent.',
+        prompt: 'You are a prime-time news anchor breaking urgent news. Your voice must be authoritative, urgent, and credible. Maintain a steady, fast pace with perfect articulation. No hesitation.',
         recommendedSpeed: 1.1
     },
     {
         id: 'sports_commentator',
         categoryKey: 'catMedia',
         labelKey: 'styleSportsCommentator',
-        prompt: 'SCREAM with excitement! Sound like a goal has just been scored in a final match. Maximum energy, fast pace, high pitch. Tone: Hype, explosive, loud.',
-        recommendedSpeed: 1.3
+        prompt: 'You are commenting on the final minute of a championship match! Your voice should be high-energy, loud, and explosive with excitement. Use rapid-fire delivery for high-action moments.',
+        recommendedSpeed: 1.25
     },
     {
         id: 'talk_show_host',
         categoryKey: 'catMedia',
         labelKey: 'styleTalkShow',
-        prompt: 'Be the most charismatic person in the room. Warm, inviting, and very smooth. Engage the listener directly. Tone: Charismatic, radio-quality, smooth.',
+        prompt: 'You are the host of a late-night radio show. Your voice is smooth, warm, and charismatic. Speak as if you are having an intimate, engaging conversation with the listener.',
         recommendedSpeed: 1.05
     },
 
@@ -106,22 +106,22 @@ export const VOICE_STYLES: VoiceStyle[] = [
         id: 'teacher',
         categoryKey: 'catEducation',
         labelKey: 'styleTeacher',
-        prompt: 'Explain clearly and enthusiastically. Use vocal emphasis to highlight key concepts. Sound happy to be teaching. Tone: Educational, bright, articulate.',
-        recommendedSpeed: 1.05
+        prompt: 'You are a kind and enthusiastic teacher explaining a new concept. Speak clearly, patiently, and encouragingly. Use vocal emphasis on key terms to ensure the student understands.',
+        recommendedSpeed: 1.0
     },
     {
         id: 'counselor',
         categoryKey: 'catEducation',
         labelKey: 'styleCounselor',
-        prompt: 'Speak with absolute safety and warmth. Your voice should feel like a hug. Gentle, slow, and reassuring. Tone: Therapeutic, soft, kind.',
+        prompt: 'Speak with a therapeutic, reassuring tone. Your voice should feel safe and warm, like a comforting hug. Pace should be slow, gentle, and calming.',
         recommendedSpeed: 0.95
     },
     {
         id: 'motivator',
         categoryKey: 'catEducation',
         labelKey: 'styleMotivator',
-        prompt: 'Command the room. Use short, punchy sentences. Drive the listener to action. Failure is not an option. Tone: Powerful, driving, alpha.',
-        recommendedSpeed: 1.2
+        prompt: 'You are a motivational speaker commanding a room. Your voice must be powerful, confident, and punchy. Drive the listener to take action immediately. Failure is not an option.',
+        recommendedSpeed: 1.15
     }
 ];
 

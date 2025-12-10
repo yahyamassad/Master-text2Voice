@@ -43,11 +43,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // We wrap the input text in a way that Gemini knows exactly what to read.
                 const cleanText = text.trim();
                 
+                // Enhanced protection prompt against code reading/hallucinations
+                const protectedPrompt = `
+Task: Read the following text aloud exactly as written.
+Strict Constraints:
+1. Do NOT read any technical metadata, code snippets, or introductory phrases.
+2. Do NOT explain the text.
+3. Do NOT switch to English if the text is Arabic.
+4. Only vocalize the content inside the triple quotes below.
+
+Text to read:
+"""
+${cleanText}
+"""
+`;
+                
                 const response = await client.models.generateContent({
                     model: MODEL_NAME,
                     contents: {
                         role: 'user',
-                        parts: [{ text: `Please read the following text exactly as written. Do not add any introductory or concluding remarks. Do not read any metadata. Text: "${cleanText}"` }]
+                        parts: [{ text: protectedPrompt }]
                     },
                     config: {
                         responseModalities: ['AUDIO'],

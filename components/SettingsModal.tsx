@@ -255,8 +255,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     // --- BETTER SPEED CONTROL ---
-    const incrementSpeed = () => setSpeed(prev => Math.min(2.0, parseFloat((prev + 0.1).toFixed(1))));
-    const decrementSpeed = () => setSpeed(prev => Math.max(0.5, parseFloat((prev - 0.1).toFixed(1))));
+    // Increased precision to 0.05
+    const incrementSpeed = () => setSpeed(prev => Math.min(2.0, parseFloat((prev + 0.05).toFixed(2))));
+    const decrementSpeed = () => setSpeed(prev => Math.max(0.5, parseFloat((prev - 0.05).toFixed(2))));
     const resetSpeed = () => setSpeed(1.0);
 
     return (
@@ -401,15 +402,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         type="range" 
                                         min="0.5" 
                                         max="2.0" 
-                                        step="0.1" 
+                                        step="0.05" 
                                         value={speed} 
                                         onChange={e => setSpeed(parseFloat(e.target.value))} 
                                         className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
                                     />
-                                    {/* Tick for Default (1.0) */}
-                                    <div className="absolute top-1/2 left-[33.33%] w-0.5 h-3 bg-slate-400 -translate-y-1/2 pointer-events-none opacity-50"></div>
+                                    {/* Removed the fixed indicator tick to fix the visual confusion */}
                                 </div>
-                                <span className="text-cyan-400 font-mono font-bold w-12 text-center text-lg">{speed.toFixed(1)}x</span>
+                                <span className="text-cyan-400 font-mono font-bold w-12 text-center text-lg">{speed.toFixed(2)}x</span>
                                 <button onClick={incrementSpeed} className="w-8 h-8 flex items-center justify-center bg-slate-700 rounded hover:bg-slate-600 text-white font-bold">+</button>
                             </div>
                         </div>

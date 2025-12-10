@@ -50,7 +50,8 @@ export const MICROSOFT_AZURE_VOICES: StandardVoice[] = [
     { name: 'ar-KW-FahedNeural', label: 'Fahed (Kuwaiti)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-KW-NouraNeural', label: 'Noura (Kuwaiti)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-QA-AmalNeural', label: 'Amal (Qatari)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
-    { name: 'ar-QA-MoazNeural', label: 'Moaz (Qatari)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
+    // Fix: Updated label to Muath to avoid confusion with Moza (female)
+    { name: 'ar-QA-MoazNeural', label: 'Muath (Qatari - مُعاذ)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-BH-AliNeural', label: 'Ali (Bahraini)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-BH-LailaNeural', label: 'Laila (Bahraini)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-OM-AbdullahNeural', label: 'Abdullah (Omani)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
