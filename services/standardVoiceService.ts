@@ -19,33 +19,33 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
- * INTELLIGENT VOICE MAPPING V5 (The "User-Guided" Strategy)
+ * INTELLIGENT VOICE MAPPING V6 (The "Kuwaiti Master" Strategy)
  * 
- * Logic based on Expert Feedback:
- * 1. Jordan: Map to KUWAIT (Fahed/Noura). User confirmed this is the closest acoustic match 
- *    if slowed down.
- * 2. Gulf: Consolidate smaller Gulf states to Omani/Kuwaiti for best Tafkhim.
- * 3. Egypt & Lebanon: Keep native engines but HEAVILY modify physics (Speed/Pitch/Style) 
- *    to fix "Tarqiq" (Thinning) and Robotic feel.
+ * Correction based on User Feedback:
+ * 1. Kuwaiti Engine is the "Gold Standard" for correct pronunciation (Tafkhim of Aleph).
+ * 2. Jordan MAPS TO Kuwaiti, but gets HEAVILY modified (Slower/Deeper).
+ * 3. Kuwaiti stays Kuwaiti (Native), with minimal modification to preserve its quality.
+ * 4. Other Gulf dialects (Qatar, Bahrain) map to Kuwaiti to benefit from the correct Aleph.
  */
 const QUALITY_MAPPING: Record<string, string> = {
-    // --- JORDANIAN STRATEGY: THE KUWAITI HACK ---
-    // User found Kuwaiti engine slowed down sounds most authentic for Jordan.
+    // --- JORDANIAN STRATEGY: DISGUISED KUWAITI ---
+    // Use Kuwaiti engine (Fahed/Noura) as the base because pronunciation is correct.
+    // We will slow it down in `getVoiceOptimizations` to sound Jordanian.
     'ar-JO-TaimNeural': 'ar-KW-FahedNeural',
     'ar-JO-SanaNeural': 'ar-KW-NouraNeural',
     
-    // --- GULF CONSOLIDATION ---
-    // Qatar -> Omani (Heavy/Clear)
-    'ar-QA-AmalNeural': 'ar-OM-AyshaNeural',
-    'ar-QA-MoazNeural': 'ar-OM-AbdullahNeural',
-    // Bahrain -> Omani
-    'ar-BH-AliNeural': 'ar-OM-AbdullahNeural',
-    'ar-BH-LailaNeural': 'ar-OM-AyshaNeural',
-    // Yemen -> Omani
-    'ar-YE-MaryamNeural': 'ar-OM-AyshaNeural',
-    'ar-YE-SalehNeural': 'ar-OM-AbdullahNeural',
+    // --- GULF CONSOLIDATION: THE KUWAITI STANDARD ---
+    // User identified Kuwaiti as having the best "Tafkhim".
+    // Map Qatar & Bahrain & Yemen to Kuwait.
+    'ar-QA-AmalNeural': 'ar-KW-NouraNeural',
+    'ar-QA-MoazNeural': 'ar-KW-FahedNeural',
+    'ar-BH-AliNeural': 'ar-KW-FahedNeural',
+    'ar-BH-LailaNeural': 'ar-KW-NouraNeural',
+    'ar-YE-MaryamNeural': 'ar-KW-NouraNeural',
+    'ar-YE-SalehNeural': 'ar-KW-FahedNeural',
     
-    // Egypt, Lebanon, Saudi, Kuwait, UAE, Oman -> Keep Native IDs (Mapped logically or passthrough)
+    // Omani is good enough to keep as Omani (unless user requests otherwise later)
+    // Saudi is distinct enough to keep as Saudi.
 };
 
 /**
@@ -69,8 +69,7 @@ function getOptimizedLocale(voiceId: string): string {
 
 /**
  * VOICE OPTIMIZER (The "Physics" Engine)
- * We adjust Pitch, Rate, and Style based on the INTENDED dialect (UI ID),
- * not just the backend engine.
+ * Defines the acoustic profile for each dialect.
  */
 interface VoiceSettings {
     pitch: string;
@@ -79,47 +78,46 @@ interface VoiceSettings {
 }
 
 function getVoiceOptimizations(uiVoiceId: string): VoiceSettings {
-    // 1. LEBANESE FIX (The "Myeu'a" / Fluidity)
-    // Needs significant slowing to stretch vowels and higher pitch for melody.
-    // 'empathetic' style adds breathiness/softness.
-    if (uiVoiceId.includes('ar-LB')) {
-        return { 
-            pitch: '+3%',  // Lift the tone (Levantine melody)
-            rateOffset: -10, // -10% speed: Creates the "lazy/soft" elongation
-            forcedStyle: 'empathetic' // Softens the hard edges of letters
-        };
-    }
-
-    // 2. JORDANIAN FIX (The "Bedouin Weight")
-    // Mapped to Kuwaiti backend, but needs to be slower and deeper to sound Jordanian.
+    // 1. JORDANIAN PROFILE (The "Heavy Bedouin" Disguise)
+    // Uses Kuwaiti engine, but we apply heavy brakes and depth.
     if (uiVoiceId.includes('ar-JO')) {
         return { 
-            pitch: '-2%', // Deeper/Heavier (Tafkhim)
-            rateOffset: -5, // Slower to sound more authoritative/Bedouin
-            forcedStyle: '' // Default style is usually best for authority
+            pitch: '-3%',  // Deepen significantly for "Hiba"
+            rateOffset: -6, // Slow down to differentiate from the faster Kuwaiti original
+            forcedStyle: '' // Neutral style creates the most serious tone
         };
     }
 
-    // 3. EGYPTIAN FIX (The "Heavy" News Anchor)
-    // Native engine is too thin/robotic.
+    // 2. KUWAITI PROFILE (The "Correct" Standard)
+    // This is the reference. We keep it almost raw to preserve the "Heavy Aleph".
+    // Just a tiny pitch drop (-1%) to ensure it doesn't sound thin (Tarqiq) due to AI variance.
+    if (uiVoiceId.includes('ar-KW')) {
+        return { 
+            pitch: '-1%', // Just a touch of weight
+            rateOffset: 0 // Natural speed (Don't slow it down like Jordan)
+        };
+    }
+
+    // 3. LEBANESE PROFILE (The "Melodic" Fix)
+    // Needs significant slowing and lifting.
+    if (uiVoiceId.includes('ar-LB')) {
+        return { 
+            pitch: '+3%',  // Higher/Lighter
+            rateOffset: -10, // Very slow/relaxed
+            forcedStyle: 'empathetic' // Breathiness
+        };
+    }
+
+    // 4. EGYPTIAN PROFILE (The "Clear" Fix)
     if (uiVoiceId.includes('ar-EG')) {
         return { 
-            pitch: '-3%', // Significant drop to add "weight" to the Aleph
-            rateOffset: -4, // Slow down for clarity
-            forcedStyle: 'cheerful' // Hides robotic artifacts, adds flow
+            pitch: '-2%', 
+            rateOffset: -4, 
+            forcedStyle: 'cheerful' // Hides robotic artifacts
         };
     }
 
-    // 4. KUWAITI/OMANI (The "Tafkhim" Standard)
-    // These are naturally good, but a tiny slowdown helps pronunciation.
-    if (uiVoiceId.includes('ar-KW') || uiVoiceId.includes('ar-OM')) {
-        return { 
-            pitch: '0%', 
-            rateOffset: -2 // Just a hint of gravitas
-        };
-    }
-
-    // Default: Slight slowing for all Arabic to reduce robotic speed
+    // Default
     return { pitch: '0%', rateOffset: 0 };
 }
 
@@ -133,14 +131,15 @@ export async function generateStandardSpeech(
     emotion: string = 'Default' 
 ): Promise<Uint8Array | null> {
     try {
-        // 1. RESOLVE ENGINE (Map if generic, Keep if Unique)
+        // 1. RESOLVE ENGINE 
         const backendVoiceId = getBackendVoiceId(voiceId);
         const langCode = getOptimizedLocale(backendVoiceId);
 
         let payload: any = { voiceId: backendVoiceId };
 
-        // 2. APPLY OPTIMIZATIONS (Based on the UI selection, not just the engine)
-        // This ensures "Jordanian" gets different settings than "Kuwaiti" even if they share the engine.
+        // 2. APPLY OPTIMIZATIONS (Based on the UI selection)
+        // CRITICAL: We pass `voiceId` (User Selection) not `backendVoiceId` (Engine).
+        // This ensures "Jordan" gets different settings than "Kuwait" even if they use the same engine.
         const settings = getVoiceOptimizations(voiceId);
 
         let azureStyle = settings.forcedStyle || '';
