@@ -19,35 +19,76 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
- * INTELLIGENT LOCALE MAPPING based on User Quality Report.
- * - 'Good' voices keep their native locale (e.g. Omani, Syrian).
- * - 'Bad/Mixed' voices are forced to 'ar-SA' (Standard Arabic) to fix pronunciation (Jeem vs G, Thick Alif).
+ * INTELLIGENT VOICE MAPPING (The Quality Fix)
+ * Based on user report: 
+ * - "Abdullah (Omani)" and "Amany (Syrian)" were rated "Very Good".
+ * - "Salma (Egyptian)" and "Layla (Lebanese)" were rated poorly (broken accents/Indian-sounding).
+ * 
+ * Strategy: Map broken voices to the "Very Good" engines to ensure high-quality MSA (Fusha),
+ * preferring Omani for Gulf/General male roles and Syrian for Levant/General female roles.
+ */
+const QUALITY_MAPPING: Record<string, string> = {
+    // --- FIXING EGYPTIAN (Replacing broken 'G' dialect with Perfect MSA) ---
+    // Salma (Bad) -> Amany (Syrian - Rated "Very Good"). 
+    // We sacrifice the Egyptian 'G' for crystal clear Arabic pronunciation.
+    'ar-EG-SalmaNeural': 'ar-SY-AmanyNeural', 
+    // Shakir (Bad) -> Abdullah (Omani - Rated "Very Good").
+    'ar-EG-ShakirNeural': 'ar-OM-AbdullahNeural',
+
+    // --- FIXING LEVANT/JORDAN (Fixing broken accents) ---
+    // Taim (Bad) -> Laith (Syrian - Rated "Good") or Abdullah (Omani). Using Laith for region match.
+    'ar-JO-TaimNeural': 'ar-SY-LaithNeural',
+    // Sana (Mixed) -> Amany (Syrian - Rated "Very Good").
+    'ar-JO-SanaNeural': 'ar-SY-AmanyNeural',
+    
+    // --- FIXING LEBANESE (Fixing letter eating) ---
+    // Layla (Bad) -> Amany (Syrian - Rated "Very Good").
+    'ar-LB-LaylaNeural': 'ar-SY-AmanyNeural',
+    // Rami (Bad) -> Laith (Syrian - Rated "Good").
+    'ar-LB-RamiNeural': 'ar-SY-LaithNeural',
+
+    // --- FIXING GULF MIXES (Upgrading "Almost" to "Very Good") ---
+    // Amal (Qatari Mixed) -> Fatima (UAE - Rated "Almost Correct") or Aysha (Omani - "Very Good"). 
+    // Using Aysha for best quality.
+    'ar-QA-AmalNeural': 'ar-OM-AyshaNeural',
+    // Moaz (Qatari Mixed) -> Abdullah (Omani - Rated "Very Good").
+    'ar-QA-MoazNeural': 'ar-OM-AbdullahNeural',
+    
+    // Ali (Bahraini Mixed) -> Abdullah (Omani - Rated "Very Good").
+    'ar-BH-AliNeural': 'ar-OM-AbdullahNeural',
+    // Laila (Bahraini Mixed) -> Aysha (Omani - Rated "Very Good").
+    'ar-BH-LailaNeural': 'ar-OM-AyshaNeural',
+
+    // Kuwaiti - Upgrade to Omani for better Tafkhim (Thick letters)
+    'ar-KW-FahedNeural': 'ar-OM-AbdullahNeural',
+    'ar-KW-NouraNeural': 'ar-OM-AyshaNeural',
+    
+    // Saudi - Hamed/Zariyah were "Almost Correct", but Abdullah/Amany are "Very Good".
+    // We keep Saudi native for variety, but we could map them if consistency is preferred.
+    // Keeping as is for now to allow *some* dialect variation.
+};
+
+/**
+ * Get the actual backend voice ID to use.
+ */
+function getBackendVoiceId(uiVoiceId: string): string {
+    return QUALITY_MAPPING[uiVoiceId] || uiVoiceId;
+}
+
+/**
+ * INTELLIGENT LOCALE MAPPING
+ * Ensures the locale matches the ENGINE being used, not the UI label.
  */
 function getOptimizedLocale(voiceId: string): string {
-    // 1. GOOD VOICES (Keep Native)
-    if (voiceId.includes('ar-OM')) return 'ar-OM'; // Omani (Good)
-    if (voiceId.includes('ar-SY')) return 'ar-SY'; // Syrian (Good)
-    if (voiceId.includes('ar-MA')) return 'ar-MA'; // Moroccan (Good)
-    if (voiceId.includes('ar-DZ')) return 'ar-DZ'; // Algerian (Good)
-    if (voiceId.includes('ar-TN')) return 'ar-TN'; // Tunisian (Good)
-    if (voiceId.includes('ar-YE')) return 'ar-YE'; // Yemeni (Good/Mixed but acceptable)
-    
-    // 2. PROBLEMATIC VOICES (Force Standard Arabic 'ar-SA' to fix accent/pronunciation)
-    // Fixes: "Mama" thinning, "J" becoming "G" (Egyptian), "Layla" eating letters.
-    if (voiceId.includes('ar-EG')) return 'ar-SA'; // Salma/Shakir -> Force SA to stop "G" sound in MSA
-    if (voiceId.includes('ar-JO')) return 'ar-SA'; // Taim/Sana -> Force SA to fix dialect mix
-    if (voiceId.includes('ar-LB')) return 'ar-SA'; // Layla/Rami -> Force SA (Lebanese model is very weak)
-    if (voiceId.includes('ar-BH')) return 'ar-SA'; // Ali/Laila -> Force SA
-    if (voiceId.includes('ar-QA')) return 'ar-SA'; // Amal/Moaz -> Force SA
-    if (voiceId.includes('ar-KW')) return 'ar-SA'; // Fahed/Noura -> Force SA
+    // 1. Resolve the ACTUAL engine being used first
+    const actualVoiceId = getBackendVoiceId(voiceId);
 
-    // 3. SEMI-CORRECT (Saudi/UAE) - Keep as is, they are the reference.
-    if (voiceId.includes('ar-SA')) return 'ar-SA';
-    if (voiceId.includes('ar-AE')) return 'ar-AE';
-
-    // Default fallback
-    const parts = voiceId.split('-');
-    return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : 'en-US';
+    // 2. Return the native locale of that engine to ensure best pronunciation
+    const parts = actualVoiceId.split('-');
+    if (parts.length >= 2) {
+        return `${parts[0]}-${parts[1]}`;
+    }
+    return 'ar-SA'; // Fallback to Standard Arabic
 }
 
 /**
@@ -55,74 +96,73 @@ function getOptimizedLocale(voiceId: string): string {
  */
 export async function generateStandardSpeech(
     text: string,
-    voiceId: string, // e.g., 'ar-EG-SalmaNeural'
-    pauseDuration: number = 0, // Seconds
-    emotion: string = 'Default' // Style mapping
+    voiceId: string, // The ID selected in UI
+    pauseDuration: number = 0, 
+    emotion: string = 'Default' 
 ): Promise<Uint8Array | null> {
     try {
-        let payload: any = { voiceId };
+        // SWAP THE VOICE ENGINE if it's on the blacklist
+        const backendVoiceId = getBackendVoiceId(voiceId);
+        
+        // Use the locale of the NEW voice engine
+        const langCode = getOptimizedLocale(backendVoiceId);
 
-        // Determine the best engine locale to use
-        const langCode = getOptimizedLocale(voiceId);
+        let payload: any = { voiceId: backendVoiceId };
 
         // Map UI Emotion to Azure Style & Prosody
         let azureStyle = '';
         let rate = '0%';
         let pitch = '0%';
 
+        // Global Tweak: Slow down slightly (-3%) to add weight/Tafkhim to letters
+        let baseRate = -3; 
+
         // Style Mapping Logic
         switch (emotion) {
-            // Standard Emotions
-            case 'happy': azureStyle = 'cheerful'; break;
-            case 'sad': azureStyle = 'sad'; rate = '-5%'; break;
-            case 'formal': azureStyle = 'newscast'; break;
+            case 'happy': azureStyle = 'cheerful'; baseRate = 0; break;
+            case 'sad': azureStyle = 'sad'; baseRate = -10; break;
+            case 'formal': azureStyle = 'newscast'; baseRate = 0; break;
             
-            // New Personas - Mapping to SSML Logic
             case 'epic_poet': 
                 azureStyle = 'empathetic'; 
-                rate = '-10%'; // Slightly faster than before to prevent robotic drag
-                pitch = '-2%'; // Deeper for authority
+                baseRate = -12; // Slow for grandeur
+                pitch = '-2%'; 
                 break;
             case 'heritage_narrator':
                 azureStyle = 'narration-professional'; 
-                rate = '-5%'; 
+                baseRate = -5; 
                 pitch = '-2%'; 
                 break;
             case 'news_anchor':
                 azureStyle = 'newscast';
-                rate = '+5%';
+                baseRate = 5;
                 break;
             case 'sports_commentator':
-                azureStyle = 'shouting'; // or excited
-                rate = '+15%';
+                azureStyle = 'shouting'; 
+                baseRate = 15;
                 pitch = '+5%';
                 break;
             case 'thriller':
                 azureStyle = 'whispering';
-                rate = '-10%';
+                baseRate = -10;
                 break;
-            
-            // Legacy/Default
             default: azureStyle = '';
         }
 
+        rate = `${baseRate}%`;
+
         const paragraphs = text.split(/\n\s*\n/);
-        
         let innerContent = '';
         
         paragraphs.forEach((para, index) => {
             let cleanPara = para.trim();
             if (cleanPara) {
-                // --- POETRY RHYME HACK (The Ishba' Fix) ---
+                // --- POETRY RHYME HACK ---
                 if (emotion === 'epic_poet') {
                     cleanPara = cleanPara.replace(/[.!?؟,،]+$/, '');
-                    if (/[\u064F]$/.test(cleanPara)) { // Ends with Damma (ُ)
-                        cleanPara += 'و'; 
-                    } else if (/[\u0650]$/.test(cleanPara)) { // Ends with Kasra (ِ)
-                        cleanPara += 'ي';
-                    } else if (/[\u064E]$/.test(cleanPara)) { // Ends with Fatha (َ)
-                        cleanPara += 'ا';
-                    }
+                    if (/[\u064F]$/.test(cleanPara)) cleanPara += 'و'; 
+                    else if (/[\u0650]$/.test(cleanPara)) cleanPara += 'ي';
+                    else if (/[\u064E]$/.test(cleanPara)) cleanPara += 'ا';
                 }
 
                 innerContent += escapeXml(cleanPara);
@@ -140,13 +180,10 @@ export async function generateStandardSpeech(
             innerContent = `<mstts:express-as style="${azureStyle}">${innerContent}</mstts:express-as>`;
         }
         
-        // Construct the final full SSML
-        // CRITICAL: We use the `langCode` (which might be forced to ar-SA) for the xml:lang
-        // but we keep the `voiceId` specific. This forces the Saudi/Standard engine rules
-        // onto the specific voice actor.
+        // FORCE the mapped voice engine
         const fullSSML = `
             <speak version='1.0' xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang='${langCode}'>
-                <voice xml:lang='${langCode}' xml:gender='Female' name='${voiceId}'>
+                <voice xml:lang='${langCode}' xml:gender='Female' name='${backendVoiceId}'>
                     ${innerContent}
                 </voice>
             </speak>
@@ -243,6 +280,7 @@ export async function generateMultiSpeakerStandardSpeech(
 
     for (const seg of segments) {
         try {
+            // Mapping is handled inside generateStandardSpeech, so we just pass the UI voice ID
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
             if (mp3Bytes) {
                 const bufferCopy = mp3Bytes.slice(0).buffer;
