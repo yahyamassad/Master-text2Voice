@@ -34,13 +34,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
 
     // --- GENDER ENFORCEMENT ---
-    // User reported Puck and Charon drifting to female voices.
-    // We add explicit instructions to the prompt to lock the gender persona.
     let genderInstruction = "";
     if (selectedVoiceName === 'Puck' || selectedVoiceName === 'Charon' || selectedVoiceName === 'Fenrir') {
-        genderInstruction = "Identity: You are a MALE speaker with a deep, resonant voice. Do NOT speak with a high pitch or female tone.";
+        genderInstruction = "CRITICAL: You are a MALE speaker. Your voice MUST be deep and masculine. Do NOT speak with a female pitch.";
     } else if (selectedVoiceName === 'Kore' || selectedVoiceName === 'Zephyr') {
-        genderInstruction = "Identity: You are a FEMALE speaker.";
+        genderInstruction = "CRITICAL: You are a FEMALE speaker. Your voice MUST be soft and feminine.";
     }
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -52,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // STRICT System Instruction to prevent hallucination
                 const cleanText = text.trim();
                 
-                // Enhanced protection prompt against code reading/hallucinations AND gender drift
+                // Enhanced protection prompt
                 const protectedPrompt = `
 Task: Read the following text aloud exactly as written.
 ${genderInstruction}
