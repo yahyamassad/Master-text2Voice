@@ -57,6 +57,9 @@ const QUALITY_MAPPING: Record<string, string> = {
     // Kuwait
     'ar-KW-FahedNeural': 'ar-OM-AbdullahNeural',
     'ar-KW-NouraNeural': 'ar-OM-AyshaNeural',
+    // Yemen - Map to Omani (closest heavy semitic neighbor)
+    'ar-YE-MaryamNeural': 'ar-OM-AyshaNeural',
+    'ar-YE-SalehNeural': 'ar-OM-AbdullahNeural',
     
     // Saudi & UAE & Omani & Syrian natives are kept as is (The "Good" list).
 };
@@ -70,14 +73,18 @@ function getBackendVoiceId(uiVoiceId: string): string {
 
 /**
  * INTELLIGENT LOCALE MAPPING
+ * Ensures the locale matches the ENGINE being used, not the UI label.
  */
 function getOptimizedLocale(voiceId: string): string {
+    // 1. Resolve the ACTUAL engine being used first
     const actualVoiceId = getBackendVoiceId(voiceId);
+
+    // 2. Return the native locale of that engine to ensure best pronunciation
     const parts = actualVoiceId.split('-');
     if (parts.length >= 2) {
         return `${parts[0]}-${parts[1]}`;
     }
-    return 'ar-SA';
+    return 'ar-SA'; // Fallback to Standard Arabic
 }
 
 /**
@@ -86,10 +93,11 @@ function getOptimizedLocale(voiceId: string): string {
  * for voices that tend to be "thin" (Tarqiq).
  */
 function getTafkhimSettings(uiVoiceId: string): { pitch: string, rateOffset: number } {
-    // Egyptian mapped to Saudi: Lower pitch slightly to differentiate from pure Saudi
+    // Egyptian mapped to Saudi: Lower pitch slightly (-2%) to differentiate from pure Saudi 
+    // and give it that "Masri" heaviness.
     if (uiVoiceId.includes('ar-EG')) return { pitch: '-2%', rateOffset: -2 };
     
-    // Jordanian mapped to UAE: Slightly slower for gravitas
+    // Jordanian mapped to UAE: Slightly slower for gravitas/Bedouin feel
     if (uiVoiceId.includes('ar-JO')) return { pitch: '-1%', rateOffset: -3 };
 
     // Default: No adjustment
@@ -122,7 +130,7 @@ export async function generateStandardSpeech(
         let pitch = tafkhim.pitch; // Base pitch from Tafkhim
 
         // Global Rate Tweak + Tafkhim Offset
-        // Default slowing (-2%) + specific offset
+        // Default slowing (-2%) to improve articulation + specific offset
         let baseRate = -2 + tafkhim.rateOffset; 
 
         // Style Mapping Logic (Emotions override default pitch if needed, but we try to combine)
