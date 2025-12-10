@@ -19,53 +19,46 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
- * INTELLIGENT VOICE MAPPING (The Quality Fix)
- * Based on user report: 
- * - "Abdullah (Omani)" and "Amany (Syrian)" were rated "Very Good".
- * - "Salma (Egyptian)" and "Layla (Lebanese)" were rated poorly (broken accents/Indian-sounding).
+ * INTELLIGENT VOICE MAPPING V3 (The "Rule Breaker" Strategy)
+ * Goal: Maximize "Tafkhim" (Phonetic Weight) and Correct Dialect Identity.
  * 
- * Strategy: Map broken voices to the "Very Good" engines to ensure high-quality MSA (Fusha),
- * preferring Omani for Gulf/General male roles and Syrian for Levant/General female roles.
+ * Logic based on User Feedback:
+ * 1. Egypt: Native engine is weak/thin. Syrian is too light. 
+ *    -> Map to SAUDI (Zariyah/Hamed) for a heavier, "News Anchor" Fusha style.
+ * 2. Jordan: Native engine sounds Syrian. Jordan is acoustically closer to Gulf/Bedouin.
+ *    -> Map to UAE (Fatima/Hamdan) for better weight and distinctness from Syria.
+ * 3. Gulf: Omani engine is the "Gold Standard" for Tafkhim.
+ *    -> Map Qatari, Bahraini, Kuwaiti to OMANI (Aysha/Abdullah).
  */
 const QUALITY_MAPPING: Record<string, string> = {
-    // --- FIXING EGYPTIAN (Replacing broken 'G' dialect with Perfect MSA) ---
-    // Salma (Bad) -> Amany (Syrian - Rated "Very Good"). 
-    // We sacrifice the Egyptian 'G' for crystal clear Arabic pronunciation.
-    'ar-EG-SalmaNeural': 'ar-SY-AmanyNeural', 
-    // Shakir (Bad) -> Abdullah (Omani - Rated "Very Good").
-    'ar-EG-ShakirNeural': 'ar-OM-AbdullahNeural',
+    // --- EGYPTIAN STRATEGY: HEAVY FUSHA ---
+    // Map to Saudi to get the "Weight" (Tafkhim) missing in the native engine.
+    'ar-EG-SalmaNeural': 'ar-SA-ZariyahNeural', 
+    'ar-EG-ShakirNeural': 'ar-SA-HamedNeural',
 
-    // --- FIXING LEVANT/JORDAN (Fixing broken accents) ---
-    // Taim (Bad) -> Laith (Syrian - Rated "Good") or Abdullah (Omani). Using Laith for region match.
-    'ar-JO-TaimNeural': 'ar-SY-LaithNeural',
-    // Sana (Mixed) -> Amany (Syrian - Rated "Very Good").
-    'ar-JO-SanaNeural': 'ar-SY-AmanyNeural',
+    // --- JORDANIAN STRATEGY: BEDOUIN/GULF PROXIMITY ---
+    // Map to UAE instead of Syria. UAE engine has better authority and closer intonation.
+    'ar-JO-TaimNeural': 'ar-AE-HamdanNeural',
+    'ar-JO-SanaNeural': 'ar-AE-FatimaNeural',
     
-    // --- FIXING LEBANESE (Fixing letter eating) ---
-    // Layla (Bad) -> Amany (Syrian - Rated "Very Good").
+    // --- LEBANESE STRATEGY: LEVANTINE PURITY ---
+    // Keep with Syrian (Amany/Laith) as it's the closest accurate dialect.
     'ar-LB-LaylaNeural': 'ar-SY-AmanyNeural',
-    // Rami (Bad) -> Laith (Syrian - Rated "Good").
     'ar-LB-RamiNeural': 'ar-SY-LaithNeural',
 
-    // --- FIXING GULF MIXES (Upgrading "Almost" to "Very Good") ---
-    // Amal (Qatari Mixed) -> Fatima (UAE - Rated "Almost Correct") or Aysha (Omani - "Very Good"). 
-    // Using Aysha for best quality.
+    // --- GULF CONSOLIDATION: THE OMANI STANDARD ---
+    // User rated Omani as "Very Good" for Tafkhim. Use it everywhere in Gulf.
+    // Qatar
     'ar-QA-AmalNeural': 'ar-OM-AyshaNeural',
-    // Moaz (Qatari Mixed) -> Abdullah (Omani - Rated "Very Good").
     'ar-QA-MoazNeural': 'ar-OM-AbdullahNeural',
-    
-    // Ali (Bahraini Mixed) -> Abdullah (Omani - Rated "Very Good").
+    // Bahrain
     'ar-BH-AliNeural': 'ar-OM-AbdullahNeural',
-    // Laila (Bahraini Mixed) -> Aysha (Omani - Rated "Very Good").
     'ar-BH-LailaNeural': 'ar-OM-AyshaNeural',
-
-    // Kuwaiti - Upgrade to Omani for better Tafkhim (Thick letters)
+    // Kuwait
     'ar-KW-FahedNeural': 'ar-OM-AbdullahNeural',
     'ar-KW-NouraNeural': 'ar-OM-AyshaNeural',
     
-    // Saudi - Hamed/Zariyah were "Almost Correct", but Abdullah/Amany are "Very Good".
-    // We keep Saudi native for variety, but we could map them if consistency is preferred.
-    // Keeping as is for now to allow *some* dialect variation.
+    // Saudi & UAE & Omani & Syrian natives are kept as is (The "Good" list).
 };
 
 /**
@@ -77,18 +70,30 @@ function getBackendVoiceId(uiVoiceId: string): string {
 
 /**
  * INTELLIGENT LOCALE MAPPING
- * Ensures the locale matches the ENGINE being used, not the UI label.
  */
 function getOptimizedLocale(voiceId: string): string {
-    // 1. Resolve the ACTUAL engine being used first
     const actualVoiceId = getBackendVoiceId(voiceId);
-
-    // 2. Return the native locale of that engine to ensure best pronunciation
     const parts = actualVoiceId.split('-');
     if (parts.length >= 2) {
         return `${parts[0]}-${parts[1]}`;
     }
-    return 'ar-SA'; // Fallback to Standard Arabic
+    return 'ar-SA';
+}
+
+/**
+ * TAFKHIM BOOSTER (The "Weight" Algorithm)
+ * Adjusts Pitch and Speed slightly to create a fuller, deeper sound 
+ * for voices that tend to be "thin" (Tarqiq).
+ */
+function getTafkhimSettings(uiVoiceId: string): { pitch: string, rateOffset: number } {
+    // Egyptian mapped to Saudi: Lower pitch slightly to differentiate from pure Saudi
+    if (uiVoiceId.includes('ar-EG')) return { pitch: '-2%', rateOffset: -2 };
+    
+    // Jordanian mapped to UAE: Slightly slower for gravitas
+    if (uiVoiceId.includes('ar-JO')) return { pitch: '-1%', rateOffset: -3 };
+
+    // Default: No adjustment
+    return { pitch: '0%', rateOffset: 0 };
 }
 
 /**
@@ -101,52 +106,68 @@ export async function generateStandardSpeech(
     emotion: string = 'Default' 
 ): Promise<Uint8Array | null> {
     try {
-        // SWAP THE VOICE ENGINE if it's on the blacklist
+        // 1. SWAP THE VOICE ENGINE
         const backendVoiceId = getBackendVoiceId(voiceId);
         
-        // Use the locale of the NEW voice engine
+        // 2. SET LOCALE
         const langCode = getOptimizedLocale(backendVoiceId);
 
         let payload: any = { voiceId: backendVoiceId };
 
-        // Map UI Emotion to Azure Style & Prosody
+        // 3. APPLY TAFKHIM (Weight) SETTINGS
+        const tafkhim = getTafkhimSettings(voiceId);
+
         let azureStyle = '';
         let rate = '0%';
-        let pitch = '0%';
+        let pitch = tafkhim.pitch; // Base pitch from Tafkhim
 
-        // Global Tweak: Slow down slightly (-3%) to add weight/Tafkhim to letters
-        let baseRate = -3; 
+        // Global Rate Tweak + Tafkhim Offset
+        // Default slowing (-2%) + specific offset
+        let baseRate = -2 + tafkhim.rateOffset; 
 
-        // Style Mapping Logic
+        // Style Mapping Logic (Emotions override default pitch if needed, but we try to combine)
         switch (emotion) {
-            case 'happy': azureStyle = 'cheerful'; baseRate = 0; break;
-            case 'sad': azureStyle = 'sad'; baseRate = -10; break;
-            case 'formal': azureStyle = 'newscast'; baseRate = 0; break;
+            case 'happy': 
+                azureStyle = 'cheerful'; 
+                baseRate += 5; // Happy is faster
+                pitch = '+2%'; // Lighter
+                break;
+            case 'sad': 
+                azureStyle = 'sad'; 
+                baseRate -= 10; 
+                pitch = '-5%'; // Deep sadness
+                break;
+            case 'formal': 
+                azureStyle = 'newscast'; 
+                // Keep Tafkhim pitch for formal
+                break;
             
             case 'epic_poet': 
                 azureStyle = 'empathetic'; 
-                baseRate = -12; // Slow for grandeur
-                pitch = '-2%'; 
+                baseRate -= 12; 
+                pitch = '-4%'; // Very deep for poetry
                 break;
             case 'heritage_narrator':
                 azureStyle = 'narration-professional'; 
-                baseRate = -5; 
-                pitch = '-2%'; 
+                baseRate -= 5; 
+                pitch = '-3%'; 
                 break;
             case 'news_anchor':
                 azureStyle = 'newscast';
-                baseRate = 5;
+                baseRate += 5;
                 break;
             case 'sports_commentator':
                 azureStyle = 'shouting'; 
-                baseRate = 15;
+                baseRate += 15;
                 pitch = '+5%';
                 break;
             case 'thriller':
                 azureStyle = 'whispering';
-                baseRate = -10;
+                baseRate -= 10;
                 break;
-            default: azureStyle = '';
+            default: 
+                // For default, we stick to the Tafkhim pitch calculated above
+                azureStyle = '';
         }
 
         rate = `${baseRate}%`;
@@ -172,15 +193,16 @@ export async function generateStandardSpeech(
             }
         });
 
+        // Apply Prosody (Rate & Pitch)
         if (rate !== '0%' || pitch !== '0%') {
             innerContent = `<prosody rate="${rate}" pitch="${pitch}">${innerContent}</prosody>`;
         }
 
+        // Apply Style
         if (azureStyle) {
             innerContent = `<mstts:express-as style="${azureStyle}">${innerContent}</mstts:express-as>`;
         }
         
-        // FORCE the mapped voice engine
         const fullSSML = `
             <speak version='1.0' xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang='${langCode}'>
                 <voice xml:lang='${langCode}' xml:gender='Female' name='${backendVoiceId}'>
@@ -280,7 +302,7 @@ export async function generateMultiSpeakerStandardSpeech(
 
     for (const seg of segments) {
         try {
-            // Mapping is handled inside generateStandardSpeech, so we just pass the UI voice ID
+            // Mapping and Tafkhim handled inside generateStandardSpeech
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
             if (mp3Bytes) {
                 const bufferCopy = mp3Bytes.slice(0).buffer;
