@@ -50,14 +50,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // STRICT System Instruction to prevent hallucination
                 const cleanText = text.trim();
                 
-                // Enhanced protection prompt
+                // Enhanced protection prompt - NOW POLYGLOT SAFE
                 const protectedPrompt = `
-Task: Read the following text aloud exactly as written.
+Task: Read the following text aloud exactly as written in the detected language.
 ${genderInstruction}
 Strict Constraints:
 1. Do NOT read any technical metadata, code snippets, or introductory phrases.
 2. Do NOT explain the text.
-3. Do NOT switch to English if the text is Arabic.
+3. Read in the language of the text provided (e.g., if French, speak French; if Arabic, speak Arabic).
 4. Only vocalize the content inside the triple quotes below.
 
 Text to read:
