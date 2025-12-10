@@ -19,6 +19,38 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
+ * INTELLIGENT LOCALE MAPPING based on User Quality Report.
+ * - 'Good' voices keep their native locale (e.g. Omani, Syrian).
+ * - 'Bad/Mixed' voices are forced to 'ar-SA' (Standard Arabic) to fix pronunciation (Jeem vs G, Thick Alif).
+ */
+function getOptimizedLocale(voiceId: string): string {
+    // 1. GOOD VOICES (Keep Native)
+    if (voiceId.includes('ar-OM')) return 'ar-OM'; // Omani (Good)
+    if (voiceId.includes('ar-SY')) return 'ar-SY'; // Syrian (Good)
+    if (voiceId.includes('ar-MA')) return 'ar-MA'; // Moroccan (Good)
+    if (voiceId.includes('ar-DZ')) return 'ar-DZ'; // Algerian (Good)
+    if (voiceId.includes('ar-TN')) return 'ar-TN'; // Tunisian (Good)
+    if (voiceId.includes('ar-YE')) return 'ar-YE'; // Yemeni (Good/Mixed but acceptable)
+    
+    // 2. PROBLEMATIC VOICES (Force Standard Arabic 'ar-SA' to fix accent/pronunciation)
+    // Fixes: "Mama" thinning, "J" becoming "G" (Egyptian), "Layla" eating letters.
+    if (voiceId.includes('ar-EG')) return 'ar-SA'; // Salma/Shakir -> Force SA to stop "G" sound in MSA
+    if (voiceId.includes('ar-JO')) return 'ar-SA'; // Taim/Sana -> Force SA to fix dialect mix
+    if (voiceId.includes('ar-LB')) return 'ar-SA'; // Layla/Rami -> Force SA (Lebanese model is very weak)
+    if (voiceId.includes('ar-BH')) return 'ar-SA'; // Ali/Laila -> Force SA
+    if (voiceId.includes('ar-QA')) return 'ar-SA'; // Amal/Moaz -> Force SA
+    if (voiceId.includes('ar-KW')) return 'ar-SA'; // Fahed/Noura -> Force SA
+
+    // 3. SEMI-CORRECT (Saudi/UAE) - Keep as is, they are the reference.
+    if (voiceId.includes('ar-SA')) return 'ar-SA';
+    if (voiceId.includes('ar-AE')) return 'ar-AE';
+
+    // Default fallback
+    const parts = voiceId.split('-');
+    return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : 'en-US';
+}
+
+/**
  * Calls the backend API to generate speech using Microsoft Azure AI Speech (Neural).
  */
 export async function generateStandardSpeech(
@@ -30,11 +62,8 @@ export async function generateStandardSpeech(
     try {
         let payload: any = { voiceId };
 
-        // Derive lang from voiceId (e.g. ar-EG-SalmaNeural -> ar-EG)
-        // CRITICAL FIX: We must use the FULL locale (e.g., 'ar-JO', 'ar-QA') as the xml:lang
-        // to force Azure to use the correct dialect engine, otherwise it defaults to standard Arabic or Egyptian.
-        const parts = voiceId.split('-');
-        const langCode = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : 'en-US';
+        // Determine the best engine locale to use
+        const langCode = getOptimizedLocale(voiceId);
 
         // Map UI Emotion to Azure Style & Prosody
         let azureStyle = '';
@@ -50,18 +79,14 @@ export async function generateStandardSpeech(
             
             // New Personas - Mapping to SSML Logic
             case 'epic_poet': 
-                // CRITICAL FOR POETRY:
-                // We use 'empathetic' as it flows better than standard reading.
-                // Rate -15% gives time for the listener to process the weight of words.
-                // Pitch +5% adds a "recitation" quality.
                 azureStyle = 'empathetic'; 
-                rate = '-15%'; 
-                pitch = '+5%'; 
+                rate = '-10%'; // Slightly faster than before to prevent robotic drag
+                pitch = '-2%'; // Deeper for authority
                 break;
             case 'heritage_narrator':
                 azureStyle = 'narration-professional'; 
-                rate = '-10%'; // Slower for storytelling
-                pitch = '-2%'; // Slightly deeper for authority
+                rate = '-5%'; 
+                pitch = '-2%'; 
                 break;
             case 'news_anchor':
                 azureStyle = 'newscast';
@@ -81,28 +106,16 @@ export async function generateStandardSpeech(
             default: azureStyle = '';
         }
 
-        // Logic: Build SSML to handle Pauses AND Emotions
-        // We always use SSML now to support these features
-        
         const paragraphs = text.split(/\n\s*\n/);
         
-        // Build Inner Text (Breaks logic)
         let innerContent = '';
         
         paragraphs.forEach((para, index) => {
             let cleanPara = para.trim();
             if (cleanPara) {
                 // --- POETRY RHYME HACK (The Ishba' Fix) ---
-                // Problem: Azure strictly silences (Sukun) the end of sentences.
-                // Solution: We apply "Ishba'" (Saturation) by converting the final short vowel 
-                // into its corresponding long vowel letter. 
-                // Damma -> Waw, Kasra -> Ya, Fatha -> Alif.
-                // This tricks the engine into pronouncing the sound fully as if singing/reciting.
                 if (emotion === 'epic_poet') {
-                    // 1. Remove ending punctuation that triggers stops
                     cleanPara = cleanPara.replace(/[.!?؟,،]+$/, '');
-                    
-                    // 2. Check for short vowels at the very end
                     if (/[\u064F]$/.test(cleanPara)) { // Ends with Damma (ُ)
                         cleanPara += 'و'; 
                     } else if (/[\u0650]$/.test(cleanPara)) { // Ends with Kasra (ِ)
@@ -110,7 +123,6 @@ export async function generateStandardSpeech(
                     } else if (/[\u064E]$/.test(cleanPara)) { // Ends with Fatha (َ)
                         cleanPara += 'ا';
                     }
-                    // Note: We leave Sukun or no-vowel as is.
                 }
 
                 innerContent += escapeXml(cleanPara);
@@ -120,20 +132,18 @@ export async function generateStandardSpeech(
             }
         });
 
-        // Wrap in Prosody (Rate/Pitch)
         if (rate !== '0%' || pitch !== '0%') {
             innerContent = `<prosody rate="${rate}" pitch="${pitch}">${innerContent}</prosody>`;
         }
 
-        // Wrap in Style if selected
         if (azureStyle) {
-            // Note: Not all voices support all styles. Azure ignores invalid styles gracefully usually,
-            // but for robust support we blindly apply it.
             innerContent = `<mstts:express-as style="${azureStyle}">${innerContent}</mstts:express-as>`;
         }
         
         // Construct the final full SSML
-        // Note: We enforce xml:lang to the specific voice locale (e.g. ar-JO) to help with dialect pronunciation.
+        // CRITICAL: We use the `langCode` (which might be forced to ar-SA) for the xml:lang
+        // but we keep the `voiceId` specific. This forces the Saudi/Standard engine rules
+        // onto the specific voice actor.
         const fullSSML = `
             <speak version='1.0' xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang='${langCode}'>
                 <voice xml:lang='${langCode}' xml:gender='Female' name='${voiceId}'>
@@ -180,20 +190,16 @@ export async function generateMultiSpeakerStandardSpeech(
     text: string,
     speakers: { speakerA: SpeakerConfig, speakerB: SpeakerConfig, speakerC?: SpeakerConfig, speakerD?: SpeakerConfig },
     defaultVoice: string,
-    pauseDuration: number = 0.5 // Default pause between speaker turns
+    pauseDuration: number = 0.5 
 ): Promise<Uint8Array | null> {
-    // 1. Parse text into segments
-    // Regex to split by newlines, handling both \n and \r\n
     const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
     
     if (lines.length === 0) return null;
 
-    // Helper for regex escaping
     const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const segments: { text: string, voice: string }[] = [];
     
-    // Prepare regex for speakers
     const nameA = speakers.speakerA.name.trim();
     const nameB = speakers.speakerB.name.trim();
     const nameC = speakers.speakerC?.name.trim();
@@ -204,11 +210,11 @@ export async function generateMultiSpeakerStandardSpeech(
     const regexC = nameC ? new RegExp(`^${escapeRegExp(nameC)}\\s*:\\s*`, 'i') : null;
     const regexD = nameD ? new RegExp(`^${escapeRegExp(nameD)}\\s*:\\s*`, 'i') : null;
 
-    let currentVoice = defaultVoice; // fallback
+    let currentVoice = defaultVoice; 
 
     for (const line of lines) {
         let lineText = line;
-        let lineVoice = currentVoice; // Continue with previous voice by default unless name found
+        let lineVoice = currentVoice; 
 
         if (regexA.test(line)) {
             lineVoice = speakers.speakerA.voice;
@@ -226,43 +232,30 @@ export async function generateMultiSpeakerStandardSpeech(
 
         if (lineText.length > 0) {
             segments.push({ text: lineText, voice: lineVoice });
-            currentVoice = lineVoice; // Update context for next lines
+            currentVoice = lineVoice; 
         }
     }
 
     if (segments.length === 0) return null;
 
-    // 2. Fetch audio for all segments
-    // We fetch linearly to maintain order and simplicity, though parallel is possible
     const audioBuffers: AudioBuffer[] = [];
-    
-    // We need an AudioContext to decode MP3 data coming from Azure
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
     for (const seg of segments) {
         try {
-            // We use simple generation here (no emotion/pause per line) 
-            // Note: We could pass the global 'emotion' here if we updated this function signature too, 
-            // but sticking to base functionality for multi-speaker standard for now to keep it robust.
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
             if (mp3Bytes) {
-                // Decode MP3 bytes to AudioBuffer
-                // We must clone buffer because decodeAudioData detaches it
                 const bufferCopy = mp3Bytes.slice(0).buffer;
                 const audioBuffer = await ctx.decodeAudioData(bufferCopy);
                 audioBuffers.push(audioBuffer);
             }
         } catch (e) {
             console.error(`Failed to generate segment for voice ${seg.voice}:`, e);
-            // Skip failed segment or insert silence? Skip for now.
         }
     }
 
     if (audioBuffers.length === 0) return null;
 
-    // 3. Stitch AudioBuffers
-    // Calculate total length
-    // Add dynamic silence between segments based on pauseDuration setting
     const PAUSE_SAMPLES = Math.floor(pauseDuration * ctx.sampleRate);
     
     let totalLength = 0;
@@ -271,26 +264,21 @@ export async function generateMultiSpeakerStandardSpeech(
         if (i < audioBuffers.length - 1) totalLength += PAUSE_SAMPLES;
     });
 
-    const outputBuffer = ctx.createBuffer(1, totalLength, ctx.sampleRate); // Mono for now
+    const outputBuffer = ctx.createBuffer(1, totalLength, ctx.sampleRate); 
     const outputData = outputBuffer.getChannelData(0);
     
     let offset = 0;
     for (let i = 0; i < audioBuffers.length; i++) {
         const buf = audioBuffers[i];
-        // Mix down to mono if source is stereo
         const inputData = buf.getChannelData(0); 
         outputData.set(inputData, offset);
         offset += buf.length;
         
-        // Add silence
         if (i < audioBuffers.length - 1) {
-            // No data set = silence (0)
             offset += PAUSE_SAMPLES; 
         }
     }
 
-    // 4. Convert merged AudioBuffer back to WAV Blob/Bytes to return to App
-    // We reuse createWavBlob logic
     const wavBlob = createWavBlob(outputBuffer, 1, ctx.sampleRate);
     const wavArrayBuffer = await wavBlob.arrayBuffer();
     
