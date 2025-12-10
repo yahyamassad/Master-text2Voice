@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { t, Language } from '../i18n/translations';
-import { WarningIcon, CopyIcon, TrashIcon, InfoIcon, CheckIcon, ChevronDownIcon, GearIcon } from './icons';
+import { WarningIcon, CopyIcon, TrashIcon, InfoIcon, CheckIcon, ChevronDownIcon, GearIcon, ExternalLinkIcon, SparklesIcon } from './icons';
 
 // --- Interfaces ---
 interface ServerStatus {
@@ -104,6 +104,25 @@ function EnvVarCheckRow({ name, value }: { name: string, value: string | undefin
             <div className="text-right">
                 <span className={`text-xs font-black uppercase tracking-wider ${color}`}>{status}</span>
                 {detail && <div className="text-[10px] text-slate-500 font-mono">{detail}</div>}
+            </div>
+        </div>
+    );
+}
+
+function CostRow({ provider, cost, tier, danger = false, highlight = false, note = '' }: { provider: string, cost: string, tier: string, danger?: boolean, highlight?: boolean, note?: string }) {
+    return (
+        <div className={`flex items-center justify-between p-3 rounded border mb-2 ${danger ? 'bg-red-950/20 border-red-500/30' : (highlight ? 'bg-cyan-950/30 border-cyan-500/50 shadow-lg shadow-cyan-900/20' : 'bg-slate-900 border-slate-700')}`}>
+            <div>
+                <div className={`font-bold text-xs flex items-center gap-2 ${danger ? 'text-red-300' : (highlight ? 'text-cyan-300' : 'text-slate-200')}`}>
+                    {provider}
+                    {highlight && <SparklesIcon className="w-3 h-3 text-cyan-400 animate-pulse" />}
+                </div>
+                <div className="text-[10px] text-slate-500">{tier}</div>
+                {note && <div className="text-[9px] text-green-400 mt-0.5">{note}</div>}
+            </div>
+            <div className="text-right">
+                <div className={`font-mono text-xs font-bold ${danger ? 'text-red-400' : (highlight ? 'text-cyan-300' : 'text-slate-400')}`}>{cost}</div>
+                <div className="text-[9px] text-slate-600">per 1M chars</div>
             </div>
         </div>
     );
@@ -215,6 +234,8 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     const [checking, setChecking] = useState(false);
     const [expandServerDetails, setExpandServerDetails] = useState(false);
     const [expandFrontendDebug, setExpandFrontendDebug] = useState(false);
+    const [expandQuotas, setExpandQuotas] = useState(false);
+    const [expandCosts, setExpandCosts] = useState(false);
     
     // Auto-check on mount
     useEffect(() => {
@@ -299,9 +320,14 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
     let descriptionText = uiLanguage === 'ar' ? 'رسالة للمطور: يرجى إصلاح أخطاء الخادم أدناه.' : 'Dev Message: Please fix the server configuration errors below.';
 
     if (isFullyConfigured) {
-        // Even if fully configured, we show the Rules helper if triggered by setup param or just to be helpful in dev mode,
-        // but typically this component disappears. However, to help the user fix the waitlist bug, we'll show the rules section
-        // if this component is visible.
+        containerStyle = "bg-[#0f172a] border-teal-500/50 shadow-2xl ring-1 ring-teal-900/50";
+        headerIcon = <CheckIcon className="w-6 h-6 text-teal-400" />;
+        headerTitleColor = "text-teal-400";
+        headerBg = "bg-teal-950/30 border-teal-500/30";
+        titleText = uiLanguage === 'ar' ? 'الخادم جاهز!' : 'Server Ready!';
+        descriptionText = uiLanguage === 'ar' 
+            ? 'كل شيء يعمل بشكل صحيح. يمكنك مراجعة الحصص (Quotas) وتكاليف التشغيل بالأسفل.' 
+            : 'Everything is running smoothly. Review your quotas and costs below.';
     } else if (isServerReady && !isFirebaseConfigured) {
         containerStyle = "bg-[#0f172a] border-teal-500/50 shadow-2xl ring-1 ring-teal-900/50";
         headerIcon = <CheckIcon className="w-6 h-6 text-teal-400" />;
@@ -374,7 +400,6 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                                     <StatusRow label="Azure Speech Key" value={serverStatus.details.azureKey} />
                                     <StatusRow label="Azure Region" value={serverStatus.details.azureRegion} />
                                     
-                                    {/* New Model Rows */}
                                     <div className="my-2 border-t border-slate-800 pt-2"></div>
                                     <ModelRow label="Active TTS Model" value={serverStatus.details.ttsModel} />
                                     <ModelRow label="Active Text Model" value={serverStatus.details.textModel} />
@@ -405,6 +430,132 @@ export default function OwnerSetupGuide({ uiLanguage, isApiConfigured, isFirebas
                                     {checking ? 'Checking connection...' : (serverStatus?.error || 'Click Check to verify server')}
                                 </div>
                             )}
+                        </div>
+                    )}
+                </div>
+
+                {/* COST INTELLIGENCE - NEW SECTION */}
+                <div className="rounded-xl border border-slate-700 bg-[#020617] overflow-hidden">
+                    <div 
+                        className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-800 transition-colors"
+                        onClick={() => setExpandCosts(!expandCosts)}
+                    >
+                        <h4 className="font-bold flex items-center gap-2 text-sm text-slate-200">
+                            <span className="text-amber-400 font-serif font-black">$</span>
+                            {uiLanguage === 'ar' ? 'حاسبة التكاليف (Cost Intelligence)' : 'Cost Intelligence'}
+                        </h4>
+                        <ChevronDownIcon className={`w-5 h-5 text-slate-400 transition-transform ${expandCosts ? 'rotate-180' : ''}`} />
+                    </div>
+                    {expandCosts && (
+                        <div className="p-5 border-t border-slate-800 bg-slate-950">
+                            <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                                {uiLanguage === 'ar' 
+                                    ? 'هذا الجدول يوضح أن أصوات Gemini (Ultra) هي الأفضل جودة والأقل تكلفة والأكثر تنوعاً لغوياً.'
+                                    : 'This table confirms Gemini (Ultra) voices offer the best quality, lowest cost, and full multilingual support.'}
+                            </p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <h5 className="text-xs font-bold text-green-400 mb-2 uppercase tracking-wide">Superior & Cheap (Recommended)</h5>
+                                    <CostRow provider="Gemini (Ultra Voices)" cost="~ $0.00" tier="All Plans" highlight note={uiLanguage === 'ar' ? "متعدد اللغات (يتحدث أي لغة)" : "Polyglot (Speaks ANY language)"} />
+                                    <CostRow provider="OpenAI (TTS-1-HD)" cost="$30.00" tier="Gold / Platinum" note="Good Alternative" />
+                                </div>
+                                <div>
+                                    <h5 className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">Standard & Expensive</h5>
+                                    <CostRow provider="Microsoft Azure" cost="$16.00" tier="Basic / Pro" />
+                                    <div className="mt-4">
+                                        <h5 className="text-xs font-bold text-red-400 mb-2 uppercase tracking-wide">Danger Zone (Avoid)</h5>
+                                        <CostRow provider="Google Studio" cost="$160.00" tier="Enterprise Only" danger />
+                                        <CostRow provider="ElevenLabs" cost="$220.00+" tier="Enterprise Only" danger />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Quotas & Limits - NEW SECTION */}
+                <div className="rounded-xl border border-slate-700 bg-[#020617] overflow-hidden">
+                    <div 
+                        className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-800 transition-colors"
+                        onClick={() => setExpandQuotas(!expandQuotas)}
+                    >
+                        <h4 className="font-bold flex items-center gap-2 text-sm text-slate-200">
+                            <ExternalLinkIcon className="w-5 h-5 text-teal-400" />
+                            {uiLanguage === 'ar' ? 'زيادة الحصص (Scaling & Quotas)' : 'Scaling & Quotas'}
+                        </h4>
+                        <ChevronDownIcon className={`w-5 h-5 text-slate-400 transition-transform ${expandQuotas ? 'rotate-180' : ''}`} />
+                    </div>
+                    {expandQuotas && (
+                        <div className="p-5 border-t border-slate-800 bg-slate-950 space-y-4">
+                            <p className="text-xs text-slate-400 leading-relaxed mb-2">
+                                {uiLanguage === 'ar' 
+                                    ? 'لضمان عمل التطبيق مع عدد كبير من المستخدمين، يوصى بطلب زيادة الحصص (Quotas) من جوجل ومايكروسوفت.' 
+                                    : 'To ensure stability with many concurrent users, request quota increases from Google and Microsoft.'}
+                            </p>
+                            
+                            {/* Gemini (Vertex AI) */}
+                            <div className="p-3 bg-slate-900 rounded border border-slate-700">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-cyan-400 font-bold text-xs">Google Vertex AI (Gemini)</span>
+                                    <span className="text-slate-500 text-[10px] font-mono">Ultra Voices</span>
+                                </div>
+                                <div className="text-xs text-slate-300 mb-2">Target: <strong>GenerateContent requests per minute</strong></div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-green-400 font-bold bg-green-950/30 px-2 py-1 rounded">Rec: 1,000 RPM</span>
+                                    <a href="https://console.cloud.google.com/iam-admin/quotas?service=aiplatform.googleapis.com" target="_blank" rel="noreferrer" className="text-cyan-500 hover:text-cyan-400 text-xs flex items-center gap-1 underline">
+                                        Manage <ExternalLinkIcon className="w-3 h-3"/>
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* Google TTS - WITH WARNING */}
+                            <div className="p-3 bg-slate-900 rounded border border-slate-700 relative overflow-hidden">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-cyan-400 font-bold text-xs">Google Cloud TTS</span>
+                                    <span className="text-slate-500 text-[10px] font-mono">Future Use</span>
+                                </div>
+                                <div className="text-xs text-slate-300 mb-2">Target: <strong>Neural2 / Studio voices per minute</strong></div>
+                                
+                                {/* WARNING BOX */}
+                                <div className="bg-red-900/20 border border-red-500/30 p-2 rounded mb-2">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <WarningIcon className="w-3 h-3 text-red-400" />
+                                        <span className="text-[10px] font-bold text-red-300">
+                                            {uiLanguage === 'ar' ? 'تنبيه التكلفة:' : 'Cost Warning:'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[9px] text-red-200 leading-relaxed">
+                                        Studio: ~$160/1M chars (Expensive)<br/>
+                                        Neural2: ~$16/1M chars (Standard)<br/>
+                                        <span className="opacity-75 italic block mt-1">
+                                            {uiLanguage === 'ar' ? '* رفع الحصة (Quota) مجاني، الدفع حسب الاستخدام فقط.' : '* Increasing Quota is free. You pay only for usage.'}
+                                        </span>
+                                    </p>
+                                </div>
+
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-green-400 font-bold bg-green-950/30 px-2 py-1 rounded">Rec: 3,000 / 1,000</span>
+                                    <a href="https://console.cloud.google.com/apis/api/texttospeech.googleapis.com/quotas" target="_blank" rel="noreferrer" className="text-cyan-500 hover:text-cyan-400 text-xs flex items-center gap-1 underline">
+                                        Manage <ExternalLinkIcon className="w-3 h-3"/>
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* Azure */}
+                            <div className="p-3 bg-slate-900 rounded border border-slate-700">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-blue-400 font-bold text-xs">Microsoft Azure Speech</span>
+                                    <span className="text-slate-500 text-[10px] font-mono">Pro Voices</span>
+                                </div>
+                                <div className="text-xs text-slate-300 mb-2">Target: <strong>Concurrent Request Limit</strong></div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] text-green-400 font-bold bg-green-950/30 px-2 py-1 rounded">Rec: 50+ Concurrent</span>
+                                    <a href="https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices" target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-400 text-xs flex items-center gap-1 underline">
+                                        Manage <ExternalLinkIcon className="w-3 h-3"/>
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
