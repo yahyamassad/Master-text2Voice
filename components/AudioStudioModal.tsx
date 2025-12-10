@@ -1045,7 +1045,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
             
             // Clean filename
             const cleanName = name.replace(/[^a-z0-9_\u0600-\u06FF\s-]/gi, '_').trim();
-            const fileNameWithExt = `${cleanName}.sawtli`;
+            const fileNameWithExt = `${cleanName}.saw`; // Changed from .sawtli
 
             // --- MODERN SAVE: File System Access API ---
             // If browser supports it, show a real "Save As" dialog
@@ -1057,7 +1057,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         suggestedName: fileNameWithExt,
                         types: [{
                             description: 'Sawtli Project File',
-                            accept: { 'application/json': ['.sawtli'] },
+                            accept: { 'application/json': ['.saw'] },
                         }],
                     });
                     
@@ -1383,7 +1383,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         {/* Hidden Inputs */}
                         <input type="file" ref={fileInputRef} onChange={handleVoiceFileChange} accept="audio/*" className="hidden" />
                         <input type="file" ref={musicInputRef} onChange={handleMusicFileChange} accept="audio/*" className="hidden" />
-                        <input type="file" ref={projectInputRef} onChange={handleLoadProject} accept=".sawtli,.json" className="hidden" />
+                        {/* UPDATED: accept .saw, .sawtli, .json */}
+                        <input type="file" ref={projectInputRef} onChange={handleLoadProject} accept=".saw,.sawtli,.json" className="hidden" />
                     </div>
 
                     {/* Main Grid */}
