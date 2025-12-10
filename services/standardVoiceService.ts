@@ -19,19 +19,19 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
- * INTELLIGENT VOICE MAPPING V7 (Restored Purity)
+ * INTELLIGENT VOICE MAPPING V8 (The Separation of Concerns)
  * 
  * Logic:
- * 1. Kuwaiti (ar-KW) is the MASTER standard for Gulf/Tafkhim. It must remain UNTOUCHED.
- * 2. Jordan (ar-JO) maps to Kuwaiti engine but gets slowed down programmatically.
- * 3. Gulf (QA, BH, YE) maps to Kuwaiti engine for consistency.
+ * 1. Jordan (ar-JO) -> Maps to Kuwaiti Backend (Best Pronunciation).
+ * 2. Gulf (QA, BH, YE) -> Maps to Kuwaiti Backend (Best Pronunciation).
+ * 3. Kuwait (ar-KW) -> Uses Kuwaiti Backend (Native).
  */
 const QUALITY_MAPPING: Record<string, string> = {
-    // --- JORDAN SELECTION -> USES KUWAITI ENGINE ---
+    // --- JORDAN MAPPED TO KUWAITI ENGINE ---
     'ar-JO-TaimNeural': 'ar-KW-FahedNeural',
     'ar-JO-SanaNeural': 'ar-KW-NouraNeural',
     
-    // --- GULF CONSOLIDATION -> USES KUWAITI ENGINE ---
+    // --- GULF MAPPED TO KUWAITI ENGINE ---
     'ar-QA-AmalNeural': 'ar-KW-NouraNeural',
     'ar-QA-MoazNeural': 'ar-KW-FahedNeural',
     'ar-BH-AliNeural': 'ar-KW-FahedNeural',
@@ -39,9 +39,7 @@ const QUALITY_MAPPING: Record<string, string> = {
     'ar-YE-MaryamNeural': 'ar-KW-NouraNeural',
     'ar-YE-SalehNeural': 'ar-KW-FahedNeural',
     
-    // Egypt & Lebanon -> Keep Native (Identity Preservation)
-    // ar-EG -> ar-EG
-    // ar-LB -> ar-LB
+    // Egypt & Lebanon -> Keep Native
 };
 
 /**
@@ -65,7 +63,7 @@ function getOptimizedLocale(voiceId: string): string {
 
 /**
  * VOICE OPTIMIZER (The "Physics" Engine)
- * Defines the acoustic profile based on the USER SELECTION (uiVoiceId).
+ * Defines the acoustic profile based strictly on the UI SELECTION.
  */
 interface VoiceSettings {
     pitch: string;
@@ -74,48 +72,46 @@ interface VoiceSettings {
 }
 
 function getVoiceOptimizations(uiVoiceId: string): VoiceSettings {
-    // 1. JORDANIAN PROFILE
-    // Requirement: Use Kuwaiti engine + "Lower speed by one degree" (~5%)
-    // No pitch shift to avoid ruining the quality.
+    // 1. JORDANIAN PROFILE (The "Modified" Kuwaiti)
+    // When user selects Jordan: Use Kuwaiti engine (via mapping) AND slow it down.
     if (uiVoiceId.includes('ar-JO')) {
         return { 
-            pitch: '0%', 
-            rateOffset: -5, // The "One Degree" slow down
+            pitch: '0%', // Keep pitch natural
+            rateOffset: -5, // Slow down 5% (One degree) as requested
             forcedStyle: '' 
         };
     }
 
-    // 2. LEBANESE PROFILE
-    // Requirement: Fix speed and "eating letters".
-    if (uiVoiceId.includes('ar-LB')) {
+    // 2. KUWAITI PROFILE (The "Original" Kuwaiti)
+    // When user selects Kuwait: Use Kuwaiti engine RAW.
+    // Zero modification ensures the "Tafkhim" and "Aleph" remain correct.
+    if (uiVoiceId.includes('ar-KW')) {
         return { 
-            pitch: '+2%', // Slight lift for melody
-            rateOffset: -8, // Slow down for clarity
-            forcedStyle: 'empathetic' // Softens the robotic edge
+            pitch: '0%', 
+            rateOffset: 0, // Natural speed
+            forcedStyle: '' 
         };
     }
 
-    // 3. EGYPTIAN PROFILE
-    // Requirement: Fix robotic sound but keep the "G".
+    // 3. LEBANESE PROFILE (The "Fluid" Fix)
+    if (uiVoiceId.includes('ar-LB')) {
+        return { 
+            pitch: '+2%', 
+            rateOffset: -8, 
+            forcedStyle: 'empathetic' 
+        };
+    }
+
+    // 4. EGYPTIAN PROFILE (The "Clear" Fix)
     if (uiVoiceId.includes('ar-EG')) {
         return { 
             pitch: '0%', 
             rateOffset: -2, 
-            forcedStyle: 'cheerful' // Hides robotic artifacts
+            forcedStyle: 'cheerful' 
         };
     }
 
-    // 4. KUWAITI & GULF PROFILE (THE STANDARD)
-    // Requirement: PURE. No tampering. Keep the Tafkhim.
-    // This catches ar-KW, ar-QA, ar-BH, etc.
-    if (uiVoiceId.includes('ar-KW') || uiVoiceId.includes('ar-QA') || uiVoiceId.includes('ar-BH') || uiVoiceId.includes('ar-AE') || uiVoiceId.includes('ar-OM') || uiVoiceId.includes('ar-YE')) {
-        return { 
-            pitch: '0%', 
-            rateOffset: 0 
-        };
-    }
-
-    // Default
+    // Default for others
     return { pitch: '0%', rateOffset: 0 };
 }
 
@@ -124,20 +120,21 @@ function getVoiceOptimizations(uiVoiceId: string): VoiceSettings {
  */
 export async function generateStandardSpeech(
     text: string,
-    voiceId: string, // The ID selected in UI
+    voiceId: string, // The ID selected in UI (e.g., ar-JO-Taim)
     pauseDuration: number = 0, 
     emotion: string = 'Default' 
 ): Promise<Uint8Array | null> {
     try {
-        // 1. RESOLVE ENGINE 
+        // 1. RESOLVE ENGINE (e.g., Input ar-JO -> Output ar-KW)
         const backendVoiceId = getBackendVoiceId(voiceId);
         const langCode = getOptimizedLocale(backendVoiceId);
 
         let payload: any = { voiceId: backendVoiceId };
 
-        // 2. APPLY OPTIMIZATIONS (Based on the UI selection)
-        // We pass `voiceId` (what user clicked) to get specific settings for that country,
-        // even if the backend engine is the same (e.g. Jordan vs Kuwait).
+        // 2. APPLY OPTIMIZATIONS
+        // CRITICAL: We pass the *original* voiceId (ar-JO) to the optimizer.
+        // This allows us to apply different settings for Jordan vs Kuwait, 
+        // even though they use the same backend voice.
         const settings = getVoiceOptimizations(voiceId);
 
         let azureStyle = settings.forcedStyle || '';
