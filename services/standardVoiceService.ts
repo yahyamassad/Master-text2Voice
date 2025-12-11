@@ -19,39 +19,25 @@ function escapeXml(unsafe: string): string {
 }
 
 /**
- * INTELLIGENT VOICE MAPPING V4 (The "Authenticity" Strategy)
+ * VOICE MAPPING (STABLE)
  * 
- * Logic based on User Feedback (Identity vs Quality):
- * 1. Egypt & Lebanon: REMOVED from mapping. We must use native engines to keep the "G" (Egypt) 
- *    and Levantine melody. We will fix their quality via DSP/Styles in `getVoiceOptimizations`.
- * 2. Gulf: Consolidate to Omani/Saudi. The acoustic difference is subtle enough that 
- *    using the higher-quality Omani engine is a worthy trade-off for better Tafkhim.
- * 3. Jordan: Map to UAE (Closest Bedouin/Tribal tone available).
+ * We map Jordan and Gulf dialects to the Kuwaiti engine because it has the best "Fakhama" (Grandeur).
+ * We do NOT apply any speed or pitch changes programmatically anymore.
  */
 const QUALITY_MAPPING: Record<string, string> = {
-    // --- EGYPTIAN & LEBANESE: RESTORED TO NATIVE ---
-    // We removed the mapping here. They will pass through as their original IDs.
-    // 'ar-EG-SalmaNeural' -> Stays Salma (Fixed via Style below)
-    // 'ar-LB-LaylaNeural' -> Stays Layla (Fixed via Speed below)
-
-    // --- JORDANIAN STRATEGY ---
-    // Native Taim is too Syrian. Map to UAE for Bedouin weight.
-    'ar-JO-TaimNeural': 'ar-AE-HamdanNeural',
-    'ar-JO-SanaNeural': 'ar-AE-FatimaNeural',
+    // Jordan -> Kuwaiti Engine (Best quality foundation)
+    'ar-JO-TaimNeural': 'ar-KW-FahedNeural',
+    'ar-JO-SanaNeural': 'ar-KW-NouraNeural',
     
-    // --- GULF CONSOLIDATION (The "Good" Engines) ---
-    // Qatar -> Omani
-    'ar-QA-AmalNeural': 'ar-OM-AyshaNeural',
-    'ar-QA-MoazNeural': 'ar-OM-AbdullahNeural',
-    // Bahrain -> Omani
-    'ar-BH-AliNeural': 'ar-OM-AbdullahNeural',
-    'ar-BH-LailaNeural': 'ar-OM-AyshaNeural',
-    // Kuwait -> Omani
-    'ar-KW-FahedNeural': 'ar-OM-AbdullahNeural',
-    'ar-KW-NouraNeural': 'ar-OM-AyshaNeural',
-    // Yemen -> Omani (Closest regional match)
-    'ar-YE-MaryamNeural': 'ar-OM-AyshaNeural',
-    'ar-YE-SalehNeural': 'ar-OM-AbdullahNeural',
+    // Gulf -> Kuwaiti Engine
+    'ar-QA-AmalNeural': 'ar-KW-NouraNeural',
+    'ar-QA-MoazNeural': 'ar-KW-FahedNeural',
+    'ar-BH-AliNeural': 'ar-KW-FahedNeural',
+    'ar-BH-LailaNeural': 'ar-KW-NouraNeural',
+    'ar-YE-MaryamNeural': 'ar-KW-NouraNeural',
+    'ar-YE-SalehNeural': 'ar-KW-FahedNeural',
+    
+    // Others (Egypt, Lebanon, Saudi) keep their native engines
 };
 
 /**
@@ -74,54 +60,6 @@ function getOptimizedLocale(voiceId: string): string {
 }
 
 /**
- * VOICE OPTIMIZER (The "Fine-Tuner")
- * Instead of changing the voice, we tune its physics to hide robotic artifacts.
- */
-interface VoiceSettings {
-    pitch: string;
-    rateOffset: number;
-    forcedStyle?: string; // Some voices sound better only in specific styles
-}
-
-function getVoiceOptimizations(voiceId: string): VoiceSettings {
-    // 1. EGYPTIAN FIX (The "G" Preserver)
-    // Salma/Shakir are robotic in default mode. 
-    // 'cheerful' or 'empathetic' style smooths the waveform, making it sound more human.
-    if (voiceId.includes('ar-EG')) {
-        return { 
-            pitch: '-2%', // Slight depth for "Hiba" (Prestige)
-            rateOffset: -4, // Slow down to let the "G" and vowels ring
-            forcedStyle: 'cheerful' // Hides the robotic buzz
-        };
-    }
-
-    // 2. LEBANESE FIX (The Melody Preserver)
-    // Layla speaks too fast and eats letters.
-    if (voiceId.includes('ar-LB')) {
-        return { 
-            pitch: '+2%', // Slightly higher for Levantine "brightness"
-            rateOffset: -8, // Significantly slower to articulate clear pronunciation
-            forcedStyle: 'empathetic' // Adds breathiness common in Lebanese broadcasting
-        };
-    }
-
-    // 3. JORDANIAN (Mapped to UAE)
-    // Needs to sound heavier.
-    if (voiceId.includes('ar-JO') || voiceId.includes('ar-AE')) {
-        return { pitch: '-1%', rateOffset: -2 };
-    }
-
-    // 4. OMANI (The Gold Standard)
-    // Already good, just a tiny slow down for gravitas.
-    if (voiceId.includes('ar-OM')) {
-        return { pitch: '0%', rateOffset: -2 };
-    }
-
-    // Default
-    return { pitch: '0%', rateOffset: 0 };
-}
-
-/**
  * Calls the backend API to generate speech using Microsoft Azure AI Speech (Neural).
  */
 export async function generateStandardSpeech(
@@ -131,24 +69,19 @@ export async function generateStandardSpeech(
     emotion: string = 'Default' 
 ): Promise<Uint8Array | null> {
     try {
-        // 1. RESOLVE ENGINE (Map if generic, Keep if Unique)
+        // 1. RESOLVE ENGINE
         const backendVoiceId = getBackendVoiceId(voiceId);
         const langCode = getOptimizedLocale(backendVoiceId);
 
         let payload: any = { voiceId: backendVoiceId };
 
-        // 2. APPLY OPTIMIZATIONS (The Fix)
-        const settings = getVoiceOptimizations(backendVoiceId);
+        // 2. NO OPTIMIZATIONS (Reset to Raw)
+        // We removed getVoiceOptimizations to ensure Kuwaiti accent stays pure.
+        let azureStyle = '';
+        let pitch = '0%';
+        let baseRate = 0;
 
-        let azureStyle = settings.forcedStyle || '';
-        let pitch = settings.pitch;
-        
-        // Base rate from optimization
-        let baseRate = settings.rateOffset; 
-
-        // 3. APPLY USER EMOTION (Overlays on top of optimization)
-        // Note: If we forced a style (like 'cheerful' for Egyptian), we stick to it 
-        // unless the user EXPLICITLY asks for 'sad' or 'fear'.
+        // 3. APPLY USER EMOTION (Only explicit requested styles)
         switch (emotion) {
             case 'happy': 
                 azureStyle = 'cheerful'; 
@@ -165,27 +98,21 @@ export async function generateStandardSpeech(
                 break;
             case 'epic_poet': 
                 azureStyle = 'empathetic'; 
-                baseRate -= 12; 
-                pitch = '-4%'; 
+                baseRate -= 10; 
                 break;
             case 'heritage_narrator':
                 azureStyle = 'narration-professional'; 
-                baseRate -= 5; 
                 break;
             case 'news_anchor':
                 azureStyle = 'newscast';
-                baseRate += 5;
                 break;
             case 'sports_commentator':
                 azureStyle = 'shouting'; 
-                baseRate += 15;
-                pitch = '+5%';
+                baseRate += 10;
                 break;
             case 'thriller':
                 azureStyle = 'whispering';
-                baseRate -= 10;
                 break;
-            // Default case: We keep the `forcedStyle` from optimization (e.g. cheerful for Egypt)
         }
 
         const rate = `${baseRate}%`;
@@ -196,14 +123,6 @@ export async function generateStandardSpeech(
         paragraphs.forEach((para, index) => {
             let cleanPara = para.trim();
             if (cleanPara) {
-                // --- POETRY RHYME HACK ---
-                if (emotion === 'epic_poet') {
-                    cleanPara = cleanPara.replace(/[.!?؟,،]+$/, '');
-                    if (/[\u064F]$/.test(cleanPara)) cleanPara += 'و'; 
-                    else if (/[\u0650]$/.test(cleanPara)) cleanPara += 'ي';
-                    else if (/[\u064E]$/.test(cleanPara)) cleanPara += 'ا';
-                }
-
                 innerContent += escapeXml(cleanPara);
                 if (index < paragraphs.length - 1 && pauseDuration > 0) {
                     innerContent += `<break time="${Math.round(pauseDuration * 1000)}ms"/>`;
@@ -211,7 +130,7 @@ export async function generateStandardSpeech(
             }
         });
 
-        // Apply Prosody
+        // Apply Prosody only if modified by Emotion (otherwise 0% / 0%)
         if (rate !== '0%' || pitch !== '0%') {
             innerContent = `<prosody rate="${rate}" pitch="${pitch}">${innerContent}</prosody>`;
         }

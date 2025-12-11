@@ -1,4 +1,3 @@
-
 export type Language = 'en' | 'ar' | 'fr' | 'es' | 'pt';
 
 export const languageOptions: { value: Language; label: string; dir: 'ltr' | 'rtl' }[] = [
@@ -26,6 +25,21 @@ export const translationLanguages = [
 ];
 
 export const translations = {
+  // --- POLYGLOT BADGE ---
+  polyglotBadge: { ar: '✨ يتحدث كل اللغات (فرنسي، إنجليزي..)', en: '✨ Speaks All Languages (French, English..)', fr: '✨ Parle toutes langues', es: '✨ Habla todos los idiomas', pt: '✨ Fala todos os idiomas' },
+  
+  // --- COST INTELLIGENCE ---
+  costTitle: { ar: 'حاسبة التكاليف (Cost Intelligence)', en: 'Cost Intelligence' },
+  costDesc: { ar: 'مقارنة تكلفة الأصوات لكل مليون حرف. التزم بالمنطقة الخضراء للربح.', en: 'Voice cost comparison per 1M chars. Stick to the Green Zone for profit.' },
+  safeZone: { ar: 'المنطقة الآمنة (مربحة)', en: 'Safe Zone (Profitable)' },
+  costDangerZone: { ar: 'منطقة الخطر (مكلفة جداً)', en: 'Danger Zone (Expensive)' },
+  costGemini: { ar: 'Gemini Ultra (نستخدمه)', en: 'Gemini Ultra (We use this)' },
+  costAzure: { ar: 'Azure Neural (احترافي)', en: 'Azure Neural (Pro)' },
+  costStudio: { ar: 'Google Studio (تجنبه!)', en: 'Google Studio (Avoid!)' },
+  costCheap: { ar: '< $1.00', en: '< $1.00' },
+  costMid: { ar: '$16.00', en: '$16.00' },
+  costHigh: { ar: '$160.00', en: '$160.00' },
+
   // --- AUDIO STUDIO (Professional - English for Arabic Users, Native for Others) ---
   studioMixer: { ar: 'Mixer', en: 'MIXER', fr: 'MIXEUR', es: 'MEZCLADOR', pt: 'MISTURADOR' },
   studioEq: { ar: 'Band EQ-5', en: 'BAND EQ-5', fr: 'ÉGALISEUR EQ-5', es: 'ECUALIZADOR EQ-5', pt: 'EQUALIZADOR EQ-5' },

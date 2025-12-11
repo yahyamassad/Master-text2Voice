@@ -57,7 +57,7 @@ ${genderInstruction}
 Strict Constraints:
 1. Do NOT read any technical metadata, code snippets, or introductory phrases.
 2. Do NOT explain the text.
-3. Read in the language of the text provided (e.g., if French, speak French; if Arabic, speak Arabic).
+3. Read in the language of the text provided (e.g., if French, speak French; if Arabic, speak Arabic; if English, speak English).
 4. Only vocalize the content inside the triple quotes below.
 
 Text to read:

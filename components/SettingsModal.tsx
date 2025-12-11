@@ -288,6 +288,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                         {voiceMode === 'gemini' ? (
                             <div className="space-y-2">
+                                <div className="text-xs font-bold text-cyan-300 text-center mb-2 animate-pulse">{t('polyglotBadge', uiLanguage)}</div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {GEMINI_VOICES.map(vName => (
                                         <VoiceListItem 
