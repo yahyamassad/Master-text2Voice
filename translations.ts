@@ -26,6 +26,21 @@ export const translationLanguages = [
 ];
 
 export const translations = {
+  // --- LANGUAGE NAMES (Translated) ---
+  lang_ar: { en: 'Arabic', ar: 'العربية', fr: 'Arabe', es: 'Árabe', pt: 'Árabe' },
+  lang_en: { en: 'English', ar: 'الإنجليزية', fr: 'Anglais', es: 'Inglés', pt: 'Inglês' },
+  lang_fr: { en: 'French', ar: 'الفرنسية', fr: 'Français', es: 'Francés', pt: 'Francês' },
+  lang_es: { en: 'Spanish', ar: 'الإسبانية', fr: 'Espagnol', es: 'Español', pt: 'Espanhol' },
+  lang_pt: { en: 'Portuguese', ar: 'البرتغالية', fr: 'Portugais', es: 'Portugués', pt: 'Português' },
+  lang_de: { en: 'German', ar: 'الألمانية', fr: 'Allemand', es: 'Alemán', pt: 'Alemão' },
+  lang_it: { en: 'Italian', ar: 'الإيطالية', fr: 'Italien', es: 'Italiano', pt: 'Italiano' },
+  lang_ja: { en: 'Japanese', ar: 'اليابانية', fr: 'Japonais', es: 'Japonés', pt: 'Japonês' },
+  lang_ko: { en: 'Korean', ar: 'الكورية', fr: 'Coréen', es: 'Coreano', pt: 'Coreano' },
+  lang_zh: { en: 'Chinese', ar: 'الصينية', fr: 'Chinois', es: 'Chino', pt: 'Chinês' },
+  lang_ru: { en: 'Russian', ar: 'الروسية', fr: 'Russe', es: 'Ruso', pt: 'Russo' },
+  lang_tr: { en: 'Turkish', ar: 'التركية', fr: 'Turc', es: 'Turco', pt: 'Turco' },
+  lang_hi: { en: 'Hindi', ar: 'الهندية', fr: 'Hindi', es: 'Hindi', pt: 'Hindi' },
+
   // --- POLYGLOT BADGE ---
   polyglotBadge: { ar: '✨ يتحدث كل اللغات (فرنسي، إنجليزي..)', en: '✨ Speaks All Languages (French, English..)', fr: '✨ Parle toutes les langues', es: '✨ Habla todos los idiomas', pt: '✨ Fala todos os idiomas' },
   
@@ -36,9 +51,64 @@ export const translations = {
   tutorialButton: { en: 'Tutorial', ar: 'دليل الاستخدام', fr: 'Tutoriel', es: 'Tutorial', pt: 'Tutorial' },
   clearAll: { en: 'Clear All', ar: 'مسح الكل', fr: 'Tout effacer', es: 'Borrar todo', pt: 'Limpar tudo' },
   
-  // --- TUTORIAL MODAL ---
+  // --- TUTORIAL MODAL CONTENT ---
   tutorialTitle: { en: 'Sawtli User Guide', ar: 'دليل مستخدم صوتلي', fr: 'Guide de l\'utilisateur Sawtli', es: 'Guía de usuario de Sawtli', pt: 'Guia do usuário Sawtli' },
+  tutorialIntroTitle: { en: 'SAWTLI', ar: 'صوتلي', fr: 'SAWTLI', es: 'SAWTLI', pt: 'SAWTLI' },
+  tutorialIntroText: { 
+      en: 'Welcome to Sawtli — Your all-in-one platform for producing natural voiceovers using the latest AI technologies. This guide helps you get started quickly.',
+      ar: 'مرحباً بك في صوتلي — منصتك المتكاملة لإنتاج محتوى صوتي طبيعي باستخدام أحدث تقنيات الذكاء الاصطناعي.',
+      fr: 'Bienvenue sur Sawtli — Votre plateforme tout-en-un pour produire des voix off naturelles utilisant les dernières technologies d\'IA.',
+      es: 'Bienvenido a Sawtli — Tu plataforma todo en uno para producir locuciones naturales utilizando las últimas tecnologías de IA.',
+      pt: 'Bem-vindo ao Sawtli — Sua plataforma completa para produzir locuções naturais usando as mais recentes tecnologias de IA.'
+  },
+  
+  // Step 1
+  tutStep1Title: { en: '1. Text & Translation', ar: '1️⃣ كتابة النص والترجمة', fr: '1. Texte et Traduction', es: '1. Texto y Traducción', pt: '1. Texto e Tradução' },
+  tutStep1Intro: { en: 'Every project starts here:', ar: 'كل مشروع صوتي يبدأ من هنا:', fr: 'Tout commence ici :', es: 'Todo comienza aquí:', pt: 'Tudo começa aqui:' },
+  tutStep1Input: { en: '✔ Input Methods:', ar: '✔ طرق إدخال النص:', fr: '✔ Méthodes d\'entrée :', es: '✔ Métodos de entrada:', pt: '✔ Métodos de entrada:' },
+  tutStep1List1: { en: 'Type directly into the text box', ar: 'كتابة مباشرة داخل مربع النص', fr: 'Saisir directement le texte', es: 'Escribir directamente', pt: 'Digitar diretamente' },
+  tutStep1List2: { en: 'Voice dictation via microphone', ar: 'الإملاء الصوتي عبر المايكروفون', fr: 'Dictée vocale via microphone', es: 'Dictado por voz', pt: 'Ditado por voz' },
+  tutStep1TransTitle: { en: '✔ Smart Translation:', ar: '✔ الترجمة الذكية:', fr: '✔ Traduction Intelligente :', es: '✔ Traducción Inteligente:', pt: '✔ Tradução Inteligente:' },
+  tutStep1TransText: { 
+      en: 'Select target language and click "Translate". Listen to both for comparison.',
+      ar: 'اختر اللغة الهدف واضغط “ترجمة”. يمكنك الاستماع للنص الأصلي والمترجم للمقارنة.',
+      fr: 'Choisissez la langue cible et cliquez sur "Traduire". Écoutez les deux pour comparer.',
+      es: 'Seleccione el idioma de destino y haga clic en "Traducir". Escuche ambos para comparar.',
+      pt: 'Selecione o idioma de destino e clique em "Traduzir". Ouça ambos para comparar.'
+  },
+
+  // Step 2
+  tutStep2Title: { en: '2. Voice Selection', ar: '2️⃣ اختيار الصوت والمشاعر', fr: '2. Sélection de la Voix', es: '2. Selección de Voz', pt: '2. Seleção de Voz' },
+  tutStep2Intro: { en: 'Where quality begins:', ar: 'هنا تبدأ الجودة:', fr: 'Là où la qualité commence :', es: 'Donde comienza la calidad:', pt: 'Onde a qualidade começa:' },
+  tutStep2Voice: { en: '✔ Select Voice:', ar: '✔ اختر الصوت المناسب:', fr: '✔ Choisir la Voix :', es: '✔ Elegir Voz:', pt: '✔ Escolher Voz:' },
+  tutStep2Tone: { en: '✔ Emotional Tone:', ar: '✔ التحكم بالمشاعر:', fr: '✔ Ton Émotionnel :', es: '✔ Tono Emocional:', pt: '✔ Tom Emocional:' },
+  tutStep2MultiTitle: { en: '✔ Multi-Speaker', ar: '✔ تعدد المتحدثين', fr: '✔ Multi-Locuteurs', es: '✔ Multi-Locutor', pt: '✔ Multi-Falante' },
+  tutStep2MultiDesc: { 
+      en: 'Write dialogue: "Name: Text". Use empty lines for pauses.',
+      ar: 'اكتب الحوار بهذا الشكل: "الاسم: النص". اترك سطراً فارغاً للتوقف.',
+      fr: 'Écrivez le dialogue : "Nom : Texte". Lignes vides pour les pauses.',
+      es: 'Escriba el diálogo: "Nombre: Texto". Líneas vacías para pausas.',
+      pt: 'Escreva o diálogo: "Nome: Texto". Linhas vazias para pausas.'
+  },
+
+  // Step 3
+  tutStep3Title: { en: '3. Generate & Preview', ar: '3️⃣ التوليد والمعاينة', fr: '3. Générer et Aperçu', es: '3. Generar y Vista Previa', pt: '3. Gerar e Visualizar' },
+  tutStep3Text: { en: 'Click "Listen" to start generation.', ar: 'اضغط “استمع للنص” لبدء التوليد.', fr: 'Cliquez sur "Écouter" pour générer.', es: 'Haga clic en "Escuchar" para generar.', pt: 'Clique em "Ouvir" para gerar.' },
+  
+  // Step 4
+  tutStep4Title: { en: '4. Pro Audio Studio 🎛️', ar: '4️⃣ استوديو الصوت الاحترافي', fr: '4. Studio Audio Pro 🎛️', es: '4. Estudio de Audio Pro 🎛️', pt: '4. Estúdio de Áudio Pro 🎛️' },
+  tutStep4Mixer: { en: '✔ Mixer', ar: '✔ المكسر', fr: '✔ Mixeur', es: '✔ Mezclador', pt: '✔ Misturador' },
+  tutStep4Ducking: { en: '✔ Auto Ducking', ar: '✔ الخفوت التلقائي', fr: '✔ Atténuation Auto', es: '✔ Atenuación Auto', pt: '✔ Atenuação Auto' },
+  tutStep4Effects: { en: '✔ Effects', ar: '✔ المؤثرات', fr: '✔ Effets', es: '✔ Efectos', pt: '✔ Efeitos' },
+  tutStep4Presets: { en: '✔ Presets', ar: '✔ الإعدادات الجاهزة', fr: '✔ Préréglages', es: '✔ Preajustes', pt: '✔ Predefinições' },
+
+  // Step 5
+  tutStep5Title: { en: '5. Export', ar: '5️⃣ التصدير', fr: '5. Exporter', es: '5. Exportar', pt: '5. Exportar' },
+  tutStep5Formats: { en: '✔ Formats: MP3 / WAV', ar: '✔ الصيغ: MP3 / WAV', fr: '✔ Formats : MP3 / WAV', es: '✔ Formatos: MP3 / WAV', pt: '✔ Formatos: MP3 / WAV' },
+
   tutorialProTips: { en: '💡 Pro Tips', ar: '💡 نصائح احترافية', fr: '💡 Conseils Pro', es: '💡 Consejos Pro', pt: '💡 Dicas Pro' },
+  tutorialTip1: { en: 'Use history to save your work automatically.', ar: 'السجلات تحفظ كل أعمالك تلقائيًا.', fr: 'L\'historique sauvegarde tout automatiquement.', es: 'El historial guarda todo automáticamente.', pt: 'O histórico salva tudo automaticamente.' },
+
   downloadGuide: { en: 'Download Guide (PDF)', ar: 'تحميل الدليل (PDF)', fr: 'Télécharger le guide (PDF)', es: 'Descargar guía (PDF)', pt: 'Baixar guia (PDF)' },
   footerText: { en: 'Sawtli © 2025 — Your Voice, Our Intelligence.', ar: 'صوتلي © 2025 — صوتك، ذكاؤنا.', fr: 'Sawtli © 2025 — Votre voix, notre intelligence.', es: 'Sawtli © 2025 — Tu voz, nuestra inteligencia.', pt: 'Sawtli © 2025 — Sua voz, nossa inteligência.' },
 
