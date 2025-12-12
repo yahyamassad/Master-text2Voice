@@ -1,5 +1,5 @@
 
-import { SpeakerConfig } from '../types';
+import { SpeakerConfig, GEMINI_VOICES } from '../types';
 import { decode } from '../utils/audioUtils';
 import { getVoiceStyle } from '../utils/voiceStyles';
 // Removed fallback imports to enforce strict mode as requested
@@ -150,6 +150,14 @@ export async function generateSpeech(
 
             // Skip empty lines
             if (!currentText) continue;
+
+            // --- CRITICAL FIX: VOICE VALIDATION ---
+            // Ensure we never send an Azure voice name (e.g. ar-AE-HamdanNeural) to Gemini API.
+            // This happens if user has "Multi-Speaker" configured with Azure voices but switches main engine to Gemini.
+            if (!GEMINI_VOICES.includes(currentVoice)) {
+                // If the main 'voice' arg is valid Gemini, fallback to it. Otherwise hard default to 'Puck'.
+                currentVoice = GEMINI_VOICES.includes(voice) ? voice : 'Puck';
+            }
 
             // DIRECT CALL - NO FALLBACK WRAPPER
             // If this fails, the error bubbles up to the UI so the user sees "Safety Block" or "Overloaded"
