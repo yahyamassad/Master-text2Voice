@@ -9,7 +9,6 @@ interface TutorialModalProps {
 }
 
 const TutorialModal: React.FC<TutorialModalProps> = ({ onClose, uiLanguage }) => {
-    const isAr = uiLanguage === 'ar';
     const [activeStep, setActiveStep] = useState<number | null>(null);
 
     const toggleStep = (index: number) => {
@@ -18,116 +17,96 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose, uiLanguage }) =>
 
     const steps = [
         {
-            title: isAr ? '1️⃣ كتابة النص والترجمة – Your Canvas' : '1. Text & Translation – Your Canvas',
+            title: t('tutStep1Title', uiLanguage),
             icon: <TranslateIcon className="w-6 h-6 text-cyan-400" />,
             content: (
                 <div className="space-y-2">
-                    <p className="font-bold mb-1">{isAr ? 'كل مشروع صوتي يبدأ من هنا:' : 'Every project starts here:'}</p>
+                    <p className="font-bold mb-1">{t('tutStep1Intro', uiLanguage)}</p>
                     <ul className="space-y-1">
-                        <li className="font-semibold text-cyan-300">{isAr ? '✔ طرق إدخال النص:' : '✔ Input Methods:'}</li>
-                        <li className="list-disc list-inside pl-4 text-slate-300">{isAr ? 'كتابة مباشرة داخل مربع النص' : 'Type directly into the text box'}</li>
-                        <li className="list-disc list-inside pl-4 text-slate-300">{isAr ? 'الإملاء الصوتي عبر المايكروفون' : 'Voice dictation via microphone'}</li>
-                        <li className="list-disc list-inside pl-4 text-slate-300">{isAr ? 'لصق نصوص جاهزة من مصادر خارجية' : 'Paste text from external sources'}</li>
+                        <li className="font-semibold text-cyan-300">{t('tutStep1Input', uiLanguage)}</li>
+                        <li className="list-disc list-inside pl-4 text-slate-300">{t('tutStep1List1', uiLanguage)}</li>
+                        <li className="list-disc list-inside pl-4 text-slate-300">{t('tutStep1List2', uiLanguage)}</li>
                     </ul>
                     <ul className="space-y-1 mt-2">
-                        <li className="font-semibold text-cyan-300">{isAr ? '✔ الترجمة الذكية:' : '✔ Smart Translation:'}</li>
-                        <li className="text-slate-300">{isAr ? 'اختر اللغة الهدف من بين 13 لغة مدعومة، واضغط “ترجمة”. يمكنك الاستماع للنص الأصلي والمترجم للمقارنة.' : 'Select target language from 13+ supported languages and click "Translate". You can listen to both for comparison.'}</li>
+                        <li className="font-semibold text-cyan-300">{t('tutStep1TransTitle', uiLanguage)}</li>
+                        <li className="text-slate-300">{t('tutStep1TransText', uiLanguage)}</li>
                     </ul>
                 </div>
             )
         },
         {
-            title: isAr ? '2️⃣ اختيار الصوت وتخصيص المشاعر – Voice Engineering' : '2. Voice Selection & Engineering',
+            title: t('tutStep2Title', uiLanguage),
             icon: <SpeakerIcon className="w-6 h-6 text-amber-400" />,
             content: (
                 <div className="space-y-3">
-                    <p className="font-bold mb-1">{isAr ? 'هنا تبدأ الجودة:' : 'Where quality begins:'}</p>
+                    <p className="font-bold mb-1">{t('tutStep2Intro', uiLanguage)}</p>
                     <div>
-                        <span className="font-semibold text-amber-300">{isAr ? '✔ اختر الصوت المناسب:' : '✔ Select Voice:'} </span>
-                        <span className="text-slate-300">{isAr ? 'عدة أصوات عالية الدقة مدعومة بتقنية Gemini HD.' : 'High-fidelity voices powered by Gemini HD.'}</span>
+                        <span className="font-semibold text-amber-300">{t('tutStep2Voice', uiLanguage)} </span>
+                        <span className="text-slate-300">{uiLanguage === 'ar' ? 'أصوات Gemini HD عالية الدقة.' : 'High-fidelity Gemini HD voices.'}</span>
                     </div>
                     <div>
-                        <span className="font-semibold text-amber-300">{isAr ? '✔ التحكم بالمشاعر (Emotional Tone):' : '✔ Emotional Tone:'} </span>
-                        <span className="text-slate-300">{isAr ? 'سعيد • حزين • رسمي • افتراضي' : 'Happy • Sad • Formal • Default'}</span>
+                        <span className="font-semibold text-amber-300">{t('tutStep2Tone', uiLanguage)} </span>
+                        <span className="text-slate-300">{uiLanguage === 'ar' ? 'سعيد • حزين • رسمي • افتراضي' : 'Happy • Sad • Formal • Default'}</span>
                     </div>
                     <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
-                        <p className="font-semibold text-amber-300 mb-1">{isAr ? '✔ تعدد المتحدثين – Multi-Speaker' : '✔ Multi-Speaker'}</p>
-                        <p className="text-xs text-slate-400 mb-2">{isAr ? 'اكتب الحوار بهذا الشكل:' : 'Write dialogue like this:'}</p>
+                        <p className="font-semibold text-amber-300 mb-1">{t('tutStep2MultiTitle', uiLanguage)}</p>
+                        <p className="text-xs text-slate-400 mb-2">{t('tutStep2MultiDesc', uiLanguage)}</p>
                         <code className="block bg-black/30 p-2 rounded text-xs font-mono text-green-300 mb-2 whitespace-pre-wrap">
-                            {isAr ? 'يزن: مرحباً...\nلانا: أهلاً بك...' : 'John: Hello...\nJane: Hi there...'}
+                            {uiLanguage === 'ar' ? 'يزن: مرحباً...\nلانا: أهلاً بك...' : 'John: Hello...\nJane: Hi there...'}
                         </code>
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                            {isAr 
-                                ? 'يمكنك تعديل الأسماء وفق اختيارك، المهم أن تتوافق مع الإعدادات متبوعة بـ (:). للتحكم بالتوقف، اترك سطراً فارغاً. أضف مؤثرات مثل [ضحكة]، [سعلة].'
-                                : 'Ensure names match settings followed by a colon (:). Use empty lines for pauses. Add effects like [laugh], [cough].'}
-                        </p>
                     </div>
                 </div>
             )
         },
         {
-            title: isAr ? '3️⃣ التوليد والمعاينة – Generate & Preview' : '3. Generate & Preview',
+            title: t('tutStep3Title', uiLanguage),
             icon: <SawtliLogoIcon className="w-6 h-6" />,
             content: (
                 <div className="space-y-2">
-                    <p className="text-slate-300">{isAr ? 'اضغط “استمع للنص” لبدء التوليد.' : 'Click "Listen" to start generation.'}</p>
+                    <p className="text-slate-300">{t('tutStep3Text', uiLanguage)}</p>
                     <ul className="space-y-1">
-                        <li className="font-semibold text-blue-300">{isAr ? '✔ مميزات مهمة:' : '✔ Key Features:'}</li>
-                        <li className="list-disc list-inside pl-4 text-slate-300">{isAr ? 'توليد سريع وجودة صوت ثابتة' : 'Fast generation & consistent quality'}</li>
-                        <li className="list-disc list-inside pl-4 text-slate-300">{isAr ? '“نظام الكاش”: إعادة التشغيل لا تستهلك الرصيد إن لم يتغير النص' : '"Smart Cache": Replay doesn\'t consume quota if text hasn\'t changed'}</li>
+                        <li className="list-disc list-inside pl-4 text-slate-300">{uiLanguage === 'ar' ? 'توليد سريع وجودة صوت ثابتة' : 'Fast generation & consistent quality'}</li>
+                        <li className="list-disc list-inside pl-4 text-slate-300">{uiLanguage === 'ar' ? 'نظام الكاش يحافظ على الرصيد' : 'Smart Cache saves your quota'}</li>
                     </ul>
                 </div>
             )
         },
         {
-            title: isAr ? '4️⃣ استوديو الصوت الاحترافي – Audio Studio 🎛️' : '4. Pro Audio Studio 🎛️',
+            title: t('tutStep4Title', uiLanguage),
             icon: <SoundEnhanceIcon className="w-6 h-6 text-purple-400" />,
             content: (
                 <div className="space-y-3">
-                    <p className="font-bold mb-1">{isAr ? 'منطقة الإبداع الحقيقي.' : 'The zone of true creativity.'}</p>
+                    <p className="font-bold mb-1">{uiLanguage === 'ar' ? 'منطقة الإبداع الحقيقي.' : 'The zone of true creativity.'}</p>
                     <ul className="space-y-1">
-                        <li className="font-semibold text-purple-300">{isAr ? '✔ المكسر – Mixer' : '✔ Mixer'}</li>
+                        <li className="font-semibold text-purple-300">{t('tutStep4Mixer', uiLanguage)}</li>
                         <li className="text-xs text-slate-300 leading-relaxed ml-2">
-                            {isAr ? 'إضافة موسيقى • إضافة ملف صوتي • تسجيل مايك • التحكم بالارتفاع • موازنة الخلفية' : 'Add music • Add voice file • Record mic • Volume control • Background balance'}
+                            {uiLanguage === 'ar' ? 'إضافة موسيقى • تسجيل مايك • موازنة الخلفية' : 'Add music • Record mic • Background balance'}
                         </li>
-                        <li className="text-xs text-slate-400 italic ml-2">{isAr ? '(الصوت المولد من النص يظهر هنا تلقائياً)' : '(Generated TTS audio appears here automatically)'}</li>
                     </ul>
                     <div>
-                        <span className="font-semibold text-purple-300">{isAr ? '✔ الخفوت التلقائي – Auto Ducking: ' : '✔ Auto Ducking: '}</span>
-                        <span className="text-slate-300 text-xs">{isAr ? 'انخفاض موسيقى تلقائي عند الكلام (مثل الراديو).' : 'Music lowers automatically when speech starts.'}</span>
+                        <span className="font-semibold text-purple-300">{t('tutStep4Ducking', uiLanguage)} </span>
                     </div>
                     <div>
-                        <span className="font-semibold text-purple-300">{isAr ? '✔ المؤثرات – Effects: ' : '✔ Effects: '}</span>
+                        <span className="font-semibold text-purple-300">{t('tutStep4Effects', uiLanguage)} </span>
                         <span className="text-slate-300 text-xs">EQ-5 Band • Compressor • Reverb</span>
                     </div>
                     <div>
-                        <span className="font-semibold text-purple-300">{isAr ? '✔ الإعدادات الجاهزة – Presets: ' : '✔ Presets: '}</span>
-                        <span className="text-slate-300 text-xs">{isAr ? 'بودكاست – سينما – يوتيوب – إعلان' : 'Podcast – Cinema – YouTube – Ad'}</span>
+                        <span className="font-semibold text-purple-300">{t('tutStep4Presets', uiLanguage)} </span>
                     </div>
                 </div>
             )
         },
         {
-            title: isAr ? '5️⃣ التصدير – Export' : '5. Export',
+            title: t('tutStep5Title', uiLanguage),
             icon: <DownloadIcon className="w-6 h-6 text-green-400" />,
             content: (
                 <div className="space-y-2">
-                    <p className="font-bold mb-1">{isAr ? 'اختر طريقة إخراج المشروع:' : 'Choose your output:'}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                         <div className="bg-slate-800 p-2 rounded border border-slate-700">
-                            <span className="font-semibold text-green-300 block mb-1">{isAr ? '✔ الصيغ:' : '✔ Formats:'}</span>
-                            <div className="text-slate-300">MP3 <span className="opacity-50">({isAr ? 'للنشر' : 'Web'})</span></div>
-                            <div className="text-slate-300">WAV <span className="opacity-50">({isAr ? 'استوديو' : 'Studio'})</span></div>
+                            <span className="font-semibold text-green-300 block mb-1">{t('tutStep5Formats', uiLanguage)}</span>
                         </div>
                         <div className="bg-slate-800 p-2 rounded border border-slate-700">
-                            <span className="font-semibold text-green-300 block mb-1">{isAr ? '✔ الدمج:' : '✔ Mix:'}</span>
-                            <div className="text-slate-300">Full Mix</div>
-                            <div className="text-slate-300">Voice Only</div>
-                        </div>
-                        <div className="bg-slate-800 p-2 rounded border border-slate-700">
-                            <span className="font-semibold text-green-300 block mb-1">{isAr ? '✔ الطول:' : '✔ Length:'}</span>
-                            <div className="text-slate-300">Trim to Voice</div>
-                            <div className="text-slate-300">Full Length</div>
+                            <span className="font-semibold text-green-300 block mb-1">Full Mix / Voice Only</span>
                         </div>
                     </div>
                 </div>
@@ -156,10 +135,10 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose, uiLanguage }) =>
                         </div>
                         <div>
                             <h3 className="text-2xl font-bold text-white tracking-wide">
-                                {isAr ? 'دليل مستخدم صوتلي' : 'Sawtli User Guide'}
+                                {t('tutorialTitle', uiLanguage)}
                             </h3>
                             <p className="text-sm text-slate-400 font-medium">
-                                {isAr ? 'منصتك المتكاملة لإنتاج محتوى صوتي طبيعي' : 'Your complete platform for natural AI voice production'}
+                                {uiLanguage === 'ar' ? 'منصتك المتكاملة لإنتاج محتوى صوتي طبيعي' : 'Your complete platform for natural AI voice production'}
                             </p>
                         </div>
                     </div>
@@ -174,12 +153,10 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose, uiLanguage }) =>
                     {/* Intro Section */}
                     <div className="text-center space-y-4 py-4">
                         <h2 className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                            SAWTLI
+                            {t('tutorialIntroTitle', uiLanguage)}
                         </h2>
                         <p className="text-slate-300 max-w-2xl mx-auto leading-relaxed text-lg">
-                            {isAr 
-                                ? 'مرحباً بك في صوتلي — منصتك المتكاملة لإنتاج محتوى صوتي طبيعي باستخدام أحدث تقنيات الذكاء الاصطناعي. هذا الدليل يساعدك على البدء بسرعة وتحويل نصوصك إلى تسجيلات احترافية خلال دقائق.' 
-                                : 'Welcome to Sawtli — Your all-in-one platform for producing natural voiceovers using the latest AI technologies. This guide helps you get started quickly and turn your scripts into professional recordings in minutes.'}
+                            {t('tutorialIntroText', uiLanguage)}
                         </p>
                     </div>
 
@@ -208,7 +185,7 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose, uiLanguage }) =>
                                 <div 
                                     className={`overflow-hidden transition-all duration-300 ${activeStep === index ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}
                                 >
-                                    <div className={`p-4 pt-0 text-slate-300 leading-relaxed text-sm sm:text-base border-t border-slate-700/50 mt-2 mx-4 ${isAr ? 'text-right' : 'text-left'}`}>
+                                    <div className={`p-4 pt-0 text-slate-300 leading-relaxed text-sm sm:text-base border-t border-slate-700/50 mt-2 mx-4 ${uiLanguage === 'ar' ? 'text-right' : 'text-left'}`}>
                                         {step.content}
                                     </div>
                                 </div>
@@ -222,10 +199,10 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose, uiLanguage }) =>
                             <SawtliLogoIcon className="w-6 h-6" />
                         </div>
                         <div>
-                            <h4 className="font-bold text-blue-200 mb-1">{isAr ? '💡 نصائح احترافية' : '💡 Pro Tips'}</h4>
+                            <h4 className="font-bold text-blue-200 mb-1">{t('tutorialProTips', uiLanguage)}</h4>
                             <ul className="text-sm text-blue-100/80 leading-relaxed list-disc list-inside">
-                                <li>{isAr ? 'متصفح Microsoft Edge يوفر مصادر صوت مجانية عالية الجودة.' : 'Microsoft Edge provides free high-quality voice sources.'}</li>
-                                <li>{isAr ? 'السجلات تحفظ كل أعمالك تلقائيًا.' : 'History automatically saves all your work.'}</li>
+                                <li>{uiLanguage === 'ar' ? 'متصفح Microsoft Edge يوفر مصادر صوت مجانية عالية الجودة.' : 'Microsoft Edge provides free high-quality voice sources.'}</li>
+                                <li>{t('tutorialTip1', uiLanguage)}</li>
                             </ul>
                         </div>
                     </div>
@@ -239,11 +216,11 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose, uiLanguage }) =>
                         className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-600 flex items-center gap-2 group"
                     >
                         <DownloadIcon className="w-5 h-5 group-hover:text-cyan-400 transition-colors" />
-                        {isAr ? 'تحميل الدليل (PDF)' : 'Download Guide (PDF)'}
+                        {t('downloadGuide', uiLanguage)}
                     </button>
                     
                     <div className="text-center text-[10px] text-slate-500 font-mono sm:ml-auto">
-                        {isAr ? 'صوتلي © 2025 — صوتك، ذكاؤنا.' : 'Sawtli © 2025 — Your Voice, Our Intelligence.'}
+                        {t('footerText', uiLanguage)}
                     </div>
                 </div>
             </div>
