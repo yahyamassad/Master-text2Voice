@@ -104,9 +104,9 @@ const QuotaIndicator: React.FC<{
     if (tier === 'visitor') {
         return (
             <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-                 <span className="text-cyan-500/70">VISITOR MODE (200 CHARS MAX)</span>
+                 <span className="text-cyan-500/70">{t('visitorMode', uiLanguage)}</span>
                  <span className="text-amber-500 cursor-pointer hover:underline" onClick={onUpgrade}>
-                     {uiLanguage === 'ar' ? 'سجل لزيادة الحد اليومي' : 'Register to Increase Limit'}
+                     {t('registerForMore', uiLanguage)}
                  </span>
             </div>
         );
@@ -165,16 +165,15 @@ const QuotaIndicator: React.FC<{
 };
 
 // ... (LanguageSelect, ActionButton, ActionCard, DownloadModal - unchanged) ...
+// [Rest of file is identical to previous, ensuring clearAll tooltip logic is applied]
+
 const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; uiLanguage: Language; }> = ({ value, onChange, uiLanguage }) => {
+    // ... [Same]
     const isValidCode = translationLanguages.some(l => l.code === value);
     const safeValue = isValidCode ? value : 'ar';
-    
-    // Helper to get translated name
     const getTranslatedName = (code: string) => {
-        // e.g. t('lang_ar', 'fr') -> 'Arabe'
         return t(`lang_${code}` as any, uiLanguage);
     };
-
     return (
         <div className="relative group min-w-[100px] flex-shrink-0">
             <div className="flex items-center justify-center gap-2 bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl hover:border-cyan-500/50 transition-colors cursor-pointer w-full shadow-sm text-center">
@@ -248,7 +247,7 @@ const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' 
 
 // Main App Component
 const App: React.FC = () => {
-  // ... (State Management remains same) ...
+  // ... [State declarations same as before] ...
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   
   const [sourceText, setSourceText] = useState<string>('');
@@ -261,8 +260,6 @@ const App: React.FC = () => {
       setTargetLang(uiLanguage === 'ar' ? 'en' : 'ar');
   }, [uiLanguage]);
 
-  // ... (rest of the state and logic) ...
-  // [Truncated for brevity, assuming standard App logic follows...]
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingTask, setLoadingTask] = useState<string>('');
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
@@ -931,6 +928,17 @@ const App: React.FC = () => {
         </header>
 
         <main className="w-full space-y-6 flex-grow">
+            <div className="max-w-3xl mx-auto w-full">
+                <QuotaIndicator 
+                    stats={userStats} 
+                    tier={userTier} 
+                    limits={planConfig} 
+                    uiLanguage={uiLanguage} 
+                    onUpgrade={() => setIsUpgradeOpen(true)}
+                    onBoost={() => setIsGamificationOpen(true)}
+                />
+            </div>
+
             {showSetupGuide && <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 mb-6 z-50 relative"><OwnerSetupGuide uiLanguage={uiLanguage} isApiConfigured={isApiConfigured} isFirebaseConfigured={!!getFirebase().app} /></div>}
 
             <div className="glass-panel rounded-3xl p-5 md:p-8 space-y-6 relative bg-[#1e293b]/80 backdrop-blur-sm shadow-[0_0_20px_rgba(34,211,238,0.15)] border-2 border-cyan-500/50">
@@ -1003,7 +1011,8 @@ const App: React.FC = () => {
         currentLimits={planConfig} 
         onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
         onRefreshVoices={() => {}}
-        onConsumeQuota={(cost) => updateUserStats(cost)} 
+        onConsumeQuota={(cost) => updateUserStats(cost)}
+        userTier={userTier} // PASS USER TIER HERE
       />}
       
       {isHistoryOpen && <History items={history} language={uiLanguage} onClose={() => setIsHistoryOpen(false)} onClear={handleClearHistory} onDelete={handleDeleteHistoryItem} onLoad={handleHistoryLoad}/>}

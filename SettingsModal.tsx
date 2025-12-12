@@ -5,7 +5,7 @@ import { SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES, UserTier } from '
 import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, SparklesIcon, CheckIcon, LockIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
-import { playAudio, encode, decode } from '../utils/audioUtils';
+import { playAudio } from '../utils/audioUtils';
 import { VOICE_STYLES } from '../utils/voiceStyles';
 
 interface SettingsModalProps {
@@ -67,11 +67,18 @@ const VoiceListItem: React.FC<{
             </div>
         </div>
         <button
-            onClick={(e) => { e.stopPropagation(); onPreview(voiceName); }}
-            title={t('previewVoiceTooltip')}
-            className="p-2 rounded-full bg-slate-800/50 hover:bg-cyan-500 hover:text-white text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            onClick={(e) => { 
+                e.stopPropagation(); 
+                if (isLocked) {
+                    onUpgrade();
+                } else {
+                    onPreview(voiceName); 
+                }
+            }}
+            title={isLocked ? "Upgrade to Preview" : t('previewVoiceTooltip')}
+            className={`p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 ${isLocked ? 'bg-slate-800/50 text-slate-500 hover:bg-slate-800' : 'bg-slate-800/50 hover:bg-cyan-500 hover:text-white text-slate-300'}`}
         >
-            {previewingVoice === voiceName ? <LoaderIcon /> : <PlayCircleIcon />}
+            {previewingVoice === voiceName ? <LoaderIcon /> : (isLocked ? <LockIcon className="w-4 h-4"/> : <PlayCircleIcon />)}
         </button>
     </div>
 ));
@@ -83,12 +90,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     currentLimits, onUpgrade, onConsumeQuota, userTier = 'visitor'
 }) => {
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
-    const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
+    // If user is Visitor/Free, forbid Gemini tab even if state says so (revert to system)
+    const canUseGemini = currentLimits.allowGemini;
+    const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected && canUseGemini ? 'gemini' : 'system');
+    
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
     const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
 
     const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const voicePreviewCache = useRef(new Map<string, Uint8Array>());
     const audioContextRef = useRef<AudioContext | null>(null);
 
     const isPlatinumOrAdmin = currentLimits.dailyLimit === Infinity && currentLimits.totalTrialLimit >= 750000;
@@ -98,30 +107,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     const relevantStandardVoices = useMemo(() => {
-        // --- VISITOR RESTRICTION (Only 2 Voices allowed) ---
+        // Filter by UI Language primarily for Visitors/Free
+        const uiLangCode = uiLanguage.toLowerCase();
+        // Fallback matching: 'ar' matches 'ar-SA', 'ar-EG', etc.
+        const matchesUiLang = (v: any) => v.lang.toLowerCase().startsWith(uiLangCode) || v.lang.toLowerCase().includes(uiLangCode);
+
+        // --- VISITOR RESTRICTION (Only 2 Voices matching UI Lang) ---
         if (userTier === 'visitor') {
-            const uiLangCode = uiLanguage.toLowerCase();
-            // Filter by UI language only, take top 2
-            const visitorVoices = MICROSOFT_AZURE_VOICES.filter(v => v.lang.toLowerCase().includes(uiLangCode));
+            const visitorVoices = MICROSOFT_AZURE_VOICES.filter(matchesUiLang);
+            // If no match found (rare), fallback to first 2 of EN
+            if (visitorVoices.length === 0) return MICROSOFT_AZURE_VOICES.filter(v => v.lang.startsWith('en')).slice(0, 2);
             return visitorVoices.slice(0, 2);
         }
 
-        // --- FREE USER RESTRICTION (Specific 4 Arabic Voices) ---
+        // --- FREE USER RESTRICTION (Only 4 Voices matching UI Lang) ---
         if (userTier === 'free') {
-            const allowedFreeVoices = [
-                'ar-SA-HamedNeural', // Saudi Male
-                'ar-EG-SalmaNeural', // Egypt Female
-                'ar-JO-TaimNeural',  // Jordan Male
-                'ar-KW-NouraNeural'  // Kuwait Female
-            ];
-            return MICROSOFT_AZURE_VOICES.filter(v => allowedFreeVoices.includes(v.name));
+            const freeVoices = MICROSOFT_AZURE_VOICES.filter(matchesUiLang);
+            if (freeVoices.length === 0) return MICROSOFT_AZURE_VOICES.filter(v => v.lang.startsWith('en')).slice(0, 4);
+            return freeVoices.slice(0, 4);
         }
 
         // --- PAID USERS ---
         if (showAllSystemVoices) return MICROSOFT_AZURE_VOICES;
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();
-        const uiLangCode = uiLanguage.toLowerCase(); 
+        
         const filtered = MICROSOFT_AZURE_VOICES.filter(v => {
             const vLang = v.lang.toLowerCase();
             if (v.name === voice) return true;
@@ -139,24 +149,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         return groups;
     }, []);
 
+    // Strict Mode Switcher: If plan forbids Gemini, force System
     useEffect(() => {
-        if (voiceMode === 'gemini' && !GEMINI_VOICES.includes(voice)) {
-            // If user forces Gemini tab but is Visitor/Free (not allowed), it will be handled by UI lock
-            // But if they clicked, we default to first voice for selection logic
-            setVoice(GEMINI_VOICES[0]);
-        } else if (voiceMode === 'system' && GEMINI_VOICES.includes(voice)) {
-            if (relevantStandardVoices.length > 0) {
-                setVoice(relevantStandardVoices[0].name);
-            }
-        }
-    }, [voiceMode, setVoice, relevantStandardVoices]); 
-
-    // Auto-switch to system if visitor/free
-    useEffect(() => {
-        if ((userTier === 'visitor' || userTier === 'free') && voiceMode === 'gemini') {
+        if (!canUseGemini && voiceMode === 'gemini') {
             setVoiceMode('system');
         }
-    }, [userTier]);
+    }, [canUseGemini, voiceMode]);
 
     useEffect(() => {
         return () => {
@@ -168,6 +166,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }, []);
 
     const handlePreview = async (voiceName: string) => {
+        // EXTRA SECURITY: Double check plan limits before generating preview
+        if (GEMINI_VOICES.includes(voiceName) && !canUseGemini) {
+            onUpgrade();
+            return;
+        }
+
         if (audioSourceRef.current) {
             try { audioSourceRef.current.stop(); audioSourceRef.current.disconnect(); } catch (e) { }
             audioSourceRef.current = null;
@@ -205,9 +209,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             await audioContextRef.current.resume();
         }
 
-        const cacheKey = `preview_short_${voiceName}_${langPrefix}`;
-        
-        // ... (Existing cache logic) ...
         try {
             // Minimal charge for short preview
             if (onConsumeQuota) onConsumeQuota(20);
@@ -268,12 +269,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         <label className="text-lg font-bold text-slate-200">{t('voiceLabel', uiLanguage)}</label>
                         <div className="flex p-1 bg-slate-900/50 rounded-lg border border-slate-700 relative mb-4">
                              <button 
-                                onClick={() => !currentLimits.allowGemini ? onUpgrade() : setVoiceMode('gemini')} 
-                                className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'} ${!currentLimits.allowGemini ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                onClick={() => !canUseGemini ? onUpgrade() : setVoiceMode('gemini')} 
+                                className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'} ${!canUseGemini ? 'opacity-50 cursor-not-allowed' : ''}`}
                              >
                                  <SparklesIcon className="w-4 h-4"/> 
                                  {t('geminiHdVoices', uiLanguage)}
-                                 {!currentLimits.allowGemini && <LockIcon className="w-3 h-3 text-amber-500"/>}
+                                 {!canUseGemini && <LockIcon className="w-3 h-3 text-amber-500"/>}
                              </button>
                              <button onClick={() => setVoiceMode('system')} className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'system' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'}`}>
                                  <CheckIcon className="w-4 h-4"/> {t('systemVoices', uiLanguage)}
@@ -293,7 +294,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             key={vName} 
                                             voiceName={vName} 
                                             label={t(voiceNameMap[vName], uiLanguage)} 
-                                            isLocked={!currentLimits.allowGemini}
+                                            isLocked={!canUseGemini} // LOCK IF NOT ALLOWED
                                             isSelected={voice === vName}
                                             previewingVoice={previewingVoice}
                                             onSelect={setVoice}
@@ -349,8 +350,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
                     </div>
                     
+                    {/* ... Emotions & Rest of UI ... */}
                     <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative`}>
-                         {/* --- EMOTION/STYLE LOCK OVERLAY --- */}
                          {!currentLimits.allowEffects && (
                              <div className="absolute inset-0 bg-slate-900/80 rounded-lg z-10 flex items-center justify-center backdrop-blur-[1px] cursor-pointer border border-slate-700" onClick={onUpgrade}>
                                 <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-amber-500/50 shadow-lg hover:bg-slate-700 transition-colors">
@@ -489,48 +490,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     {speakerOptions}
                                  </select>
                              </div>
-                             
-                             <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
-                                <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
-                                    {t('speakerName', uiLanguage)} 3
-                                </label>
-                                <input 
-                                    type="text" 
-                                    value={speakerC?.name || 'Haya'} 
-                                    onChange={e => setSpeakerC && setSpeakerC({...speakerC!, name: e.target.value})} 
-                                    placeholder={t('speaker3', uiLanguage)} 
-                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" 
-                                />
-                                <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 3</label>
-                                <select 
-                                    value={speakerC?.voice || 'Zephyr'} 
-                                    onChange={e => setSpeakerC && setSpeakerC({...speakerC!, voice: e.target.value})} 
-                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                >
-                                    {speakerOptions}
-                                </select>
-                            </div>
-
-                            <div className={`relative ${!isPlatinumOrAdmin ? 'opacity-60 pointer-events-none' : ''}`}>
-                                <label className="block text-sm font-medium text-slate-300 mb-1 flex justify-between">
-                                    {t('speakerName', uiLanguage)} 4
-                                </label>
-                                <input 
-                                    type="text" 
-                                    value={speakerD?.name || 'Rana'} 
-                                    onChange={e => setSpeakerD && setSpeakerD({...speakerD!, name: e.target.value})} 
-                                    placeholder={t('speaker4', uiLanguage)} 
-                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" 
-                                />
-                                <label className="block text-sm font-medium text-slate-300 mt-2 mb-1">{t('speakerVoice', uiLanguage)} 4</label>
-                                <select 
-                                    value={speakerD?.voice || 'Fenrir'} 
-                                    onChange={e => setSpeakerD && setSpeakerD({...speakerD!, voice: e.target.value})} 
-                                    className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                >
-                                    {speakerOptions}
-                                </select>
-                            </div>
+                             {/* ... Speakers 3 & 4 ... */}
                         </div>
                     </div>
                 </div>

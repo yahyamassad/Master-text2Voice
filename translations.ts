@@ -26,7 +26,7 @@ export const translationLanguages = [
 ];
 
 export const translations = {
-  // --- LANGUAGE NAMES (Translated) ---
+  // --- LANGUAGE NAMES ---
   lang_ar: { en: 'Arabic', ar: 'العربية', fr: 'Arabe', es: 'Árabe', pt: 'Árabe' },
   lang_en: { en: 'English', ar: 'الإنجليزية', fr: 'Anglais', es: 'Inglés', pt: 'Inglês' },
   lang_fr: { en: 'French', ar: 'الفرنسية', fr: 'Français', es: 'Francés', pt: 'Francês' },
@@ -51,6 +51,10 @@ export const translations = {
   tutorialButton: { en: 'Tutorial', ar: 'دليل الاستخدام', fr: 'Tutoriel', es: 'Tutorial', pt: 'Tutorial' },
   clearAll: { en: 'Clear All', ar: 'مسح الكل', fr: 'Tout effacer', es: 'Borrar todo', pt: 'Limpar tudo' },
   
+  // --- VISITOR BAR ---
+  visitorMode: { en: 'VISITOR MODE (350 CHARS MAX)', ar: 'وضع الزائر (350 حرف كحد أقصى)', fr: 'MODE VISITEUR (MAX 350 CARACTÈRES)', es: 'MODO VISITANTE (MÁX. 350 CARACTERES)', pt: 'MODO VISITANTE (MÁX. 350 CARACTERES)' },
+  registerForMore: { en: 'Register to Increase Limit', ar: 'سجل لزيادة الحد اليومي', fr: 'Inscrivez-vous pour augmenter', es: 'Regístrese para aumentar límite', pt: 'Registre-se para aumentar' },
+
   // --- TUTORIAL MODAL CONTENT ---
   tutorialTitle: { en: 'Sawtli User Guide', ar: 'دليل مستخدم صوتلي', fr: 'Guide de l\'utilisateur Sawtli', es: 'Guía de usuario de Sawtli', pt: 'Guia do usuário Sawtli' },
   tutorialIntroTitle: { en: 'SAWTLI', ar: 'صوتلي', fr: 'SAWTLI', es: 'SAWTLI', pt: 'SAWTLI' },
