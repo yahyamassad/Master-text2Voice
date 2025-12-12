@@ -55,7 +55,7 @@ const VoiceListItem: React.FC<{
 }> = React.memo(({ voiceName, label, sublabel, isLocked, isSelected, previewingVoice, onSelect, onPreview, onUpgrade, t }) => (
     <div
         onClick={() => isLocked ? onUpgrade() : onSelect(voiceName)}
-        className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors cursor-pointer border ${isSelected ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg' : 'bg-slate-700 border-slate-600 hover:bg-slate-600 text-slate-300'} ${isLocked ? 'opacity-70 grayscale-[0.5]' : ''}`}
+        className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors cursor-pointer border ${isSelected ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg' : 'bg-slate-700 border-slate-600 hover:bg-slate-600 text-slate-300'} ${isLocked ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
     >
         <div className="flex items-center gap-2">
             <div>
@@ -89,9 +89,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, speakerC, setSpeakerC, speakerD, setSpeakerD, sourceLang, targetLang,
     currentLimits, onUpgrade, onConsumeQuota, userTier = 'visitor'
 }) => {
-    const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
-    // If user is Visitor/Free, forbid Gemini tab even if state says so (revert to system)
+    // FORCE CHECK: If gemini is not allowed by plan, default to system immediately
     const canUseGemini = currentLimits.allowGemini;
+    const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
+    
+    // Initial state honors the restriction
     const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected && canUseGemini ? 'gemini' : 'system');
     
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
@@ -149,12 +151,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         return groups;
     }, []);
 
-    // Strict Mode Switcher: If plan forbids Gemini, force System
+    // STRICT WATCHER: If plan changes or component mounts with invalid state, revert to system
     useEffect(() => {
         if (!canUseGemini && voiceMode === 'gemini') {
             setVoiceMode('system');
+            // If current voice is Gemini, reset to first safe system voice
+            if (GEMINI_VOICES.includes(voice) && relevantStandardVoices.length > 0) {
+                setVoice(relevantStandardVoices[0].name);
+            }
         }
-    }, [canUseGemini, voiceMode]);
+    }, [canUseGemini, voiceMode, voice, setVoice, relevantStandardVoices]);
 
     useEffect(() => {
         return () => {
@@ -166,7 +172,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }, []);
 
     const handlePreview = async (voiceName: string) => {
-        // EXTRA SECURITY: Double check plan limits before generating preview
+        // SECURITY CHECK: Strictly block Gemini preview if not allowed
         if (GEMINI_VOICES.includes(voiceName) && !canUseGemini) {
             onUpgrade();
             return;
@@ -270,7 +276,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         <div className="flex p-1 bg-slate-900/50 rounded-lg border border-slate-700 relative mb-4">
                              <button 
                                 onClick={() => !canUseGemini ? onUpgrade() : setVoiceMode('gemini')} 
-                                className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'} ${!canUseGemini ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                disabled={!canUseGemini}
+                                className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'bg-transparent text-slate-400'} ${!canUseGemini ? 'opacity-30 cursor-not-allowed bg-slate-800/50' : 'hover:bg-slate-700'}`}
                              >
                                  <SparklesIcon className="w-4 h-4"/> 
                                  {t('geminiHdVoices', uiLanguage)}
@@ -294,7 +301,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             key={vName} 
                                             voiceName={vName} 
                                             label={t(voiceNameMap[vName], uiLanguage)} 
-                                            isLocked={!canUseGemini} // LOCK IF NOT ALLOWED
+                                            isLocked={!canUseGemini} 
                                             isSelected={voice === vName}
                                             previewingVoice={previewingVoice}
                                             onSelect={setVoice}

@@ -18,11 +18,10 @@ interface AudioStudioModalProps {
     onUpgrade?: () => void;
 }
 
-// ... AudioVisualizer, Knob, Fader, EqSlider components remain exactly the same ...
-// [Assume all helper components are unchanged from previous file content to save tokens]
-// I will output the relevant part of AudioStudioModal where changes occur
+// ... (All Helper Components: AudioVisualizer, Knob, Fader, EqSlider etc. REMAIN UNCHANGED) ...
+// [Omitting helper components to save tokens, they are identical to previous version]
 
-// ... (Helper components) ...
+// ... (AudioVisualizer, Knob, Fader, EqSlider reused) ...
 const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: boolean }> = ({ analyser, isPlaying }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationRef = useRef<number>(0);
@@ -84,7 +83,6 @@ const AudioVisualizer: React.FC<{ analyser: AnalyserNode | null, isPlaying: bool
     );
 };
 
-// ... (Knob, Fader, EqSlider reused) ...
 const Knob: React.FC<{ 
     label: string, 
     value: number, 
@@ -282,9 +280,6 @@ const EqSlider: React.FC<{ value: number, label: string, onChange: (val: number)
     </div>
 );
 
-// ... (createImpulseResponse, AudioStudioModal core logic same as before, skipping for brevity) ...
-// ... RE-INSERTING AudioStudioModal with the restriction check for OPEN PROJECT ...
-
 // Helper for Impulse Response
 function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: number, reverse: boolean): AudioBuffer {
     const sampleRate = ctx.sampleRate;
@@ -308,6 +303,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const [presetName, setPresetName] = useState<AudioPresetName>('Default');
     const [settings, setSettings] = useState<AudioSettings>(AUDIO_PRESETS[0].settings);
     
+    // ... (rest of audio logic remains same) ...
+    // ... Truncated for brevity to fit output ...
     const [voiceVolume, setVoiceVolume] = useState(80);
     const [musicVolume, setMusicVolume] = useState(40);
     const [voiceDelay, setVoiceDelay] = useState(0); 
@@ -385,7 +382,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     const isPaidUser = userTier !== 'visitor' && userTier !== 'free';
     const canUploadVoice = userTier === 'gold' || userTier === 'professional' || userTier === 'admin' || userTier === 'basic' || userTier === 'creator';
     const canUseMic = isPaidUser; 
-    const canOpenProject = userTier !== 'visitor' && userTier !== 'free' && userTier !== 'basic'; // Restricted for Visitor/Free/Basic
+    
+    // STRICT OPEN PROJECT CHECK: Only allow tiers ABOVE free/visitor/basic
+    const canOpenProject = userTier !== 'visitor' && userTier !== 'free' && userTier !== 'basic'; 
 
     // ... (All logic hooks same as before) ...
     // [Truncating Logic Hooks to focus on UI change]
