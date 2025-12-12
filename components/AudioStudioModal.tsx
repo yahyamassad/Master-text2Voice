@@ -1211,8 +1211,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         <SawtliLogoIcon className="h-16 sm:h-20 w-auto" />
                     </div>
                     
-                    {/* Removed Project Name Input from Header as requested */}
-
                     <div className="flex items-center gap-6">
                         <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1264,18 +1262,18 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                             {/* Left Group: Input Sources */}
                             <div className="flex-1 grid grid-cols-3 gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-700/50">
                                 <button onClick={onReplaceVoiceClick} className={`h-12 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'upload' ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} ${!canUploadVoice ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                    <span>FILE</span>
+                                    <span>{t('studioInputFile', uiLanguage)}</span>
                                     {!canUploadVoice && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500" />}
                                 </button>
                                 <button 
                                     onClick={() => handleTabSwitch('mic')} 
                                     className={`h-12 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'mic' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} ${!canUseMic ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
-                                    <MicrophoneIcon className="w-4 h-4"/> <span>REC</span>
+                                    <MicrophoneIcon className="w-4 h-4"/> <span>{t('studioInputMic', uiLanguage)}</span>
                                     {!canUseMic && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-slate-500" />}
                                 </button>
                                 <button onClick={() => handleTabSwitch('ai')} className={`h-12 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'ai' ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                                    <span>AI AUDIO</span>
+                                    <span>{t('studioInputAi', uiLanguage)}</span>
                                 </button>
                             </div>
                             
@@ -1323,7 +1321,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         className="rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[9px] font-bold uppercase tracking-wider flex items-center justify-center transition-colors"
                                         title="Quick Save"
                                     >
-                                        {isProcessing ? <LoaderIcon className="w-3 h-3"/> : "SAVE"}
+                                        {isProcessing ? <LoaderIcon className="w-3 h-3"/> : t('studioSave', uiLanguage)}
                                     </button>
                                     <button 
                                         onClick={handleSaveProjectAs} 
@@ -1331,7 +1329,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         className="rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[9px] font-bold uppercase tracking-wider flex items-center justify-center transition-colors"
                                         title="Save As New File"
                                     >
-                                        SAVE AS
+                                        {t('studioSaveAs', uiLanguage)}
                                     </button>
                                 </div>
                                 <button 
@@ -1339,13 +1337,13 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                     className="h-full rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
                                     title="Open Project"
                                 >
-                                    OPEN
+                                    {t('studioOpen', uiLanguage)}
                                 </button>
                                 
                                 <div className="relative h-12" ref={exportMenuRef}>
                                     <button onClick={() => setShowExportMenu(!showExportMenu)} disabled={!voiceBuffer && !musicBuffer} className="w-full h-full rounded-lg flex items-center justify-center gap-2 bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 text-[10px] font-bold uppercase transition-colors">
                                         {isProcessing ? <LoaderIcon className="w-4 h-4"/> : <DownloadIcon className="w-4 h-4" />}
-                                        <span>EXPORT</span>
+                                        <span>{t('studioExportBtn', uiLanguage)}</span>
                                     </button>
                                     
                                     {/* Export Menu Dropdown (Unchanged logic) */}
@@ -1393,7 +1391,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
                             <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
-                                <div className="text-sm font-bold text-slate-300 uppercase tracking-widest text-left">EQ-5 BAND</div>
+                                <div className="text-sm font-bold text-slate-300 uppercase tracking-widest text-left">{t('studioEq', uiLanguage)}</div>
                             </div>
                             <div className="flex justify-between px-1 gap-2 flex-1 items-end bg-black/20 rounded-xl p-3 border border-slate-800/50">
                                 <EqSlider value={settings.eqBands[0]} label="60Hz" onChange={(v) => {const b=[...settings.eqBands]; b[0]=v; updateSetting('eqBands',b);}} onClickCapture={handleRestrictedAction} />
@@ -1409,25 +1407,25 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                              <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
                                 <div className="flex items-center gap-3">
                                     <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
-                                    <div className="text-sm font-bold text-slate-300 uppercase tracking-widest text-left">MIXER</div>
+                                    <div className="text-sm font-bold text-slate-300 uppercase tracking-widest text-left">{t('studioMixer', uiLanguage)}</div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 w-full max-w-[140px]">
-                                    <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) onMusicUploadClick(); }} className="text-[9px] bg-slate-800 h-6 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors flex items-center justify-center">Add Music</button>
+                                    <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) onMusicUploadClick(); }} className="text-[9px] bg-slate-800 h-6 rounded text-amber-400 border border-slate-600 hover:border-amber-400 font-bold uppercase transition-colors flex items-center justify-center">{t('studioAddMusic', uiLanguage)}</button>
                                     <div className="relative w-full h-6">
-                                        <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setAutoDucking(!autoDucking); }} className={`w-full h-full text-[9px] rounded border font-bold uppercase transition-all flex items-center justify-center ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>Ducking</button>
+                                        <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setAutoDucking(!autoDucking); }} className={`w-full h-full text-[9px] rounded border font-bold uppercase transition-all flex items-center justify-center ${autoDucking ? 'bg-amber-900/50 text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'bg-slate-800 text-slate-500 border-slate-600'}`}>{t('studioDucking', uiLanguage)}</button>
                                         {duckingActive && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></div>}
                                     </div>
                                 </div>
                              </div>
                              <div className="flex gap-4 items-end justify-center pb-2 flex-grow overflow-hidden relative">
-                                <Fader label="VOICE" value={voiceVolume} onChange={setVoiceVolume} height="h-full max-h-48" disabled={!voiceBuffer} muted={isVoiceMuted} onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)} onClickCapture={handleRestrictedAction} />
+                                <Fader label={t('studioVoice', uiLanguage)} value={voiceVolume} onChange={setVoiceVolume} height="h-full max-h-48" disabled={!voiceBuffer} muted={isVoiceMuted} onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)} onClickCapture={handleRestrictedAction} />
                                 <div className="flex flex-col items-center justify-center pb-6 mx-2 h-full gap-2">
                                     {/* Delay Knob */}
-                                    <Knob label="DELAY" value={voiceDelay} min={0} max={10} onChange={setVoiceDelay} color="green" onClickCapture={handleRestrictedAction} displaySuffix="s" size="md" />
+                                    <Knob label={t('studioDelay', uiLanguage)} value={voiceDelay} min={0} max={10} onChange={setVoiceDelay} color="green" onClickCapture={handleRestrictedAction} displaySuffix="s" size="md" />
                                     {/* NEW: Pan Knob */}
                                     <div className="mt-2">
                                         <Knob 
-                                            label="PAN L/R" 
+                                            label={t('studioPan', uiLanguage)}
                                             value={settings.stereoWidth} 
                                             min={-100} 
                                             max={100} 
@@ -1438,11 +1436,11 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         />
                                     </div>
                                 </div>
-                                <Fader label="MUSIC" value={musicVolume} onChange={setMusicVolume} color="amber" height="h-full max-h-48" disabled={!musicFileName && isPaidUser} muted={isMusicMuted} onMuteToggle={() => setIsMusicMuted(!isMusicMuted)} onClickCapture={handleRestrictedAction} />
+                                <Fader label={t('studioMusic', uiLanguage)} value={musicVolume} onChange={setMusicVolume} color="amber" height="h-full max-h-48" disabled={!musicFileName && isPaidUser} muted={isMusicMuted} onMuteToggle={() => setIsMusicMuted(!isMusicMuted)} onClickCapture={handleRestrictedAction} />
                              </div>
                              <div className="mt-auto pt-2 w-full relative z-20" ref={libraryMenuRef}>
                                 <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) setIsLibraryOpen(!isLibraryOpen); }} className="w-full flex items-center justify-between text-[10px] bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:border-slate-500 transition-colors shadow-lg">
-                                    <span className="truncate flex-1 text-left font-bold">{activeMusicTrack ? activeMusicTrack.name : 'Select Music Track...'}</span>
+                                    <span className="truncate flex-1 text-left font-bold">{activeMusicTrack ? activeMusicTrack.name : t('studioSelectTrack', uiLanguage)}</span>
                                     <ChevronDownIcon className={`w-3 h-3 transition-transform ml-2 ${isLibraryOpen ? 'rotate-180' : ''}`} />
                                 </button>
                                 {isLibraryOpen && (
@@ -1451,50 +1449,73 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                             musicLibrary.map(track => (
                                                 <div key={track.id} onClick={() => { setActiveMusicId(track.id); setIsLibraryOpen(false); }} className={`flex items-center justify-between p-2 cursor-pointer rounded hover:bg-slate-800 transition-colors ${activeMusicId === track.id ? 'bg-slate-800 text-amber-400' : 'text-slate-400'}`}>
                                                     <span className="text-[10px] truncate max-w-[150px] font-bold">{track.name}</span>
-                                                    <button onClick={(e) => removeTrackFromLibrary(e, track.id)} className="text-slate-600 hover:text-red-500 p-1"><TrashIcon className="w-3 h-3"/></button>
+                                                    <button onClick={(e) => removeTrackFromLibrary(e, track.id)} className="text-slate-600 hover:text-red-500 transition-colors"><TrashIcon className="w-3 h-3" /></button>
                                                 </div>
                                             ))
-                                        ) : (<div className="text-[10px] text-center text-slate-500 py-4 italic">No tracks loaded</div>)}
+                                        ) : (
+                                            <div className="p-3 text-center text-[10px] text-slate-500 italic">{t('studioNoTracks', uiLanguage)}</div>
+                                        )}
+                                        <div className="border-t border-slate-700 mt-1 pt-1">
+                                            <button onClick={onMusicUploadClick} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase rounded flex items-center justify-center gap-1 transition-colors">
+                                                {t('studioAddMusic', uiLanguage)}
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
-                            </div>
+                             </div>
                         </div>
 
-                        {/* RIGHT: PRESETS */}
+                        {/* RIGHT: DSP & PRESETS */}
                         <div className="lg:col-span-4 bg-[#1e293b] rounded-xl p-5 border border-slate-700 shadow-xl flex flex-col h-96 relative">
-                             <div className="w-full flex items-center mb-4 border-b border-slate-700 pb-2 shrink-0 gap-3">
-                                <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
-                                <div className="text-sm font-bold text-slate-300 uppercase tracking-widest text-left">PRESETS</div>
-                             </div>
-                             <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto pr-1 custom-scrollbar content-start">
-                                 <button onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName('Default'); setSettings({...AUDIO_PRESETS[0].settings});} }} className={`col-span-2 w-full px-2 py-4 rounded font-bold border transition-all text-center uppercase tracking-wide text-xs sm:text-sm ${presetName==='Default' ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}>RESET DEFAULT</button>
-                                {AUDIO_PRESETS.slice(1).map(p => (
-                                    <button key={p.name} onClick={(e) => { handleRestrictedAction(e); if(isPaidUser) { setPresetName(p.name); setSettings({...p.settings});} }} className={`w-full px-1 py-4 rounded font-bold border transition-all text-center truncate hover:scale-[1.02] active:scale-95 text-xs sm:text-sm flex items-center justify-center ${presetName===p.name ? 'bg-cyan-900/50 text-cyan-300 border-cyan-500 shadow-lg' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`} title={p.label[uiLanguage === 'ar' ? 'ar' : 'en']}>
-                                        {/* Force Arabic Label if available, otherwise English */}
-                                        {p.label['ar']}
-                                    </button>
-                                ))}
-                             </div>
-                        </div>
-                    </div>
+                            <div className="w-full flex items-center justify-between mb-4 border-b border-slate-700 pb-2 shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-1 h-3 bg-cyan-500 rounded-full"></div>
+                                    <div className="text-sm font-bold text-slate-300 uppercase tracking-widest text-left">{t('studioPresets', uiLanguage)}</div>
+                                </div>
+                                {!isPaidUser && <LockIcon className="w-4 h-4 text-amber-500" />}
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 mb-4 shrink-0">
+                                <div className="relative group">
+                                    <select 
+                                        value={presetName} 
+                                        onChange={(e) => {
+                                            const name = e.target.value as AudioPresetName;
+                                            setPresetName(name);
+                                            const p = AUDIO_PRESETS.find(p => p.name === name);
+                                            if (p) setSettings(p.settings);
+                                        }} 
+                                        className="w-full bg-slate-900 border border-slate-600 text-xs text-white rounded px-2 py-1.5 font-bold uppercase tracking-wide appearance-none cursor-pointer hover:border-cyan-500 transition-colors"
+                                        disabled={!isPaidUser}
+                                    >
+                                        {AUDIO_PRESETS.map(preset => (
+                                            <option key={preset.name} value={preset.name}>
+                                                {preset.label[uiLanguage as 'en'|'ar'|'fr'|'es'|'pt'] || preset.label['en']}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <ChevronDownIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                                </div>
+                                <button 
+                                    onClick={() => { setSettings(AUDIO_PRESETS[0].settings); setPresetName('Default'); setVoiceVolume(80); setMusicVolume(40); setIsVoiceMuted(false); setIsMusicMuted(false); setEcho(0); setVoiceDelay(0); updateSetting('stereoWidth', 0); }}
+                                    className="text-[9px] bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50 hover:text-red-300 rounded uppercase font-bold transition-colors"
+                                >
+                                    {t('studioReset', uiLanguage)}
+                                </button>
+                            </div>
 
-                    {/* Bottom Knobs */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
-                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Time Stretch</div>
-                            <Knob label="Speed" value={settings.speed * 50} min={25} max={100} onChange={(v) => updateSetting('speed', v/50)} onClickCapture={handleRestrictedAction} />
-                        </div>
-                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Ambience</div>
-                            <Knob label="Reverb" value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} onClickCapture={handleRestrictedAction} />
-                        </div>
-                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Echo</div>
-                            <Knob label="Feedback" value={echo} onChange={setEcho} color="green" onClickCapture={handleRestrictedAction} />
-                        </div>
-                        <div className="bg-[#1e293b] rounded-xl p-4 border border-slate-700 shadow-xl flex flex-col items-center relative">
-                            <div className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Dynamics</div>
-                            <Knob label="Compressor" value={settings.compression} onChange={(v) => updateSetting('compression', v)} color="purple" onClickCapture={handleRestrictedAction} />
+                            <div className="flex-1 bg-slate-900/30 rounded-xl p-2 border border-slate-800 overflow-y-auto custom-scrollbar">
+                                <div className="grid grid-cols-3 gap-y-4 gap-x-2 py-2">
+                                    <Knob label={t('studioTimeStretch', uiLanguage)} value={settings.speed} min={0.5} max={2.0} onChange={(v) => updateSetting('speed', v)} size="sm" displaySuffix="x" onClickCapture={handleRestrictedAction} />
+                                    <Knob label={t('studioAmbience', uiLanguage)} value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
+                                    <Knob label={t('studioEcho', uiLanguage)} value={echo} onChange={setEcho} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
+                                    <Knob label={t('studioDynamics', uiLanguage)} value={settings.compression} onChange={(v) => updateSetting('compression', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
+                                    <Knob label={t('studioSpeed', uiLanguage)} value={settings.speed} min={0.5} max={2.0} onChange={(v) => updateSetting('speed', v)} size="sm" displaySuffix="x" onClickCapture={handleRestrictedAction} />
+                                    <Knob label={t('studioReverb', uiLanguage)} value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
+                                    <Knob label={t('studioFeedback', uiLanguage)} value={echo} onChange={setEcho} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
+                                    <Knob label={t('studioCompressor', uiLanguage)} value={settings.compression} onChange={(v) => updateSetting('compression', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

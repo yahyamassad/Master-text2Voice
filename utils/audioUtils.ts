@@ -654,42 +654,42 @@ export function createMp3Blob(buffer: AudioBuffer | Uint8Array, numChannels: num
 export const AUDIO_PRESETS: AudioPreset[] = [
     {
         name: 'Default',
-        label: { en: 'Original', ar: 'الأصلي' },
+        label: { en: 'Original', ar: 'الأصلي', fr: 'Original', es: 'Original', pt: 'Original' },
         settings: { volume: 50, speed: 1.0, pitch: 0, eqBands: [0, 0, 0, 0, 0], reverb: 0, compression: 0, stereoWidth: 0 }
     },
     {
         name: 'YouTube',
-        label: { en: 'YouTube (Clean)', ar: 'يوتيوب (واضح)' },
+        label: { en: 'YouTube (Clean)', ar: 'يوتيوب (واضح)', fr: 'YouTube (Clair)', es: 'YouTube (Claro)', pt: 'YouTube (Claro)' },
         settings: { volume: 80, speed: 1.0, pitch: 0, eqBands: [0, 3, 0, 2, 1], reverb: 2, compression: 25, stereoWidth: 0 }
     },
     {
         name: 'Podcast',
-        label: { en: 'Podcast (Warm)', ar: 'بودكاست (دافئ)' },
+        label: { en: 'Podcast (Warm)', ar: 'بودكاست (دافئ)', fr: 'Podcast (Chaud)', es: 'Podcast (Cálido)', pt: 'Podcast (Quente)' },
         settings: { volume: 85, speed: 1.0, pitch: 0, eqBands: [4, 3, 1, 0, -2], reverb: 3, compression: 35, stereoWidth: 0 }
     },
     {
         name: 'SocialMedia',
-        label: { en: 'Social (Punchy)', ar: 'سوشيال (قوي)' },
+        label: { en: 'Social (Punchy)', ar: 'سوشيال (قوي)', fr: 'Réseaux (Percutant)', es: 'Social (Potente)', pt: 'Social (Forte)' },
         settings: { volume: 95, speed: 1.05, pitch: 0, eqBands: [1, 3, 0, 4, 2], reverb: 0, compression: 55, stereoWidth: 0 }
     },
     {
         name: 'Cinema',
-        label: { en: 'Cinema (Epic)', ar: 'سينما (ملحمي)' },
+        label: { en: 'Cinema (Epic)', ar: 'سينما (ملحمي)', fr: 'Cinéma (Épique)', es: 'Cine (Épico)', pt: 'Cinema (Épico)' },
         settings: { volume: 75, speed: 0.95, pitch: 0, eqBands: [5, 0, 1, 1, 3], reverb: 15, compression: 15, stereoWidth: 0 }
     },
     {
         name: 'Telephone',
-        label: { en: 'Telephone', ar: 'هاتف' },
+        label: { en: 'Telephone', ar: 'هاتف', fr: 'Téléphone', es: 'Teléfono', pt: 'Telefone' },
         settings: { volume: 65, speed: 1.0, pitch: 0, eqBands: [-12, -4, 6, -4, -12], reverb: 0, compression: 80, stereoWidth: 0 }
     },
     {
         name: 'Gaming',
-        label: { en: 'Gaming/Stream', ar: 'ألعاب/بث' },
+        label: { en: 'Gaming/Stream', ar: 'ألعاب/بث', fr: 'Jeu / Stream', es: 'Juegos / Stream', pt: 'Jogos / Stream' },
         settings: { volume: 90, speed: 1.0, pitch: 0, eqBands: [2, 0, 0, 5, 2], reverb: 0, compression: 45, stereoWidth: 0 }
     },
     {
         name: 'ASMR',
-        label: { en: 'ASMR (Soft)', ar: 'همس (ASMR)' },
+        label: { en: 'ASMR (Soft)', ar: 'همس (ASMR)', fr: 'ASMR (Doux)', es: 'ASMR (Suave)', pt: 'ASMR (Suave)' },
         settings: { volume: 85, speed: 1.0, pitch: 0, eqBands: [1, 0, -2, 3, 5], reverb: 10, compression: 70, stereoWidth: 0 }
     }
 ];
