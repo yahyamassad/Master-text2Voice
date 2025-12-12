@@ -28,32 +28,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
         const ai = new GoogleGenAI({ apiKey: apiKey });
         
-        // Configurable Model Name for Stability
         const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-2.5-flash';
 
-        // STRICT FORMATTING INSTRUCTION
-        // We explicitly tell the model that this is a script/dialogue and formatting is critical.
-        const systemInstruction = `You are a professional translator specializing in script and dialogue translation. 
-Translate the user input from ${sourceLang} to ${targetLang}.
+        // STRICT SCRIPT TRANSLATION PROMPT
+        const systemInstruction = `You are a professional Dubbing Script Translator.
+Your Goal: Translate from ${sourceLang} to ${targetLang} while PRESERVING THE EXACT STRUCTURE AND LINE BREAKS.
 
-CRITICAL FORMATTING RULES (MUST FOLLOW):
-1. **PRESERVE LINE BREAKS**: Do NOT merge lines. If the source text has a newline, the translated text MUST have a newline at the exact same position.
-2. **DIALOGUE STRUCTURE**: If a line follows the format "Name: Text", preserve this structure in the translation (e.g., "TranslatedName: TranslatedText"). Do not remove the colon (:).
-3. **EMPTY LINES**: Keep empty lines exactly as they are (used for pauses).
-4. **NO MARKDOWN**: Output plain text only. Do not wrap in markdown code blocks.
+INPUT CONTEXT:
+The input is a script for a multi-speaker audio engine.
+Format: "SpeakerName: Dialogue text" or just "Dialogue text".
+
+CRITICAL RULES:
+1. **Line-by-Line Strictness**: The output MUST have the EXACT same number of lines (non-empty and empty) as the input.
+2. **Preserve Speaker Names**: If a line starts with "Name:", Translate the name phonetically if needed, but KEEP the format "Name: ...". 
+3. **Preserve Empty Lines**: If the input has an empty line for a pause, the output MUST have an empty string "" at that index.
+4. **No Merging**: NEVER merge two dialogue lines into one paragraph.
+5. **No Explanations**: Return ONLY the JSON object.
+
+OUTPUT FORMAT:
+JSON Object with a "lines" array.
 
 Example Input:
-John: Hello
-[newline]
-Jane: Hi there
+Yazan: Hello
+[empty line]
+Lana: How are you?
 
-Example Output:
-جون: مرحباً
-[newline]
-جين: أهلاً بك`;
+Example Output JSON:
+{
+  "lines": [
+    "Yazan: Bonjour",
+    "",
+    "Lana: Comment ça va ?"
+  ]
+}`;
 
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
-        
         const apiPromise = ai.models.generateContent({
             model: MODEL_NAME,
             contents: {
@@ -62,44 +70,44 @@ Example Output:
             },
             config: {
                 systemInstruction: systemInstruction,
-                temperature: 0.1, // Low temperature to reduce "creativity" in layout
+                responseMimeType: "application/json",
+                temperature: 0.1, // Low temperature for structure adherence
             }
         });
 
+        // 30s Timeout
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
         const result: any = await Promise.race([apiPromise, timeoutPromise]);
 
-        let translatedText = result.text;
-        
-        if (!translatedText && result.candidates?.[0]?.content?.parts?.[0]?.text) {
-            translatedText = result.candidates[0].content.parts[0].text;
+        let rawResponse = result.text;
+        if (!rawResponse && result.candidates?.[0]?.content?.parts?.[0]?.text) {
+            rawResponse = result.candidates[0].content.parts[0].text;
         }
         
-        if (!translatedText) {
-             if (result.candidates?.[0]?.finishReason) {
-                console.warn(`Translation blocked/stopped. Reason: ${result.candidates?.[0]?.finishReason}`);
-            }
-            throw new Error("Translation returned empty response.");
+        if (!rawResponse) throw new Error("Translation returned empty response.");
+
+        const cleanJsonStr = rawResponse.replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+        let parsedData;
+        try {
+            parsedData = JSON.parse(cleanJsonStr);
+        } catch (e) {
+            throw new Error("Invalid JSON structure from translation.");
         }
 
-        let cleanText = translatedText.trim();
-        // Remove markdown code blocks if the model ignored instructions
-        cleanText = cleanText.replace(/^```(json|text)?/i, '').replace(/```$/, '');
+        let translatedLines = parsedData.lines;
+        if (!Array.isArray(translatedLines)) throw new Error("Invalid format received.");
+
+        // Join with newlines to reconstruct the visual text block
+        const finalTranslatedText = translatedLines.join('\n');
 
         res.setHeader('Content-Type', 'application/json');
         return res.status(200).json({
-            translatedText: cleanText,
+            translatedText: finalTranslatedText,
             speakerMapping: {} 
         });
 
     } catch (error: any) {
         console.error("Translation Error:", error);
-
-        if (error.message && (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED') || error.message.includes('quota'))) {
-            return res.status(429).json({ 
-                error: "Translation service busy. Please try again later." 
-            });
-        }
-
         return res.status(500).json({ error: error.message || 'Translation failed' });
     }
 }
