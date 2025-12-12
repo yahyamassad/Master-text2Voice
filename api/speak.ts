@@ -33,13 +33,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const MODEL_NAME = process.env.GEMINI_MODEL_TTS || 'gemini-2.5-flash-preview-tts';
     const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
 
-    // --- GENDER ENFORCEMENT ---
-    let genderInstruction = "";
+    // --- SYSTEM INSTRUCTION (Persona & Gender) ---
+    // Moving instructions here improves stability significantly vs wrapping the user prompt.
+    let systemInstruction = "You are a professional voice actor. Read the text naturally and clearly.";
+    
     if (selectedVoiceName === 'Puck' || selectedVoiceName === 'Charon' || selectedVoiceName === 'Fenrir') {
-        genderInstruction = "CRITICAL: You are a MALE speaker. Your voice MUST be deep and masculine. Do NOT speak with a female pitch.";
+        systemInstruction += " You are a MALE speaker. Your voice MUST be deep and masculine. Do NOT speak with a female pitch.";
     } else if (selectedVoiceName === 'Kore' || selectedVoiceName === 'Zephyr') {
-        genderInstruction = "CRITICAL: You are a FEMALE speaker. Your voice MUST be soft and feminine.";
+        systemInstruction += " You are a FEMALE speaker. Your voice MUST be soft and feminine.";
     }
+
+    systemInstruction += "\nStrict Constraints:\n1. Do NOT read metadata or code.\n2. Do NOT explain the text.\n3. Read exactly what is provided in the detected language.";
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -47,33 +51,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const MAX_RETRIES = 3;
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                // STRICT System Instruction to prevent hallucination
                 const cleanText = text.trim();
-                
-                // Enhanced protection prompt - NOW POLYGLOT SAFE
-                const protectedPrompt = `
-Task: Read the following text aloud exactly as written in the detected language.
-${genderInstruction}
-Strict Constraints:
-1. Do NOT read any technical metadata, code snippets, or introductory phrases.
-2. Do NOT explain the text.
-3. Read in the language of the text provided (e.g., if French, speak French; if Arabic, speak Arabic; if English, speak English).
-4. Only vocalize the content inside the triple quotes below.
-
-Text to read:
-"""
-${cleanText}
-"""
-`;
                 
                 const response = await client.models.generateContent({
                     model: MODEL_NAME,
                     contents: {
                         role: 'user',
-                        parts: [{ text: protectedPrompt }]
+                        parts: [{ text: cleanText }] // Send raw text, let model handle it via system instruction
                     },
                     config: {
                         responseModalities: ['AUDIO'],
+                        systemInstruction: systemInstruction, // Proper place for instructions
                         speechConfig: {
                             voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoiceName } }
                         }
@@ -87,13 +75,18 @@ ${cleanText}
                     return res.status(200).json({ audioContent: audioData, modelUsed: MODEL_NAME });
                 }
                 
-                throw new Error("API returned no audio data.");
+                // If we get here, the model returned a response but no audio (likely a safety refusal or text output)
+                console.warn(`Attempt ${attempt}: API returned no audio data. Response:`, JSON.stringify(response));
+                throw new Error("Model refused to generate audio (Safety/Filter).");
 
             } catch (err: any) {
                 const errMsg = err.message || err.toString();
-                const isRateLimit = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota');
+                console.error(`Attempt ${attempt} failed:`, errMsg);
 
-                if (isRateLimit) {
+                // Retry on Rate Limits (429/503) AND Internal Errors (500) which happen frequently with Preview models
+                const isRetryable = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota') || errMsg.includes('500') || errMsg.includes('Internal');
+
+                if (isRetryable) {
                     if (attempt === MAX_RETRIES) throw err;
                     await delay(1000 * attempt); 
                     continue;
