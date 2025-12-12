@@ -20,36 +20,22 @@ function escapeXml(unsafe: string): string {
 
 /**
  * VOICE MAPPING (STABLE)
- * 
- * We map Jordan and Gulf dialects to the Kuwaiti engine because it has the best "Fakhama" (Grandeur).
- * We do NOT apply any speed or pitch changes programmatically anymore.
  */
 const QUALITY_MAPPING: Record<string, string> = {
-    // Jordan -> Kuwaiti Engine (Best quality foundation)
     'ar-JO-TaimNeural': 'ar-KW-FahedNeural',
     'ar-JO-SanaNeural': 'ar-KW-NouraNeural',
-    
-    // Gulf -> Kuwaiti Engine
     'ar-QA-AmalNeural': 'ar-KW-NouraNeural',
     'ar-QA-MoazNeural': 'ar-KW-FahedNeural',
     'ar-BH-AliNeural': 'ar-KW-FahedNeural',
     'ar-BH-LailaNeural': 'ar-KW-NouraNeural',
     'ar-YE-MaryamNeural': 'ar-KW-NouraNeural',
     'ar-YE-SalehNeural': 'ar-KW-FahedNeural',
-    
-    // Others (Egypt, Lebanon, Saudi) keep their native engines
 };
 
-/**
- * Get the actual backend voice ID to use.
- */
 function getBackendVoiceId(uiVoiceId: string): string {
     return QUALITY_MAPPING[uiVoiceId] || uiVoiceId;
 }
 
-/**
- * INTELLIGENT LOCALE MAPPING
- */
 function getOptimizedLocale(voiceId: string): string {
     const actualVoiceId = getBackendVoiceId(voiceId);
     const parts = actualVoiceId.split('-');
@@ -60,63 +46,60 @@ function getOptimizedLocale(voiceId: string): string {
 }
 
 /**
+ * Detects if text is predominantly English/Latin to prevent Accent Mismatch.
+ */
+function isTextEnglish(text: string): boolean {
+    const latinMatch = text.match(/[a-zA-Z]/g);
+    const arabicMatch = text.match(/[\u0600-\u06FF]/g);
+    
+    const latinCount = latinMatch ? latinMatch.length : 0;
+    const arabicCount = arabicMatch ? arabicMatch.length : 0;
+
+    return latinCount > arabicCount && latinCount > 3;
+}
+
+/**
  * Calls the backend API to generate speech using Microsoft Azure AI Speech (Neural).
  */
 export async function generateStandardSpeech(
     text: string,
-    voiceId: string, // The ID selected in UI
+    voiceId: string, 
     pauseDuration: number = 0, 
     emotion: string = 'Default' 
 ): Promise<Uint8Array | null> {
     try {
-        // 1. RESOLVE ENGINE
-        const backendVoiceId = getBackendVoiceId(voiceId);
-        const langCode = getOptimizedLocale(backendVoiceId);
+        let backendVoiceId = getBackendVoiceId(voiceId);
+        
+        // --- LANGUAGE GUARD (ACCENT FIX) ---
+        if (backendVoiceId.startsWith('ar-') && isTextEnglish(text)) {
+            console.warn(`Language Mismatch: Swapping to en-US-AndrewNeural.`);
+            backendVoiceId = 'en-US-AndrewNeural'; 
+        } else if (backendVoiceId.startsWith('en-') && !isTextEnglish(text) && text.trim().length > 0) {
+             const arabicMatch = text.match(/[\u0600-\u06FF]/g);
+             if (arabicMatch && arabicMatch.length > 5) {
+                 backendVoiceId = 'ar-SA-HamedNeural';
+             }
+        }
 
+        const langCode = getOptimizedLocale(backendVoiceId);
         let payload: any = { voiceId: backendVoiceId };
 
-        // 2. NO OPTIMIZATIONS (Reset to Raw)
-        // We removed getVoiceOptimizations to ensure Kuwaiti accent stays pure.
         let azureStyle = '';
         let pitch = '0%';
         let baseRate = 0;
 
-        // 3. APPLY USER EMOTION (Only explicit requested styles)
         switch (emotion) {
-            case 'happy': 
-                azureStyle = 'cheerful'; 
-                baseRate += 5; 
-                pitch = '+2%'; 
-                break;
-            case 'sad': 
-                azureStyle = 'sad'; 
-                baseRate -= 10; 
-                pitch = '-5%'; 
-                break;
-            case 'formal': 
-                azureStyle = 'newscast'; 
-                break;
-            case 'epic_poet': 
-                azureStyle = 'empathetic'; 
-                baseRate -= 10; 
-                break;
-            case 'heritage_narrator':
-                azureStyle = 'narration-professional'; 
-                break;
-            case 'news_anchor':
-                azureStyle = 'newscast';
-                break;
-            case 'sports_commentator':
-                azureStyle = 'shouting'; 
-                baseRate += 10;
-                break;
-            case 'thriller':
-                azureStyle = 'whispering';
-                break;
+            case 'happy': azureStyle = 'cheerful'; baseRate += 5; pitch = '+2%'; break;
+            case 'sad': azureStyle = 'sad'; baseRate -= 10; pitch = '-5%'; break;
+            case 'formal': azureStyle = 'newscast'; break;
+            case 'epic_poet': azureStyle = 'empathetic'; baseRate -= 10; break;
+            case 'heritage_narrator': azureStyle = 'narration-professional'; break;
+            case 'news_anchor': azureStyle = 'newscast'; break;
+            case 'sports_commentator': azureStyle = 'shouting'; baseRate += 10; break;
+            case 'thriller': azureStyle = 'whispering'; break;
         }
 
         const rate = `${baseRate}%`;
-
         const paragraphs = text.split(/\n\s*\n/);
         let innerContent = '';
         
@@ -130,12 +113,10 @@ export async function generateStandardSpeech(
             }
         });
 
-        // Apply Prosody only if modified by Emotion (otherwise 0% / 0%)
         if (rate !== '0%' || pitch !== '0%') {
             innerContent = `<prosody rate="${rate}" pitch="${pitch}">${innerContent}</prosody>`;
         }
 
-        // Apply Style
         if (azureStyle) {
             innerContent = `<mstts:express-as style="${azureStyle}">${innerContent}</mstts:express-as>`;
         }
@@ -157,24 +138,14 @@ export async function generateStandardSpeech(
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.details 
-                ? `${errorData.error}: ${errorData.details}` 
-                : (errorData.error || `Azure voice error: ${response.status}`);
-            
-            throw new Error(errorMessage);
+            throw new Error(errorData.error || `Azure error: ${response.status}`);
         }
 
         const data = await response.json();
-        
-        if (!data.audioContent) {
-            console.warn("Azure API returned no audio content.");
-            return null;
-        }
-        
-        return decode(data.audioContent);
+        return data.audioContent ? decode(data.audioContent) : null;
 
     } catch (error) {
-        console.error("Azure Speech Generation Failed:", error);
+        console.error("Azure Speech Failed:", error);
         throw error;
     }
 }
@@ -189,46 +160,57 @@ export async function generateMultiSpeakerStandardSpeech(
     pauseDuration: number = 0.5 
 ): Promise<Uint8Array | null> {
     const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-    
     if (lines.length === 0) return null;
 
     const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const segments: { text: string, voice: string }[] = [];
     
+    // Normalize names
     const nameA = speakers.speakerA.name.trim();
     const nameB = speakers.speakerB.name.trim();
     const nameC = speakers.speakerC?.name.trim();
     const nameD = speakers.speakerD?.name.trim();
 
-    const regexA = new RegExp(`^${escapeRegExp(nameA)}\\s*:\\s*`, 'i');
-    const regexB = new RegExp(`^${escapeRegExp(nameB)}\\s*:\\s*`, 'i');
-    const regexC = nameC ? new RegExp(`^${escapeRegExp(nameC)}\\s*:\\s*`, 'i') : null;
-    const regexD = nameD ? new RegExp(`^${escapeRegExp(nameD)}\\s*:\\s*`, 'i') : null;
+    // IMPROVED REGEX: Matches "Name:", "Name :", "Name-", or just "Name " at start of line
+    const createRegex = (name: string) => new RegExp(`^${escapeRegExp(name)}\\s*[:\\-]?\\s*`, 'i');
+
+    const regexA = createRegex(nameA);
+    const regexB = createRegex(nameB);
+    const regexC = nameC ? createRegex(nameC) : null;
+    const regexD = nameD ? createRegex(nameD) : null;
 
     let currentVoice = defaultVoice; 
 
     for (const line of lines) {
         let lineText = line;
         let lineVoice = currentVoice; 
+        let matched = false;
 
         if (regexA.test(line)) {
             lineVoice = speakers.speakerA.voice;
-            lineText = line.replace(regexA, '').trim();
+            lineText = line.replace(regexA, '').trim(); 
+            matched = true;
         } else if (regexB.test(line)) {
             lineVoice = speakers.speakerB.voice;
-            lineText = line.replace(regexB, '').trim();
+            lineText = line.replace(regexB, '').trim(); 
+            matched = true;
         } else if (regexC && regexC.test(line) && speakers.speakerC) {
             lineVoice = speakers.speakerC.voice;
-            lineText = line.replace(regexC, '').trim();
+            lineText = line.replace(regexC, '').trim(); 
+            matched = true;
         } else if (regexD && regexD.test(line) && speakers.speakerD) {
             lineVoice = speakers.speakerD.voice;
-            lineText = line.replace(regexD, '').trim();
+            lineText = line.replace(regexD, '').trim(); 
+            matched = true;
+        }
+
+        if (matched) {
+            currentVoice = lineVoice; 
         }
 
         if (lineText.length > 0) {
             segments.push({ text: lineText, voice: lineVoice });
-            currentVoice = lineVoice; 
         }
     }
 
@@ -239,7 +221,7 @@ export async function generateMultiSpeakerStandardSpeech(
 
     for (const seg of segments) {
         try {
-            // Mapping and Optimization handled inside generateStandardSpeech
+            // Language Guard is applied automatically inside generateStandardSpeech
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
             if (mp3Bytes) {
                 const bufferCopy = mp3Bytes.slice(0).buffer;
