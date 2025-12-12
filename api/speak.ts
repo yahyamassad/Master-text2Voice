@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -34,7 +34,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
 
     // --- SYSTEM INSTRUCTION (Persona & Gender) ---
-    // Moving instructions here improves stability significantly vs wrapping the user prompt.
     let systemInstruction = "You are a professional voice actor. Read the text naturally and clearly.";
     
     if (selectedVoiceName === 'Puck' || selectedVoiceName === 'Charon' || selectedVoiceName === 'Fenrir') {
@@ -57,11 +56,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     model: MODEL_NAME,
                     contents: {
                         role: 'user',
-                        parts: [{ text: cleanText }] // Send raw text, let model handle it via system instruction
+                        parts: [{ text: cleanText }]
                     },
                     config: {
                         responseModalities: ['AUDIO'],
-                        systemInstruction: systemInstruction, // Proper place for instructions
+                        systemInstruction: systemInstruction,
+                        // CRITICAL FIX: Disable all safety filters to prevent silent failures on innocent text
+                        safetySettings: [
+                            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                        ],
                         speechConfig: {
                             voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoiceName } }
                         }
@@ -75,15 +81,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(200).json({ audioContent: audioData, modelUsed: MODEL_NAME });
                 }
                 
-                // If we get here, the model returned a response but no audio (likely a safety refusal or text output)
-                console.warn(`Attempt ${attempt}: API returned no audio data. Response:`, JSON.stringify(response));
-                throw new Error("Model refused to generate audio (Safety/Filter).");
+                // If we get here, the model returned a response but no audio
+                console.warn(`Attempt ${attempt}: API returned no audio data. FinishReason: ${response.candidates?.[0]?.finishReason}`);
+                
+                // Explicitly throw error if blocked by safety to stop retries if it's a hard block
+                if (response.candidates?.[0]?.finishReason === 'SAFETY') {
+                    throw new Error("Gemini Safety Block: The model refused to read this text.");
+                }
+
+                throw new Error("Model response contained no audio data.");
 
             } catch (err: any) {
                 const errMsg = err.message || err.toString();
                 console.error(`Attempt ${attempt} failed:`, errMsg);
 
-                // Retry on Rate Limits (429/503) AND Internal Errors (500) which happen frequently with Preview models
+                // Stop retrying if it's a Safety Block
+                if (errMsg.includes("Safety Block")) {
+                    throw err;
+                }
+
+                // Retry on Rate Limits (429/503)
                 const isRetryable = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota') || errMsg.includes('500') || errMsg.includes('Internal');
 
                 if (isRetryable) {
@@ -98,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error: any) {
         console.error(`Final Failure with ${MODEL_NAME}:`, error.message);
         return res.status(500).json({ 
-            error: "Generation failed.", 
+            error: error.message || "Generation failed.", 
             details: error.message 
         });
     }
