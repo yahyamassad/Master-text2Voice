@@ -90,76 +90,48 @@ const ToastContainer: React.FC<{ toasts: ToastMsg[], removeToast: (id: number) =
     );
 };
 
-const QuotaIndicator: React.FC<{
+// Compact Quota Indicator for Footer
+const QuotaIndicatorFooter: React.FC<{
     stats: UserStats;
     tier: UserTier;
-    limits: typeof PLAN_LIMITS['free']; // Using free as generic type structure
+    limits: typeof PLAN_LIMITS['free'];
     uiLanguage: Language;
     onUpgrade: () => void;
-    onBoost: () => void;
-}> = ({ stats, tier, limits, uiLanguage, onUpgrade, onBoost }) => {
-    if (tier === 'admin') return null;
-    
-    // VISITOR BAR
+}> = ({ stats, tier, limits, uiLanguage, onUpgrade }) => {
+    if (tier === 'admin') return <span className="text-red-500 text-[10px] font-bold">ADMIN MODE</span>;
+
+    // Visitor
     if (tier === 'visitor') {
+        const remaining = Math.max(0, limits.dailyLimit - stats.dailyCharsUsed);
+        const percent = Math.min(100, (stats.dailyCharsUsed / limits.dailyLimit) * 100);
         return (
-            <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-                 <span className="text-cyan-500/70">VISITOR MODE (200 CHARS MAX)</span>
-                 <span className="text-amber-500 cursor-pointer hover:underline" onClick={onUpgrade}>
-                     {uiLanguage === 'ar' ? 'سجل لزيادة الحد اليومي' : 'Register to Increase Limit'}
-                 </span>
-            </div>
-        );
-    }
-
-    // ONEDOLLAR - Show TOTAL USAGE
-    if (tier === 'onedollar') {
-        const totalUsed = stats.totalCharsUsed;
-        const totalLimit = limits.totalTrialLimit + stats.bonusChars;
-        const percent = Math.min(100, (totalUsed / totalLimit) * 100);
-        const isNearLimit = percent > 80;
-        
-        return (
-            <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-                <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isNearLimit ? 'bg-red-500' : 'bg-amber-500'}`} 
-                    style={{ width: `${percent}%` }}>
+            <div className="flex items-center gap-2 bg-slate-800/50 px-2 py-1 rounded border border-slate-700/50">
+                <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-cyan-500" style={{ width: `${percent}%` }}></div>
                 </div>
-                
-                <div className="flex items-center gap-3 z-10 w-full justify-between">
-                    <span className={isNearLimit ? 'text-red-400' : 'text-amber-400'}>
-                        {t('trialUsageLabel', uiLanguage)}: {totalUsed} / {totalLimit}
-                    </span>
-                    <span className="text-[9px] bg-amber-900/30 text-amber-500 px-2 py-0.5 rounded border border-amber-900/50">STUDENT PLAN</span>
-                </div>
-            </div>
-        );
-    }
-
-    // DEFAULT (DAILY)
-    const dailyUsed = stats.dailyCharsUsed;
-    const dailyLimit = limits.dailyLimit;
-    const dailyPercent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
-    const isDailyLimitReached = dailyUsed >= dailyLimit;
-
-    return (
-        <div className="w-full h-10 bg-[#0f172a] border-t border-slate-800 flex items-center justify-between px-4 text-[10px] sm:text-xs font-mono font-bold tracking-widest text-slate-500 select-none relative overflow-hidden rounded-b-2xl">
-            <div className={`absolute bottom-0 left-0 h-[2px] transition-all duration-500 ${isDailyLimitReached ? 'bg-red-500' : 'bg-cyan-500'}`} 
-                style={{ width: `${dailyPercent}%` }}>
-            </div>
-            
-            <div className="flex items-center gap-3 z-10">
-                <span className={isDailyLimitReached ? 'text-red-500' : 'text-cyan-500'}>
-                    {t('dailyUsageLabel', uiLanguage)}: {dailyUsed} / {dailyLimit === Infinity ? '∞' : dailyLimit}
+                <span className="text-[10px] text-slate-400 font-mono">
+                    {stats.dailyCharsUsed}/{limits.dailyLimit}
                 </span>
-                {isDailyLimitReached && (
-                    <button 
-                    onClick={onBoost} 
-                    className="bg-amber-600 text-white px-2 py-0.5 rounded text-[9px] animate-pulse hover:bg-amber-500"
-                    >
-                        {t('boostQuota', uiLanguage)}
-                    </button>
-                )}
+                <button onClick={onUpgrade} className="text-[10px] text-amber-500 hover:text-amber-400 font-bold underline decoration-amber-500/30">
+                    {uiLanguage === 'ar' ? 'ترقية' : 'Upgrade'}
+                </button>
             </div>
+        );
+    }
+
+    // Daily Limit User
+    const dailyLimit = limits.dailyLimit;
+    const dailyUsed = stats.dailyCharsUsed;
+    const percent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
+    
+    return (
+        <div className="flex items-center gap-2 bg-slate-800/50 px-2 py-1 rounded border border-slate-700/50">
+             <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div className={`h-full ${percent > 90 ? 'bg-red-500' : 'bg-cyan-500'}`} style={{ width: `${percent}%` }}></div>
+            </div>
+            <span className={`text-[10px] font-mono ${percent > 90 ? 'text-red-400' : 'text-slate-400'}`}>
+                {dailyUsed}/{dailyLimit === Infinity ? '∞' : dailyLimit}
+            </span>
         </div>
     );
 };
@@ -261,8 +233,6 @@ const App: React.FC = () => {
       setTargetLang(uiLanguage === 'ar' ? 'en' : 'ar');
   }, [uiLanguage]);
 
-  // ... (rest of the state and logic) ...
-  // [Truncated for brevity, assuming standard App logic follows...]
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingTask, setLoadingTask] = useState<string>('');
   const [activePlayer, setActivePlayer] = useState<'source' | 'target' | null>(null);
@@ -314,7 +284,7 @@ const App: React.FC = () => {
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   
   // Settings
-  const [voice, setVoice] = useState('Puck'); 
+  const [voice, setVoice] = useState('ar-SA-HamedNeural'); // Default to an Azure voice
   const [emotion, setEmotion] = useState('Default');
   const [pauseDuration, setPauseDuration] = useState(1.0);
   const [speed, setSpeed] = useState(1.0);
@@ -366,24 +336,26 @@ const App: React.FC = () => {
   const checkLimits = (textLength: number): boolean => {
       if (userTier === 'admin') return true;
       
-      // VISITOR HARD LIMIT
-      if (userTier === 'visitor') {
-          if (textLength > planConfig.dailyLimit) {
-              showToast(uiLanguage === 'ar' ? "النص طويل جداً للزوار (الحد 200 حرف). يرجى التسجيل." : "Text too long for visitors (Limit 200). Please sign in.", 'error');
+      // VISITOR & FREE USER LIMITS
+      // Check Daily Limit first
+      if (planConfig.dailyLimit !== Infinity) {
+          if (userStats.dailyCharsUsed >= planConfig.dailyLimit) {
+              showToast(t('dailyLimitReached', uiLanguage), 'error');
               setIsUpgradeOpen(true);
               return false;
           }
-          return true; 
+          // Check if this specific request pushes over limit
+          if ((userStats.dailyCharsUsed + textLength) > planConfig.dailyLimit) {
+               showToast(uiLanguage === 'ar' ? 'النص يتجاوز الحد اليومي المتبقي' : 'Text exceeds remaining daily limit', 'error');
+               return false;
+          }
       }
 
       // REGISTERED USER LIMITS (Includes OneDollar)
       const isTrialExpired = daysSinceStart > planConfig.trialDays;
-      // For OneDollar, we mainly care about Total Usage reaching limit
-      const isDailyLimitReached = userTier !== 'onedollar' && userStats.dailyCharsUsed >= planConfig.dailyLimit;
       const isTotalLimitReached = userStats.totalCharsUsed >= (planConfig.totalTrialLimit + userStats.bonusChars);
 
       if (isTrialExpired) { showToast(t('trialExpired', uiLanguage), 'error'); setIsUpgradeOpen(true); return false; }
-      if (isDailyLimitReached) { showToast(t('dailyLimitReached', uiLanguage), 'info'); setIsGamificationOpen(true); return false; }
       if (isTotalLimitReached) { showToast(t('totalLimitReached', uiLanguage), 'error'); setIsUpgradeOpen(true); return false; }
       
       return true;
@@ -418,7 +390,7 @@ const App: React.FC = () => {
   };
 
   const updateUserStats = (charsConsumed: number) => {
-      if (userTier === 'admin' || userTier === 'visitor') return; 
+      if (userTier === 'admin') return; 
       
       setUserStats(prev => {
           const newStats = {
@@ -427,7 +399,7 @@ const App: React.FC = () => {
               dailyCharsUsed: prev.dailyCharsUsed + charsConsumed
           };
           
-          // Save for user OR local plan
+          // Save for user OR local plan OR visitor (if we want to track visitor sessions briefly)
           if (user) {
               localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
           } else if (localTier) {
@@ -546,7 +518,8 @@ const App: React.FC = () => {
 
   // ... (standard boilerplate effects) ...
   useEffect(() => {
-      if (!voice) setVoice('Puck');
+      // Default voice if none set
+      if (!voice) setVoice('ar-SA-HamedNeural');
   }, []);
   useEffect(() => {
       return () => { if (audioContextRef.current) audioContextRef.current.close().catch(() => {}); };
@@ -651,8 +624,9 @@ const App: React.FC = () => {
       if (activePlayer === target && isPaused) { setIsPaused(false); isPausedRef.current = false; } 
       else { stopAll(); setIsLoading(true); setLoadingTask(t('generatingSpeech', uiLanguage)); setActivePlayer(target); setError(null); isPausedRef.current = false; }
       let textToProcess = text;
-      let isTruncated = false;
-      if (userTier === 'visitor' && text.length > 200) { textToProcess = text.substring(0, 200); isTruncated = true; }
+      // Truncate for visitor just in case limit check didn't catch it
+      if (userTier === 'visitor' && text.length > planConfig.dailyLimit) { textToProcess = text.substring(0, planConfig.dailyLimit); }
+      
       const cacheKey = getCacheKey(textToProcess);
       let pcmData: Uint8Array | null = null;
       if (audioCacheRef.current.has(cacheKey)) { pcmData = audioCacheRef.current.get(cacheKey)!; setLastGeneratedPCM(pcmData); }
@@ -663,6 +637,9 @@ const App: React.FC = () => {
           const signal = apiAbortControllerRef.current.signal;
           try {
               if (isGeminiVoice) {
+                  // Double check permission again before API call
+                  if (!planConfig.allowGemini) throw new Error("Voice restricted");
+
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
@@ -699,7 +676,6 @@ const App: React.FC = () => {
           audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => {
                    if (!isPausedRef.current) {
                        setActivePlayer(null); audioSourceRef.current = null; setIsLoading(false); setLoadingTask(''); playbackOffsetRef.current = 0;
-                       if (isTruncated) { setTimeout(() => { showToast(uiLanguage === 'ar' ? "هذه معاينة للزوار (200 حرف)." : "Visitor Preview (200 chars).", 'info'); setIsUpgradeOpen(true); }, 500); }
                    }
               }, speed, startOffset);
           setIsLoading(false);
@@ -812,8 +788,17 @@ const App: React.FC = () => {
                 className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/50 border-2 border-slate-700 focus:border-cyan-500 focus:ring-0 text-lg sm:text-xl resize-none transition-all placeholder-slate-600 shadow-inner ${sourceLang === 'ar' ? 'text-right' : 'text-left'}`}
                 dir={sourceLang === 'ar' ? 'rtl' : 'ltr'}
             />
-            <div className="flex justify-end mt-2 text-xs font-bold text-slate-500">
-                <span>{sourceText.length} chars</span>
+            
+            {/* New Footer Location for Quota Indicator */}
+            <div className="flex justify-between items-center mt-2 px-1">
+                <QuotaIndicatorFooter 
+                    stats={userStats} 
+                    tier={userTier} 
+                    limits={planConfig as any} 
+                    uiLanguage={uiLanguage} 
+                    onUpgrade={() => setIsUpgradeOpen(true)}
+                />
+                <span className="text-xs font-bold text-slate-500">{sourceText.length} chars</span>
             </div>
         </div>
     );

@@ -125,9 +125,10 @@ export const translations = {
   costHigh: { ar: '$160.00', en: '$160.00' },
 
   // --- AUDIO STUDIO (Specific Terms) ---
-  studioMixer: { ar: 'المكسر (Mixer)', en: 'Mixer', fr: 'Mixeur', es: 'Mezclador', pt: 'Misturador' },
+  // Forced English for Arabic Layout as requested
+  studioMixer: { ar: 'Mixer', en: 'Mixer', fr: 'Mixeur', es: 'Mezclador', pt: 'Misturador' },
   studioEq: { ar: 'Band EQ-5', en: 'Band EQ-5', fr: 'Égaliseur EQ-5', es: 'Ecualizador EQ-5', pt: 'Equalizador EQ-5' },
-  studioPresets: { ar: 'إعدادات مسبقة', en: 'Presets', fr: 'Préréglages', es: 'Preajustes', pt: 'Predefinições' },
+  studioPresets: { ar: 'PRESETS', en: 'PRESETS', fr: 'Préréglages', es: 'Preajustes', pt: 'Predefinições' },
   studioAddMusic: { ar: 'Add Music', en: 'Add Music', fr: 'Ajouter Musique', es: 'Añadir Música', pt: 'Adicionar Música' },
   studioDucking: { ar: 'Ducking', en: 'Ducking', fr: 'Atténuation', es: 'Atenuación', pt: 'Atenuação' },
   studioVoice: { ar: 'Voice', en: 'Voice', fr: 'Voix', es: 'Voz', pt: 'Voz' },
@@ -146,14 +147,14 @@ export const translations = {
   studioCompressor: { ar: 'Compressor', en: 'Compressor', fr: 'Compresseur', es: 'Compresor', pt: 'Compressor' },
   studioPan: { ar: 'Pan L/R', en: 'Pan L/R', fr: 'Panoramique G/D', es: 'Balance I/D', pt: 'Balanço E/D' },
   
-  // Studio Buttons
-  studioInputFile: { ar: 'ملف صوتي', en: 'FILE', fr: 'FICHIER', es: 'ARCHIVO', pt: 'ARQUIVO' },
-  studioInputMic: { ar: 'تسجيل', en: 'REC', fr: 'ENREG.', es: 'GRABAR', pt: 'GRAVAR' },
-  studioInputAi: { ar: 'ذكاء اصطناعي', en: 'AI AUDIO', fr: 'AUDIO IA', es: 'AUDIO IA', pt: 'ÁUDIO IA' },
-  studioSave: { ar: 'حفظ', en: 'SAVE', fr: 'SAUVER', es: 'GUARDAR', pt: 'SALVAR' },
-  studioSaveAs: { ar: 'حفظ باسم', en: 'SAVE AS', fr: 'ENREGISTRER SOUS', es: 'GUARDAR COMO', pt: 'SALVAR COMO' },
-  studioOpen: { ar: 'فتح مشروع', en: 'OPEN', fr: 'OUVRIR', es: 'ABRIR', pt: 'ABRIR' },
-  studioExportBtn: { ar: 'تصدير', en: 'EXPORT', fr: 'EXPORTER', es: 'EXPORTAR', pt: 'EXPORTAR' },
+  // Studio Buttons - Forced English for Arabic
+  studioInputFile: { ar: 'ADD VOICE FILE', en: 'ADD VOICE FILE', fr: 'FICHIER', es: 'ARCHIVO', pt: 'ARQUIVO' },
+  studioInputMic: { ar: 'RECORD VOICE', en: 'RECORD VOICE', fr: 'ENREG.', es: 'GRABAR', pt: 'GRAVAR' },
+  studioInputAi: { ar: 'ORIGINAL VOICE', en: 'ORIGINAL VOICE', fr: 'AUDIO IA', es: 'AUDIO IA', pt: 'ÁUDIO IA' },
+  studioSave: { ar: 'SAVE', en: 'SAVE', fr: 'SAUVER', es: 'GUARDAR', pt: 'SALVAR' },
+  studioSaveAs: { ar: 'SAVE AS', en: 'SAVE AS', fr: 'ENREGISTRER SOUS', es: 'GUARDAR COMO', pt: 'SALVAR COMO' },
+  studioOpen: { ar: 'OPEN PROJECT', en: 'OPEN PROJECT', fr: 'OUVRIR', es: 'ABRIR', pt: 'ABRIR' },
+  studioExportBtn: { ar: 'EXPORT', en: 'EXPORT', fr: 'EXPORTER', es: 'EXPORTAR', pt: 'EXPORTAR' },
 
   // Updated Terms based on user feedback
   studioFileMode: { ar: 'ملف صوتي', en: 'Add Audio File', fr: 'Ajouter Fichier Audio', es: 'Añadir Archivo de Audio', pt: 'Adicionar Arquivo de Áudio' },

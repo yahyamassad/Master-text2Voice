@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { t, Language, translations } from '../i18n/translations';
 import { SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES } from '../types';
-import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, SparklesIcon, CheckIcon } from './icons';
+import { LoaderIcon, PlayCircleIcon, InfoIcon, SwapIcon, SparklesIcon, CheckIcon, LockIcon } from './icons';
 import { previewVoice } from '../services/geminiService';
 import { generateStandardSpeech } from '../services/standardVoiceService';
 import { playAudio, encode, decode } from '../utils/audioUtils';
@@ -80,8 +80,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     multiSpeaker, setMultiSpeaker, speakerA, setSpeakerA, speakerB, setSpeakerB, speakerC, setSpeakerC, speakerD, setSpeakerD, sourceLang, targetLang,
     currentLimits, onUpgrade, onConsumeQuota
 }) => {
+    // Force system voice mode if Gemini is disallowed
+    const geminiAllowed = currentLimits.allowGemini;
     const isGeminiVoiceSelected = GEMINI_VOICES.includes(voice);
-    const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected ? 'gemini' : 'system');
+    const [voiceMode, setVoiceMode] = useState<'gemini' | 'system'>(isGeminiVoiceSelected && geminiAllowed ? 'gemini' : 'system');
     const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
     const [showAllSystemVoices, setShowAllSystemVoices] = useState(false);
 
@@ -90,23 +92,57 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const audioContextRef = useRef<AudioContext | null>(null);
 
     const isPlatinumOrAdmin = currentLimits.dailyLimit === Infinity && currentLimits.totalTrialLimit >= 750000;
+    
+    // Determine if controls should be disabled (Free/Visitor)
+    // If allowEffects is false (which it is for Free/Visitor in updated PLAN_LIMITS), disable advanced controls
+    const areControlsDisabled = !currentLimits.allowEffects;
 
     const voiceNameMap: Record<string, keyof typeof translations> = {
         'Puck': 'voiceMale1', 'Kore': 'voiceFemale1', 'Charon': 'voiceMale2', 'Zephyr': 'voiceFemale2', 'Fenrir': 'voiceMale3',
     };
 
     const relevantStandardVoices = useMemo(() => {
-        if (showAllSystemVoices) return MICROSOFT_AZURE_VOICES;
+        // FILTER LOGIC FOR FREE/VISITOR USERS
+        // Limits defined in currentLimits.maxAzureVoices (e.g., 2 or 4)
+        const maxVoices = currentLimits.maxAzureVoices || 50;
+        
+        let availableList = MICROSOFT_AZURE_VOICES;
+        
+        // Prioritize voices matching UI Language
+        const uiLangCode = uiLanguage.toLowerCase();
+        
+        // Sort: UI lang first, then others
+        availableList = [...MICROSOFT_AZURE_VOICES].sort((a, b) => {
+            const aMatch = a.lang.toLowerCase().startsWith(uiLangCode);
+            const bMatch = b.lang.toLowerCase().startsWith(uiLangCode);
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return 0;
+        });
+
+        if (showAllSystemVoices && maxVoices >= 50) return availableList;
+
+        if (maxVoices < 50) {
+            // Strict subset for limited plans
+            // Take top N voices that match the language if possible
+            const languageMatches = availableList.filter(v => v.lang.toLowerCase().startsWith(uiLangCode));
+            const otherMatches = availableList.filter(v => !v.lang.toLowerCase().startsWith(uiLangCode));
+            
+            const combined = [...languageMatches, ...otherMatches];
+            return combined.slice(0, maxVoices);
+        }
+
+        // Standard filtering for Paid users (Language context aware)
         const sourceLangCode = sourceLang.toLowerCase();
         const targetLangCode = targetLang.toLowerCase();
-        const uiLangCode = uiLanguage.toLowerCase(); 
-        const filtered = MICROSOFT_AZURE_VOICES.filter(v => {
+        
+        const filtered = availableList.filter(v => {
             const vLang = v.lang.toLowerCase();
             if (v.name === voice) return true;
             return vLang.includes(sourceLangCode) || vLang.includes(targetLangCode) || vLang.includes(uiLangCode);
         });
-        return filtered.length > 0 ? filtered : MICROSOFT_AZURE_VOICES;
-    }, [sourceLang, targetLang, uiLanguage, showAllSystemVoices, voice]);
+        return filtered.length > 0 ? filtered : availableList;
+    }, [sourceLang, targetLang, uiLanguage, showAllSystemVoices, voice, currentLimits]);
 
     const groupedStyles = useMemo(() => {
         const groups: Record<string, typeof VOICE_STYLES> = {};
@@ -118,14 +154,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }, []);
 
     useEffect(() => {
+        // Auto-correct voice selection if current voice is invalid for mode
         if (voiceMode === 'gemini' && !GEMINI_VOICES.includes(voice)) {
             setVoice(GEMINI_VOICES[0]);
-        } else if (voiceMode === 'system' && GEMINI_VOICES.includes(voice)) {
-            if (relevantStandardVoices.length > 0) {
+        } else if (voiceMode === 'system') {
+            const currentVoiceValid = relevantStandardVoices.some(v => v.name === voice);
+            if (!currentVoiceValid && relevantStandardVoices.length > 0) {
                 setVoice(relevantStandardVoices[0].name);
             }
         }
-    }, [voiceMode, setVoice]); 
+    }, [voiceMode, relevantStandardVoices, voice, setVoice]); 
 
     useEffect(() => {
         return () => {
@@ -195,19 +233,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         }
 
         try {
-            const cachedBase64 = localStorage.getItem(cacheKey);
-            if (cachedBase64) {
-                const pcmData = decode(cachedBase64);
-                voicePreviewCache.current.set(cacheKey, pcmData);
-                audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
-                    setPreviewingVoice(null); 
-                    audioSourceRef.current = null; 
-                }, 1.0);
-                return;
-            }
-        } catch (e) { }
-
-        try {
             // Minimal charge for short preview
             if (onConsumeQuota) onConsumeQuota(20);
 
@@ -220,11 +245,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
             if (pcmData) {
                 voicePreviewCache.current.set(cacheKey, pcmData); 
-                try {
-                    const base64Str = encode(pcmData);
-                    localStorage.setItem(cacheKey, base64Str);
-                } catch(e) {}
-
                 audioSourceRef.current = await playAudio(pcmData, audioContextRef.current, () => { 
                     setPreviewingVoice(null); 
                     audioSourceRef.current = null; 
@@ -254,8 +274,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
 
-    // --- BETTER SPEED CONTROL ---
-    // Increased precision to 0.05
     const incrementSpeed = () => setSpeed(prev => Math.min(2.0, parseFloat((prev + 0.05).toFixed(2))));
     const decrementSpeed = () => setSpeed(prev => Math.max(0.5, parseFloat((prev - 0.05).toFixed(2))));
     const resetSpeed = () => setSpeed(1.0);
@@ -274,8 +292,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                      <div className="space-y-3">
                         <label className="text-lg font-bold text-slate-200">{t('voiceLabel', uiLanguage)}</label>
                         <div className="flex p-1 bg-slate-900/50 rounded-lg border border-slate-700 relative mb-4">
-                             <button onClick={() => setVoiceMode('gemini')} className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'}`}>
+                             {/* Gemini Voice Toggle - Disabled if not allowed */}
+                             <button 
+                                onClick={() => geminiAllowed ? setVoiceMode('gemini') : onUpgrade()} 
+                                className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 relative ${voiceMode === 'gemini' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'} ${!geminiAllowed ? 'opacity-60' : ''}`}
+                             >
                                  <SparklesIcon className="w-4 h-4"/> {t('geminiHdVoices', uiLanguage)}
+                                 {!geminiAllowed && <LockIcon className="w-3 h-3 absolute top-2 right-2 text-amber-500" />}
                              </button>
                              <button onClick={() => setVoiceMode('system')} className={`flex-1 p-2 rounded-md font-semibold transition-colors flex items-center justify-center gap-2 ${voiceMode === 'system' ? 'bg-cyan-600 text-white' : 'hover:bg-slate-700 text-slate-400'}`}>
                                  <CheckIcon className="w-4 h-4"/> {t('systemVoices', uiLanguage)}
@@ -295,7 +318,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             key={vName} 
                                             voiceName={vName} 
                                             label={t(voiceNameMap[vName], uiLanguage)} 
-                                            isLocked={!currentLimits.allowGemini}
+                                            isLocked={false}
                                             isSelected={voice === vName}
                                             previewingVoice={previewingVoice}
                                             onSelect={setVoice}
@@ -310,14 +333,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              <div className="space-y-2">
                                 <div className="flex justify-between items-center mb-2">
                                     <p className="text-xs text-slate-400">
-                                        {showAllSystemVoices ? (uiLanguage === 'ar' ? 'عرض كل الأصوات' : 'Showing ALL voices') : t('suggestedVoices', uiLanguage)}
+                                        {/* Simplified logic for "Show All" visibility based on limits */}
+                                        {currentLimits.maxAzureVoices < 50 
+                                            ? (uiLanguage === 'ar' ? 'الترقية للمزيد من الأصوات' : 'Upgrade for more voices')
+                                            : (showAllSystemVoices ? (uiLanguage === 'ar' ? 'عرض كل الأصوات' : 'Showing ALL voices') : t('suggestedVoices', uiLanguage))
+                                        }
                                     </p>
-                                    <button 
-                                        onClick={() => setShowAllSystemVoices(!showAllSystemVoices)} 
-                                        className={`text-xs font-bold px-2 py-1 rounded border ${showAllSystemVoices ? 'bg-cyan-900/50 border-cyan-500 text-cyan-300' : 'bg-slate-700 border-slate-600 text-slate-300'}`}
-                                    >
-                                        {uiLanguage === 'ar' ? 'إظهار الكل' : 'Show All'}
-                                    </button>
+                                    {currentLimits.maxAzureVoices >= 50 && (
+                                        <button 
+                                            onClick={() => setShowAllSystemVoices(!showAllSystemVoices)} 
+                                            className={`text-xs font-bold px-2 py-1 rounded border ${showAllSystemVoices ? 'bg-cyan-900/50 border-cyan-500 text-cyan-300' : 'bg-slate-700 border-slate-600 text-slate-300'}`}
+                                        >
+                                            {uiLanguage === 'ar' ? 'إظهار الكل' : 'Show All'}
+                                        </button>
+                                    )}
                                 </div>
                                 {relevantStandardVoices.length === 0 && (
                                     <div className="text-center p-4 border border-slate-700 rounded-lg bg-slate-900/30 flex flex-col items-center gap-3 text-slate-500 italic">
@@ -333,7 +362,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 label={v.label} 
                                                 sublabel={`${v.lang} • ${v.gender}`} 
                                                 isSelected={voice === v.name}
-                                                isLocked={!currentLimits.allowWav && false}
+                                                isLocked={false}
                                                 previewingVoice={previewingVoice}
                                                 onSelect={setVoice}
                                                 onPreview={handlePreview}
@@ -347,7 +376,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
                     </div>
                     
-                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative`}>
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 transition-opacity relative ${areControlsDisabled ? 'opacity-70 pointer-events-none' : ''}`}>
+                         {areControlsDisabled && (
+                             <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/50 backdrop-blur-[1px] rounded-lg cursor-not-allowed pointer-events-auto" onClick={(e) => { e.stopPropagation(); onUpgrade(); }}>
+                                 <div className="bg-slate-800 px-4 py-2 rounded-full border border-amber-500/50 shadow-lg flex items-center gap-2">
+                                     <LockIcon className="w-4 h-4 text-amber-500" />
+                                     <span className="text-xs font-bold text-amber-400">{uiLanguage === 'ar' ? 'ميزة مدفوعة' : 'Premium Feature'}</span>
+                                 </div>
+                             </div>
+                         )}
                          <h4 className="font-semibold text-slate-200 flex items-center gap-2">
                              {t('emotionLabel', uiLanguage)}
                          </h4>
@@ -355,7 +392,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div>
                                 <label htmlFor="emotion-select" className="block text-sm font-medium text-slate-300 mb-1">{t('emotionLabel', uiLanguage)}</label>
-                                 <select id="emotion-select" value={emotion} onChange={handleStyleChange} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
+                                 <select id="emotion-select" value={emotion} onChange={handleStyleChange} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white" disabled={areControlsDisabled}>
                                      {Object.keys(groupedStyles).map(catKey => (
                                          <optgroup key={catKey} label={t(catKey as any, uiLanguage)}>
                                              {groupedStyles[catKey].map(style => (
@@ -376,12 +413,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             type="number"
                                             value={seed}
                                             onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
-                                            disabled={voiceMode === 'system'}
+                                            disabled={voiceMode === 'system' || areControlsDisabled}
                                             className="flex-1 p-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                         />
                                         <button
                                             onClick={() => setSeed(Math.floor(Math.random() * 100000))}
-                                            disabled={voiceMode === 'system'}
+                                            disabled={voiceMode === 'system' || areControlsDisabled}
                                             className="p-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-md text-slate-300 hover:text-white transition-colors"
                                         >
                                             <SwapIcon className="w-5 h-5" />
@@ -394,10 +431,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <label className="block text-sm font-medium text-slate-300">{t('studioSpeed', uiLanguage)}</label>
-                                <button onClick={resetSpeed} className="text-[10px] text-slate-400 underline hover:text-white">{t('studioReset', uiLanguage)}</button>
+                                <button onClick={resetSpeed} disabled={areControlsDisabled} className="text-[10px] text-slate-400 underline hover:text-white">{t('studioReset', uiLanguage)}</button>
                             </div>
                             <div className="flex items-center gap-4 bg-slate-800 p-2 rounded-lg border border-slate-700">
-                                <button onClick={decrementSpeed} className="w-8 h-8 flex items-center justify-center bg-slate-700 rounded hover:bg-slate-600 text-white font-bold">-</button>
+                                <button onClick={decrementSpeed} disabled={areControlsDisabled} className="w-8 h-8 flex items-center justify-center bg-slate-700 rounded hover:bg-slate-600 text-white font-bold">-</button>
                                 <div className="flex-grow relative">
                                     <input 
                                         type="range" 
@@ -407,18 +444,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         value={speed} 
                                         onChange={e => setSpeed(parseFloat(e.target.value))} 
                                         className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500" 
+                                        disabled={areControlsDisabled}
                                     />
-                                    {/* Removed the fixed indicator tick to fix the visual confusion */}
                                 </div>
                                 <span className="text-cyan-400 font-mono font-bold w-12 text-center text-lg">{speed.toFixed(2)}x</span>
-                                <button onClick={incrementSpeed} className="w-8 h-8 flex items-center justify-center bg-slate-700 rounded hover:bg-slate-600 text-white font-bold">+</button>
+                                <button onClick={incrementSpeed} disabled={areControlsDisabled} className="w-8 h-8 flex items-center justify-center bg-slate-700 rounded hover:bg-slate-600 text-white font-bold">+</button>
                             </div>
                         </div>
 
                         <div>
                             <label htmlFor="pause-duration" className="block text-sm font-medium text-slate-300 mb-1">{t('pauseLabel', uiLanguage)}</label>
                             <div className="flex items-center gap-3">
-                                 <input id="pause-duration" type="range" min="0" max="5" step="0.1" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                                 <input id="pause-duration" type="range" min="0" max="5" step="0.1" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} disabled={areControlsDisabled} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
                                  <span className="text-cyan-400 font-mono">{pauseDuration.toFixed(1)}{t('seconds', uiLanguage)}</span>
                             </div>
                         </div>

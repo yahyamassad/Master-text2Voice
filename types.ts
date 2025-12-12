@@ -161,12 +161,12 @@ export interface MusicTrack {
 // --- STRICT LIMITS DEFINITION BASED ON PROVIDED TABLE ---
 export const PLAN_LIMITS = {
     visitor: { // Treated as unregistered FREE
-        dailyLimit: 200, 
+        dailyLimit: 350, // Updated to 350 as requested
         totalTrialLimit: 5000,
         trialDays: 30,
         allowDownloads: true, // MP3
         allowWav: false,
-        allowGemini: true, // Limited voices
+        allowGemini: false, // BLOCKED
         allowStudio: false,
         allowMultiSpeaker: false,
         allowEffects: false,
@@ -174,6 +174,7 @@ export const PLAN_LIMITS = {
         allowMic: false,
         allowMusicUpload: false,
         allowUpload: false, // Voice file
+        maxAzureVoices: 2, // New Limit
     },
     free: { // Matches "مشترك مجاني"
         dailyLimit: 200,
@@ -181,7 +182,7 @@ export const PLAN_LIMITS = {
         trialDays: 30,
         allowDownloads: true, // MP3 5 mins
         allowWav: false,
-        allowGemini: true, // 2 Voices
+        allowGemini: false, // BLOCKED
         allowStudio: false, // Presets & Ducking only
         allowMultiSpeaker: false,
         allowEffects: false,
@@ -189,6 +190,7 @@ export const PLAN_LIMITS = {
         allowMic: false,
         allowMusicUpload: false,
         allowUpload: false,
+        maxAzureVoices: 4, // New Limit
     },
     onedollar: { // "تجربة مرة واحدة"
         dailyLimit: Infinity, // No daily limit, only total
@@ -204,6 +206,7 @@ export const PLAN_LIMITS = {
         allowMic: true,
         allowMusicUpload: true,
         allowUpload: false, // EXPLICITLY DISABLED: No external voice file
+        maxAzureVoices: 50,
     },
     basic: { // "Basic"
         dailyLimit: Infinity,
@@ -219,6 +222,7 @@ export const PLAN_LIMITS = {
         allowMic: false, // X
         allowMusicUpload: true, // Music file check is Green in Basic
         allowUpload: true,
+        maxAzureVoices: 50,
     },
     creator: { // "Creator"
         dailyLimit: Infinity,
@@ -234,6 +238,7 @@ export const PLAN_LIMITS = {
         allowMic: true,
         allowMusicUpload: true,
         allowUpload: true,
+        maxAzureVoices: 50,
     },
     gold: { // "Gold"
         dailyLimit: Infinity,
@@ -249,6 +254,7 @@ export const PLAN_LIMITS = {
         allowMic: true,
         allowMusicUpload: true,
         allowUpload: true,
+        maxAzureVoices: 50,
     },
     professional: { // "Professional"
         dailyLimit: Infinity,
@@ -264,6 +270,7 @@ export const PLAN_LIMITS = {
         allowMic: true,
         allowMusicUpload: true,
         allowUpload: true,
+        maxAzureVoices: 50,
     },
     admin: {
         dailyLimit: Infinity,
@@ -279,5 +286,6 @@ export const PLAN_LIMITS = {
         allowMic: true,
         allowMusicUpload: true,
         allowUpload: true,
+        maxAzureVoices: 50,
     }
 };
