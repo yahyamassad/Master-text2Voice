@@ -1,3 +1,4 @@
+
 // ... (Previous imports remain unchanged) ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
@@ -13,10 +14,12 @@ import { HistoryItem, SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES, PLAN
 import firebase, { getFirebase } from './firebaseConfig';
 
 // ... (Lazy imports & Setup code remain the same) ...
-// ... Copy everything until the `translatedTextArea` definition ...
+// ... Copy everything until the `handleSpeak` function ...
 
-// To save space in this response, assume lines 1-730 (Setup, State, Handlers) are identical to the previous full version.
-// I will only output the FULL file to ensure safety, but focusing on the critical UI change in translatedTextArea style.
+// To save space in this response, assume lines 1-460 (Imports, Utils, Components) are identical.
+// I will output the FULL file content starting from `handleSpeak` modification downwards to ensure context.
+
+// ... (Previous parts of App.tsx are assumed unchanged, focusing on the critical logic change) ...
 
 type User = firebase.User;
 
@@ -32,6 +35,8 @@ import PrivacyModal from './components/PrivacyModal';
 const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
 const ReportModal = lazy(() => import('./components/ReportModal'));
+
+// ... (SoundEffects, Helper functions, ToastContainer, etc. remain unchanged) ...
 
 const soundEffects = [
     { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
@@ -213,7 +218,7 @@ const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' 
 };
 
 const App: React.FC = () => {
-  // ... (Identical state and effects as before, skipping to the JSX return for brevity and size limit) ...
+  // ... (Identical state and effects as before, copying essential hooks) ...
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
@@ -595,15 +600,11 @@ const App: React.FC = () => {
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
-                  try {
-                      pcmData = await generateSpeech(textToProcess, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
-                  } catch (geminiError: any) {
-                      if (geminiError.message && (geminiError.message.includes('429') || geminiError.message.includes('503') || geminiError.message.includes('quota'))) {
-                          showToast(uiLanguage === 'ar' ? "خدمة Gemini مشغولة، تم التحويل للمسار الاحتياطي (Azure)" : "Gemini busy, switched to Backup (Azure)", 'info');
-                          const fallbackVoice = getFallbackVoice(voice, target === 'source' ? sourceLang : targetLang);
-                          pcmData = await generateStandardSpeech(textToProcess, fallbackVoice, pauseDuration, emotion);
-                      } else { throw geminiError; }
-                  }
+                  
+                  // DIRECT CALL ONLY - NO FALLBACK TO AZURE
+                  // If Gemini fails, we want to know why (Safety/Overload), not switch voice
+                  pcmData = await generateSpeech(textToProcess, voice, emotion, pauseDuration, speakersConfig, signal, idToken, speed, seed);
+                  
               } else {
                   if (multiSpeaker) { 
                       let safeDefaultVoice = voice;
@@ -629,7 +630,11 @@ const App: React.FC = () => {
               }
           } catch (err: any) {
               clearTimeout(warmUpTimer); clearTimeout(clientTimeout);
-              if (err.message !== 'Aborted') { console.error("Audio failed:", err); showToast(err.message || t('errorUnexpected', uiLanguage), 'error'); }
+              if (err.message !== 'Aborted') { 
+                  console.error("Audio failed:", err); 
+                  // Display specific error to user
+                  showToast(err.message || t('errorUnexpected', uiLanguage), 'error'); 
+              }
               setIsLoading(false); setActivePlayer(null); return;
           }
       }
@@ -646,6 +651,9 @@ const App: React.FC = () => {
       }
   };
   
+  // ... (Rest of the App.tsx file remains unchanged) ...
+  // ... Copied rest of file ...
+
   const handleTranslate = async () => {
       if(isLoading) { stopAll(); return; }
       if (!sourceText.trim()) return;
@@ -720,8 +728,8 @@ const App: React.FC = () => {
               let pcmData; 
               if (isGemini) { 
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined; 
-                  try { pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, undefined, speed, seed); } 
-                  catch (geminiError: any) { const fallbackVoice = getFallbackVoice(voice, targetLang); pcmData = await generateStandardSpeech(text, fallbackVoice, pauseDuration, emotion); } 
+                  // DIRECT CALL - NO FALLBACK HERE EITHER
+                  pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, undefined, speed, seed);
               } else { 
                   if (multiSpeaker) { 
                       let safeDefaultVoice = voice;
@@ -877,7 +885,7 @@ const App: React.FC = () => {
     const targetButtonState = getButtonState('target');
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
+    <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-5">
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
            <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-900/10 blur-[100px]"></div>
            <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-cyan-900/10 blur-[100px]"></div>
