@@ -20,7 +20,7 @@ interface AccountModalProps {
     limits: any;
     onUpgrade: () => void;
     onSetDevMode: (enabled: boolean) => void;
-    onRedeemPlan?: (plan: 'onedollar') => void; 
+    onRedeemPlan?: (plan: 'onedollar' | 'gold' | 'professional') => void; 
     onOpenOwnerGuide: () => void;
 }
 
@@ -75,7 +75,10 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
             const res = await fetch('/api/verify-code', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: secretKeyInput })
+                body: JSON.stringify({ 
+                    code: secretKeyInput,
+                    userId: user?.uid // Send User ID to bind the coupon
+                })
             });
             
             if (!res.ok) throw new Error('Verification request failed');
@@ -87,13 +90,45 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                     onSetDevMode(true);
                     setIsDevMode(true);
                     alert(t('keySaved', uiLanguage));
-                } else if (data.type === 'onedollar' && onRedeemPlan) {
-                    onRedeemPlan('onedollar');
-                    alert(uiLanguage === 'ar' ? 'تم تفعيل خطة الطالب بنجاح!' : 'Student Plan Activated!');
+                } else {
+                    // Handle Plans (Gold, OneDollar/Trial)
+                    if (onRedeemPlan) {
+                        // We need to pass the plan type AND duration to the main App
+                        // Since onRedeemPlan signature is limited in this context, 
+                        // we'll handle the local storage logic here or rely on App.tsx to deduce defaults
+                        // But since duration varies (3 vs 7 days), we should ideally update local storage here too 
+                        // or update the `handleRedeemPlan` in App.tsx. 
+                        // For now, let's inject directly into LocalStorage to override App.tsx defaults if needed
+                        
+                        const expiry = Date.now() + (data.duration * 24 * 60 * 60 * 1000);
+                        const planData = { tier: data.type, expiry };
+                        localStorage.setItem('sawtli_local_plan', JSON.stringify(planData));
+                        
+                        // Also reset stats
+                        const newStats = {
+                            trialStartDate: Date.now(),
+                            totalCharsUsed: 0,
+                            dailyCharsUsed: 0,
+                            lastUsageDate: new Date().toISOString().split('T')[0],
+                            hasRated: false,
+                            hasShared: false,
+                            invitedCount: 0,
+                            bonusChars: 0
+                        };
+                        localStorage.setItem(`sawtli_stats_local_${data.type}`, JSON.stringify(newStats));
+
+                        // Trigger parent refresh via callback
+                        onRedeemPlan(data.type); 
+                        
+                        const msg = uiLanguage === 'ar' 
+                            ? `تم تفعيل خطة ${data.type.toUpperCase()} بنجاح لمدة ${data.duration} أيام!` 
+                            : `${data.type.toUpperCase()} Plan Activated for ${data.duration} days!`;
+                        alert(msg);
+                    }
                 }
                 setSecretKeyInput('');
             } else {
-                alert("Invalid Code");
+                alert(data.error || "Invalid Code");
             }
         } catch (e) {
             console.error(e);
@@ -136,8 +171,8 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
     const safeDailyLimit = limits?.dailyLimit || 0;
     
     const safePhotoURL = user?.photoURL || undefined;
-    const safeDisplayName = user?.displayName || (currentTier === 'onedollar' ? 'Student' : 'Guest');
-    const safeEmail = user?.email || (currentTier === 'onedollar' ? 'Educational Access' : 'No Email');
+    const safeDisplayName = user?.displayName || (['onedollar', 'gold'].includes(currentTier) ? 'Special Access' : 'Guest');
+    const safeEmail = user?.email || (['onedollar', 'gold'].includes(currentTier) ? 'Redeemed Coupon' : 'No Email');
     const safeUid = user?.uid || 'Unknown';
 
     return (
@@ -156,7 +191,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                          {currentTier === 'gold' && <div className="absolute top-0 right-0 bg-amber-500 text-black text-xs font-bold px-2 py-1 rounded-bl">GOLD</div>}
                          {currentTier === 'professional' && <div className="absolute top-0 right-0 bg-cyan-400 text-black text-xs font-bold px-2 py-1 rounded-bl">PROFESSIONAL</div>}
                          {currentTier === 'admin' && <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-bl">ADMIN</div>}
-                         {currentTier === 'onedollar' && <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-bl">STUDENT</div>}
+                         {currentTier === 'onedollar' && <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-bl">TRIAL</div>}
                         
                         <img src={safePhotoURL} alt={safeDisplayName} className="w-16 h-16 rounded-full border-2 border-cyan-500 bg-slate-700 object-cover" />
                         <div>
@@ -175,7 +210,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ onClose, uiLanguage, user, 
                              </span>
                          </div>
 
-                         {(currentTier === 'free' || currentTier === 'visitor' || currentTier === 'onedollar') && (
+                         {(currentTier === 'free' || currentTier === 'visitor' || currentTier === 'onedollar' || currentTier === 'gold') && (
                              <div className="mb-4 pt-2 border-t border-slate-800">
                                  <QuotaProgressBar label={t('dailyUsageLabel', uiLanguage)} used={userStats?.dailyCharsUsed || 0} total={safeDailyLimit} color="cyan" />
                                  <QuotaProgressBar label={t('trialUsageLabel', uiLanguage)} used={userStats?.totalCharsUsed || 0} total={safeTotalLimit} color="amber" />

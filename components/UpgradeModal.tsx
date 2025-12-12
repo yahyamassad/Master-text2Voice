@@ -26,7 +26,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
     const cards = [
         {
             id: 'starter',
-            title: isAr ? 'البداية' : 'Starter',
+            title: isAr ? 'البداية' : 'Visitor',
             subtitle: isAr ? 'اكتشف إمكانيات صوتلي' : 'Discover the power of Sawtli',
             icon: <UserIcon className="w-8 h-8 text-slate-300" />,
             color: 'slate',
@@ -36,49 +36,49 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
             isCurrent: true,
             features: [
                 isAr ? 'وصول محدود لأصوات Azure' : 'Limited access to Azure voices',
-                isAr ? 'عدد أحرف يومي (تجريبي)' : 'Daily character limit (Trial)',
+                isAr ? 'رصيد يومي (زائر)' : 'Daily character limit',
                 isAr ? 'تصدير بصيغة MP3' : 'MP3 Export',
                 isAr ? 'الإعدادات الصوتية الأساسية' : 'Basic Audio Settings'
             ]
         },
         {
-            id: 'creator',
-            title: isAr ? 'المبدع' : 'Creator',
-            subtitle: isAr ? 'لصناع المحتوى واليوتيوبرز' : 'For Content Creators & YouTubers',
+            id: 'friend',
+            title: isAr ? 'صديق صوتلي' : 'Sawtli Friend',
+            subtitle: isAr ? 'للتجربة المريحة مع الأصدقاء' : 'Casual usage for friends',
             icon: <VideoCameraIcon className="w-8 h-8 text-amber-400" />,
             color: 'amber',
             gradient: 'from-amber-900/40 to-slate-900',
             border: 'border-amber-500/50',
-            buttonText: isAr ? 'انضم لقائمة الانتظار' : 'Join Waitlist',
+            buttonText: isAr ? 'تفعيل القسيمة' : 'Redeem Coupon',
             isCurrent: false,
-            tierKey: 'gold',
-            badge: isAr ? 'قريباً' : 'Coming Soon',
+            tierKey: 'gold', // We map UI button to existing flow, actual activation is via coupon
+            badge: isAr ? 'محبوب' : 'Popular',
             features: [
+                isAr ? 'رصيد 10,000 حرف' : '10,000 Characters Limit',
                 isAr ? 'فتح جميع أصوات Gemini Ultra' : 'Unlock ALL Gemini Ultra Voices',
                 isAr ? 'استوديو الصوت الكامل (Mixer)' : 'Full Audio Studio (Mixer)',
-                isAr ? 'تعدد المتحدثين (Multi-Speaker)' : 'Multi-Speaker Support',
-                isAr ? 'مؤثرات DSP الاحترافية' : 'Pro DSP Effects',
-                isAr ? 'تصدير بجودة عالية' : 'High Quality Export'
+                isAr ? 'تعدد المتحدثين (2)' : 'Multi-Speaker (2)',
+                isAr ? 'تصدير WAV (جودة عالية)' : 'WAV High Quality Export'
             ]
         },
         {
-            id: 'pro',
-            title: isAr ? 'الاحترافية' : 'Professional',
-            subtitle: isAr ? 'للمؤسسات والإنتاج الضخم' : 'For Agencies & High Volume',
+            id: 'beta',
+            title: isAr ? 'تجربة النخبة' : 'Elite Beta',
+            subtitle: isAr ? 'للمحترفين وصناع المحتوى الجادين' : 'For Pros & Serious Creators',
             icon: <SoundEnhanceIcon className="w-8 h-8 text-purple-400" />,
             color: 'purple',
             gradient: 'from-purple-900/40 to-slate-900',
             border: 'border-purple-500/50',
-            buttonText: isAr ? 'انضم لقائمة الانتظار' : 'Join Waitlist',
+            buttonText: isAr ? 'انضم للنخبة' : 'Join Elite',
             isCurrent: false,
             tierKey: 'platinum',
-            badge: isAr ? 'قريباً' : 'Coming Soon',
+            badge: isAr ? 'قوة مضاعفة' : 'Power User',
             features: [
-                isAr ? 'كل ميزات المبدع +' : 'All Creator Features +',
-                isAr ? 'تصدير WAV (Lossless)' : 'WAV Lossless Export',
-                isAr ? 'حصص مضاعفة (Unlimited*)' : 'Extended Quotas',
+                isAr ? 'رصيد 50,000 حرف' : '50,000 Characters Limit',
+                isAr ? 'كل ميزات الصديق +' : 'All Friend Features +',
+                isAr ? 'تعدد المتحدثين (3)' : 'Multi-Speaker (3)',
                 isAr ? 'دعم فني مباشر' : 'Priority Support',
-                isAr ? 'استخدام تجاري شامل' : 'Full Commercial License'
+                isAr ? 'فترة صلاحية أطول' : 'Extended Duration'
             ]
         }
     ];
@@ -95,8 +95,8 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                     </h2>
                     <p className="text-slate-400 text-sm sm:text-lg max-w-2xl mx-auto font-medium">
                         {isAr 
-                            ? 'نعمل حالياً على تجهيز خطط اشتراك مرنة تناسب الجميع. انضم لقائمة الانتظار لتكون أول من يحصل على الميزات الحصرية.' 
-                            : 'We are crafting flexible plans for everyone. Join the waitlist to be the first to unlock exclusive features.'}
+                            ? 'نحن نبني مجتمعاً من المبدعین. الخطط الحالية مخصصة للتجربة والاستخدام العادل.' 
+                            : 'We are building a community of creators. Current plans are designed for fair trial usage.'}
                     </p>
                     
                     <button onClick={onClose} className="absolute top-0 right-0 text-slate-500 hover:text-white transition-colors bg-slate-800 p-2 rounded-full border border-slate-700">
@@ -165,8 +165,8 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, curren
                 <div className="text-center mt-6">
                     <p className="text-xs text-slate-500 max-w-3xl mx-auto leading-relaxed">
                         {isAr 
-                            ? 'نحن نلتزم بتقديم أفضل قيمة مقابل السعر. الأسعار النهائية ستعلن قريباً وستكون مدروسة ومنافسة جداً. تسجيلك في قائمة الانتظار يضمن لك أولوية الوصول وعروض خاصة عند الإطلاق.'
-                            : 'We are committed to providing the best value. Final pricing will be announced soon and will be highly competitive. Joining the waitlist guarantees priority access and special offers at launch.'}
+                            ? 'نحن نلتزم بتقديم تجربة عادلة وممتعة. إذا كان لديك كود تفعيل (قسيمة)، يمكنك استخدامه في صفحة الحساب لترقية خطتك فوراً.'
+                            : 'We are committed to providing a fair and enjoyable experience. If you have a coupon code, use it in the Account page to upgrade instantly.'}
                     </p>
                 </div>
             </div>

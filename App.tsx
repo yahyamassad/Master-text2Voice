@@ -576,28 +576,19 @@ const App: React.FC = () => {
       return `${text}_${voice}_${emotion}_${speed}_${seed}_${pauseDuration}_${speakers}`;
   };
 
-  const handleRedeemPlan = (plan: 'onedollar') => {
-      // 3 Days Expiry
-      const expiry = Date.now() + (3 * 24 * 60 * 60 * 1000); 
-      const planData = { tier: plan, expiry };
-      localStorage.setItem('sawtli_local_plan', JSON.stringify(planData));
+  const handleRedeemPlan = (plan: 'onedollar' | 'gold' | 'professional') => {
+      // The logic here is mostly handled in AccountModal, 
+      // but this callback updates the React state to reflect changes instantly.
       setLocalTier(plan);
       
-      const newStats: UserStats = {
-          trialStartDate: Date.now(),
-          totalCharsUsed: 0,
-          dailyCharsUsed: 0,
-          lastUsageDate: new Date().toISOString().split('T')[0],
-          hasRated: false,
-          hasShared: false,
-          invitedCount: 0,
-          bonusChars: 0
-      };
+      // Force reload stats from storage to get the fresh bonus chars/limit
       const key = `sawtli_stats_local_${plan}`;
-      localStorage.setItem(key, JSON.stringify(newStats));
-      setUserStats(newStats);
+      const stored = localStorage.getItem(key);
+      if (stored) {
+          setUserStats(JSON.parse(stored));
+      }
       
-      showToast(uiLanguage === 'ar' ? 'تم تفعيل الخطة التعليمية بنجاح!' : 'Student Plan Activated!', 'success');
+      // showToast is handled in AccountModal to avoid duplication
   };
 
   // ... (handleSpeak, handleTranslate, handleTashkeel, handleToggleListening, swapLanguages, handleHistoryLoad, handleCopy, handleShareLink, generateAudioBlob, handleDownload, handleInsertTag, handleAudioStudioOpen, handleSignIn, handleSignOutAndClose, handleClearHistory, handleDeleteHistoryItem, handleDeleteAccount, handleUpgrade, handleSetDevMode, handleSourceChange, handleClearAll) ...

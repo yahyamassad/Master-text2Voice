@@ -205,10 +205,12 @@ export const translations = {
 
   // --- PLANS ---
   planFree: { ar: 'مجاني', en: 'Free', fr: 'Gratuit', es: 'Gratis', pt: 'Grátis' },
-  planOneDollar: { ar: 'تجربة $1', en: '$1 Trial', fr: 'Essai 1$', es: 'Prueba $1', pt: 'Teste $1' },
+  // UPDATED NAMES HERE:
+  planOneDollar: { ar: 'صديق صوتلي', en: 'Sawtli Friend', fr: 'Ami Sawtli', es: 'Amigo Sawtli', pt: 'Amigo Sawtli' },
   planBasic: { ar: 'Basic', en: 'Basic', fr: 'Basique', es: 'Básico', pt: 'Básico' },
   planCreator: { ar: 'Creator', en: 'Creator', fr: 'Créateur', es: 'Creador', pt: 'Criador' },
-  planGold: { ar: 'Gold', en: 'Gold', fr: 'Or', es: 'Oro', pt: 'Ouro' },
+  // UPDATED NAMES HERE:
+  planGold: { ar: 'تجربة موسعة', en: 'Extended Beta', fr: 'Bêta Étendue', es: 'Beta Extendida', pt: 'Beta Estendida' },
   planPro: { ar: 'Professional', en: 'Professional', fr: 'Professionnel', es: 'Profesional', pt: 'Profissional' },
 
   // --- TABLE FEATURES ---
@@ -234,7 +236,7 @@ export const translations = {
 
   // --- TABLE VALUES ---
   valFreeChars: { ar: '5000 / شهرياً', en: '5,000 / mo', fr: '5 000 / mois', es: '5,000 / mes', pt: '5.000 / mês' },
-  val10k: { ar: '10,000 (3 أيام)', en: '10,000 (3 days)', fr: '10 000 (3 jours)', es: '10,000 (3 días)', pt: '10.000 (3 dias)' },
+  val10k: { ar: '10,000', en: '10,000', fr: '10 000', es: '10,000', pt: '10.000' },
   val75k: { ar: '75,000', en: '75,000', fr: '75 000', es: '75,000', pt: '75.000' },
   val150k: { ar: '150,000', en: '150,000', fr: '150 000', es: '150,000', pt: '150.000' },
   val300k: { ar: '300,000', en: '300,000', fr: '300 000', es: '300,000', pt: '300.000' },

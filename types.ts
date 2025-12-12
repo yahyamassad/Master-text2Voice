@@ -192,13 +192,13 @@ export const PLAN_LIMITS = {
         allowUpload: false,
         maxAzureVoices: 4, // New Limit
     },
-    onedollar: { // "تجربة مرة واحدة"
+    onedollar: { // "Sawtli Friend" - 10k Chars
         dailyLimit: Infinity, // No daily limit, only total
-        totalTrialLimit: 10000, 
+        totalTrialLimit: 10000, // Reduced from 100k to 10k for cost safety
         trialDays: 3, 
         allowDownloads: true, // 10 mins
         allowWav: true, 
-        allowGemini: true, // 6 Voices (Actually full access for student plan per instructions except upload)
+        allowGemini: true, // 6 Voices (Actually full access for friend plan)
         allowStudio: true, // Full mixer
         allowMultiSpeaker: true, // 2 Voices
         allowEffects: true,
@@ -208,31 +208,31 @@ export const PLAN_LIMITS = {
         allowUpload: false, // EXPLICITLY DISABLED: No external voice file
         maxAzureVoices: 50,
     },
-    basic: { // "Basic"
+    basic: { // "Basic" - Placeholder
         dailyLimit: Infinity,
         totalTrialLimit: 75000, 
         trialDays: 30,
         allowDownloads: true,
-        allowWav: false, // X in table
-        allowGemini: true, // 50 Voices
-        allowStudio: false, // Mixer X
-        allowMultiSpeaker: false, // X
-        allowEffects: false, // X
+        allowWav: false, 
+        allowGemini: true, 
+        allowStudio: false, 
+        allowMultiSpeaker: false, 
+        allowEffects: false, 
         allowTashkeel: true,
-        allowMic: false, // X
-        allowMusicUpload: true, // Music file check is Green in Basic
+        allowMic: false, 
+        allowMusicUpload: true, 
         allowUpload: true,
         maxAzureVoices: 50,
     },
-    creator: { // "Creator"
+    creator: { // "Creator" - Placeholder
         dailyLimit: Infinity,
         totalTrialLimit: 150000, 
         trialDays: 30,
         allowDownloads: true,
-        allowWav: false, // X in table
-        allowGemini: true, // 50 Voices
-        allowStudio: true, // Mixer Check
-        allowMultiSpeaker: true, // 2 Voices
+        allowWav: false, 
+        allowGemini: true, 
+        allowStudio: true, 
+        allowMultiSpeaker: true, 
         allowEffects: true,
         allowTashkeel: true,
         allowMic: true,
@@ -240,13 +240,13 @@ export const PLAN_LIMITS = {
         allowUpload: true,
         maxAzureVoices: 50,
     },
-    gold: { // "Gold"
+    gold: { // "Elite Beta" - 50k Chars
         dailyLimit: Infinity,
-        totalTrialLimit: 300000, 
-        trialDays: 30,
+        totalTrialLimit: 50000, // Safe limit for testing
+        trialDays: 30, // Technically the coupon sets this to 7 days usually
         allowDownloads: true,
-        allowWav: true, // Check
-        allowGemini: true, // 50 Voices
+        allowWav: true, 
+        allowGemini: true, 
         allowStudio: true,
         allowMultiSpeaker: true, // 3 Voices
         allowEffects: true,
@@ -256,15 +256,15 @@ export const PLAN_LIMITS = {
         allowUpload: true,
         maxAzureVoices: 50,
     },
-    professional: { // "Professional"
+    professional: { // "Professional" - Placeholder
         dailyLimit: Infinity,
         totalTrialLimit: 750000, 
-        trialDays: 30, // Monthly
+        trialDays: 30, 
         allowDownloads: true,
         allowWav: true,
-        allowGemini: true, // 50 Voices
+        allowGemini: true, 
         allowStudio: true,
-        allowMultiSpeaker: true, // 4 Voices
+        allowMultiSpeaker: true, 
         allowEffects: true,
         allowTashkeel: true,
         allowMic: true,
