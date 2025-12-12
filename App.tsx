@@ -1,5 +1,4 @@
 
-// ... (imports remain the same) ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
@@ -16,7 +15,7 @@ import firebase, { getFirebase } from './firebaseConfig';
 type User = firebase.User;
 
 import { subscribeToHistory, addHistoryItem, clearHistoryForUser, deleteUserDocument, addToWaitlist, deleteHistoryItem } from './services/firestoreService';
-import { AudioStudioModal } from './components/AudioStudioModal'; 
+import AudioStudioModal from './components/AudioStudioModal'; 
 import SettingsModal from './components/SettingsModal';
 import TutorialModal from './components/TutorialModal';
 import UpgradeModal from './components/UpgradeModal';
@@ -24,7 +23,6 @@ import GamificationModal from './components/GamificationModal';
 import OwnerSetupGuide from './components/OwnerSetupGuide';
 import PrivacyModal from './components/PrivacyModal';
 
-// ... (Lazy imports) ...
 const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
 const ReportModal = lazy(() => import('./components/ReportModal'));
@@ -90,7 +88,6 @@ const ToastContainer: React.FC<{ toasts: ToastMsg[], removeToast: (id: number) =
     );
 };
 
-// Compact Quota Indicator for Footer
 const QuotaIndicatorFooter: React.FC<{
     stats: UserStats;
     tier: UserTier;
@@ -100,7 +97,6 @@ const QuotaIndicatorFooter: React.FC<{
 }> = ({ stats, tier, limits, uiLanguage, onUpgrade }) => {
     if (tier === 'admin') return <span className="text-red-500 text-[10px] font-bold">ADMIN MODE</span>;
 
-    // Visitor
     if (tier === 'visitor') {
         const remaining = Math.max(0, limits.dailyLimit - stats.dailyCharsUsed);
         const percent = Math.min(100, (stats.dailyCharsUsed / limits.dailyLimit) * 100);
@@ -119,7 +115,6 @@ const QuotaIndicatorFooter: React.FC<{
         );
     }
 
-    // Daily Limit User
     const dailyLimit = limits.dailyLimit;
     const dailyUsed = stats.dailyCharsUsed;
     const percent = dailyLimit === Infinity ? 0 : Math.min(100, (dailyUsed / dailyLimit) * 100);
@@ -136,17 +131,10 @@ const QuotaIndicatorFooter: React.FC<{
     );
 };
 
-// ... (LanguageSelect, ActionButton, ActionCard, DownloadModal - unchanged) ...
 const LanguageSelect: React.FC<{ value: string; onChange: (value: string) => void; uiLanguage: Language; }> = ({ value, onChange, uiLanguage }) => {
     const isValidCode = translationLanguages.some(l => l.code === value);
     const safeValue = isValidCode ? value : 'ar';
-    
-    // Helper to get translated name
-    const getTranslatedName = (code: string) => {
-        // e.g. t('lang_ar', 'fr') -> 'Arabe'
-        return t(`lang_${code}` as any, uiLanguage);
-    };
-
+    const getTranslatedName = (code: string) => t(`lang_${code}` as any, uiLanguage);
     return (
         <div className="relative group min-w-[100px] flex-shrink-0">
             <div className="flex items-center justify-center gap-2 bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl hover:border-cyan-500/50 transition-colors cursor-pointer w-full shadow-sm text-center">
@@ -218,11 +206,8 @@ const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' 
     );
 };
 
-// Main App Component
 const App: React.FC = () => {
-  // ... (State Management remains same) ...
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
-  
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
   const [sourceLang, setSourceLang] = useState<string>(uiLanguage);
@@ -245,7 +230,6 @@ const App: React.FC = () => {
   const [userSubscription, setUserSubscription] = useState<UserTier>('free'); 
   const [isDevMode, setIsDevMode] = useState<boolean>(false);
   const [localTier, setLocalTier] = useState<UserTier | null>(null); 
-
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
   useEffect(() => {
@@ -266,7 +250,6 @@ const App: React.FC = () => {
       bonusChars: 0
   });
 
-  // ... (Panel states) ...
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
@@ -283,8 +266,7 @@ const App: React.FC = () => {
   const [copiedTarget, setCopiedTarget] = useState<boolean>(false);
   const [linkCopied, setLinkCopied] = useState<boolean>(false);
   
-  // Settings
-  const [voice, setVoice] = useState('ar-SA-HamedNeural'); // Default to an Azure voice
+  const [voice, setVoice] = useState('ar-SA-HamedNeural');
   const [emotion, setEmotion] = useState('Default');
   const [pauseDuration, setPauseDuration] = useState(1.0);
   const [speed, setSpeed] = useState(1.0);
@@ -295,7 +277,6 @@ const App: React.FC = () => {
   const [speakerC, setSpeakerC] = useState<SpeakerConfig>({ name: 'Haya', voice: 'Zephyr' });
   const [speakerD, setSpeakerD] = useState<SpeakerConfig>({ name: 'Rana', voice: 'Fenrir' });
   
-  const [systemVoices, setSystemVoices] = useState<any[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [micError, setMicError] = useState<string | null>(null);
@@ -325,39 +306,27 @@ const App: React.FC = () => {
   }, []);
   const removeToast = (id: number) => setToasts(prev => prev.filter(t => t.id !== id));
 
-  // Determine User Tier
   const userTier: UserTier = isDevMode ? 'admin' : (localTier ? localTier : (user ? userSubscription : 'visitor'));
   const planConfig = PLAN_LIMITS[userTier];
-  
-  // DAYS Since Start
   const daysSinceStart = Math.floor((Date.now() - userStats.trialStartDate) / (1000 * 60 * 60 * 24));
 
-  // LOGIC TO CHECK LIMITS
   const checkLimits = (textLength: number): boolean => {
       if (userTier === 'admin') return true;
-      
-      // VISITOR & FREE USER LIMITS
-      // Check Daily Limit first
       if (planConfig.dailyLimit !== Infinity) {
           if (userStats.dailyCharsUsed >= planConfig.dailyLimit) {
               showToast(t('dailyLimitReached', uiLanguage), 'error');
               setIsUpgradeOpen(true);
               return false;
           }
-          // Check if this specific request pushes over limit
           if ((userStats.dailyCharsUsed + textLength) > planConfig.dailyLimit) {
                showToast(uiLanguage === 'ar' ? 'النص يتجاوز الحد اليومي المتبقي' : 'Text exceeds remaining daily limit', 'error');
                return false;
           }
       }
-
-      // REGISTERED USER LIMITS (Includes OneDollar)
       const isTrialExpired = daysSinceStart > planConfig.trialDays;
       const isTotalLimitReached = userStats.totalCharsUsed >= (planConfig.totalTrialLimit + userStats.bonusChars);
-
       if (isTrialExpired) { showToast(t('trialExpired', uiLanguage), 'error'); setIsUpgradeOpen(true); return false; }
       if (isTotalLimitReached) { showToast(t('totalLimitReached', uiLanguage), 'error'); setIsUpgradeOpen(true); return false; }
-      
       return true;
   };
   
@@ -391,25 +360,18 @@ const App: React.FC = () => {
 
   const updateUserStats = (charsConsumed: number) => {
       if (userTier === 'admin') return; 
-      
       setUserStats(prev => {
           const newStats = {
               ...prev,
               totalCharsUsed: prev.totalCharsUsed + charsConsumed,
               dailyCharsUsed: prev.dailyCharsUsed + charsConsumed
           };
-          
-          // Save for user OR local plan OR visitor (if we want to track visitor sessions briefly)
-          if (user) {
-              localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats));
-          } else if (localTier) {
-              localStorage.setItem(`sawtli_stats_local_${localTier}`, JSON.stringify(newStats));
-          }
+          if (user) { localStorage.setItem(`sawtli_stats_${user.uid}`, JSON.stringify(newStats)); } 
+          else if (localTier) { localStorage.setItem(`sawtli_stats_local_${localTier}`, JSON.stringify(newStats)); }
           return newStats;
       });
   };
 
-  // ... (handleBoost, stopAll) ...
   const handleBoost = (type: 'share' | 'rate' | 'invite') => {
       if (!user && !localTier) return;
       setUserStats(prev => {
@@ -458,15 +420,10 @@ const App: React.FC = () => {
     setIsLoading(false); 
   }, []);
 
-  // ... (useEffects for init, auth, settings) ...
-  useEffect(() => {
-      if (activePlayer || isPaused) stopAll();
-  }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, speakerC, speakerD, stopAll]);
+  useEffect(() => { if (activePlayer || isPaused) stopAll(); }, [voice, emotion, speed, pauseDuration, multiSpeaker, speakerA, speakerB, speakerC, speakerD, stopAll]);
 
   useEffect(() => {
     fetch('/api/check-config').then(res => res.json()).then(data => setIsApiConfigured(!!data.configured)).catch(() => setIsApiConfigured(false));
-    
-    // CHECK LOCAL PLAN
     try {
         const localPlanData = localStorage.getItem('sawtli_local_plan');
         if (localPlanData) {
@@ -516,14 +473,14 @@ const App: React.FC = () => {
     }
   }, []); 
 
-  // ... (standard boilerplate effects) ...
   useEffect(() => {
-      // Default voice if none set
       if (!voice) setVoice('ar-SA-HamedNeural');
   }, []);
+  
   useEffect(() => {
       return () => { if (audioContextRef.current) audioContextRef.current.close().catch(() => {}); };
   }, []);
+  
   useEffect(() => {
     try {
       const savedSettingsRaw = localStorage.getItem('sawtli_settings');
@@ -549,6 +506,7 @@ const App: React.FC = () => {
       if (devModeActive) setIsDevMode(true);
     } catch (e) {}
   }, []); 
+  
   useEffect(() => {
     try {
       const settings = { voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, sourceLang, targetLang, uiLanguage };
@@ -556,11 +514,13 @@ const App: React.FC = () => {
       if (!user && history.length > 0) localStorage.setItem('sawtli_history', JSON.stringify(history));
     } catch (e) {}
   }, [voice, emotion, pauseDuration, speed, seed, multiSpeaker, speakerA, speakerB, speakerC, speakerD, history, sourceLang, targetLang, uiLanguage, user]);
+  
   useEffect(() => {
     document.documentElement.lang = uiLanguage;
     document.documentElement.dir = languageOptions.find(l => l.value === uiLanguage)?.dir || 'ltr';
     document.title = t('pageTitle', uiLanguage);
   }, [uiLanguage]);
+  
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
         if (effectsDropdownRef.current && !effectsDropdownRef.current.contains(event.target as Node)) {
@@ -577,50 +537,46 @@ const App: React.FC = () => {
   };
 
   const handleRedeemPlan = (plan: 'onedollar' | 'gold' | 'professional') => {
-      // The logic here is mostly handled in AccountModal, 
-      // but this callback updates the React state to reflect changes instantly.
       setLocalTier(plan);
-      
-      // Force reload stats from storage to get the fresh bonus chars/limit
       const key = `sawtli_stats_local_${plan}`;
       const stored = localStorage.getItem(key);
       if (stored) {
           setUserStats(JSON.parse(stored));
       }
-      
-      // showToast is handled in AccountModal to avoid duplication
   };
-
-  // ... (handleSpeak, handleTranslate, handleTashkeel, handleToggleListening, swapLanguages, handleHistoryLoad, handleCopy, handleShareLink, generateAudioBlob, handleDownload, handleInsertTag, handleAudioStudioOpen, handleSignIn, handleSignOutAndClose, handleClearHistory, handleDeleteHistoryItem, handleDeleteAccount, handleUpgrade, handleSetDevMode, handleSourceChange, handleClearAll) ...
-  // [Code identical to previous App.tsx except UI Partials below]
 
   const handleSpeak = async (text: string, target: 'source' | 'target') => {
       if (!text.trim()) return;
       if (isLoading && activePlayer === target) { stopAll(); return; }
       if (!checkLimits(text.length)) return;
+      
       const isGeminiVoice = GEMINI_VOICES.includes(voice);
       if (isGeminiVoice && !planConfig.allowGemini) { setIsUpgradeOpen(true); return; }
+      
       if (!audioContextRef.current || audioContextRef.current.state === 'closed') audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
+      
       if (activePlayer === target && !isPaused) {
           if (audioContextRef.current && audioContextRef.current.state === 'running') {
               const elapsed = (audioContextRef.current.currentTime - playbackStartTimeRef.current) * speed;
               playbackOffsetRef.current += elapsed;
               isPausedRef.current = true;
               setIsPaused(true);
-              if (audioSourceRef.current) { try { audioSourceRef.current.stop(); } catch (e) { /* ignore */ } audioSourceRef.current = null; }
+              if (audioSourceRef.current) { try { audioSourceRef.current.stop(); } catch (e) { } audioSourceRef.current = null; }
           }
           return;
       }
+      
       if (activePlayer === target && isPaused) { setIsPaused(false); isPausedRef.current = false; } 
       else { stopAll(); setIsLoading(true); setLoadingTask(t('generatingSpeech', uiLanguage)); setActivePlayer(target); setError(null); isPausedRef.current = false; }
+      
       let textToProcess = text;
-      // Truncate for visitor just in case limit check didn't catch it
       if (userTier === 'visitor' && text.length > planConfig.dailyLimit) { textToProcess = text.substring(0, planConfig.dailyLimit); }
       
       const cacheKey = getCacheKey(textToProcess);
       let pcmData: Uint8Array | null = null;
       if (audioCacheRef.current.has(cacheKey)) { pcmData = audioCacheRef.current.get(cacheKey)!; setLastGeneratedPCM(pcmData); }
+      
       if (!pcmData) {
           const warmUpTimer = setTimeout(() => { setLoadingTask(t('warmingUp', uiLanguage)); }, 2000);
           const clientTimeout = setTimeout(() => { if(isLoading && activePlayer === target) { stopAll(); showToast("Timeout", 'error'); } }, 45000); 
@@ -628,9 +584,7 @@ const App: React.FC = () => {
           const signal = apiAbortControllerRef.current.signal;
           try {
               if (isGeminiVoice) {
-                  // Double check permission again before API call
                   if (!planConfig.allowGemini) throw new Error("Voice restricted");
-
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
                   // @ts-ignore
                   const idToken = user ? await user.getIdToken() : undefined;
@@ -644,9 +598,20 @@ const App: React.FC = () => {
                       } else { throw geminiError; }
                   }
               } else {
-                  if (multiSpeaker) { pcmData = await generateMultiSpeakerStandardSpeech(textToProcess, { speakerA, speakerB, speakerC, speakerD }, voice, pauseDuration); } 
-                  else { pcmData = await generateStandardSpeech(textToProcess, voice, pauseDuration, emotion); }
+                  if (multiSpeaker) { 
+                      let safeDefaultVoice = voice;
+                      const targetLangCode = target === 'source' ? sourceLang : targetLang;
+                      if (targetLangCode.startsWith('en') && voice.startsWith('ar-')) {
+                          safeDefaultVoice = 'en-US-AndrewNeural';
+                      } else if (targetLangCode.startsWith('fr') && !voice.startsWith('fr-')) {
+                          safeDefaultVoice = 'fr-FR-HenriNeural';
+                      }
+                      pcmData = await generateMultiSpeakerStandardSpeech(textToProcess, { speakerA, speakerB, speakerC, speakerD }, safeDefaultVoice, pauseDuration); 
+                  } else { 
+                      pcmData = await generateStandardSpeech(textToProcess, voice, pauseDuration, emotion); 
+                  }
               }
+              
               clearTimeout(warmUpTimer); clearTimeout(clientTimeout);
               if (signal.aborted) return;
               if (pcmData) {
@@ -661,6 +626,7 @@ const App: React.FC = () => {
               setIsLoading(false); setActivePlayer(null); return;
           }
       }
+      
       if (pcmData) {
           const startOffset = playbackOffsetRef.current / speed;
           playbackStartTimeRef.current = audioContextRef.current.currentTime;
@@ -728,7 +694,44 @@ const App: React.FC = () => {
   const handleHistoryLoad = useCallback((item: HistoryItem) => { setSourceText(item.sourceText); setTranslatedText(item.translatedText); if (item.sourceLang === 'Text' || item.sourceLang === 'Audio') { setSourceLang('ar'); } else { setSourceLang(item.sourceLang); } if (item.targetLang === 'Text' || item.targetLang === 'Audio') { setTargetLang('en'); } else { setTargetLang(item.targetLang); } setIsHistoryOpen(false); }, []);
   const handleCopy = (text: string, type: 'source' | 'target') => { if (!text) return; navigator.clipboard.writeText(text); if (type === 'source') { setCopiedSource(true); setTimeout(() => setCopiedSource(false), 2000); } else if (type === 'target') { setCopiedTarget(true); setTimeout(() => setCopiedTarget(false), 2000); } };
   const handleShareLink = () => { const params = new URLSearchParams(); params.set('sourceText', encodeURIComponent(sourceText)); params.set('sourceLang', sourceLang); params.set('targetLang', targetLang); params.set('lang', uiLanguage); const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`; navigator.clipboard.writeText(url); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); if (user || localTier) handleBoost('share'); };
-  const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => { if (!text.trim()) return null; const isGemini = GEMINI_VOICES.includes(voice); if (!isGemini && !MICROSOFT_AZURE_VOICES.some(v => v.name === voice)) { showToast("Invalid voice", 'error'); return null; } setError(null); setIsLoading(true); setLoadingTask(`${t('encoding', uiLanguage)}...`); apiAbortControllerRef.current = new AbortController(); const signal = apiAbortControllerRef.current.signal; let blob = null; try { const cacheKey = getCacheKey(text); if (audioCacheRef.current.has(cacheKey)) { const pcmData = audioCacheRef.current.get(cacheKey)!; if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); else blob = await createMp3Blob(pcmData, 1, 24000); } else { /* ... generation logic ... */ let pcmData; if (isGemini) { const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined; try { pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, undefined, speed, seed); } catch (geminiError: any) { const fallbackVoice = getFallbackVoice(voice, targetLang); pcmData = await generateStandardSpeech(text, fallbackVoice, pauseDuration, emotion); } } else { if (multiSpeaker) { pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice, pauseDuration); } else { pcmData = await generateStandardSpeech(text, voice, pauseDuration, emotion); } } if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage)); if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); } audioCacheRef.current.set(cacheKey, pcmData); updateUserStats(text.length); if(signal.aborted) throw new Error('AbortError'); if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); else blob = await createMp3Blob(pcmData, 1, 24000); } } catch (err: any) { if (err.message !== 'Aborted') { console.error("Audio failed:", err); showToast(err.message, 'error'); } } finally { setIsLoading(false); setLoadingTask(''); if(apiAbortControllerRef.current?.signal === signal) apiAbortControllerRef.current = null; } return blob; }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier, targetLang]);
+  
+  const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => { 
+      if (!text.trim()) return null; 
+      const isGemini = GEMINI_VOICES.includes(voice); 
+      if (!isGemini && !MICROSOFT_AZURE_VOICES.some(v => v.name === voice)) { showToast("Invalid voice", 'error'); return null; } 
+      setError(null); setIsLoading(true); setLoadingTask(`${t('encoding', uiLanguage)}...`); 
+      apiAbortControllerRef.current = new AbortController(); 
+      const signal = apiAbortControllerRef.current.signal; 
+      let blob = null; 
+      try { 
+          const cacheKey = getCacheKey(text); 
+          if (audioCacheRef.current.has(cacheKey)) { 
+              const pcmData = audioCacheRef.current.get(cacheKey)!; 
+              if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); 
+              else blob = await createMp3Blob(pcmData, 1, 24000); 
+          } else { 
+              let pcmData; 
+              if (isGemini) { 
+                  const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined; 
+                  try { pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, undefined, speed, seed); } 
+                  catch (geminiError: any) { const fallbackVoice = getFallbackVoice(voice, targetLang); pcmData = await generateStandardSpeech(text, fallbackVoice, pauseDuration, emotion); } 
+              } else { 
+                  if (multiSpeaker) { pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice, pauseDuration); } 
+                  else { pcmData = await generateStandardSpeech(text, voice, pauseDuration, emotion); } 
+              } 
+              if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage)); 
+              if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); } 
+              audioCacheRef.current.set(cacheKey, pcmData); updateUserStats(text.length); 
+              if(signal.aborted) throw new Error('AbortError'); 
+              if (format === 'wav') blob = createWavBlob(pcmData, 1, 24000); else blob = await createMp3Blob(pcmData, 1, 24000); 
+          } 
+      } catch (err: any) { 
+          if (err.message !== 'Aborted') { console.error("Audio failed:", err); showToast(err.message, 'error'); } 
+      } finally { 
+          setIsLoading(false); setLoadingTask(''); if(apiAbortControllerRef.current?.signal === signal) apiAbortControllerRef.current = null; 
+      } return blob; 
+  }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier, targetLang]);
+  
   const handleDownload = useCallback(async (format: 'wav' | 'mp3') => { if (userTier === 'visitor') { showToast(uiLanguage === 'ar' ? "التحميل غير متاح للزوار. سجل الآن." : "Downloads are locked for visitors. Sign in.", 'error'); setIsUpgradeOpen(true); return; } if (format === 'wav' && !planConfig.allowWav) { showToast(uiLanguage === 'ar' ? "تحميل WAV متاح في الخطط المدفوعة فقط" : "WAV download requires a premium plan", 'error'); setIsUpgradeOpen(true); return; } const textToProcess = translatedText || sourceText; if (!checkLimits(textToProcess.length)) return; const blob = await generateAudioBlob(textToProcess, format); if (blob) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `sawtli_audio.${format}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); } setIsDownloadOpen(false); }, [translatedText, sourceText, generateAudioBlob, userTier, planConfig]);
   const handleInsertTag = (tag: string) => { if (!planConfig.allowEffects && !isDevMode) { setIsUpgradeOpen(true); return; } const textarea = sourceTextAreaRef.current; if (textarea) { const start = textarea.selectionStart; const end = textarea.selectionEnd; const text = sourceText; const newText = text.substring(0, start) + ` ${tag} ` + text.substring(end); setSourceText(newText); setIsEffectsOpen(false); textarea.focus(); setTimeout(() => { const newCursorPos = start + tag.length + 2; textarea.selectionStart = textarea.selectionEnd = newCursorPos; }, 0); } };
   const handleAudioStudioOpen = () => { stopAll(); setIsAudioStudioOpen(true); };
@@ -742,7 +745,6 @@ const App: React.FC = () => {
   const handleSourceChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { const val = e.target.value; setSourceText(val); if (val.trim() === '') { setTranslatedText(''); } };
   const handleClearAll = () => { setSourceText(''); setTranslatedText(''); };
 
-  // --- UI PARTIALS ---
   const sourceTextArea = (
         <div className="flex-1 relative group flex flex-col h-full">
             <div className={`flex items-center mb-3 justify-between`}>
@@ -753,7 +755,6 @@ const App: React.FC = () => {
                     <button onClick={() => setIsEffectsOpen(!isEffectsOpen)} className="h-10 px-3 bg-slate-800 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-700 flex items-center gap-2 text-xs font-bold" title={t('soundEffects', uiLanguage)}>
                         <SparklesIcon className="w-4 h-4" /> <span>{t('soundEffects', uiLanguage)}</span>
                     </button>
-                    {/* Effects Dropdown */}
                     {isEffectsOpen && (
                         <div className="absolute top-10 left-0 z-50 w-48 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1 animate-fade-in" ref={effectsDropdownRef}>
                             {soundEffects.map(effect => (
@@ -779,8 +780,6 @@ const App: React.FC = () => {
                 className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/50 border-2 border-slate-700 focus:border-cyan-500 focus:ring-0 text-lg sm:text-xl resize-none transition-all placeholder-slate-600 shadow-inner ${sourceLang === 'ar' ? 'text-right' : 'text-left'}`}
                 dir={sourceLang === 'ar' ? 'rtl' : 'ltr'}
             />
-            
-            {/* New Footer Location for Quota Indicator */}
             <div className="flex justify-between items-center mt-2 px-1">
                 <QuotaIndicatorFooter 
                     stats={userStats} 
@@ -827,7 +826,6 @@ const App: React.FC = () => {
         </div>
     );
 
-    // ... (getButtonState logic same as before) ...
     const getButtonState = (target: 'source' | 'target') => {
         const isActive = activePlayer === target;
         const isPausedState = isActive && isPaused;
@@ -862,7 +860,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center p-3 sm:p-6 relative overflow-hidden bg-[#0f172a] text-slate-50">
-      {/* ... Background and Header ... */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
            <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-900/10 blur-[100px]"></div>
            <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-cyan-900/10 blur-[100px]"></div>
@@ -873,7 +870,6 @@ const App: React.FC = () => {
                  <div className="flex justify-start w-1/3">
                     <div className="relative group">
                         <button className="border border-cyan-500/50 text-cyan-500 px-6 sm:px-8 py-3 rounded-lg hover:bg-cyan-950/30 hover:border-cyan-400 uppercase text-base sm:text-lg font-bold tracking-widest transition-all flex items-center gap-2">
-                            {/* Dynamically translated Language Name */}
                             <span className="hidden sm:inline">{t(`lang_${uiLanguage}` as any, uiLanguage) || 'ENGLISH'}</span>
                             <span className="sm:hidden">{uiLanguage.toUpperCase()}</span>
                             <ChevronDownIcon className="w-3 h-3" />
@@ -974,7 +970,6 @@ const App: React.FC = () => {
         speakerB={speakerB} setSpeakerB={setSpeakerB} 
         speakerC={speakerC} setSpeakerC={setSpeakerC} 
         speakerD={speakerD} setSpeakerD={setSpeakerD} 
-        systemVoices={MICROSOFT_AZURE_VOICES as any} 
         sourceLang={sourceLang} targetLang={targetLang}
         currentLimits={planConfig} 
         onUpgrade={() => {setIsSettingsOpen(false); setIsUpgradeOpen(true);}} 
