@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { t, Language } from '../i18n/translations';
-import { CheckIcon, LockIcon, SparklesIcon, LoaderIcon, StarIcon } from './icons';
+import { CheckIcon, SparklesIcon, LoaderIcon, StarIcon, SoundEnhanceIcon, VideoCameraIcon, UserIcon } from './icons';
 import { UserTier } from '../types';
 
 interface UpgradeModalProps {
@@ -13,167 +13,161 @@ interface UpgradeModalProps {
 }
 
 const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, uiLanguage, currentTier, onUpgrade, onSignIn }) => {
-    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
     const [processing, setProcessing] = useState<string | null>(null);
-
     const isAr = uiLanguage === 'ar';
 
-    const handleSelectPlan = async (planKey: string) => {
-        // Special case: If Visitor selects Free plan -> Sign In/Register
-        if (planKey === 'free' && currentTier === 'visitor') {
-            onSignIn();
-            return;
+    const handleJoinWaitlist = async (tier: 'gold' | 'platinum', label: string) => {
+        setProcessing(label);
+        await onUpgrade(tier);
+        setProcessing(null);
+    };
+
+    // --- CARDS CONFIGURATION ---
+    const cards = [
+        {
+            id: 'starter',
+            title: isAr ? 'البداية' : 'Starter',
+            subtitle: isAr ? 'اكتشف إمكانيات صوتلي' : 'Discover the power of Sawtli',
+            icon: <UserIcon className="w-8 h-8 text-slate-300" />,
+            color: 'slate',
+            gradient: 'from-slate-800 to-slate-900',
+            border: 'border-slate-700',
+            buttonText: isAr ? 'الخطة الحالية' : 'Current Plan',
+            isCurrent: true,
+            features: [
+                isAr ? 'وصول محدود لأصوات Azure' : 'Limited access to Azure voices',
+                isAr ? 'عدد أحرف يومي (تجريبي)' : 'Daily character limit (Trial)',
+                isAr ? 'تصدير بصيغة MP3' : 'MP3 Export',
+                isAr ? 'الإعدادات الصوتية الأساسية' : 'Basic Audio Settings'
+            ]
+        },
+        {
+            id: 'creator',
+            title: isAr ? 'المبدع' : 'Creator',
+            subtitle: isAr ? 'لصناع المحتوى واليوتيوبرز' : 'For Content Creators & YouTubers',
+            icon: <VideoCameraIcon className="w-8 h-8 text-amber-400" />,
+            color: 'amber',
+            gradient: 'from-amber-900/40 to-slate-900',
+            border: 'border-amber-500/50',
+            buttonText: isAr ? 'انضم لقائمة الانتظار' : 'Join Waitlist',
+            isCurrent: false,
+            tierKey: 'gold',
+            badge: isAr ? 'قريباً' : 'Coming Soon',
+            features: [
+                isAr ? 'فتح جميع أصوات Gemini Ultra' : 'Unlock ALL Gemini Ultra Voices',
+                isAr ? 'استوديو الصوت الكامل (Mixer)' : 'Full Audio Studio (Mixer)',
+                isAr ? 'تعدد المتحدثين (Multi-Speaker)' : 'Multi-Speaker Support',
+                isAr ? 'مؤثرات DSP الاحترافية' : 'Pro DSP Effects',
+                isAr ? 'تصدير بجودة عالية' : 'High Quality Export'
+            ]
+        },
+        {
+            id: 'pro',
+            title: isAr ? 'الاحترافية' : 'Professional',
+            subtitle: isAr ? 'للمؤسسات والإنتاج الضخم' : 'For Agencies & High Volume',
+            icon: <SoundEnhanceIcon className="w-8 h-8 text-purple-400" />,
+            color: 'purple',
+            gradient: 'from-purple-900/40 to-slate-900',
+            border: 'border-purple-500/50',
+            buttonText: isAr ? 'انضم لقائمة الانتظار' : 'Join Waitlist',
+            isCurrent: false,
+            tierKey: 'platinum',
+            badge: isAr ? 'قريباً' : 'Coming Soon',
+            features: [
+                isAr ? 'كل ميزات المبدع +' : 'All Creator Features +',
+                isAr ? 'تصدير WAV (Lossless)' : 'WAV Lossless Export',
+                isAr ? 'حصص مضاعفة (Unlimited*)' : 'Extended Quotas',
+                isAr ? 'دعم فني مباشر' : 'Priority Support',
+                isAr ? 'استخدام تجاري شامل' : 'Full Commercial License'
+            ]
         }
-
-        setProcessing(planKey);
-        setTimeout(() => {
-            alert(uiLanguage === 'ar' ? `تم اختيار خطة ${planKey}. سيتم توجيهك للدفع قريباً.` : `Selected ${planKey}. Redirecting to payment soon.`);
-            setProcessing(null);
-        }, 1000);
-    };
-
-    // --- DATA ---
-    const plans = [
-        { key: 'free', name: t('planFree', uiLanguage), color: 'slate', priceMo: '$0', priceYr: '$0', bg: 'bg-slate-900/50' },
-        { key: 'onedollar', name: t('planOneDollar', uiLanguage), color: 'amber', priceMo: '$1', priceYr: 'X', bg: 'bg-amber-950/20' },
-        { key: 'basic', name: t('planBasic', uiLanguage), color: 'cyan', priceMo: '$12.99', priceYr: '$10.39', bg: 'bg-slate-900/50' },
-        { key: 'creator', name: t('planCreator', uiLanguage), color: 'blue', priceMo: '$24.99', priceYr: '$19.99', bg: 'bg-slate-900/50' },
-        { key: 'gold', name: t('planGold', uiLanguage), color: 'yellow', priceMo: '$49.99', priceYr: '$39.99', bg: 'bg-yellow-950/20' },
-        { key: 'pro', name: t('planPro', uiLanguage), color: 'purple', priceMo: '$99.99', priceYr: '$79.99', bg: 'bg-slate-900/50' },
     ];
-
-    const rows = [
-        { label: t('tblMonthly', uiLanguage), keys: ['$0', '$1', '$12.99', '$24.99', '$49.99', '$99.99'], type: 'price' },
-        { label: t('tblYearly', uiLanguage), keys: ['$0', 'X', '$10.39', '$19.99', '$39.99', '$79.99'], type: 'price' },
-        { label: t('tblChars', uiLanguage), keys: [t('valFreeChars', uiLanguage), t('val10k', uiLanguage), t('val75k', uiLanguage), t('val150k', uiLanguage), t('val300k', uiLanguage), t('val750k', uiLanguage)] },
-        { label: t('tblVoices', uiLanguage), keys: ['2', '6', '50', '50', '50', '50'] },
-        { label: t('tblTrans', uiLanguage), keys: [true, true, true, true, true, true] },
-        { label: t('tblTashkeel', uiLanguage), keys: [false, true, true, true, true, true] },
-        { label: t('tblMp3', uiLanguage), keys: [t('val5Min', uiLanguage), t('val10Min', uiLanguage), true, true, true, true] },
-        { label: t('tblWav', uiLanguage), keys: [false, t('val10Min', uiLanguage), false, false, true, true] },
-        { label: t('tblMulti', uiLanguage), keys: [false, t('val2Speakers', uiLanguage), false, t('val2Speakers', uiLanguage), t('val3Speakers', uiLanguage), t('val4Speakers', uiLanguage)] },
-        { label: t('tblEmotions', uiLanguage), keys: [false, true, true, true, true, true] },
-        { label: t('tblEffects', uiLanguage), keys: [false, true, false, true, true, true] },
-        { label: t('tblPauses', uiLanguage), keys: [false, true, true, true, true, true] },
-        { label: t('tblMixer', uiLanguage), keys: [false, true, false, true, true, true] },
-        { label: t('tblPresets', uiLanguage), keys: [true, true, true, true, true, true] },
-        { label: t('tblDucking', uiLanguage), keys: [true, true, t('valManual', uiLanguage), t('valAuto', uiLanguage), t('valAuto', uiLanguage), t('valAuto', uiLanguage)] },
-        { label: t('tblAddMusic', uiLanguage), keys: [true, true, true, true, true, true] },
-        { label: t('tblUpload', uiLanguage), keys: [false, true, true, true, true, true] },
-        { label: t('tblMic', uiLanguage), keys: [false, true, false, true, true, true] },
-        { label: t('tblHistory', uiLanguage), keys: [false, true, t('val30Days', uiLanguage), t('val90Days', uiLanguage), t('val180Days', uiLanguage), t('val365Days', uiLanguage)] },
-    ];
-
-    const getCellContent = (value: string | boolean) => {
-        if (value === true) return <CheckIcon className="w-5 h-5 text-green-400 mx-auto drop-shadow-md" />;
-        if (value === false) return <div className="text-lg text-red-500/50 font-bold mx-auto">✕</div>;
-        if (value === 'X') return <div className="text-lg text-red-500/50 font-bold mx-auto">✕</div>;
-        return <span className="text-[10px] font-bold text-slate-200 text-center block leading-tight">{value}</span>;
-    };
 
     return (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[200] p-2 sm:p-4 animate-fade-in-down overflow-hidden">
-            <div className="bg-[#0f172a] border border-slate-700 w-full max-w-7xl rounded-3xl shadow-2xl flex flex-col max-h-[98vh]" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[200] p-4 animate-fade-in-down backdrop-blur-sm" onClick={onClose}>
+            <div className="w-full max-w-6xl flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
                 
-                {/* Header & Toggle */}
-                <div className="p-3 sm:p-4 bg-slate-900/90 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0 backdrop-blur-md z-20">
-                    <div className="text-center sm:text-left">
-                        <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2 justify-center sm:justify-start">
-                            <SparklesIcon className="w-6 h-6 text-amber-400" />
-                            {t('earlyAccess', uiLanguage)}
-                        </h2>
-                        <p className="text-[10px] sm:text-xs text-slate-400">{uiLanguage === 'ar' ? 'قارن الخطط واختر الأنسب لك.' : 'Compare plans and choose the best fit.'}</p>
-                    </div>
-
-                    <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
-                        <button 
-                            onClick={() => setBillingCycle('monthly')}
-                            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${billingCycle === 'monthly' ? 'bg-slate-700 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-                        >
-                            {t('monthly', uiLanguage)}
-                        </button>
-                        <button 
-                            onClick={() => setBillingCycle('yearly')}
-                            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${billingCycle === 'yearly' ? 'bg-green-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-                        >
-                            {t('yearly', uiLanguage)}
-                            <span className="bg-white/20 text-white text-[9px] px-1 rounded font-bold">-20%</span>
-                        </button>
-                    </div>
-
-                    <button onClick={onClose} className="absolute top-3 right-3 sm:static text-slate-500 hover:text-white transition-colors bg-slate-800 p-2 rounded-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                {/* Header Section */}
+                <div className="text-center mb-8 relative">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/20 rounded-full blur-[100px] -z-10 pointer-events-none"></div>
+                    <h2 className="text-3xl sm:text-5xl font-black text-white mb-3 tracking-tight drop-shadow-xl">
+                        {isAr ? 'مستقبل الصوت يبدأ هنا' : 'The Future of Audio Starts Here'}
+                    </h2>
+                    <p className="text-slate-400 text-sm sm:text-lg max-w-2xl mx-auto font-medium">
+                        {isAr 
+                            ? 'نعمل حالياً على تجهيز خطط اشتراك مرنة تناسب الجميع. انضم لقائمة الانتظار لتكون أول من يحصل على الميزات الحصرية.' 
+                            : 'We are crafting flexible plans for everyone. Join the waitlist to be the first to unlock exclusive features.'}
+                    </p>
+                    
+                    <button onClick={onClose} className="absolute top-0 right-0 text-slate-500 hover:text-white transition-colors bg-slate-800 p-2 rounded-full border border-slate-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
 
-                {/* THE MATRIX TABLE - STRIPED & COMPACT */}
-                <div className="overflow-x-auto flex-grow bg-[#0f172a] custom-scrollbar relative">
-                    <table className="w-full text-left border-collapse min-w-[800px]">
-                        <thead className="sticky top-0 z-10 bg-[#0f172a] shadow-lg">
-                            <tr>
-                                <th className="p-3 text-[11px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-700 bg-[#0f172a] min-w-[130px] sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                                    {uiLanguage === 'ar' ? 'الميزة' : 'FEATURE'}
-                                </th>
-                                {plans.map((plan) => (
-                                    <th key={plan.key} className={`p-2 text-center border-b border-r border-slate-800 border-opacity-50 relative min-w-[90px] ${plan.bg}`}>
-                                        {/* Highlight Bar for Premium Plans */}
-                                        {plan.key === 'onedollar' && <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500"></div>}
-                                        {plan.key === 'gold' && <div className="absolute top-0 inset-x-0 h-1 bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>}
-                                        
-                                        <div className={`text-[10px] sm:text-xs font-black uppercase tracking-wider text-${plan.color}-400 mb-1`}>{plan.name}</div>
-                                        <div className="text-[10px] sm:text-xs text-white font-mono bg-slate-800/80 inline-block px-2 py-0.5 rounded border border-slate-700">
-                                            {plan.key === 'onedollar' ? '$1' : (billingCycle === 'yearly' ? plan.priceYr : plan.priceMo)}
-                                        </div>
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/30 text-[11px]">
-                            {rows.map((row, idx) => {
-                                // Skip pricing rows in body
-                                if (row.type === 'price') return null;
+                {/* Cards Container */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto px-2 pb-4 custom-scrollbar">
+                    {cards.map((card) => (
+                        <div 
+                            key={card.id} 
+                            className={`relative rounded-3xl p-1 bg-gradient-to-b ${card.gradient} transition-transform duration-300 hover:-translate-y-2 group`}
+                        >
+                            {/* Glow Effect */}
+                            <div className={`absolute inset-0 bg-${card.color}-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl`}></div>
+
+                            {/* Card Content */}
+                            <div className={`relative h-full bg-[#0f172a] rounded-[22px] border ${card.border} p-6 flex flex-col`}>
                                 
-                                return (
-                                    <tr key={idx} className="group transition-colors odd:bg-transparent even:bg-slate-800/30 hover:bg-white/5">
-                                        <td className="p-2 font-bold text-slate-300 border-r border-slate-800 bg-[#0f172a] group-even:bg-[#131c31] sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.5)] group-hover:bg-[#1e293b]">
-                                            {row.label}
-                                        </td>
-                                        {row.keys.map((val, i) => (
-                                            <td key={i} className={`p-1 text-center border-r border-slate-800/50 ${plans[i].bg}`}>
-                                                {getCellContent(val as string|boolean)}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                );
-                            })}
-                            
-                            {/* CTA Row */}
-                            <tr>
-                                <td className="p-2 bg-[#0f172a] sticky left-0 z-10 border-t border-slate-700"></td>
-                                {plans.map((plan) => (
-                                    <td key={plan.key} className={`p-2 text-center border-t border-r border-slate-800 border-opacity-50 ${plan.bg}`}>
-                                        <button 
-                                            onClick={() => handleSelectPlan(plan.key)}
-                                            disabled={plan.key === 'free' && currentTier !== 'visitor'}
-                                            className={`w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all transform active:scale-95 shadow-lg
-                                                ${plan.key === 'free' ? 
-                                                    (currentTier === 'visitor' ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-slate-800 text-slate-500 cursor-default border border-slate-700') : 
-                                                  plan.key === 'onedollar' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:brightness-110 shadow-amber-500/20' :
-                                                  plan.key === 'gold' ? 'bg-yellow-600 hover:bg-yellow-500 text-white shadow-yellow-500/20' :
-                                                  plan.key === 'pro' ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/20' :
-                                                  'bg-slate-700 hover:bg-slate-600 text-white border border-slate-600'
-                                                }`}
-                                        >
-                                            {processing === plan.key ? <LoaderIcon className="mx-auto w-3 h-3"/> : 
-                                                (plan.key === 'free' ? 
-                                                    (currentTier === 'visitor' ? (uiLanguage==='ar'?'سجل مجاناً':'Register Free') : (uiLanguage==='ar'?'الخطة الحالية':'Current')) 
-                                                : t('joinWaitlist', uiLanguage))}
-                                        </button>
-                                    </td>
-                                ))}
-                            </tr>
-                        </tbody>
-                    </table>
+                                {card.badge && (
+                                    <div className={`absolute top-4 ${isAr ? 'left-4' : 'right-4'} px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-${card.color}-900/50 text-${card.color}-300 border border-${card.color}-500/30`}>
+                                        {card.badge}
+                                    </div>
+                                )}
+
+                                <div className={`w-14 h-14 rounded-2xl bg-${card.color}-900/30 flex items-center justify-center mb-6 border border-${card.color}-500/20 group-hover:scale-110 transition-transform duration-300`}>
+                                    {card.icon}
+                                </div>
+
+                                <h3 className={`text-2xl font-bold text-white mb-1 group-hover:text-${card.color}-400 transition-colors`}>{card.title}</h3>
+                                <p className="text-sm text-slate-400 font-medium mb-6 min-h-[40px]">{card.subtitle}</p>
+
+                                <div className="space-y-4 mb-8 flex-grow">
+                                    {card.features.map((feature, i) => (
+                                        <div key={i} className="flex items-center gap-3 text-sm text-slate-300">
+                                            <div className={`w-5 h-5 rounded-full bg-${card.color}-500/20 flex items-center justify-center flex-shrink-0`}>
+                                                <CheckIcon className={`w-3 h-3 text-${card.color}-400`} />
+                                            </div>
+                                            <span>{feature}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <button 
+                                    onClick={() => !card.isCurrent && card.tierKey ? handleJoinWaitlist(card.tierKey as any, card.id) : onClose()}
+                                    disabled={card.isCurrent}
+                                    className={`w-full py-4 rounded-xl font-bold text-sm tracking-wide uppercase transition-all shadow-lg flex items-center justify-center gap-2
+                                        ${card.isCurrent 
+                                            ? 'bg-slate-800 text-slate-500 cursor-default border border-slate-700' 
+                                            : `bg-gradient-to-r from-${card.color}-600 to-${card.color}-500 hover:from-${card.color}-500 hover:to-${card.color}-400 text-white shadow-${card.color}-500/20 hover:shadow-${card.color}-500/40 active:scale-95`
+                                        }`}
+                                >
+                                    {processing === card.id ? <LoaderIcon className="w-4 h-4"/> : (
+                                        <>
+                                            {!card.isCurrent && <SparklesIcon className="w-4 h-4" />}
+                                            {card.buttonText}
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="text-center mt-6">
+                    <p className="text-xs text-slate-500 max-w-3xl mx-auto leading-relaxed">
+                        {isAr 
+                            ? 'نحن نلتزم بتقديم أفضل قيمة مقابل السعر. الأسعار النهائية ستعلن قريباً وستكون مدروسة ومنافسة جداً. تسجيلك في قائمة الانتظار يضمن لك أولوية الوصول وعروض خاصة عند الإطلاق.'
+                            : 'We are committed to providing the best value. Final pricing will be announced soon and will be highly competitive. Joining the waitlist guarantees priority access and special offers at launch.'}
+                    </p>
                 </div>
             </div>
         </div>
