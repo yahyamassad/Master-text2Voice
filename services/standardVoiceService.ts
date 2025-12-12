@@ -57,6 +57,27 @@ function isTextEnglish(text: string): boolean {
 }
 
 /**
+ * Stabilizes Arabic Text for TTS Engines (Azure/Gemini).
+ * 1. Forces "Pausal Form" (Sukoon) on words ending in consonants to prevent unwanted MSA grammar endings (e.g., Yazan-u).
+ * 2. Normalizes final Alif Maqsura (ى) to Alif (ا) in long words to prevent "swallowing" of the final sound.
+ */
+function stabilizeArabicText(text: string): string {
+    // 1. Force Sukoon on words ending in consonants.
+    // Targeted Consonants: Ba, Ta, Tha, Jim, Hha, Kha, Dal, Thal, Ra, Zain, Seen, Sheen, Sad, Dad, Tah, Zah, Ain, Ghain, Fa, Qaf, Kaf, Lam, Meem, Noon, Ha
+    // Excludes: Alif, Waw, Ya, Ta-Marbuta, Hamza forms (to avoid breaking grammar basics)
+    // Regex: Match specific chars at end of word (followed by space, punctuation, or EOL)
+    let processed = text.replace(/([ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه])(?=\s|[.,!؟:;]|$)/g, '$1\u0652');
+
+    // 2. Fix "Swallowed Endings" for Alif Maqsura (ى).
+    // In many dialects, Azure reads final 'ى' too quickly or as a short vowel if not diacritized.
+    // For words longer than 3 letters (to skip prepositions like على, إلى), we map 'ى' to 'ا' to force a long 'AA' sound.
+    // Example: "بنتعشى" -> "بنتعشا", "سلمى" -> "سلما"
+    processed = processed.replace(/(?<=[\u0621-\u064A]{3})ى(?=\s|[.,!؟:;]|$)/g, 'ا');
+
+    return processed;
+}
+
+/**
  * Calls the backend API to generate speech.
  */
 export async function generateStandardSpeech(
@@ -106,6 +127,11 @@ export async function generateStandardSpeech(
         paragraphs.forEach((para, index) => {
             let cleanPara = para.trim();
             if (cleanPara) {
+                // --- APPLY ARABIC STABILIZATION ---
+                if (backendVoiceId.startsWith('ar-')) {
+                    cleanPara = stabilizeArabicText(cleanPara);
+                }
+
                 innerContent += escapeXml(cleanPara);
                 if (index < paragraphs.length - 1 && pauseDuration > 0) {
                     innerContent += `<break time="${Math.round(pauseDuration * 1000)}ms"/>`;
