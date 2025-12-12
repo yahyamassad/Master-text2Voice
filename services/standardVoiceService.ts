@@ -150,7 +150,9 @@ export async function generateStandardSpeech(
 }
 
 /**
- * Generates multi-speaker audio by aggressively parsing "Name: Text" patterns using simple string splitting.
+ * Generates multi-speaker audio with SMART ORDER MAPPING.
+ * If names don't match exactly (e.g. "Yazan" in text vs "يزن" in settings),
+ * it assigns the first detected name in text to Speaker 1, second to Speaker 2, etc.
  */
 export async function generateMultiSpeakerStandardSpeech(
     text: string,
@@ -159,109 +161,122 @@ export async function generateMultiSpeakerStandardSpeech(
     pauseDuration: number = 0.5 
 ): Promise<Uint8Array | null> {
     
-    // 1. Normalize Inputs (Handle different newline types)
+    // 1. Analyze the Text to find "Dialogue Labels"
     const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
     if (lines.length === 0) return null;
 
-    const segments: { text: string, voice: string }[] = [];
-    
-    // Prepare map: Normalized Name -> Voice ID
-    // We trim and lowercase names for better matching
-    const speakerMap: Record<string, string> = {};
-    const addSpeaker = (s?: SpeakerConfig) => {
-        if (s && s.name && s.name.trim()) {
-            speakerMap[s.name.trim().toLowerCase()] = s.voice;
-        }
-    };
-    addSpeaker(speakers.speakerA);
-    addSpeaker(speakers.speakerB);
-    addSpeaker(speakers.speakerC);
-    addSpeaker(speakers.speakerD);
+    const detectedLabels = new Set<string>();
+    const lineObjects: { rawLine: string, detectedLabel: string | null, content: string }[] = [];
 
-    let currentVoice = defaultVoice; 
-
-    // 2. ROBUST PARSING LOOP
-    // Instead of Regex, we use simple IndexOf to find the separator.
-    // This is safer against unicode issues and varying formatting.
     for (const line of lines) {
-        // Normalize invisible characters like non-breaking spaces
         const lineText = line.replace(/\u00A0/g, ' ').trim();
-        if (!lineText) continue;
-
+        let label = null;
         let content = lineText;
-        
-        // Find first colon or hyphen which usually separates Name from Dialogue
-        // We prioritize Colon (:) as it's standard.
+
+        // Find separator (colon)
         const colonIndex = lineText.indexOf(':');
         
-        // Safety Check: A name is usually short (e.g., < 40 chars). 
-        // If the colon is at index 100, it's probably just a sentence with a colon, not a speaker label.
+        // Logic: A label must be at the start and reasonably short (e.g. < 40 chars)
         if (colonIndex > 0 && colonIndex < 40) {
-            const rawName = lineText.substring(0, colonIndex).trim();
-            const textPart = lineText.substring(colonIndex + 1).trim();
+            const rawLabel = lineText.substring(0, colonIndex).trim();
+            // Store normalized lower-case label for consistent matching
+            const cleanLabel = rawLabel.replace(/[*_"'`]/g, '').trim().toLowerCase();
             
-            // Normalize found name for comparison
-            // Remove markdown bold (**), quotes, etc.
-            const cleanName = rawName.replace(/[*_"'`]/g, '').toLowerCase();
-
-            // Try to find a voice match
-            let matchedVoice = null;
-
-            // Direct Match
-            if (speakerMap[cleanName]) {
-                matchedVoice = speakerMap[cleanName];
-            } 
-            // Fuzzy Match (e.g. Config="Yazan" matches Script="Yazan (Happy)")
-            else {
-                for (const confName of Object.keys(speakerMap)) {
-                    // Check if ScriptName starts with ConfigName (e.g. "Yazan Happy" starts with "Yazan")
-                    // OR ConfigName starts with ScriptName (rare but possible)
-                    if (cleanName.startsWith(confName) || confName.startsWith(cleanName)) {
-                        matchedVoice = speakerMap[confName];
-                        break;
-                    }
-                }
+            // Safety check: Labels shouldn't be too long (avoiding sentences that just happen to have a colon)
+            // Typically a name is 1-3 words.
+            if (cleanLabel.split(' ').length <= 4 && cleanLabel.length > 1) {
+                detectedLabels.add(cleanLabel);
+                label = cleanLabel;
+                content = lineText.substring(colonIndex + 1).trim();
             }
+        }
+        
+        lineObjects.push({ rawLine: lineText, detectedLabel: label, content: content });
+    }
 
-            if (matchedVoice) {
-                currentVoice = matchedVoice;
+    // 2. Build the "Smart Map"
+    // We map: Detected Text Label -> Voice ID
+    const voiceMap: Record<string, string> = {};
+    const uniqueLabels = Array.from(detectedLabels); // Order of appearance matters! e.g. ["yazan", "lana"]
+
+    // Configured speakers in order (1, 2, 3, 4)
+    const availableConfigs = [speakers.speakerA, speakers.speakerB, speakers.speakerC, speakers.speakerD].filter(Boolean);
+    const usedConfigIndices = new Set<number>();
+
+    // Pass 1: Strict/Fuzzy Matching (If user actually typed "Yazan" in settings, prioritize that)
+    uniqueLabels.forEach(label => {
+        const matchIndex = availableConfigs.findIndex(conf => {
+            const confName = conf.name.trim().toLowerCase();
+            return confName && (confName === label || label.includes(confName) || confName.includes(label));
+        });
+
+        if (matchIndex !== -1) {
+            voiceMap[label] = availableConfigs[matchIndex].voice;
+            usedConfigIndices.add(matchIndex);
+        }
+    });
+
+    // Pass 2: Order-Based Fallback (The Fix for Yazan vs يزن)
+    // If "Yazan" (1st label) wasn't matched strictly, assign it to Speaker A (1st config).
+    // If "Lana" (2nd label) wasn't matched, assign it to Speaker B (2nd config).
+    uniqueLabels.forEach(label => {
+        if (!voiceMap[label]) {
+            // Find the first config that hasn't been used yet
+            const freeIndex = availableConfigs.findIndex((_, idx) => !usedConfigIndices.has(idx));
+            if (freeIndex !== -1) {
+                voiceMap[label] = availableConfigs[freeIndex].voice;
+                usedConfigIndices.add(freeIndex);
             }
+        }
+    });
 
-            // CRITICAL: Regardless of whether we matched a voice or not, 
-            // if it looks like a script line (ShortName: ...), we STRIP the name.
-            // This prevents "Yazan: ..." from being read aloud even if the voice mapping failed.
-            content = textPart;
+    // 3. Generate Segments using the Map
+    const segments: { text: string, voice: string }[] = [];
+    let currentVoice = defaultVoice; // Fallback if absolutely nothing matches
+
+    // Optimization: If we successfully mapped the first label, start with that voice
+    // This handles cases where the first line might be narration but followed by dialogue
+    if (uniqueLabels.length > 0 && voiceMap[uniqueLabels[0]]) {
+        // Optional: you could set currentVoice to the first speaker, 
+        // but keeping defaultVoice is safer for narration headers.
+    }
+
+    for (const obj of lineObjects) {
+        if (!obj.content) continue;
+
+        let segmentVoice = currentVoice;
+
+        // If this line has a label, switch voice
+        if (obj.detectedLabel && voiceMap[obj.detectedLabel]) {
+            segmentVoice = voiceMap[obj.detectedLabel];
+            currentVoice = segmentVoice; // Persist for subsequent lines without labels
         }
 
-        if (content.length > 0) {
-            segments.push({ text: content, voice: currentVoice });
-        }
+        segments.push({ text: obj.content, voice: segmentVoice });
     }
 
     if (segments.length === 0) return null;
 
-    // 3. Generate Audio for each segment
+    // 4. Audio Generation & Stitching
     const audioBuffers: AudioBuffer[] = [];
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
     for (const seg of segments) {
         try {
-            // Generate using the specific voice for this segment
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
-            
             if (mp3Bytes) {
                 const bufferCopy = mp3Bytes.slice(0).buffer;
                 const audioBuffer = await ctx.decodeAudioData(bufferCopy);
                 audioBuffers.push(audioBuffer);
             }
         } catch (e) {
-            console.error(`Failed to generate segment for voice ${seg.voice}:`, e);
+            console.error(`Failed segment (${seg.voice}):`, e);
         }
     }
 
     if (audioBuffers.length === 0) return null;
 
-    // 4. Stitching
+    // Stitching
     const PAUSE_SAMPLES = Math.floor(pauseDuration * ctx.sampleRate);
     let totalLength = 0;
     audioBuffers.forEach((buf, i) => {
