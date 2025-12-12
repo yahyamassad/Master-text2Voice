@@ -69,7 +69,9 @@ export async function generateStandardSpeech(
         let backendVoiceId = getBackendVoiceId(voiceId);
         
         // --- LANGUAGE GUARD ---
+        // Prevents Arabic voice reading English text (Zulu accent issue)
         if (backendVoiceId.startsWith('ar-') && isTextEnglish(text)) {
+            console.warn(`Language Guard: Switching ${backendVoiceId} to en-US-AndrewNeural for English text.`);
             backendVoiceId = 'en-US-AndrewNeural'; 
         } else if (backendVoiceId.startsWith('en-') && !isTextEnglish(text) && text.trim().length > 0) {
              const arabicMatch = text.match(/[\u0600-\u06FF]/g);
@@ -97,6 +99,8 @@ export async function generateStandardSpeech(
         }
 
         const rate = `${baseRate}%`;
+        
+        // Split by logical pauses for SSML breaks
         const paragraphs = text.split(/\n\s*\n/);
         let innerContent = '';
         
@@ -155,8 +159,13 @@ export async function generateMultiSpeakerStandardSpeech(
     defaultVoice: string,
     pauseDuration: number = 0.5 
 ): Promise<Uint8Array | null> {
-    // CRITICAL: Split by ANY newline character to handle single or double breaks
+    
+    // 1. Normalize Inputs
+    // Split by single newline to catch every line. 
+    // We filter out empty lines but keep track of them logic if we wanted pauses, 
+    // but here we rely on the loop to stitch.
     const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+    
     if (lines.length === 0) return null;
 
     const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -168,11 +177,11 @@ export async function generateMultiSpeakerStandardSpeech(
     const nameC = speakers.speakerC?.name.trim();
     const nameD = speakers.speakerD?.name.trim();
 
-    // IMPROVED REGEX: Matches "Name:", "Name :", "Name-", or "Name " at start of line
-    // Also allows for optional Markdown bolding like **Name**:
+    // 2. Powerful Regex to catch names
+    // Handles: "Name:", "Name :", "**Name**:", "Name-", "Name -"
     const createRegex = (name: string) => {
         const escaped = escapeRegExp(name);
-        return new RegExp(`^(\\*\\*)?${escaped}(\\*\\*)?\\s*[:\\-]?\\s*`, 'i');
+        return new RegExp(`^\\s*(\\*\\*)?${escaped}(\\*\\*)?\\s*[:\\-]?\\s*`, 'i');
     };
 
     const regexA = createRegex(nameA);
@@ -182,59 +191,72 @@ export async function generateMultiSpeakerStandardSpeech(
 
     let currentVoice = defaultVoice; 
 
+    // 3. Line Parsing Loop
     for (const line of lines) {
-        let lineText = line;
-        let lineVoice = currentVoice; 
+        let lineText = line.trim();
         let matched = false;
 
+        // Check Speaker A
         if (regexA.test(line)) {
-            lineVoice = speakers.speakerA.voice;
+            currentVoice = speakers.speakerA.voice;
             lineText = line.replace(regexA, '').trim(); 
             matched = true;
-        } else if (regexB.test(line)) {
-            lineVoice = speakers.speakerB.voice;
+        } 
+        // Check Speaker B
+        else if (regexB.test(line)) {
+            currentVoice = speakers.speakerB.voice;
             lineText = line.replace(regexB, '').trim(); 
             matched = true;
-        } else if (regexC && regexC.test(line) && speakers.speakerC) {
-            lineVoice = speakers.speakerC.voice;
+        } 
+        // Check Speaker C
+        else if (regexC && regexC.test(line) && speakers.speakerC) {
+            currentVoice = speakers.speakerC.voice;
             lineText = line.replace(regexC, '').trim(); 
             matched = true;
-        } else if (regexD && regexD.test(line) && speakers.speakerD) {
-            lineVoice = speakers.speakerD.voice;
+        } 
+        // Check Speaker D
+        else if (regexD && regexD.test(line) && speakers.speakerD) {
+            currentVoice = speakers.speakerD.voice;
             lineText = line.replace(regexD, '').trim(); 
             matched = true;
         }
 
-        if (matched) {
-            currentVoice = lineVoice; 
-        }
+        // If no match found, we CONTINUE using 'currentVoice'.
+        // This is key: if a speaker has multiple lines, subsequent lines (without name prefix) 
+        // should still be spoken by them.
 
-        // Only add if there is text left after stripping the name
+        // Only add segment if there is actual dialogue left
         if (lineText.length > 0) {
-            segments.push({ text: lineText, voice: lineVoice });
+            segments.push({ text: lineText, voice: currentVoice });
         }
     }
 
     if (segments.length === 0) return null;
 
+    // 4. Generate Audio for Each Segment
     const audioBuffers: AudioBuffer[] = [];
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
     for (const seg of segments) {
         try {
+            // NOTE: Language Guard inside generateStandardSpeech will handle accent mismatches
+            // e.g. If currentVoice is "Andrew" but text is "Bonjour", it won't fix it perfectly via Guard (since text isn't English),
+            // but if voice is "Hamed" (Arabic) and text is English, Guard WILL fix it to Andrew.
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
+            
             if (mp3Bytes) {
                 const bufferCopy = mp3Bytes.slice(0).buffer;
                 const audioBuffer = await ctx.decodeAudioData(bufferCopy);
                 audioBuffers.push(audioBuffer);
             }
         } catch (e) {
-            console.error(`Failed to generate segment:`, e);
+            console.error(`Failed to generate segment for voice ${seg.voice}:`, e);
         }
     }
 
     if (audioBuffers.length === 0) return null;
 
+    // 5. Stitching
     const PAUSE_SAMPLES = Math.floor(pauseDuration * ctx.sampleRate);
     
     let totalLength = 0;
