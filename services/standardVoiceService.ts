@@ -46,20 +46,18 @@ function getOptimizedLocale(voiceId: string): string {
 }
 
 /**
- * Detects if text is predominantly English/Latin to prevent Accent Mismatch.
+ * Detects if text is predominantly English/Latin.
  */
 function isTextEnglish(text: string): boolean {
     const latinMatch = text.match(/[a-zA-Z]/g);
     const arabicMatch = text.match(/[\u0600-\u06FF]/g);
-    
     const latinCount = latinMatch ? latinMatch.length : 0;
     const arabicCount = arabicMatch ? arabicMatch.length : 0;
-
     return latinCount > arabicCount && latinCount > 3;
 }
 
 /**
- * Calls the backend API to generate speech using Microsoft Azure AI Speech (Neural).
+ * Calls the backend API to generate speech.
  */
 export async function generateStandardSpeech(
     text: string,
@@ -70,9 +68,8 @@ export async function generateStandardSpeech(
     try {
         let backendVoiceId = getBackendVoiceId(voiceId);
         
-        // --- LANGUAGE GUARD (ACCENT FIX) ---
+        // --- LANGUAGE GUARD ---
         if (backendVoiceId.startsWith('ar-') && isTextEnglish(text)) {
-            console.warn(`Language Mismatch: Swapping to en-US-AndrewNeural.`);
             backendVoiceId = 'en-US-AndrewNeural'; 
         } else if (backendVoiceId.startsWith('en-') && !isTextEnglish(text) && text.trim().length > 0) {
              const arabicMatch = text.match(/[\u0600-\u06FF]/g);
@@ -137,8 +134,7 @@ export async function generateStandardSpeech(
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Azure error: ${response.status}`);
+            throw new Error(`Azure error: ${response.status}`);
         }
 
         const data = await response.json();
@@ -159,6 +155,7 @@ export async function generateMultiSpeakerStandardSpeech(
     defaultVoice: string,
     pauseDuration: number = 0.5 
 ): Promise<Uint8Array | null> {
+    // CRITICAL: Split by ANY newline character to handle single or double breaks
     const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
     if (lines.length === 0) return null;
 
@@ -166,14 +163,17 @@ export async function generateMultiSpeakerStandardSpeech(
 
     const segments: { text: string, voice: string }[] = [];
     
-    // Normalize names
     const nameA = speakers.speakerA.name.trim();
     const nameB = speakers.speakerB.name.trim();
     const nameC = speakers.speakerC?.name.trim();
     const nameD = speakers.speakerD?.name.trim();
 
-    // IMPROVED REGEX: Matches "Name:", "Name :", "Name-", or just "Name " at start of line
-    const createRegex = (name: string) => new RegExp(`^${escapeRegExp(name)}\\s*[:\\-]?\\s*`, 'i');
+    // IMPROVED REGEX: Matches "Name:", "Name :", "Name-", or "Name " at start of line
+    // Also allows for optional Markdown bolding like **Name**:
+    const createRegex = (name: string) => {
+        const escaped = escapeRegExp(name);
+        return new RegExp(`^(\\*\\*)?${escaped}(\\*\\*)?\\s*[:\\-]?\\s*`, 'i');
+    };
 
     const regexA = createRegex(nameA);
     const regexB = createRegex(nameB);
@@ -209,6 +209,7 @@ export async function generateMultiSpeakerStandardSpeech(
             currentVoice = lineVoice; 
         }
 
+        // Only add if there is text left after stripping the name
         if (lineText.length > 0) {
             segments.push({ text: lineText, voice: lineVoice });
         }
@@ -221,7 +222,6 @@ export async function generateMultiSpeakerStandardSpeech(
 
     for (const seg of segments) {
         try {
-            // Language Guard is applied automatically inside generateStandardSpeech
             const mp3Bytes = await generateStandardSpeech(seg.text, seg.voice, 0);
             if (mp3Bytes) {
                 const bufferCopy = mp3Bytes.slice(0).buffer;
@@ -229,7 +229,7 @@ export async function generateMultiSpeakerStandardSpeech(
                 audioBuffers.push(audioBuffer);
             }
         } catch (e) {
-            console.error(`Failed to generate segment for voice ${seg.voice}:`, e);
+            console.error(`Failed to generate segment:`, e);
         }
     }
 
