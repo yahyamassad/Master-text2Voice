@@ -30,37 +30,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-2.5-flash';
 
-        // STRICT SCRIPT TRANSLATION PROMPT
+        // STRICT SCRIPT TRANSLATION PROMPT (PLAIN TEXT MODE)
+        // JSON often eats newlines. Plain text instruction is safer for Scripts.
         const systemInstruction = `You are a professional Dubbing Script Translator.
-Your Goal: Translate from ${sourceLang} to ${targetLang} while PRESERVING THE EXACT STRUCTURE AND LINE BREAKS.
+Your Goal: Translate from ${sourceLang} to ${targetLang} while PRESERVING THE EXACT STRUCTURE, LINE BREAKS, AND PAUSES.
 
 INPUT CONTEXT:
 The input is a script for a multi-speaker audio engine.
 Format: "SpeakerName: Dialogue text" or just "Dialogue text".
 
 CRITICAL RULES:
-1. **Line-by-Line Strictness**: The output MUST have the EXACT same number of lines (non-empty and empty) as the input.
-2. **Preserve Speaker Names**: If a line starts with "Name:", Translate the name phonetically if needed, but KEEP the format "Name: ...". 
-3. **Preserve Empty Lines**: If the input has an empty line for a pause, the output MUST have an empty string "" at that index.
-4. **No Merging**: NEVER merge two dialogue lines into one paragraph.
-5. **No Explanations**: Return ONLY the JSON object.
-
-OUTPUT FORMAT:
-JSON Object with a "lines" array.
+1. **Line-by-Line Strictness**: The output MUST have the EXACT same number of lines as the input.
+2. **Preserve Speaker Names**: DO NOT translate the Speaker Names (e.g. keep "Yazan:", "Lana:", "Andrew:"). Only translate the dialogue after the colon.
+3. **Preserve Empty Lines**: If the input has an empty line (pause), you MUST output an empty line.
+4. **No Merging**: NEVER merge two lines into one paragraph. Keep them separate.
+5. **Output Only**: Return ONLY the translated text. No markdown, no "Here is the translation".
 
 Example Input:
-Yazan: Hello
-[empty line]
-Lana: How are you?
+Andrew: Hello there.
 
-Example Output JSON:
-{
-  "lines": [
-    "Yazan: Bonjour",
-    "",
-    "Lana: Comment ça va ?"
-  ]
-}`;
+Ryan: Hi, how are you?
+
+Example Output:
+Andrew: Bonjour.
+
+Ryan: Salut, comment ça va ?`;
 
         const apiPromise = ai.models.generateContent({
             model: MODEL_NAME,
@@ -70,7 +64,6 @@ Example Output JSON:
             },
             config: {
                 systemInstruction: systemInstruction,
-                responseMimeType: "application/json",
                 temperature: 0.1, // Low temperature for structure adherence
             }
         });
@@ -86,19 +79,12 @@ Example Output JSON:
         
         if (!rawResponse) throw new Error("Translation returned empty response.");
 
-        const cleanJsonStr = rawResponse.replace(/^```(json)?/i, '').replace(/```$/, '').trim();
-        let parsedData;
-        try {
-            parsedData = JSON.parse(cleanJsonStr);
-        } catch (e) {
-            throw new Error("Invalid JSON structure from translation.");
-        }
+        // Cleanup markdown if present
+        let finalTranslatedText = rawResponse.replace(/^```(json|text)?/i, '').replace(/```$/, '').trim();
 
-        let translatedLines = parsedData.lines;
-        if (!Array.isArray(translatedLines)) throw new Error("Invalid format received.");
-
-        // Join with newlines to reconstruct the visual text block
-        const finalTranslatedText = translatedLines.join('\n');
+        // Ensure we explicitly add double newlines if the model returned single newlines for gaps
+        // This heuristic checks if lines look like "Name:" and ensures they have spacing if the original had spacing
+        // For now, we rely on the Prompt's strictness.
 
         res.setHeader('Content-Type', 'application/json');
         return res.status(200).json({
