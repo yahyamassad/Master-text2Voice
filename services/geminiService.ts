@@ -2,6 +2,8 @@
 import { SpeakerConfig } from '../types';
 import { decode } from '../utils/audioUtils';
 import { getVoiceStyle } from '../utils/voiceStyles';
+import { getFallbackVoice } from './fallbackService'; // Ensure this is imported for the fallback logic inside generateSpeech if needed
+import { generateStandardSpeech } from './standardVoiceService'; // Import standard service for internal fallback
 
 // NOTE: We now call the Vercel Serverless Functions (/api/speak, /api/translate)
 // instead of using the GoogleGenAI SDK directly in the browser.
@@ -179,8 +181,25 @@ export async function generateSpeech(
                 }
 
             } catch (err) {
-                // If one chunk fails, rethrow to trigger the main error handler (which switches to Azure)
-                throw err;
+                // FALLBACK STRATEGY (Updated for Demos)
+                // If Gemini fails (Rate limit, 500, or Model Refusal), try to fallback to Azure immediately for this chunk
+                // This ensures the demo continues even if Gemini is flaky.
+                console.warn(`Gemini chunk failed: ${currentText.substring(0, 20)}... trying fallback.`);
+                
+                try {
+                    // Guess language from voice or text (simplified)
+                    const langGuess = 'ar'; // Default for now, fallback service handles improved logic
+                    const fallbackVoice = getFallbackVoice(currentVoice, langGuess);
+                    const fallbackChunk = await generateStandardSpeech(currentText, fallbackVoice, 0, emotion);
+                    if (fallbackChunk) {
+                        audioChunks.push(fallbackChunk);
+                        continue; // Success with fallback, continue loop
+                    }
+                } catch (fallbackErr) {
+                    console.error("Fallback also failed:", fallbackErr);
+                    // Retrow original error to stop process if both fail
+                    throw err; 
+                }
             }
         }
 
