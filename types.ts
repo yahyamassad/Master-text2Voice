@@ -50,7 +50,6 @@ export const MICROSOFT_AZURE_VOICES: StandardVoice[] = [
     { name: 'ar-KW-FahedNeural', label: 'Fahed (Kuwaiti)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-KW-NouraNeural', label: 'Noura (Kuwaiti)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-QA-AmalNeural', label: 'Amal (Qatari)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
-    // Fix: Updated label to Muath to avoid confusion with Moza (female)
     { name: 'ar-QA-MoazNeural', label: 'Muath (Qatari - مُعاذ)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-BH-AliNeural', label: 'Ali (Bahraini)', lang: 'ar', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-BH-LailaNeural', label: 'Laila (Bahraini)', lang: 'ar', gender: 'Female', type: 'Azure Neural' },
@@ -158,108 +157,129 @@ export interface MusicTrack {
     duration: number;
 }
 
-// --- STRICT LIMITS DEFINITION BASED ON PROVIDED TABLE ---
+// --- STRICT LIMITS DEFINITION ---
 export const PLAN_LIMITS = {
-    visitor: { // Treated as unregistered FREE
-        dailyLimit: 200, 
+    visitor: { // VISITOR: Strictly Limited
+        dailyLimit: 350, 
         totalTrialLimit: 5000,
         trialDays: 30,
-        allowDownloads: true, // MP3
+        allowDownloads: true, // MP3 only
         allowWav: false,
-        allowGemini: true, // Limited voices
+        allowGemini: false, // BLOCKED
         allowStudio: false,
         allowMultiSpeaker: false,
-        allowEffects: false,
-        allowTashkeel: false,
-        allowMic: false,
-        allowMusicUpload: false,
-        allowUpload: false, // Voice file
-    },
-    free: { // Matches "مشترك مجاني"
-        dailyLimit: 200,
-        totalTrialLimit: 5000, 
-        trialDays: 30,
-        allowDownloads: true, // MP3 5 mins
-        allowWav: false,
-        allowGemini: true, // 2 Voices
-        allowStudio: false, // Presets & Ducking only
-        allowMultiSpeaker: false,
-        allowEffects: false,
+        allowEffects: false, // Emotions blocked
+        allowSpeed: false,   // Blocked
+        allowPause: false,   // Blocked
+        allowOpenProject: false, // Blocked
         allowTashkeel: false,
         allowMic: false,
         allowMusicUpload: false,
         allowUpload: false,
     },
-    onedollar: { // "تجربة مرة واحدة"
-        dailyLimit: Infinity, // No daily limit, only total
+    free: { // FREE (Registered): 4 Voices Only
+        dailyLimit: 1000, // Increased slightly for registered
+        totalTrialLimit: 5000, 
+        trialDays: 30,
+        allowDownloads: true, 
+        allowWav: false,
+        allowGemini: false, // BLOCKED
+        allowStudio: true, // Mixer accessible
+        allowMultiSpeaker: false,
+        allowEffects: false, // Emotions blocked
+        allowSpeed: false,   // Blocked
+        allowPause: false,   // Blocked
+        allowOpenProject: false, // Blocked
+        allowTashkeel: false,
+        allowMic: false,
+        allowMusicUpload: true,
+        allowUpload: false,
+    },
+    onedollar: { 
+        dailyLimit: Infinity, 
         totalTrialLimit: 10000, 
         trialDays: 3, 
-        allowDownloads: true, // 10 mins
+        allowDownloads: true, 
         allowWav: true, 
-        allowGemini: true, // 6 Voices (Actually full access for student plan per instructions except upload)
-        allowStudio: true, // Full mixer
-        allowMultiSpeaker: true, // 2 Voices
-        allowEffects: true,
+        allowGemini: true, 
+        allowStudio: true, 
+        allowMultiSpeaker: true, 
+        allowEffects: true, // Allowed
+        allowSpeed: true,   // Allowed
+        allowPause: true,   // Allowed
+        allowOpenProject: true,
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
-        allowUpload: false, // EXPLICITLY DISABLED: No external voice file
+        allowUpload: false, 
     },
-    basic: { // "Basic"
+    basic: { 
         dailyLimit: Infinity,
         totalTrialLimit: 75000, 
         trialDays: 30,
         allowDownloads: true,
-        allowWav: false, // X in table
-        allowGemini: true, // 50 Voices
-        allowStudio: false, // Mixer X
-        allowMultiSpeaker: false, // X
-        allowEffects: false, // X
+        allowWav: false, 
+        allowGemini: true, 
+        allowStudio: false, 
+        allowMultiSpeaker: false, 
+        allowEffects: false, 
+        allowSpeed: false,
+        allowPause: false,
+        allowOpenProject: false,
         allowTashkeel: true,
-        allowMic: false, // X
-        allowMusicUpload: true, // Music file check is Green in Basic
+        allowMic: false, 
+        allowMusicUpload: true, 
         allowUpload: true,
     },
-    creator: { // "Creator"
+    creator: { 
         dailyLimit: Infinity,
         totalTrialLimit: 150000, 
         trialDays: 30,
         allowDownloads: true,
-        allowWav: false, // X in table
-        allowGemini: true, // 50 Voices
-        allowStudio: true, // Mixer Check
-        allowMultiSpeaker: true, // 2 Voices
+        allowWav: false, 
+        allowGemini: true, 
+        allowStudio: true, 
+        allowMultiSpeaker: true, 
         allowEffects: true,
+        allowSpeed: true,
+        allowPause: true,
+        allowOpenProject: true,
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
         allowUpload: true,
     },
-    gold: { // "Gold"
+    gold: { 
         dailyLimit: Infinity,
         totalTrialLimit: 300000, 
         trialDays: 30,
         allowDownloads: true,
-        allowWav: true, // Check
-        allowGemini: true, // 50 Voices
+        allowWav: true, 
+        allowGemini: true, 
         allowStudio: true,
-        allowMultiSpeaker: true, // 3 Voices
+        allowMultiSpeaker: true, 
         allowEffects: true,
+        allowSpeed: true,
+        allowPause: true,
+        allowOpenProject: true,
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
         allowUpload: true,
     },
-    professional: { // "Professional"
+    professional: { 
         dailyLimit: Infinity,
         totalTrialLimit: 750000, 
-        trialDays: 30, // Monthly
+        trialDays: 30, 
         allowDownloads: true,
         allowWav: true,
-        allowGemini: true, // 50 Voices
+        allowGemini: true, 
         allowStudio: true,
-        allowMultiSpeaker: true, // 4 Voices
+        allowMultiSpeaker: true, 
         allowEffects: true,
+        allowSpeed: true,
+        allowPause: true,
+        allowOpenProject: true,
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
@@ -275,6 +295,9 @@ export const PLAN_LIMITS = {
         allowStudio: true,
         allowMultiSpeaker: true,
         allowEffects: true,
+        allowSpeed: true,
+        allowPause: true,
+        allowOpenProject: true,
         allowTashkeel: true,
         allowMic: true,
         allowMusicUpload: true,
