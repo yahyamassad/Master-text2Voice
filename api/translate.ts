@@ -31,7 +31,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Configurable Model Name for Stability
         const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-2.5-flash';
 
-        const systemInstruction = `You are a professional translator. Translate user input from ${sourceLang} to ${targetLang}. Output ONLY the translated text.`;
+        // STRICT FORMATTING INSTRUCTION
+        // We explicitly tell the model that this is a script/dialogue and formatting is critical.
+        const systemInstruction = `You are a professional translator specializing in script and dialogue translation. 
+Translate the user input from ${sourceLang} to ${targetLang}.
+
+CRITICAL FORMATTING RULES (MUST FOLLOW):
+1. **PRESERVE LINE BREAKS**: Do NOT merge lines. If the source text has a newline, the translated text MUST have a newline at the exact same position.
+2. **DIALOGUE STRUCTURE**: If a line follows the format "Name: Text", preserve this structure in the translation (e.g., "TranslatedName: TranslatedText"). Do not remove the colon (:).
+3. **EMPTY LINES**: Keep empty lines exactly as they are (used for pauses).
+4. **NO MARKDOWN**: Output plain text only. Do not wrap in markdown code blocks.
+
+Example Input:
+John: Hello
+[newline]
+Jane: Hi there
+
+Example Output:
+جون: مرحباً
+[newline]
+جين: أهلاً بك`;
 
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
         
@@ -43,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
             config: {
                 systemInstruction: systemInstruction,
-                temperature: 0.3,
+                temperature: 0.1, // Low temperature to reduce "creativity" in layout
             }
         });
 
@@ -63,7 +82,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         let cleanText = translatedText.trim();
-        cleanText = cleanText.replace(/^```(json)?/i, '').replace(/```$/, '');
+        // Remove markdown code blocks if the model ignored instructions
+        cleanText = cleanText.replace(/^```(json|text)?/i, '').replace(/```$/, '');
 
         res.setHeader('Content-Type', 'application/json');
         return res.status(200).json({
