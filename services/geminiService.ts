@@ -118,6 +118,7 @@ export async function generateSpeech(
             let currentVoice = voice;
             let chunkSpeakers = speakers; 
 
+            // --- MULTI-SPEAKER MAPPING LOGIC ---
             if (speakers) {
                 const nameA = speakers.speakerA.name.trim();
                 const nameB = speakers.speakerB.name.trim();
@@ -131,18 +132,26 @@ export async function generateSpeech(
 
                 if (regexA.test(p)) {
                     currentVoice = speakers.speakerA.voice;
+                    // FIX: If assigned voice is not valid Gemini (e.g. user kept Azure settings), force distinct Male default
+                    if (!GEMINI_VOICES.includes(currentVoice)) currentVoice = 'Puck'; 
                     currentText = p.replace(regexA, '').trim(); 
                     chunkSpeakers = undefined; 
                 } else if (regexB.test(p)) {
                     currentVoice = speakers.speakerB.voice;
+                    // FIX: If assigned voice is not valid Gemini, force distinct Female default
+                    if (!GEMINI_VOICES.includes(currentVoice)) currentVoice = 'Kore'; 
                     currentText = p.replace(regexB, '').trim();
                     chunkSpeakers = undefined; 
                 } else if (regexC && regexC.test(p) && speakers.speakerC) {
                     currentVoice = speakers.speakerC.voice;
+                    // FIX: Fallback C -> Zephyr (Female)
+                    if (!GEMINI_VOICES.includes(currentVoice)) currentVoice = 'Zephyr';
                     currentText = p.replace(regexC, '').trim();
                     chunkSpeakers = undefined;
                 } else if (regexD && regexD.test(p) && speakers.speakerD) {
                     currentVoice = speakers.speakerD.voice;
+                    // FIX: Fallback D -> Fenrir (Male)
+                    if (!GEMINI_VOICES.includes(currentVoice)) currentVoice = 'Fenrir';
                     currentText = p.replace(regexD, '').trim();
                     chunkSpeakers = undefined;
                 }
@@ -151,11 +160,10 @@ export async function generateSpeech(
             // Skip empty lines
             if (!currentText) continue;
 
-            // --- CRITICAL FIX: VOICE VALIDATION ---
-            // Ensure we never send an Azure voice name (e.g. ar-AE-HamdanNeural) to Gemini API.
-            // This happens if user has "Multi-Speaker" configured with Azure voices but switches main engine to Gemini.
+            // --- FINAL FALLBACK ---
+            // If we are here, currentVoice implies the main narrator voice or a successfully mapped speaker.
+            // If it is STILL invalid (e.g. main voice is Azure but we called this service), default to Puck.
             if (!GEMINI_VOICES.includes(currentVoice)) {
-                // If the main 'voice' arg is valid Gemini, fallback to it. Otherwise hard default to 'Puck'.
                 currentVoice = GEMINI_VOICES.includes(voice) ? voice : 'Puck';
             }
 
