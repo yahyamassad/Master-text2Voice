@@ -2,12 +2,12 @@
 import { SpeakerConfig } from '../types';
 import { decode } from '../utils/audioUtils';
 import { getVoiceStyle } from '../utils/voiceStyles';
-import { getFallbackVoice } from './fallbackService'; // Ensure this is imported for the fallback logic inside generateSpeech if needed
-import { generateStandardSpeech } from './standardVoiceService'; // Import standard service for internal fallback
+// Removed fallback imports to enforce strict mode as requested
+// import { getFallbackVoice } from './fallbackService'; 
+// import { generateStandardSpeech } from './standardVoiceService'; 
 
 // NOTE: We now call the Vercel Serverless Functions (/api/speak, /api/translate)
 // instead of using the GoogleGenAI SDK directly in the browser.
-// This secures the API Key and prevents 'process is not defined' errors in Vite.
 
 /**
  * Helper to pause execution for a set time (used for Rate Limit protection).
@@ -30,15 +30,11 @@ async function generateAudioChunk(
     let promptText = text;
     
     // Check if the 'emotion' matches one of our new Voice Styles
-    // If it's a simple legacy emotion (Happy, Sad), we use the old format.
-    // If it's a Style ID (epic_poet, news_anchor), we prepend the full prompt instruction.
     if (emotion && emotion !== 'Default') {
         const style = getVoiceStyle(emotion);
         if (style) {
-            // It's a Persona!
             promptText = `[Instruction: ${style.prompt}] ${text}`;
         } else {
-            // Legacy basic emotion
             promptText = `(Emotion: ${emotion}) ${text}`;
         }
     }
@@ -50,14 +46,15 @@ async function generateAudioChunk(
             body: JSON.stringify({
                 text: promptText,
                 voice: voice,
-                speakers: speakers, // Pass speakers config to backend
-                seed: seed // Pass seed if supported by backend
+                speakers: speakers, 
+                seed: seed 
             }),
             signal: signal
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
+            // Pass the specific error message from the backend (e.g. Safety Block)
             throw new Error(errorData.error || `Server error: ${response.status}`);
         }
 
@@ -102,15 +99,6 @@ export async function generateSpeech(
 ): Promise<Uint8Array | null> {
     
     try {
-        // CRITICAL FIX FOR MULTI-SPEAKER PARSING:
-        // If multi-speaker mode is active (`speakers` is defined), we MUST split by SINGLE newline (\n).
-        // This ensures that adjacent lines like:
-        // "Yazan: Hello"
-        // "Lana: Hi"
-        // ...are treated as separate chunks, allowing the code to detect the speaker at the start of the line.
-        //
-        // If it's single speaker mode, we stick to the Double Newline (\n\n) rule to allow users 
-        // to format paragraphs without forcing a pause at every line break.
         const PARAGRAPH_DELIMITER = speakers ? /\r?\n/ : /\r?\n\s*\r?\n/;
 
         // Split paragraphs first
@@ -120,13 +108,9 @@ export async function generateSpeech(
 
         if (paragraphs.length === 0) return null;
 
-        // MULTI-SPEAKER LOGIC & RATE LIMIT PROTECTION
-        // We now process sequentially instead of Promise.all to avoid hitting Gemini's RPM limit.
-        
         const audioChunks: Uint8Array[] = [];
 
         for (let i = 0; i < paragraphs.length; i++) {
-            // Check abort signal inside loop
             if (signal?.aborted) throw new Error('Aborted');
 
             const p = paragraphs[i];
@@ -140,7 +124,6 @@ export async function generateSpeech(
                 const nameC = speakers.speakerC?.name.trim();
                 const nameD = speakers.speakerD?.name.trim();
                 
-                // Regex to match "Name:" or "Name :" at start of string, case insensitive
                 const regexA = new RegExp(`^${escapeRegExp(nameA)}\\s*:\\s*`, 'i');
                 const regexB = new RegExp(`^${escapeRegExp(nameB)}\\s*:\\s*`, 'i');
                 const regexC = nameC ? new RegExp(`^${escapeRegExp(nameC)}\\s*:\\s*`, 'i') : null;
@@ -168,49 +151,25 @@ export async function generateSpeech(
             // Skip empty lines
             if (!currentText) continue;
 
-            try {
-                // Generate Audio Chunk
-                const chunk = await generateAudioChunk(currentText, currentVoice, emotion, chunkSpeakers, signal, seed);
-                if (chunk) audioChunks.push(chunk);
+            // DIRECT CALL - NO FALLBACK WRAPPER
+            // If this fails, the error bubbles up to the UI so the user sees "Safety Block" or "Overloaded"
+            // instead of getting Azure voice unexpectedly.
+            const chunk = await generateAudioChunk(currentText, currentVoice, emotion, chunkSpeakers, signal, seed);
+            if (chunk) audioChunks.push(chunk);
 
-                // --- SAFETY DELAY ---
-                // Add a small pause between API calls to prevent "Too Many Requests" (429) errors.
-                // Especially important for long dialogues in demos.
-                if (i < paragraphs.length - 1) {
-                    await delay(800); // 0.8s wait + processing time ≈ safe RPM
-                }
-
-            } catch (err) {
-                // FALLBACK STRATEGY (Updated for Demos)
-                // If Gemini fails (Rate limit, 500, or Model Refusal), try to fallback to Azure immediately for this chunk
-                // This ensures the demo continues even if Gemini is flaky.
-                console.warn(`Gemini chunk failed: ${currentText.substring(0, 20)}... trying fallback.`);
-                
-                try {
-                    // Guess language from voice or text (simplified)
-                    const langGuess = 'ar'; // Default for now, fallback service handles improved logic
-                    const fallbackVoice = getFallbackVoice(currentVoice, langGuess);
-                    const fallbackChunk = await generateStandardSpeech(currentText, fallbackVoice, 0, emotion);
-                    if (fallbackChunk) {
-                        audioChunks.push(fallbackChunk);
-                        continue; // Success with fallback, continue loop
-                    }
-                } catch (fallbackErr) {
-                    console.error("Fallback also failed:", fallbackErr);
-                    // Retrow original error to stop process if both fail
-                    throw err; 
-                }
+            // Safety Delay
+            if (i < paragraphs.length - 1) {
+                await delay(800); 
             }
         }
 
-        // Gemini is strictly 24000Hz
+        // Stitching logic
         const bytesPerSecond = 48000; // 24k samples * 2 bytes
         const silenceLengthBytes = Math.floor(bytesPerSecond * pauseDuration);
         const alignedSilenceLength = silenceLengthBytes % 2 === 0 ? silenceLengthBytes : silenceLengthBytes + 1;
         const silenceBuffer = new Uint8Array(alignedSilenceLength).fill(0);
 
         let totalSize = 0;
-        
         if (audioChunks.length === 0) return null;
 
         audioChunks.forEach((chunk, index) => {
