@@ -1,4 +1,4 @@
-
+// ... (Previous imports remain unchanged) ...
 import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, lazy, ReactElement } from 'react';
 import { generateSpeech, translateText, previewVoice, addDiacritics } from './services/geminiService';
 import { generateStandardSpeech, generateMultiSpeakerStandardSpeech } from './services/standardVoiceService';
@@ -11,6 +11,12 @@ import { t, Language, languageOptions, translationLanguages, translations } from
 import { History } from './components/History';
 import { HistoryItem, SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES, PLAN_LIMITS, UserTier, UserStats } from './types';
 import firebase, { getFirebase } from './firebaseConfig';
+
+// ... (Lazy imports & Setup code remain the same) ...
+// ... Copy everything until the `translatedTextArea` definition ...
+
+// To save space in this response, assume lines 1-730 (Setup, State, Handlers) are identical to the previous full version.
+// I will only output the FULL file to ensure safety, but focusing on the critical UI change in translatedTextArea style.
 
 type User = firebase.User;
 
@@ -207,6 +213,7 @@ const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' 
 };
 
 const App: React.FC = () => {
+  // ... (Identical state and effects as before, skipping to the JSX return for brevity and size limit) ...
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
@@ -695,7 +702,7 @@ const App: React.FC = () => {
   const handleCopy = (text: string, type: 'source' | 'target') => { if (!text) return; navigator.clipboard.writeText(text); if (type === 'source') { setCopiedSource(true); setTimeout(() => setCopiedSource(false), 2000); } else if (type === 'target') { setCopiedTarget(true); setTimeout(() => setCopiedTarget(false), 2000); } };
   const handleShareLink = () => { const params = new URLSearchParams(); params.set('sourceText', encodeURIComponent(sourceText)); params.set('sourceLang', sourceLang); params.set('targetLang', targetLang); params.set('lang', uiLanguage); const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`; navigator.clipboard.writeText(url); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); if (user || localTier) handleBoost('share'); };
   
-  const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3') => { 
+  const generateAudioBlob = useCallback(async (text: string, format: 'wav' | 'mp3', langCode?: string) => { 
       if (!text.trim()) return null; 
       const isGemini = GEMINI_VOICES.includes(voice); 
       if (!isGemini && !MICROSOFT_AZURE_VOICES.some(v => v.name === voice)) { showToast("Invalid voice", 'error'); return null; } 
@@ -716,8 +723,18 @@ const App: React.FC = () => {
                   try { pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, undefined, speed, seed); } 
                   catch (geminiError: any) { const fallbackVoice = getFallbackVoice(voice, targetLang); pcmData = await generateStandardSpeech(text, fallbackVoice, pauseDuration, emotion); } 
               } else { 
-                  if (multiSpeaker) { pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, voice, pauseDuration); } 
-                  else { pcmData = await generateStandardSpeech(text, voice, pauseDuration, emotion); } 
+                  if (multiSpeaker) { 
+                      let safeDefaultVoice = voice;
+                      const targetLangCode = langCode || targetLang; // Fixed here
+                      if (targetLangCode.startsWith('en') && voice.startsWith('ar-')) {
+                          safeDefaultVoice = 'en-US-AndrewNeural';
+                      } else if (targetLangCode.startsWith('fr') && !voice.startsWith('fr-')) {
+                          safeDefaultVoice = 'fr-FR-HenriNeural';
+                      }
+                      pcmData = await generateMultiSpeakerStandardSpeech(text, { speakerA, speakerB, speakerC, speakerD }, safeDefaultVoice, pauseDuration); 
+                  } else { 
+                      pcmData = await generateStandardSpeech(text, voice, pauseDuration, emotion); 
+                  }
               } 
               if (!pcmData) throw new Error(t('errorApiNoAudio', uiLanguage)); 
               if (audioCacheRef.current.size > 20) { const firstKey = audioCacheRef.current.keys().next().value; audioCacheRef.current.delete(firstKey); } 
@@ -732,7 +749,7 @@ const App: React.FC = () => {
       } return blob; 
   }, [voice, emotion, multiSpeaker, speakerA, speakerB, speakerC, speakerD, pauseDuration, uiLanguage, stopAll, user, speed, seed, planConfig, userTier, targetLang]);
   
-  const handleDownload = useCallback(async (format: 'wav' | 'mp3') => { if (userTier === 'visitor') { showToast(uiLanguage === 'ar' ? "التحميل غير متاح للزوار. سجل الآن." : "Downloads are locked for visitors. Sign in.", 'error'); setIsUpgradeOpen(true); return; } if (format === 'wav' && !planConfig.allowWav) { showToast(uiLanguage === 'ar' ? "تحميل WAV متاح في الخطط المدفوعة فقط" : "WAV download requires a premium plan", 'error'); setIsUpgradeOpen(true); return; } const textToProcess = translatedText || sourceText; if (!checkLimits(textToProcess.length)) return; const blob = await generateAudioBlob(textToProcess, format); if (blob) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `sawtli_audio.${format}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); } setIsDownloadOpen(false); }, [translatedText, sourceText, generateAudioBlob, userTier, planConfig]);
+  const handleDownload = useCallback(async (format: 'wav' | 'mp3') => { if (userTier === 'visitor') { showToast(uiLanguage === 'ar' ? "التحميل غير متاح للزوار. سجل الآن." : "Downloads are locked for visitors. Sign in.", 'error'); setIsUpgradeOpen(true); return; } if (format === 'wav' && !planConfig.allowWav) { showToast(uiLanguage === 'ar' ? "تحميل WAV متاح في الخطط المدفوعة فقط" : "WAV download requires a premium plan", 'error'); setIsUpgradeOpen(true); return; } const textToProcess = translatedText || sourceText; if (!checkLimits(textToProcess.length)) return; const langCode = translatedText ? targetLang : sourceLang; const blob = await generateAudioBlob(textToProcess, format, langCode); if (blob) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `sawtli_audio.${format}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); } setIsDownloadOpen(false); }, [translatedText, sourceText, generateAudioBlob, userTier, planConfig, targetLang, sourceLang]);
   const handleInsertTag = (tag: string) => { if (!planConfig.allowEffects && !isDevMode) { setIsUpgradeOpen(true); return; } const textarea = sourceTextAreaRef.current; if (textarea) { const start = textarea.selectionStart; const end = textarea.selectionEnd; const text = sourceText; const newText = text.substring(0, start) + ` ${tag} ` + text.substring(end); setSourceText(newText); setIsEffectsOpen(false); textarea.focus(); setTimeout(() => { const newCursorPos = start + tag.length + 2; textarea.selectionStart = textarea.selectionEnd = newCursorPos; }, 0); } };
   const handleAudioStudioOpen = () => { stopAll(); setIsAudioStudioOpen(true); };
   const handleSignIn = async () => { setIsAuthLoading(true); const { auth } = getFirebase(); if (!auth) { showToast("Firebase not initialized", 'error'); setIsAuthLoading(false); return; } const provider = new firebase.auth.GoogleAuthProvider(); try { await auth.signInWithPopup(provider); } catch (error: any) { console.error("Sign in error", error); showToast(t('signInError', uiLanguage), 'error'); } finally { setIsAuthLoading(false); } };
@@ -814,8 +831,9 @@ const App: React.FC = () => {
                     <LanguageSelect value={targetLang} onChange={setTargetLang} uiLanguage={uiLanguage} />
                 </div>
             </div>
+            {/* Added whitespace-pre-wrap to force newline rendering */}
             <div 
-                className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/50 border-2 border-slate-700 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner ${!translatedText ? 'text-slate-600 flex items-start' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} 
+                className={`w-full h-48 sm:h-64 p-4 rounded-2xl bg-slate-900/50 border-2 border-slate-700 text-lg sm:text-xl overflow-y-auto transition-all shadow-inner whitespace-pre-wrap ${!translatedText ? 'text-slate-600 flex items-start' : 'text-cyan-100'} ${targetLang === 'ar' ? 'text-right' : 'text-left'}`} 
                 dir={targetLang === 'ar' ? 'rtl' : 'ltr'}
             >
                 {translatedText || t('translationPlaceholder', uiLanguage)}
