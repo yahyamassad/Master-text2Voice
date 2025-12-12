@@ -150,7 +150,7 @@ export async function generateStandardSpeech(
 }
 
 /**
- * Generates multi-speaker audio by aggressively parsing "Name: Text" patterns.
+ * Generates multi-speaker audio by aggressively parsing "Name: Text" patterns using simple string splitting.
  */
 export async function generateMultiSpeakerStandardSpeech(
     text: string,
@@ -159,67 +159,88 @@ export async function generateMultiSpeakerStandardSpeech(
     pauseDuration: number = 0.5 
 ): Promise<Uint8Array | null> {
     
-    // 1. Normalize Inputs
+    // 1. Normalize Inputs (Handle different newline types)
     const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
     if (lines.length === 0) return null;
 
     const segments: { text: string, voice: string }[] = [];
     
-    // Prepare standardized speaker names for comparison (lowercase)
+    // Prepare map: Normalized Name -> Voice ID
+    // We trim and lowercase names for better matching
     const speakerMap: Record<string, string> = {};
-    if (speakers.speakerA.name) speakerMap[speakers.speakerA.name.toLowerCase().trim()] = speakers.speakerA.voice;
-    if (speakers.speakerB.name) speakerMap[speakers.speakerB.name.toLowerCase().trim()] = speakers.speakerB.voice;
-    if (speakers.speakerC?.name) speakerMap[speakers.speakerC.name.toLowerCase().trim()] = speakers.speakerC.voice;
-    if (speakers.speakerD?.name) speakerMap[speakers.speakerD.name.toLowerCase().trim()] = speakers.speakerD.voice;
+    const addSpeaker = (s?: SpeakerConfig) => {
+        if (s && s.name && s.name.trim()) {
+            speakerMap[s.name.trim().toLowerCase()] = s.voice;
+        }
+    };
+    addSpeaker(speakers.speakerA);
+    addSpeaker(speakers.speakerB);
+    addSpeaker(speakers.speakerC);
+    addSpeaker(speakers.speakerD);
 
     let currentVoice = defaultVoice; 
 
-    // 2. PARSING LOOP
-    // We use a specific regex that captures the Name and the Dialogue separately.
-    // Regex: Start of line, (Capture Name), optional spaces, Colon/Hyphen, optional spaces, (Capture Content)
-    // Matches: "Andrew: Hello", "Ryan : Hi", "**Andrew**: Hello"
-    const strictSplitRegex = /^(\*\*|['"]?)((?:(?!\*\*|['"]?[:\-]).)+)(\*\*|['"]?)?\s*[:\-]\s*(.*)/i;
-
+    // 2. ROBUST PARSING LOOP
+    // Instead of Regex, we use simple IndexOf to find the separator.
+    // This is safer against unicode issues and varying formatting.
     for (const line of lines) {
-        let lineText = line.trim();
-        let matchedVoice = currentVoice;
-        let isSpeakerChange = false;
+        // Normalize invisible characters like non-breaking spaces
+        const lineText = line.replace(/\u00A0/g, ' ').trim();
+        if (!lineText) continue;
 
-        const match = lineText.match(strictSplitRegex);
-
-        if (match) {
-            // We found a "Name: Text" pattern!
-            const rawName = match[2].trim(); // Group 2 is the name part
-            const content = match[4].trim(); // Group 4 is the actual text
+        let content = lineText;
+        
+        // Find first colon or hyphen which usually separates Name from Dialogue
+        // We prioritize Colon (:) as it's standard.
+        const colonIndex = lineText.indexOf(':');
+        
+        // Safety Check: A name is usually short (e.g., < 40 chars). 
+        // If the colon is at index 100, it's probably just a sentence with a colon, not a speaker label.
+        if (colonIndex > 0 && colonIndex < 40) {
+            const rawName = lineText.substring(0, colonIndex).trim();
+            const textPart = lineText.substring(colonIndex + 1).trim();
             
-            // Clean the name (remove asterisks, lowercase)
-            const cleanName = rawName.replace(/[\*]/g, '').toLowerCase();
+            // Normalize found name for comparison
+            // Remove markdown bold (**), quotes, etc.
+            const cleanName = rawName.replace(/[*_"'`]/g, '').toLowerCase();
 
-            // Check if this name matches one of our configured speakers
+            // Try to find a voice match
+            let matchedVoice = null;
+
+            // Direct Match
             if (speakerMap[cleanName]) {
                 matchedVoice = speakerMap[cleanName];
-                currentVoice = matchedVoice; // Update context
-                isSpeakerChange = true;
-            } else {
-                // Name found but not in config?
-                // We still strip the name, but keep the current voice (or default).
-                // Or we could try partial matching.
-                // For now, let's keep currentVoice but USE THE CONTENT ONLY.
+            } 
+            // Fuzzy Match (e.g. Config="Yazan" matches Script="Yazan (Happy)")
+            else {
+                for (const confName of Object.keys(speakerMap)) {
+                    // Check if ScriptName starts with ConfigName (e.g. "Yazan Happy" starts with "Yazan")
+                    // OR ConfigName starts with ScriptName (rare but possible)
+                    if (cleanName.startsWith(confName) || confName.startsWith(cleanName)) {
+                        matchedVoice = speakerMap[confName];
+                        break;
+                    }
+                }
             }
 
-            // CRITICAL: We use 'content' (the text AFTER the colon), stripping the name.
-            lineText = content; 
+            if (matchedVoice) {
+                currentVoice = matchedVoice;
+            }
+
+            // CRITICAL: Regardless of whether we matched a voice or not, 
+            // if it looks like a script line (ShortName: ...), we STRIP the name.
+            // This prevents "Yazan: ..." from being read aloud even if the voice mapping failed.
+            content = textPart;
         }
 
-        // If line is empty after stripping name (e.g. "Andrew: "), skip
-        if (lineText.length > 0) {
-            segments.push({ text: lineText, voice: currentVoice });
+        if (content.length > 0) {
+            segments.push({ text: content, voice: currentVoice });
         }
     }
 
     if (segments.length === 0) return null;
 
-    // 3. Generate Audio
+    // 3. Generate Audio for each segment
     const audioBuffers: AudioBuffer[] = [];
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
 
