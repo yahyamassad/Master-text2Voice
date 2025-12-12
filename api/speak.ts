@@ -31,7 +31,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const client = new GoogleGenAI({ apiKey });
     const MODEL_NAME = process.env.GEMINI_MODEL_TTS || 'gemini-2.5-flash-preview-tts';
-    const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
+    
+    // --- SMART VOICE VALIDATION ---
+    // If the incoming voice is an Azure voice (e.g. ar-AE-HamdanNeural), force fallback to a valid Gemini voice.
+    // This prevents the 400 INVALID_ARGUMENT error when users have mixed settings.
+    const GEMINI_VALID_VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
+    
+    let selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
+    
+    // Check if selected voice is valid for Gemini. If not, default to Puck.
+    if (!GEMINI_VALID_VOICES.includes(selectedVoiceName)) {
+        console.warn(`Invalid Gemini Voice: ${selectedVoiceName}. Defaulting to Puck.`);
+        selectedVoiceName = 'Puck';
+    }
 
     // --- SYSTEM INSTRUCTION (Persona & Gender) ---
     let systemInstruction = "You are a professional voice actor. Read the text naturally and clearly.";
