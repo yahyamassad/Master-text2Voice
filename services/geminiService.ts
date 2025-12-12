@@ -8,6 +8,11 @@ import { getVoiceStyle } from '../utils/voiceStyles';
 // This secures the API Key and prevents 'process is not defined' errors in Vite.
 
 /**
+ * Helper to pause execution for a set time (used for Rate Limit protection).
+ */
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
  * Helper function to call the backend TTS API for a single chunk of text.
  */
 async function generateAudioChunk(
@@ -113,14 +118,18 @@ export async function generateSpeech(
 
         if (paragraphs.length === 0) return null;
 
-        // MULTI-SPEAKER LOGIC
-        // If speakers are defined, we process each paragraph to see if it matches a speaker name
-        const audioPromises = paragraphs.map(p => {
+        // MULTI-SPEAKER LOGIC & RATE LIMIT PROTECTION
+        // We now process sequentially instead of Promise.all to avoid hitting Gemini's RPM limit.
+        
+        const audioChunks: Uint8Array[] = [];
+
+        for (let i = 0; i < paragraphs.length; i++) {
+            // Check abort signal inside loop
+            if (signal?.aborted) throw new Error('Aborted');
+
+            const p = paragraphs[i];
             let currentText = p;
             let currentVoice = voice;
-            
-            // By default, pass undefined speakers to chunk if we determine the voice here,
-            // so backend uses 'currentVoice'.
             let chunkSpeakers = speakers; 
 
             if (speakers) {
@@ -154,13 +163,26 @@ export async function generateSpeech(
                 }
             }
 
-            // If a line was just a name with no text (e.g. "Yazan: "), currentText might be empty. Skip it.
-            if (!currentText) return Promise.resolve(null);
+            // Skip empty lines
+            if (!currentText) continue;
 
-            return generateAudioChunk(currentText, currentVoice, emotion, chunkSpeakers, signal, seed);
-        });
+            try {
+                // Generate Audio Chunk
+                const chunk = await generateAudioChunk(currentText, currentVoice, emotion, chunkSpeakers, signal, seed);
+                if (chunk) audioChunks.push(chunk);
 
-        const audioChunks = await Promise.all(audioPromises);
+                // --- SAFETY DELAY ---
+                // Add a small pause between API calls to prevent "Too Many Requests" (429) errors.
+                // Especially important for long dialogues in demos.
+                if (i < paragraphs.length - 1) {
+                    await delay(800); // 0.8s wait + processing time ≈ safe RPM
+                }
+
+            } catch (err) {
+                // If one chunk fails, rethrow to trigger the main error handler (which switches to Azure)
+                throw err;
+            }
+        }
 
         // Gemini is strictly 24000Hz
         const bytesPerSecond = 48000; // 24k samples * 2 bytes
@@ -169,13 +191,12 @@ export async function generateSpeech(
         const silenceBuffer = new Uint8Array(alignedSilenceLength).fill(0);
 
         let totalSize = 0;
-        const validChunks = audioChunks.filter(c => c !== null) as Uint8Array[];
         
-        if (validChunks.length === 0) return null;
+        if (audioChunks.length === 0) return null;
 
-        validChunks.forEach((chunk, index) => {
+        audioChunks.forEach((chunk, index) => {
             totalSize += chunk.length;
-            if (index < validChunks.length - 1) {
+            if (index < audioChunks.length - 1) {
                 totalSize += alignedSilenceLength;
             }
         });
@@ -183,11 +204,11 @@ export async function generateSpeech(
         const resultBuffer = new Uint8Array(totalSize);
         let offset = 0;
 
-        validChunks.forEach((chunk, index) => {
+        audioChunks.forEach((chunk, index) => {
             resultBuffer.set(chunk, offset);
             offset += chunk.length;
 
-            if (index < validChunks.length - 1) {
+            if (index < audioChunks.length - 1) {
                 resultBuffer.set(silenceBuffer, offset);
                 offset += alignedSilenceLength;
             }
