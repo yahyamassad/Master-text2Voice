@@ -1096,7 +1096,7 @@ const App: React.FC = () => {
 
     const swapButton = (
         <div className="flex flex-col items-center justify-center gap-4 md:pt-12">
-            <button onClick={handleClearAll} className="p-2 text-slate-500 hover:text-red-400 transition-colors rounded-full hover:bg-slate-800/50" title="Clear All">
+            <button onClick={handleClearAll} className="p-2 text-slate-500 hover:text-red-400 transition-colors rounded-full hover:bg-slate-800/50" title={t('clearAll', uiLanguage)}>
                 <TrashIcon className="w-5 h-5" />
             </button>
             <button onClick={swapLanguages} className="p-3 bg-slate-800 hover:bg-cyan-600 text-slate-400 hover:text-white rounded-full border border-slate-700 hover:border-cyan-500 transition-all shadow-lg active:scale-90 group" title={t('swapLanguages', uiLanguage)}>
@@ -1132,12 +1132,9 @@ const App: React.FC = () => {
         const isPausedState = isActive && isPaused;
         const isLoadingState = isLoading && activePlayer === target;
         
-        // Corrected Labels
+        // Corrected Labels Logic: No hardcoding, rely on translation file
         let labelKey = target === 'source' ? 'speakSource' : 'speakTarget';
-        // Override with explicit labels if needed, or rely on translations update
         let label = t(labelKey as any, uiLanguage);
-        if (target === 'source') label = uiLanguage === 'ar' ? 'استمع للنص الأصلي' : 'Listen to Original';
-        if (target === 'target') label = uiLanguage === 'ar' ? 'استمع للترجمة' : 'Listen to Translation';
 
         let icon = <SpeakerIcon className="w-6 h-6" />;
         let className = "bg-slate-800 border-2 border-slate-600 hover:border-cyan-500 text-cyan-500 hover:text-white shadow-lg";
@@ -1250,7 +1247,7 @@ const App: React.FC = () => {
                 <ActionCard icon={linkCopied ? <CheckIcon className="text-green-400 w-10 h-10"/> : <LinkIcon className="w-10 h-10" />} label={linkCopied ? t('linkCopied', uiLanguage) : t('shareSettings', uiLanguage)} onClick={handleShareLink} />
                 <ActionCard icon={<DownloadIcon className="w-10 h-10" />} label={t('downloadButton', uiLanguage)} onClick={() => setIsDownloadOpen(true)} disabled={isLoading || (!sourceText && !translatedText) } />
                 <ActionCard icon={<SoundEnhanceIcon className="text-cyan-400 w-10 h-10" />} label={t('audioStudio', uiLanguage)} onClick={handleAudioStudioOpen} disabled={false} highlight={false} />
-                <ActionCard icon={<VideoCameraIcon className="w-10 h-10" />} label={uiLanguage === 'ar' ? 'دليل الاستخدام' : 'Tutorial'} onClick={() => setIsTutorialOpen(true)} />
+                <ActionCard icon={<VideoCameraIcon className="w-10 h-10" />} label={t('tutorialButton', uiLanguage)} onClick={() => setIsTutorialOpen(true)} />
             </div>
             
             <Suspense fallback={null}>
