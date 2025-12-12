@@ -33,8 +33,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const MODEL_NAME = process.env.GEMINI_MODEL_TTS || 'gemini-2.5-flash-preview-tts';
     
     // --- SMART VOICE VALIDATION ---
-    // If the incoming voice is an Azure voice (e.g. ar-AE-HamdanNeural), force fallback to a valid Gemini voice.
-    // This prevents the 400 INVALID_ARGUMENT error when users have mixed settings.
     const GEMINI_VALID_VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
     
     let selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
@@ -45,21 +43,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         selectedVoiceName = 'Puck';
     }
 
-    // --- SYSTEM INSTRUCTION (Persona & Gender) ---
-    let systemInstruction = "You are a professional voice actor. Read the text naturally and clearly.";
-    
-    if (selectedVoiceName === 'Puck' || selectedVoiceName === 'Charon' || selectedVoiceName === 'Fenrir') {
-        systemInstruction += " You are a MALE speaker. Your voice MUST be deep and masculine. Do NOT speak with a female pitch.";
-    } else if (selectedVoiceName === 'Kore' || selectedVoiceName === 'Zephyr') {
-        systemInstruction += " You are a FEMALE speaker. Your voice MUST be soft and feminine.";
-    }
-
-    systemInstruction += "\nStrict Constraints:\n1. Do NOT read metadata or code.\n2. Do NOT explain the text.\n3. Read exactly what is provided in the detected language.";
+    // --- REMOVED SYSTEM INSTRUCTION ---
+    // The "systemInstruction" field can sometimes cause INTERNAL (500) errors on the TTS preview model.
+    // The model is multilingual and gender-aware based on the voiceConfig alone.
+    // We rely on the voice name (Puck, Kore, etc.) to drive the persona.
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     try {
-        const MAX_RETRIES = 3;
+        // Increased Retries for Stability
+        const MAX_RETRIES = 5;
+        
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
                 const cleanText = text.trim();
@@ -71,8 +65,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         parts: [{ text: cleanText }]
                     },
                     config: {
-                        responseModalities: ['AUDIO'],
-                        systemInstruction: systemInstruction,
+                        responseModalities: ['AUDIO'], 
+                        // Removed systemInstruction to prevent 500 crashes
                         // CRITICAL FIX: Disable all safety filters to prevent silent failures on innocent text
                         safetySettings: [
                             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -93,10 +87,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(200).json({ audioContent: audioData, modelUsed: MODEL_NAME });
                 }
                 
-                // If we get here, the model returned a response but no audio
                 console.warn(`Attempt ${attempt}: API returned no audio data. FinishReason: ${response.candidates?.[0]?.finishReason}`);
                 
-                // Explicitly throw error if blocked by safety to stop retries if it's a hard block
                 if (response.candidates?.[0]?.finishReason === 'SAFETY') {
                     throw new Error("Gemini Safety Block: The model refused to read this text.");
                 }
@@ -112,12 +104,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     throw err;
                 }
 
-                // Retry on Rate Limits (429/503)
-                const isRetryable = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota') || errMsg.includes('500') || errMsg.includes('Internal');
+                // Retry on Rate Limits (429) OR Internal Errors (500/503)
+                const isRetryable = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('500') || errMsg.includes('Internal') || errMsg.includes('busy') || errMsg.includes('quota');
 
                 if (isRetryable) {
-                    if (attempt === MAX_RETRIES) throw err;
-                    await delay(1000 * attempt); 
+                    if (attempt === MAX_RETRIES) throw new Error(`Gemini Service Busy/Error after ${MAX_RETRIES} attempts. Please try again later.`);
+                    // Exponential backoff: 1s, 2s, 4s, 8s...
+                    await delay(1000 * Math.pow(2, attempt - 1)); 
                     continue;
                 }
                 throw err;
