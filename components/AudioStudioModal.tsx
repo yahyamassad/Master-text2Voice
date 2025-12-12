@@ -87,14 +87,19 @@ const Knob: React.FC<{
     color?: string, 
     onClickCapture?: (e: React.MouseEvent) => void,
     displaySuffix?: string,
-    size?: 'sm' | 'md' | 'lg'
-}> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan', onClickCapture, displaySuffix = '', size = 'lg' }) => {
+    size?: 'sm' | 'md' | 'lg',
+    defaultValue?: number // New prop to determine active state
+}> = ({ label, value, min = 0, max = 100, onChange, color = 'cyan', onClickCapture, displaySuffix = '', size = 'lg', defaultValue = 0 }) => {
     const knobRef = useRef<HTMLDivElement>(null);
     const startYRef = useRef<number | null>(null);
     const startValueRef = useRef<number>(value);
 
     const percentage = (value - min) / (max - min);
     const rotation = -135 + (percentage * 270); 
+
+    // Determine if the knob is active (different from default)
+    // We use a small epsilon for float comparison logic if needed, but strict inequality usually works for sliders
+    const isActive = Math.abs(value - defaultValue) > 0.01;
 
     const handleMouseDown = (e: React.MouseEvent) => {
         if (onClickCapture) onClickCapture(e);
@@ -143,31 +148,39 @@ const Knob: React.FC<{
     let borderColor = 'border-cyan-900/50 group-hover:border-cyan-500/50';
     let tickColor = 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]';
     let textColor = 'text-cyan-300';
+    // LED Color logic
+    let ledColorOn = 'bg-cyan-400 shadow-[0_0_6px_#22d3ee]';
 
     if (isPurple) {
         borderColor = 'border-purple-900/50 group-hover:border-purple-500/50';
         tickColor = 'bg-purple-400 shadow-[0_0_8px_#a855f7]';
         textColor = 'text-purple-300';
+        ledColorOn = 'bg-purple-400 shadow-[0_0_6px_#a855f7]';
     } else if (isGreen) {
         borderColor = 'border-green-900/50 group-hover:border-green-500/50';
         tickColor = 'bg-green-400 shadow-[0_0_8px_#4ade80]';
         textColor = 'text-green-300';
+        ledColorOn = 'bg-green-400 shadow-[0_0_6px_#4ade80]';
     } else if (isRed) {
         borderColor = 'border-red-900/50 group-hover:border-red-500/50';
         tickColor = 'bg-red-400 shadow-[0_0_8px_#f87171]';
         textColor = 'text-red-300';
+        ledColorOn = 'bg-red-400 shadow-[0_0_6px_#f87171]';
     }
 
     const sizeClasses = size === 'sm' ? 'w-10 h-10' : (size === 'md' ? 'w-12 h-12' : 'w-14 h-14 sm:w-16 sm:h-16');
     const innerSizeClasses = size === 'sm' ? 'w-6 h-6' : (size === 'md' ? 'w-8 h-8' : 'w-9 h-9 sm:w-10 sm:h-10');
 
     return (
-        <div className="flex flex-col items-center group cursor-pointer" onWheel={handleWheel} title="Drag up/down or Scroll">
+        <div className="flex flex-col items-center group cursor-pointer relative" onWheel={handleWheel} title="Drag up/down or Scroll">
              <div 
                 ref={knobRef}
                 onMouseDown={handleMouseDown}
                 className={`relative ${sizeClasses} rounded-full bg-gradient-to-br from-slate-800 to-black shadow-lg border-2 ${borderColor} flex items-center justify-center mb-2 cursor-ns-resize transition-all active:scale-95`}
              >
+                 {/* LED Indicator - Changes State based on usage */}
+                 <div className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full transition-all duration-500 ${isActive ? ledColorOn : 'bg-slate-800 border border-slate-700'}`}></div>
+
                  <div className="absolute w-full h-full rounded-full pointer-events-none" style={{ transform: `rotate(${rotation}deg)` }}>
                      <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-2 sm:w-1.5 sm:h-2.5 rounded-full ${tickColor}`}></div>
                  </div>
@@ -957,14 +970,6 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
         
         stopPlayback(); 
         setActiveTab(tab); 
-        
-        // BUG FIX: Do NOT automatically clear voiceBuffer when switching tabs to prevent accidental data loss.
-        // Instead, we only switch the *context* of what buttons do (Record vs Upload).
-        // The visual feedback of the active button tells the user what mode they are in.
-        // If they start a new recording or upload a new file, THEN we replace.
-        
-        // EXCEPT: If switching to 'ai' (Digital), we assume they might want to reload the AI buffer if valid?
-        // Actually, safer to just leave the buffer alone until an explicit action changes it.
     };
 
     const performDownload = async () => {
@@ -1113,6 +1118,14 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
 
     // --- LOAD PROJECT ---
     const handleLoadProject = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // --- RESTRICTION FOR FREE/VISITOR/BASIC USERS ---
+        if (['visitor', 'free', 'basic'].includes(userTier || 'visitor')) {
+            e.preventDefault();
+            if (e.target) e.target.value = '';
+            if (onUpgrade) onUpgrade();
+            return;
+        }
+
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -1202,6 +1215,9 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
     }
 
     if (!isOpen) return null;
+
+    // Check restriction for Open Project Button UI state
+    const isRestrictedOpen = ['visitor', 'free', 'basic'].includes(userTier || 'visitor');
 
     return (
         <div className="fixed inset-0 bg-[#0f172a] z-[100] flex flex-col animate-fade-in-down h-[100dvh]">
@@ -1332,12 +1348,22 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                         {t('studioSaveAs', uiLanguage)}
                                     </button>
                                 </div>
+                                
+                                {/* OPEN PROJECT BUTTON - CONDITIONAL */}
                                 <button 
-                                    onClick={() => projectInputRef.current?.click()} 
-                                    className="h-full rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors"
-                                    title="Open Project"
+                                    onClick={() => {
+                                        if (isRestrictedOpen) {
+                                            if (onUpgrade) onUpgrade();
+                                        } else {
+                                            projectInputRef.current?.click();
+                                        }
+                                    }} 
+                                    className={`h-full rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors relative 
+                                        ${isRestrictedOpen ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600'}`}
+                                    title={isRestrictedOpen ? "Upgrade to Unlock" : "Open Project"}
                                 >
                                     {t('studioOpen', uiLanguage)}
+                                    {isRestrictedOpen && <LockIcon className="w-3 h-3 absolute top-1 right-1 text-amber-500" />}
                                 </button>
                                 
                                 <div className="relative h-12" ref={exportMenuRef}>
@@ -1421,8 +1447,8 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 <Fader label={t('studioVoice', uiLanguage)} value={voiceVolume} onChange={setVoiceVolume} height="h-full max-h-48" disabled={!voiceBuffer} muted={isVoiceMuted} onMuteToggle={() => setIsVoiceMuted(!isVoiceMuted)} onClickCapture={handleRestrictedAction} />
                                 <div className="flex flex-col items-center justify-center pb-6 mx-2 h-full gap-2">
                                     {/* Delay Knob */}
-                                    <Knob label={t('studioDelay', uiLanguage)} value={voiceDelay} min={0} max={10} onChange={setVoiceDelay} color="green" onClickCapture={handleRestrictedAction} displaySuffix="s" size="md" />
-                                    {/* NEW: Pan Knob */}
+                                    <Knob label={t('studioDelay', uiLanguage)} value={voiceDelay} min={0} max={10} onChange={setVoiceDelay} color="green" onClickCapture={handleRestrictedAction} displaySuffix="s" size="md" defaultValue={0} />
+                                    {/* Pan Knob */}
                                     <div className="mt-2">
                                         <Knob 
                                             label={t('studioPan', uiLanguage)}
@@ -1433,6 +1459,7 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                             color="purple" 
                                             onClickCapture={handleRestrictedAction} 
                                             size="md" 
+                                            defaultValue={0}
                                         />
                                     </div>
                                 </div>
@@ -1504,16 +1531,17 @@ export const AudioStudioModal: React.FC<AudioStudioModalProps> = ({ isOpen = tru
                                 </button>
                             </div>
 
-                            <div className="flex-1 bg-slate-900/30 rounded-xl p-2 border border-slate-800 overflow-y-auto custom-scrollbar">
+                            {/* Added no-scrollbar classes to hide scrollbar */}
+                            <div className="flex-1 bg-slate-900/30 rounded-xl p-2 border border-slate-800 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                                 <div className="grid grid-cols-3 gap-y-4 gap-x-2 py-2">
-                                    <Knob label={t('studioTimeStretch', uiLanguage)} value={settings.speed} min={0.5} max={2.0} onChange={(v) => updateSetting('speed', v)} size="sm" displaySuffix="x" onClickCapture={handleRestrictedAction} />
-                                    <Knob label={t('studioAmbience', uiLanguage)} value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
-                                    <Knob label={t('studioEcho', uiLanguage)} value={echo} onChange={setEcho} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
-                                    <Knob label={t('studioDynamics', uiLanguage)} value={settings.compression} onChange={(v) => updateSetting('compression', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
-                                    <Knob label={t('studioSpeed', uiLanguage)} value={settings.speed} min={0.5} max={2.0} onChange={(v) => updateSetting('speed', v)} size="sm" displaySuffix="x" onClickCapture={handleRestrictedAction} />
-                                    <Knob label={t('studioReverb', uiLanguage)} value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
-                                    <Knob label={t('studioFeedback', uiLanguage)} value={echo} onChange={setEcho} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
-                                    <Knob label={t('studioCompressor', uiLanguage)} value={settings.compression} onChange={(v) => updateSetting('compression', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} />
+                                    <Knob label={t('studioTimeStretch', uiLanguage)} value={settings.speed} min={0.5} max={2.0} onChange={(v) => updateSetting('speed', v)} size="sm" displaySuffix="x" onClickCapture={handleRestrictedAction} defaultValue={1.0} />
+                                    <Knob label={t('studioAmbience', uiLanguage)} value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} defaultValue={0} />
+                                    <Knob label={t('studioEcho', uiLanguage)} value={echo} onChange={setEcho} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} defaultValue={0} />
+                                    <Knob label={t('studioDynamics', uiLanguage)} value={settings.compression} onChange={(v) => updateSetting('compression', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} defaultValue={0} />
+                                    <Knob label={t('studioSpeed', uiLanguage)} value={settings.speed} min={0.5} max={2.0} onChange={(v) => updateSetting('speed', v)} size="sm" displaySuffix="x" onClickCapture={handleRestrictedAction} defaultValue={1.0} />
+                                    <Knob label={t('studioReverb', uiLanguage)} value={settings.reverb} onChange={(v) => updateSetting('reverb', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} defaultValue={0} />
+                                    <Knob label={t('studioFeedback', uiLanguage)} value={echo} onChange={setEcho} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} defaultValue={0} />
+                                    <Knob label={t('studioCompressor', uiLanguage)} value={settings.compression} onChange={(v) => updateSetting('compression', v)} size="sm" displaySuffix="%" onClickCapture={handleRestrictedAction} defaultValue={0} />
                                 </div>
                             </div>
                         </div>
