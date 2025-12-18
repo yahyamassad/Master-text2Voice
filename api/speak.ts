@@ -9,32 +9,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const { text, voice } = req.body;
-
-    if (!text) {
-        return res.status(400).json({ error: 'Text is required.' });
-    }
+    if (!text) return res.status(400).json({ error: 'Text is required.' });
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const MODEL_NAME = 'gemini-2.5-flash-preview-tts';
     
-    // Improved Prompt for better Arabic/French Prosody
+    // Improved Prompt for better consistency and emotion
     const isArabic = /[\u0600-\u06FF]/.test(text);
-    const enhancedPrompt = isArabic 
-        ? `[Perform with natural Arabic emotions and clear articulation]: ${text}`
-        : `[Perform with natural prosody and clear articulation]: ${text}`;
+    const instruction = isArabic 
+        ? `[أداء احترافي، صوت واضح، مخارج حروف دقيقة، عاطفة طبيعية]: ${text}`
+        : `[Professional performance, clear voice, natural articulation]: ${text}`;
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     try {
-        // Exponential Backoff Retry Logic for "Server Busy" or "Rate Limit"
-        const MAX_RETRIES = 3;
+        const MAX_RETRIES = 2;
         let lastError = null;
 
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
                 const response = await ai.models.generateContent({
                     model: MODEL_NAME,
-                    contents: enhancedPrompt,
+                    contents: [{ parts: [{ text: instruction }] }],
                     config: {
                         responseModalities: [Modality.AUDIO],
                         speechConfig: {
@@ -54,27 +50,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (audioData) {
                     return res.status(200).json({ audioContent: audioData });
                 }
-                
-                throw new Error("Empty audio response from Gemini.");
+                throw new Error("Empty response");
 
             } catch (err: any) {
                 lastError = err;
-                const errMsg = err.message || "";
-                // If 429 (Rate Limit) or 503 (Service Unavailable/Busy), wait and retry
-                if (errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('500')) {
-                    const waitTime = attempt * 2000; // 2s, 4s, 6s...
-                    await delay(waitTime);
+                if (err.message?.includes('429') || err.message?.includes('503')) {
+                    await delay(attempt * 1500);
                     continue;
                 }
-                throw err; // For safety blocks or other errors, don't retry
+                throw err;
             }
         }
-        throw lastError || new Error("Failed after retries.");
+        throw lastError;
 
     } catch (error: any) {
         console.error("Gemini TTS Error:", error);
-        return res.status(500).json({ 
-            error: error.message?.includes('503') ? "Google Servers are currently overloaded. Retrying..." : error.message 
-        });
+        return res.status(500).json({ error: "Service busy, please retry in seconds." });
     }
 }

@@ -25,10 +25,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY});
+        // API key must be obtained exclusively from process.env.API_KEY
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
-        // FIX: Select 'gemini-3-flash-preview' for basic text tasks
+        // Select 'gemini-3-flash-preview' for basic text tasks
         const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-3-flash-preview';
 
         // STRICT SCRIPT TRANSLATION PROMPT (PLAIN TEXT MODE)
@@ -50,7 +50,7 @@ Andrew: Bonjour.
 
 Ryan: Salut.`;
 
-        // FIX: Simplified contents parameter for generateContent
+        // Using generateContent with text contents
         const apiPromise = ai.models.generateContent({
             model: MODEL_NAME,
             contents: text,
@@ -62,9 +62,9 @@ Ryan: Salut.`;
 
         // 30s Timeout
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
-        const result: any = await Promise.race([apiPromise, timeoutPromise]);
+        const result = await Promise.race([apiPromise, timeoutPromise]) as any;
 
-        // FIX: Access .text property directly from GenerateContentResponse
+        // Access .text property directly from GenerateContentResponse
         let rawResponse = result.text;
         
         if (!rawResponse) throw new Error("Translation returned empty response.");
