@@ -8,42 +8,78 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
     
-    const { text, sourceLang, targetLang } = req.body;
+    let body = req.body;
+    if (typeof body === 'string') {
+        try {
+            body = JSON.parse(body);
+        } catch (e) {
+            console.error("Failed to parse body:", e);
+            return res.status(400).json({ error: 'Invalid JSON body' });
+        }
+    }
+
+    const { text, sourceLang, targetLang } = body;
 
     if (!text || !sourceLang || !targetLang) {
-        return res.status(400).json({ error: 'Missing parameters.' });
+        return res.status(400).json({ error: 'Missing parameters (text, sourceLang, targetLang).' });
     }
 
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const model = 'gemini-3-flash-preview';
+        const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
+        const ai = new GoogleGenAI({ apiKey: apiKey });
+        
+        // Configurable Model Name for Stability
+        const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-2.5-flash';
 
-        const systemInstruction = `You are a professional translator. Translate from ${sourceLang} to ${targetLang}. 
-        Keep the formatting exact. If speaker names like "Yazan:" or "Lana:" are present, DO NOT translate them. 
-        Output ONLY the translated text.`;
+        const systemInstruction = `You are a professional translator. Translate user input from ${sourceLang} to ${targetLang}. Output ONLY the translated text.`;
 
-        const result = await ai.models.generateContent({
-            model: model,
-            contents: [{ parts: [{ text: text }] }],
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
+        
+        const apiPromise = ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: {
+                role: 'user',
+                parts: [{ text: text }]
+            },
             config: {
                 systemInstruction: systemInstruction,
-                temperature: 0.2,
+                temperature: 0.3,
             }
         });
 
-        const responseText = result.text || "";
+        const result: any = await Promise.race([apiPromise, timeoutPromise]);
+
+        let translatedText = result.text;
         
-        if (!responseText) {
-            throw new Error("Empty translation result");
+        if (!translatedText && result.candidates?.[0]?.content?.parts?.[0]?.text) {
+            translatedText = result.candidates[0].content.parts[0].text;
+        }
+        
+        if (!translatedText) {
+             if (result.candidates?.[0]?.finishReason) {
+                console.warn(`Translation blocked/stopped. Reason: ${result.candidates?.[0]?.finishReason}`);
+            }
+            throw new Error("Translation returned empty response.");
         }
 
+        let cleanText = translatedText.trim();
+        cleanText = cleanText.replace(/^```(json)?/i, '').replace(/```$/, '');
+
+        res.setHeader('Content-Type', 'application/json');
         return res.status(200).json({
-            translatedText: responseText.trim(),
-            status: 'success'
+            translatedText: cleanText,
+            speakerMapping: {} 
         });
 
     } catch (error: any) {
-        console.error("Translation API Error:", error);
+        console.error("Translation Error:", error);
+
+        if (error.message && (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED') || error.message.includes('quota'))) {
+            return res.status(429).json({ 
+                error: "Translation service busy. Please try again later." 
+            });
+        }
+
         return res.status(500).json({ error: error.message || 'Translation failed' });
     }
 }

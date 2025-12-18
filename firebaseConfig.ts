@@ -3,9 +3,12 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 
+// ============================================================================
+// FIREBASE CONFIGURATION - HARDCODED FOR IMMEDIATE STABILITY
+// ============================================================================
 const firebaseConfig = {
-    apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "", 
-    authDomain: "www.sawtli.com", // هذا السطر سيجعل اسم النطاق يظهر بدلاً من firebaseapp
+    apiKey: "AIzaSyChk5lI5nEZHy4IMc1xDh51wVTpL0__7Uo",
+    authDomain: "master-text2voice.firebaseapp.com", // Fixed to firebaseapp to prevent Vercel proxy issues
     projectId: "master-text2voice",
     storageBucket: "master-text2voice.firebasestorage.app",
     messagingSenderId: "390050145859",
@@ -19,21 +22,24 @@ let db: firebase.firestore.Firestore;
 let isFirebaseConfigured = false;
 
 try {
-    if (firebaseConfig.apiKey) {
-        if (!firebase.apps.length) {
-            app = firebase.initializeApp(firebaseConfig);
-        } else {
-            app = firebase.app();
-        }
-        
-        auth = firebase.auth();
-        db = firebase.firestore();
-        isFirebaseConfigured = true;
+    if (!firebase.apps.length) {
+        app = firebase.initializeApp(firebaseConfig);
+    } else {
+        app = firebase.app();
     }
+    
+    auth = firebase.auth();
+    db = firebase.firestore();
+    isFirebaseConfigured = true;
+    
+    console.log("Firebase Initialized Successfully (Compat Mode)");
 } catch (error) {
-    console.error("Firebase Init Error:", error);
+    console.error("Firebase Initialization Error:", error);
 }
 
-export const getFirebase = () => ({ app, auth, db, isFirebaseConfigured });
+export const getFirebase = () => {
+    return { app, auth, db, isFirebaseConfigured };
+};
+
 export { app, auth, db, isFirebaseConfigured };
 export default firebase;

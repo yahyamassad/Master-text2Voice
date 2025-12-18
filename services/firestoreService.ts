@@ -4,68 +4,114 @@ import 'firebase/compat/firestore';
 import { getFirebase } from '../firebaseConfig';
 import type { HistoryItem } from '../types';
 
+/**
+ * Subscribes to a user's translation history in Firestore and calls a callback with updates.
+ */
 export function subscribeToHistory(userId: string, callback: (items: HistoryItem[]) => void): () => void {
     const { db } = getFirebase();
-    if (!db) return () => {};
+    
+    if (!db) {
+        console.error("Firestore is not initialized. Cannot subscribe to history.");
+        return () => {};
+    }
 
-    return db.collection('users').doc(userId).collection('history')
+    const historyCollectionRef = db.collection('users').doc(userId).collection('history');
+    
+    const unsubscribe = historyCollectionRef
         .orderBy('timestamp', 'desc')
         .limit(50)
-        .onSnapshot((snap) => {
-            const data: HistoryItem[] = [];
-            snap.forEach(doc => {
-                const d = doc.data();
-                data.push({
-                    ...d,
-                    id: doc.id,
-                    timestamp: d.timestamp?.toMillis() || Date.now()
+        .onSnapshot((querySnapshot: firebase.firestore.QuerySnapshot) => {
+            const historyData: HistoryItem[] = [];
+            querySnapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                historyData.push({
+                    ...data,
+                    id: docSnap.id,
+                    // Safe timestamp conversion
+                    timestamp: (data.timestamp as any)?.toMillis ? (data.timestamp as any).toMillis() : Date.now()
                 } as HistoryItem);
             });
-            callback(data);
+            callback(historyData);
+        }, (error: any) => {
+            console.error("Error listening to history:", error);
+            callback([]); 
         });
+
+    return unsubscribe;
 }
 
-export async function addHistoryItem(userId: string, item: Partial<HistoryItem>) {
+/**
+ * Adds a new history item to a user's collection in Firestore.
+ */
+export async function addHistoryItem(userId: string, item: Omit<HistoryItem, 'id' | 'timestamp'>) {
     const { db } = getFirebase();
-    if (!db) return;
+    if (!db) throw new Error("Firestore is not initialized.");
 
-    // حماية ضد قيم undefined التي تدمر Firebase
-    const safeItem = {
-        sourceText: item.sourceText || "",
-        translatedText: item.translatedText || "[Audio Only]",
-        sourceLang: item.sourceLang || "unknown",
-        targetLang: item.targetLang || "unknown",
+    const historyCollectionRef = db.collection('users').doc(userId).collection('history');
+    await historyCollectionRef.add({
+        ...item,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    await db.collection('users').doc(userId).collection('history').add(safeItem);
+    });
 }
 
+/**
+ * Deletes a single history item.
+ */
 export async function deleteHistoryItem(userId: string, historyId: string) {
     const { db } = getFirebase();
-    if (!db) return;
+    if (!db) throw new Error("Firestore is not initialized.");
+
     await db.collection('users').doc(userId).collection('history').doc(historyId).delete();
 }
 
+/**
+ * Deletes all documents in a user's history subcollection.
+ */
 export async function clearHistoryForUser(userId: string) {
     const { db } = getFirebase();
-    if (!db) return;
-    const snap = await db.collection('users').doc(userId).collection('history').get();
+    if (!db) throw new Error("Firestore is not initialized.");
+
+    const historyCollectionRef = db.collection('users').doc(userId).collection('history');
+    const querySnapshot = await historyCollectionRef.get();
+
+    if (querySnapshot.empty) {
+        return;
+    }
+
     const batch = db.batch();
-    snap.forEach(doc => batch.delete(doc.ref));
+    querySnapshot.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+    });
+
     await batch.commit();
 }
 
+/**
+ * Deletes the root document for a user.
+ */
 export async function deleteUserDocument(userId: string) {
     const { db } = getFirebase();
-    if (!db) return;
-    await db.collection('users').doc(userId).delete();
+    if (!db) throw new Error("Firestore is not initialized.");
+
+    const userDocRef = db.collection('users').doc(userId);
+    await userDocRef.delete();
 }
 
-export async function addToWaitlist(userId: string, email: string | null, tier: string) {
+/**
+ * Adds a user to the waitlist collection.
+ */
+export async function addToWaitlist(userId: string, email: string | null, tier: 'gold' | 'platinum') {
     const { db } = getFirebase();
-    if (!db) return;
-    await db.collection('waitlist').doc(userId).set({
-        userId, email, tier, timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    if (!db) throw new Error("Firestore is not initialized.");
+
+    // Create a document ID based on user ID to prevent duplicate entries
+    const waitlistDocRef = db.collection('waitlist').doc(userId);
+    
+    await waitlistDocRef.set({
+        userId,
+        email,
+        requestedTier: tier,
+        joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending' // pending, notified, active
+    }, { merge: true }); // Merge to update timestamp if they click again
 }

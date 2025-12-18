@@ -20,14 +20,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { text, ssml, voiceId } = body;
 
+    // Validate Keys
     const AZURE_KEY = process.env.AZURE_SPEECH_KEY;
     const AZURE_REGION = process.env.AZURE_SPEECH_REGION;
 
     if (!AZURE_KEY || !AZURE_REGION) {
-        return res.status(503).json({ error: 'Azure Speech Service is not configured.' });
+        return res.status(503).json({ error: 'Azure Speech Service is not configured (Server Side). Missing AZURE_SPEECH_KEY or AZURE_SPEECH_REGION.' });
     }
 
+    if (!text && !ssml) {
+        return res.status(400).json({ error: 'Text or SSML is required.' });
+    }
+
+    // Default Voice
     const selectedVoice = voiceId || "ar-EG-SalmaNeural";
+    
+    // Construct SSML if not provided
+    // Azure requires a wrapping <speak> tag with xml:lang
+    // We assume the lang from the voice ID (e.g., ar-EG-SalmaNeural -> ar-EG)
     const voiceParts = selectedVoice.split('-');
     const langCode = voiceParts.length >= 2 ? `${voiceParts[0]}-${voiceParts[1]}` : 'en-US';
     
@@ -47,8 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             headers: {
                 'Ocp-Apim-Subscription-Key': AZURE_KEY,
                 'Content-Type': 'application/ssml+xml',
-                // تم رفع الجودة إلى 48khz و 320kbitrate لضمان أداء احترافي جداً
-                'X-Microsoft-OutputFormat': 'audio-48khz-192kbitrate-mono-mp3',
+                'X-Microsoft-OutputFormat': 'audio-24khz-160kbitrate-mono-mp3',
                 'User-Agent': 'SawtliApp'
             },
             body: finalSSML
@@ -67,11 +76,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ 
             audioContent: base64Audio,
             format: 'mp3',
-            engine: 'azure-neural'
+            engine: 'azure-neural',
+            voiceUsed: selectedVoice
         });
 
     } catch (error: any) {
         console.error("Azure TTS Error:", error);
-        return res.status(500).json({ error: "Failed to generate speech via Azure." });
+        return res.status(500).json({ 
+            error: "Failed to generate speech via Azure.",
+            details: error.message || error.toString()
+        });
     }
 }

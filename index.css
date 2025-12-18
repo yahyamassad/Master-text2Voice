@@ -1,87 +1,101 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
 
 body {
   font-family: 'Cairo', sans-serif;
-  background-color: #020617; /* الخلفية الداكنة العميقة */
-  color: #f8fafc;
+  background-color: #0f172a; /* Slate-900 - Rich Dark Blue base */
+  color: #f8fafc; /* Slate-50 */
   overflow-x: hidden;
-  margin: 0;
 }
 
-/* حاويات النصوص الاحترافية */
-.workstation-box {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(51, 65, 85, 0.8);
-  border-radius: 1.5rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+/* --- ANIMATIONS --- */
+
+@keyframes fade-in-down {
+  0% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
-.workstation-box:focus-within {
-  border-color: #0cabec;
-  background: rgba(30, 41, 59, 0.7);
+.animate-fade-in-down {
+  animation: fade-in-down 0.3s ease-out;
 }
 
-/* زر الترجمة المركزي */
-.translate-btn-hero {
-  background: #334155;
-  border: 1px solid #475569;
-  border-radius: 1rem;
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(34, 211, 238, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(34, 211, 238, 0.5); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s infinite;
+}
+
+@keyframes gradient-x {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient-border {
+  background-size: 200% 200%;
+  animation: gradient-x 4s ease infinite;
+}
+
+/* --- PANELS & CARDS --- */
+
+/* The Main Content Panel - Lighter than background for contrast */
+.glass-panel {
+  background-color: #1e293b; /* Slate-800 */
+  border: 1px solid #334155; /* Slate-700 */
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.1), 
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    0 20px 25px -5px rgba(0, 0, 0, 0.4); /* Lifted look */
+}
+
+/* Input Fields - Clearly defined writing area */
+.glass-input {
+  background-color: #0f172a; /* Slate-900 */
+  color: #f1f5f9;
+  border: none;
+  outline: none;
+}
+
+.glass-input:focus {
+  outline: none;
+}
+
+/* Standard Tactile Buttons */
+.btn-tactile {
+  background-color: #1e293b; /* Slate-800 */
+  border: 2px solid #334155; /* Slate-700 */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   transition: all 0.2s ease;
-  color: #94a3b8;
 }
 
-.translate-btn-hero:hover:not(:disabled) {
-  background: #1e293b;
-  border-color: #0cabec;
-  color: #0cabec;
+.btn-tactile:hover:not(:disabled) {
   transform: translateY(-2px);
+  background-color: #334155; /* Slate-700 */
+  border-color: #22d3ee; /* Cyan-400 */
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
 }
 
-.translate-btn-hero:active {
-  transform: scale(0.95);
+.btn-tactile:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* بطاقات الميزات السفلية */
-.feature-card {
-  background: rgba(15, 23, 42, 0.4);
-  border: 1px solid rgba(30, 41, 59, 0.5);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.feature-card:hover {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(12, 171, 236, 0.4);
-  transform: translateY(-4px);
-}
-
-/* تحسين السكرول بار */
+/* Scrollbar Polish */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #020617;
+  background: #0f172a; 
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 10px;
+  background: #475569; 
+  border-radius: 5px;
+  border: 2px solid #0f172a;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-.animate-spin-slow {
-  animation: spin 3s linear infinite;
+  background: #64748b; 
 }

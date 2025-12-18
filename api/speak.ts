@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -8,66 +8,107 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { text, voice } = req.body;
-    if (!text) return res.status(400).json({ error: 'Text is required.' });
+    let body = req.body;
+    if (typeof body === 'string') {
+        try {
+            body = JSON.parse(body);
+        } catch (e) {
+            console.error("Failed to parse body:", e);
+            return res.status(400).json({ error: 'Invalid JSON body' });
+        }
+    }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const MODEL_NAME = 'gemini-2.5-flash-preview-tts';
-    
-    // Improved internal prompt for guaranteed voice generation
-    const systemPrompt = `[MODE: TTS_ONLY] Respond strictly with the generated audio for the following text. Do not provide textual analysis or dialogue. If the text is Arabic, use natural, eloquent pronunciation. Text: "${text}"`;
+    const { text, voice, speakers } = body;
+
+    if (!text) {
+        return res.status(400).json({ error: 'Text is required.' });
+    }
+
+    const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
+    if (!apiKey) {
+        return res.status(500).json({ error: 'Server Error: API Key is missing.' });
+    }
+
+    const client = new GoogleGenAI({ apiKey });
+    const MODEL_NAME = process.env.GEMINI_MODEL_TTS || 'gemini-2.5-flash-preview-tts';
+    const selectedVoiceName = speakers?.speakerA?.voice || voice || 'Puck';
+
+    // --- GENDER ENFORCEMENT ---
+    let genderInstruction = "";
+    if (selectedVoiceName === 'Puck' || selectedVoiceName === 'Charon' || selectedVoiceName === 'Fenrir') {
+        genderInstruction = "CRITICAL: You are a MALE speaker. Your voice MUST be deep and masculine. Do NOT speak with a female pitch.";
+    } else if (selectedVoiceName === 'Kore' || selectedVoiceName === 'Zephyr') {
+        genderInstruction = "CRITICAL: You are a FEMALE speaker. Your voice MUST be soft and feminine.";
+    }
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     try {
-        const MAX_RETRIES = 2;
-        let lastError = null;
-
+        const MAX_RETRIES = 3;
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                const response = await ai.models.generateContent({
+                // STRICT System Instruction to prevent hallucination
+                const cleanText = text.trim();
+                
+                // Enhanced protection prompt - NOW POLYGLOT SAFE
+                const protectedPrompt = `
+Task: Read the following text aloud exactly as written in the detected language.
+${genderInstruction}
+Strict Constraints:
+1. Do NOT read any technical metadata, code snippets, or introductory phrases.
+2. Do NOT explain the text.
+3. Read in the language of the text provided (e.g., if French, speak French; if Arabic, speak Arabic; if English, speak English).
+4. Only vocalize the content inside the triple quotes below.
+
+Text to read:
+"""
+${cleanText}
+"""
+`;
+                
+                const response = await client.models.generateContent({
                     model: MODEL_NAME,
-                    contents: [{ parts: [{ text: systemPrompt }] }],
+                    contents: {
+                        role: 'user',
+                        parts: [{ text: protectedPrompt }]
+                    },
                     config: {
-                        responseModalities: [Modality.AUDIO],
+                        responseModalities: ['AUDIO'],
                         speechConfig: {
-                            voiceConfig: { prebuiltVoiceConfig: { voiceName: voice || 'Puck' } }
-                        },
-                        safetySettings: [
-                            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                        ]
+                            voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoiceName } }
+                        }
                     },
                 });
 
-                const candidates = response.candidates;
-                if (!candidates || candidates.length === 0) throw new Error("No candidates returned");
+                const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
-                const parts = candidates[0].content.parts;
-                const audioPart = parts.find(p => p.inlineData);
-
-                if (audioPart?.inlineData?.data) {
-                    return res.status(200).json({ audioContent: audioPart.inlineData.data });
+                if (audioData) {
+                    res.setHeader('Content-Type', 'application/json');
+                    return res.status(200).json({ audioContent: audioData, modelUsed: MODEL_NAME });
                 }
                 
-                throw new Error("Model failed to return audio data. Check safety filters or prompt.");
+                throw new Error("API returned no audio data.");
 
             } catch (err: any) {
-                lastError = err;
-                console.warn(`TTS Attempt ${attempt} failed:`, err.message);
-                if (err.message?.includes('429') || err.message?.includes('503') || err.message?.includes('audio')) {
-                    await delay(attempt * 1200);
+                const errMsg = err.message || err.toString();
+                const isRateLimit = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('busy') || errMsg.includes('quota');
+
+                if (isRateLimit) {
+                    if (attempt === MAX_RETRIES) throw err;
+                    await delay(1000 * attempt); 
                     continue;
                 }
                 throw err;
             }
         }
-        throw lastError;
 
     } catch (error: any) {
-        console.error("Gemini TTS Critical Error:", error);
-        return res.status(500).json({ error: error.message || "Service error. Please try again." });
+        console.error(`Final Failure with ${MODEL_NAME}:`, error.message);
+        return res.status(500).json({ 
+            error: "Generation failed.", 
+            details: error.message 
+        });
     }
+    
+    return res.status(500).json({ error: "Unexpected end of function" });
 }
