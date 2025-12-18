@@ -5,15 +5,14 @@ import 'firebase/compat/firestore';
 
 /**
  * ============================================================================
- * Sawtli Professional Security Configuration (Zero-Leak Policy)
+ * Sawtli Professional Branding Configuration
  * ============================================================================
- * تم استخدام النطاق الافتراضي لفايربيس في authDomain لضمان عمل تسجيل الدخول
- * بشكل صحيح سواء دخل المستخدم بـ www أو بدونها.
+ * تغيير authDomain إلى النطاق الرسمي www.sawtli.com
+ * هذا يضمن ظهور هوية النطاق الخاص بك في نوافذ المصادقة (Google Login Popup)
  */
 const firebaseConfig = {
     apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "", 
-    // تغيير authDomain إلى الرابط الافتراضي يحل مشكلة التعارض أمنياً
-    authDomain: "master-text2voice.firebaseapp.com", 
+    authDomain: "www.sawtli.com", 
     projectId: "master-text2voice",
     storageBucket: "master-text2voice.firebasestorage.app",
     messagingSenderId: "390050145859",
@@ -38,7 +37,7 @@ try {
         db = firebase.firestore();
         isFirebaseConfigured = true;
     } else {
-        console.warn("Firebase Security: API Key is missing. Check Environment Variables.");
+        console.warn("Firebase Security: API Key is missing.");
     }
 } catch (error) {
     console.error("Firebase Initialization Error:", error);
