@@ -31,7 +31,6 @@ interface SettingsModalProps {
   setSpeakerC?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
   speakerD?: SpeakerConfig;
   setSpeakerD?: React.Dispatch<React.SetStateAction<SpeakerConfig>>;
-  systemVoices: any[]; 
   sourceLang: string;
   targetLang: string;
   currentLimits: any; 

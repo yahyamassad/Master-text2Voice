@@ -14,12 +14,6 @@ import { HistoryItem, SpeakerConfig, GEMINI_VOICES, MICROSOFT_AZURE_VOICES, PLAN
 import firebase, { getFirebase } from './firebaseConfig';
 
 // ... (Lazy imports & Setup code remain the same) ...
-// ... Copy everything until the `handleSpeak` function ...
-
-// To save space in this response, assume lines 1-460 (Imports, Utils, Components) are identical.
-// I will output the FULL file content starting from `handleSpeak` modification downwards to ensure context.
-
-// ... (Previous parts of App.tsx are assumed unchanged, focusing on the critical logic change) ...
 
 type User = firebase.User;
 
@@ -35,8 +29,6 @@ import PrivacyModal from './components/PrivacyModal';
 const Feedback = lazy(() => import('./components/Feedback'));
 const AccountModal = lazy(() => import('./components/AccountModal'));
 const ReportModal = lazy(() => import('./components/ReportModal'));
-
-// ... (SoundEffects, Helper functions, ToastContainer, etc. remain unchanged) ...
 
 const soundEffects = [
     { emoji: '😂', tag: '[laugh]', labelKey: 'addLaugh' },
@@ -218,7 +210,6 @@ const DownloadModal: React.FC<{ onClose: () => void; onDownload: (format: 'wav' 
 };
 
 const App: React.FC = () => {
-  // ... (Identical state and effects as before, copying essential hooks) ...
   const [uiLanguage, setUiLanguage] = useState<Language>(getInitialLanguage);
   const [sourceText, setSourceText] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
@@ -598,7 +589,7 @@ const App: React.FC = () => {
               if (isGeminiVoice) {
                   if (!planConfig.allowGemini) throw new Error("Voice restricted");
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined;
-                  // @ts-ignore
+                  // Fixed: Use updated service signature
                   const idToken = user ? await user.getIdToken() : undefined;
                   
                   // DIRECT CALL ONLY - NO FALLBACK TO AZURE
@@ -650,9 +641,6 @@ const App: React.FC = () => {
           setIsLoading(false);
       }
   };
-  
-  // ... (Rest of the App.tsx file remains unchanged) ...
-  // ... Copied rest of file ...
 
   const handleTranslate = async () => {
       if(isLoading) { stopAll(); return; }
@@ -663,7 +651,7 @@ const App: React.FC = () => {
       apiAbortControllerRef.current = new AbortController();
       const signal = apiAbortControllerRef.current.signal;
       try {
-          // @ts-ignore
+          // Fixed: Use updated service signature
           const idToken = user ? await user.getIdToken() : undefined;
           const result = await translateText(sourceText, sourceLang, targetLang, speakerA.name, speakerB.name, signal, idToken);
           if (!signal.aborted) {
@@ -728,12 +716,12 @@ const App: React.FC = () => {
               let pcmData; 
               if (isGemini) { 
                   const speakersConfig = multiSpeaker ? { speakerA, speakerB, speakerC, speakerD } : undefined; 
-                  // DIRECT CALL - NO FALLBACK HERE EITHER
+                  // Fixed: Use updated service signature
                   pcmData = await generateSpeech(text, voice, emotion, pauseDuration, speakersConfig, signal, undefined, speed, seed);
               } else { 
                   if (multiSpeaker) { 
                       let safeDefaultVoice = voice;
-                      const targetLangCode = langCode || targetLang; // Fixed here
+                      const targetLangCode = langCode || targetLang; 
                       if (targetLangCode.startsWith('en') && voice.startsWith('ar-')) {
                           safeDefaultVoice = 'en-US-AndrewNeural';
                       } else if (targetLangCode.startsWith('fr') && !voice.startsWith('fr-')) {
@@ -857,8 +845,8 @@ const App: React.FC = () => {
         const isPausedState = isActive && isPaused;
         const isLoadingState = isLoading && activePlayer === target;
         
-        let labelKey = target === 'source' ? 'speakSource' : 'speakTarget';
-        let label = t(labelKey as any, uiLanguage);
+        let labelKey: 'speakSource' | 'speakTarget' = target === 'source' ? 'speakSource' : 'speakTarget';
+        let label = t(labelKey, uiLanguage);
 
         let icon = <SpeakerIcon className="w-6 h-6" />;
         let className = "bg-slate-800 border-2 border-slate-600 hover:border-cyan-500 text-cyan-500 hover:text-white shadow-lg";

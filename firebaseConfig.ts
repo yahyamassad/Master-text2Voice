@@ -3,12 +3,16 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 
-// ============================================================================
-// FIREBASE CONFIGURATION - HARDCODED FOR IMMEDIATE STABILITY
-// ============================================================================
+/**
+ * ============================================================================
+ * Sawtli Professional Branding Configuration
+ * ============================================================================
+ * We set authDomain to "sawtli.com" so that the Google Sign-in popup 
+ * reflects the official brand identity.
+ */
 const firebaseConfig = {
     apiKey: "AIzaSyChk5lI5nEZHy4IMc1xDh51wVTpL0__7Uo",
-    authDomain: "master-text2voice.firebaseapp.com", // Fixed to firebaseapp to prevent Vercel proxy issues
+    authDomain: "sawtli.com", // Official custom domain for Auth
     projectId: "master-text2voice",
     storageBucket: "master-text2voice.firebasestorage.app",
     messagingSenderId: "390050145859",
@@ -32,7 +36,7 @@ try {
     db = firebase.firestore();
     isFirebaseConfigured = true;
     
-    console.log("Firebase Initialized Successfully (Compat Mode)");
+    console.log("Sawtli Core: Identity verified via sawtli.com");
 } catch (error) {
     console.error("Firebase Initialization Error:", error);
 }

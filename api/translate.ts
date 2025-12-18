@@ -25,10 +25,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
-        const ai = new GoogleGenAI({ apiKey: apiKey });
+        // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY});
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
-        const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-2.5-flash';
+        // FIX: Select 'gemini-3-flash-preview' for basic text tasks
+        const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-3-flash-preview';
 
         // STRICT SCRIPT TRANSLATION PROMPT (PLAIN TEXT MODE)
         const systemInstruction = `You are a professional Dubbing Script Translator.
@@ -49,12 +50,10 @@ Andrew: Bonjour.
 
 Ryan: Salut.`;
 
+        // FIX: Simplified contents parameter for generateContent
         const apiPromise = ai.models.generateContent({
             model: MODEL_NAME,
-            contents: {
-                role: 'user',
-                parts: [{ text: text }]
-            },
+            contents: text,
             config: {
                 systemInstruction: systemInstruction,
                 temperature: 0.1, 
@@ -65,10 +64,8 @@ Ryan: Salut.`;
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
         const result: any = await Promise.race([apiPromise, timeoutPromise]);
 
+        // FIX: Access .text property directly from GenerateContentResponse
         let rawResponse = result.text;
-        if (!rawResponse && result.candidates?.[0]?.content?.parts?.[0]?.text) {
-            rawResponse = result.candidates[0].content.parts[0].text;
-        }
         
         if (!rawResponse) throw new Error("Translation returned empty response.");
 

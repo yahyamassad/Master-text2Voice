@@ -24,11 +24,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
-        if (!apiKey) throw new Error("API Key missing");
-
-        const ai = new GoogleGenAI({ apiKey: apiKey });
-        const model = 'gemini-2.5-flash';
+        // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY});
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const model = 'gemini-3-flash-preview';
 
         let systemInstruction = "";
         
@@ -59,13 +57,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const result = await ai.models.generateContent({
             model: model,
-            contents: { role: 'user', parts: [{ text: text }] },
+            contents: text,
             config: {
                 systemInstruction: systemInstruction,
                 temperature: 0.1, // Low temperature for precision
             }
         });
 
+        // FIX: Access .text property directly
         let enhancedText = result.text;
         
         // Cleanup if model adds markdown
