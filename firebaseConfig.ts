@@ -7,12 +7,13 @@ import 'firebase/compat/firestore';
  * ============================================================================
  * Sawtli Professional Security Configuration (Zero-Leak Policy)
  * ============================================================================
- * تم تجريد هذا الملف من أي مفاتيح نصية.
- * يتم جلب المفتاح الآن عبر VITE_FIREBASE_API_KEY من إعدادات Vercel.
+ * تم استخدام النطاق الافتراضي لفايربيس في authDomain لضمان عمل تسجيل الدخول
+ * بشكل صحيح سواء دخل المستخدم بـ www أو بدونها.
  */
 const firebaseConfig = {
     apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "", 
-    authDomain: "sawtli.com", 
+    // تغيير authDomain إلى الرابط الافتراضي يحل مشكلة التعارض أمنياً
+    authDomain: "master-text2voice.firebaseapp.com", 
     projectId: "master-text2voice",
     storageBucket: "master-text2voice.firebasestorage.app",
     messagingSenderId: "390050145859",
