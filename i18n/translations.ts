@@ -14,15 +14,35 @@ export const translationLanguages = [
     { code: 'en', name: 'English', speechCode: 'en-US' },
     { code: 'fr', name: 'French', speechCode: 'fr-FR' },
     { code: 'es', name: 'Spanish', speechCode: 'es-ES' },
-    { code: 'pt', code_pt: 'pt-BR', name: 'Portuguese', speechCode: 'pt-BR' },
+    { code: 'de', name: 'German', speechCode: 'de-DE' },
+    { code: 'it', name: 'Italian', speechCode: 'it-IT' },
+    { code: 'pt', name: 'Portuguese', speechCode: 'pt-BR' },
+    { code: 'tr', name: 'Turkish', speechCode: 'tr-TR' },
+    { code: 'ru', name: 'Russian', speechCode: 'ru-RU' },
+    { code: 'hi', name: 'Hindi', speechCode: 'hi-IN' },
+    { code: 'zh', name: 'Chinese', speechCode: 'zh-CN' },
+    { code: 'ja', name: 'Japanese', speechCode: 'ja-JP' },
+    { code: 'ko', name: 'Korean', speechCode: 'ko-KR' },
+    { code: 'ur', name: 'Urdu', speechCode: 'ur-PK' },
+    { code: 'fa', name: 'Persian', speechCode: 'fa-IR' },
 ];
 
 export const translations = {
-  lang_ar: { en: 'Arabic', ar: 'العربية', fr: 'Arabe', es: 'Áرabe', pt: 'Árabe' },
+  lang_ar: { en: 'Arabic', ar: 'العربية', fr: 'Arabe', es: 'Árabe', pt: 'Árabe' },
   lang_en: { en: 'English', ar: 'الإنجليزية', fr: 'Anglais', es: 'Inglés', pt: 'Inglês' },
-  lang_fr: { en: 'French', ar: 'الفرنسية', fr: 'Français', es: 'Francés', pt: 'Francês' },
+  lang_fr: { en: 'French', ar: 'الفرنسية', fr: 'Français', es: 'Francés', pt: 'Francés' },
   lang_es: { en: 'Spanish', ar: 'الإسبانية', fr: 'Espagnol', es: 'Español', pt: 'Espanhol' },
   lang_pt: { en: 'Portuguese', ar: 'البرتغالية', fr: 'Portugais', es: 'Portugués', pt: 'Português' },
+  lang_de: { en: 'German', ar: 'الألمانية', fr: 'Allemand', es: 'Alemán', pt: 'Alemão' },
+  lang_it: { en: 'Italian', ar: 'الإيطالية', fr: 'Italien', es: 'Italiano', pt: 'Italiano' },
+  lang_tr: { en: 'Turkish', ar: 'التركية', fr: 'Turc', es: 'Turco', pt: 'Turco' },
+  lang_ru: { en: 'Russian', ar: 'الروسية', fr: 'Russe', es: 'Ruso', pt: 'Russo' },
+  lang_hi: { en: 'Hindi', ar: 'الهندية', fr: 'Hindi', es: 'Hindi', pt: 'Hindi' },
+  lang_zh: { en: 'Chinese', ar: 'الصينية', fr: 'Chinois', es: 'Chino', pt: 'Chinês' },
+  lang_ja: { en: 'Japanese', ar: 'اليابانية', fr: 'Japonais', es: 'Japonés', pt: 'Japonês' },
+  lang_ko: { en: 'Korean', ar: 'الكورية', fr: 'Coréen', es: 'Coreano', pt: 'Coreano' },
+  lang_ur: { en: 'Urdu', ar: 'الأوردو', fr: 'Ourdou', es: 'Urdu', pt: 'Urdu' },
+  lang_fa: { en: 'Persian', ar: 'الفارسية', fr: 'Persan', es: 'Persa', pt: 'Persa' },
   
   speakSource: { en: 'Listen Original', ar: 'استمع للأصلي', fr: 'Écouter l\'original', es: 'Escuchar original', pt: 'Ouvir original' },
   speakTarget: { en: 'Listen Translation', ar: 'استمع للترجمة', fr: 'Écouter la traduction', es: 'Escuchar traducción', pt: 'Ouvir tradução' },
@@ -38,7 +58,6 @@ export const translations = {
   translateButton: { en: 'Translate', ar: 'ترجم', fr: 'Traduire', es: 'Traducir', pt: 'Traduzir' },
   translatingButton: { en: 'Translating...', ar: 'جاري الترجمة...', fr: 'Traduction...', es: 'Traduciendo...', pt: 'Traduzindo...' },
 
-  // UI Elements
   soundEffects: { en: 'Sound Effects', ar: 'مؤثرات صوتية', fr: 'Effets sonores', es: 'Efectos de sonido', pt: 'Efeitos de som' },
   tashkeel: { en: 'Tashkeel', ar: 'تشكيل', fr: 'Tashkeel', es: 'Tashkeel', pt: 'Tashkeel' },
   copyTooltip: { en: 'Copy', ar: 'نسخ', fr: 'Copier', es: 'Copiar', pt: 'Copiar' },
@@ -55,29 +74,24 @@ export const translations = {
   tutorialButton: { en: 'Tutorial', ar: 'تعليمات', fr: 'Tutoriel', es: 'Tutorial', pt: 'Tutorial' },
   closeButton: { en: 'Close', ar: 'إغلاق', fr: 'Fermer', es: 'Cerrar', pt: 'Fechar' },
 
-  // New Localization for Multi-Speaker
   speakerName: { en: 'Name', ar: 'الاسم', fr: 'Nom', es: 'Nombre', pt: 'Nome' },
   speakerVoice: { en: 'Voice', ar: 'الصوت', fr: 'Voix', es: 'Voz', pt: 'Voz' },
   
-  // Voice Categories
   geminiHdVoices: { en: 'Gemini HD', ar: 'جيمناي HD', fr: 'Gemini HD', es: 'Gemini HD', pt: 'Gemini HD' },
   neuralVoices: { en: 'Neural Pro', ar: 'أصوات عصبية احترافية', fr: 'Voix Neural Pro', es: 'Voces Neural Pro', pt: 'Vozes Neural Pro' },
   ultraVoicesDesc: { en: 'High-fidelity natural performance', ar: 'أداء طبيعي عالي الدقة', fr: 'Performance naturelle HD', es: 'Rendimiento natural HD', pt: 'Performance natural HD' },
   proVoicesDesc: { en: 'Professional multi-dialect voices', ar: 'أصوات احترافية متعددة اللهجات', fr: 'Voix professionnelles multi-dialectes', es: 'Voces profesionales multidialecto', pt: 'Vozes profissionais multi-dialetos' },
 
-  // Error Messages (Brief)
-  errorUnexpected: { en: 'Error occurred', ar: 'حدث خطأ', fr: 'Erreur survenue', es: 'Ocurrió un error', pt: 'Ocorreu um erro' },
+  errorUnexpected: { en: 'Error occurred', ar: 'حدث خطأ', fr: 'Erreur survenue', es: 'Ocurrió un error', pt: 'Ocurreu um erro' },
   errorFileTooLarge: { en: 'Too large', ar: 'كبير جداً', fr: 'Trop grand', es: 'Demasiado grande', pt: 'Muito grande' },
   errorApiNoAudio: { en: 'No audio', ar: 'لا يوجد صوت', fr: 'Pas d\'audio', es: 'Sin audio', pt: 'Sem áudio' },
 
-  // Gemini Voice Names
   voiceMale1: { en: 'Puck (Male)', ar: 'باك (ذكر)', fr: 'Puck (Homme)', es: 'Puck (Hombre)', pt: 'Puck (Masculino)' },
   voiceFemale1: { en: 'Kore (Female)', ar: 'كوري (أنثى)', fr: 'Kore (Femme)', es: 'Kore (Mujer)', pt: 'Kore (Feminino)' },
   voiceMale2: { en: 'Charon (Male)', ar: 'تشارون (ذكر)', fr: 'Charon (Homme)', es: 'Charon (Hombre)', pt: 'Charon (Masculino)' },
   voiceFemale2: { en: 'Zephyr (Female)', ar: 'زيفير (أنثى)', fr: 'Zephyr (Femme)', es: 'Zephyr (Mujer)', pt: 'Zephyr (Feminino)' },
   voiceMale3: { en: 'Fenrir (Male)', ar: 'فينرير (ذكر)', fr: 'Fenrir (Homme)', es: 'Fenrir (Hombre)', pt: 'Fenrir (Masculino)' },
 
-  // Styles
   catStandard: { en: 'Standard', ar: 'قياسي', fr: 'Standard', es: 'Estándar', pt: 'Padrão' },
   emotionDefault: { en: 'Default', ar: 'افتراضي', fr: 'Défaut', es: 'Predeterminado', pt: 'Padrão' },
   emotionHappy: { en: 'Happy', ar: 'سعيد', fr: 'Joyeux', es: 'Feliz', pt: 'Feliz' },
@@ -91,11 +105,10 @@ export const translations = {
   catEducation: { en: 'Education', ar: 'تعليم', fr: 'Éducation', es: 'Educación', pt: 'Educação' },
   styleMotivator: { en: 'Motivator', ar: 'محفز', fr: 'Motivateur', es: 'Motivador', pt: 'Motivador' },
 
-  // --- FIX: Added Missing Translation Keys ---
   trialExpired: { en: 'Trial expired', ar: 'انتهت الفترة التجريبية', fr: 'Période d\'essai expirée', es: 'Prueba expirada', pt: 'Teste expirado' },
   totalLimitReached: { en: 'Total limit reached', ar: 'تم الوصول للحد الإجمالي', fr: 'Limite totale atteinte', es: 'Límite total alcanzado', pt: 'Limite total atingido' },
   warmingUp: { en: 'Warming up engine...', ar: 'جاري تشغيل المحرك...', fr: 'Démarrage du moteur...', es: 'Calentando motor...', pt: 'Iniciando motor...' },
-  errorTranslate: { en: 'Translation failed', ar: 'فشلت الترجمة', fr: 'Échec de la traduction', es: 'Error en la traducción', pt: 'Falha na tradução' },
+  errorTranslate: { en: 'Translation failed', ar: 'فشلت الترجمة', fr: 'Échec de la traduction', es: 'Error en la traducción', pt: 'Falha na traducción' },
   tashkeelError: { en: 'Error adding diacritics', ar: 'خطأ في إضافة التشكيل', fr: 'Erreur d\'ajout de diacritiques', es: 'Error al añadir diacríticos', pt: 'Erro ao adicionar diacríticos' },
   tashkeelSuccess: { en: 'Diacritics added successfully', ar: 'تم إضافة التشكيل بنجاح', fr: 'Diacritiques ajoutés avec succès', es: 'Diacríticos añadidos con éxito', pt: 'Diacríticos adicionados com sucesso' },
   errorMicNotSupported: { en: 'Microphone not supported in this browser', ar: 'الميكروفون غير مدعوم في هذا المتصفح', fr: 'Micro non supporté par ce navigateur', es: 'Micrófono no compatible en este navegador', pt: 'Microfone não suportado neste navegador' },
@@ -136,7 +149,7 @@ export const translations = {
   trialUsageLabel: { en: 'Total Usage', ar: 'الاستخدام الإجمالي', fr: 'Usage total', es: 'Uso total', pt: 'Uso total' },
   dataManagement: { en: 'Data Management', ar: 'إدارة البيانات', fr: 'Gestion des données', es: 'Gestión de datos', pt: 'Gerenciamento de dados' },
   clearCloudHistory: { en: 'Clear Cloud History', ar: 'مسح سجل السحابة', fr: 'Effacer l\'historique cloud', es: 'Borrar historial en la nube', pt: 'Limpar histórico na nuvem' },
-  clearCloudHistoryInfo: { en: 'Delete all your translation history from our servers.', ar: 'حذف جميع سجل الترجمة من خوادمنا.', fr: 'Supprimer tout l\'historique de nos serveurs.', es: 'Eliminar todo el historial de nuestros servidores.', pt: 'Exclua todo o seu histórico de tradução de nossos servidores.' },
+  clearCloudHistoryInfo: { en: 'Delete all your translation history from our servers.', ar: 'حذف جميع سجل الترجمة من خوادمنا.', fr: 'Supprimer tout l\'historique de nos serverurs.', es: 'Eliminar todo el historial de nuestros servidores.', pt: 'Exclua todo o seu histórico de tradução de nossos servidores.' },
   dangerZone: { en: 'Danger Zone', ar: 'منطقة الخطر', fr: 'Zone de danger', es: 'Zona de peligro', pt: 'Zona de perigo' },
   deleteAccount: { en: 'Delete Account', ar: 'حذف الحساب', fr: 'Supprimer le compte', es: 'Eliminar cuenta', pt: 'Excluir conta' },
   deleteAccountInfo: { en: 'Permanently delete your account and all associated data.', ar: 'حذف حسابك وجميع البيانات المرتبطة به نهائياً.', fr: 'Supprimer définitivement votre compte.', es: 'Eliminar permanentemente tu cuenta y datos.', pt: 'Exclua permanentemente sua conta e todos os dados associados.' },
@@ -203,7 +216,7 @@ export const translations = {
   tutStep1TransTitle: { en: 'Translation:', ar: 'الترجمة:', fr: 'Traduction :', es: 'Traducción:', pt: 'Tradução:' },
   tutStep1TransText: { en: 'Translate your script to multiple languages instantly.', ar: 'ترجم النص للعديد من اللغات فوراً.', fr: 'Traduisez instantanément.', es: 'Traduce al instante.', pt: 'Traduza instantaneamente.' },
   tutStep2Title: { en: 'Step 2: Voice & Tone', ar: 'الخطوة 2: الصوت والنبرة', fr: 'Étape 2 : Voix', es: 'Paso 2: Voz', pt: 'Passo 2: Voz' },
-  tutStep2Intro: { en: 'Customize the vocal performance.', ar: 'تخصيص الأداء الصوتي.', fr: 'Personnalisez la voix.', es: 'Personaliza la voz.', pt: 'Personalize a voz.' },
+  tutStep2Intro: { en: 'Customize the vocal performance.', ar: 'تخصيص الأداء الصوتي.', fr: 'Personnalisez la voix.', es: 'Personaliza la voz.', pt: 'Personallize a voz.' },
   tutStep2Voice: { en: 'High Quality Voices:', ar: 'أصوات عالية الجودة:', fr: 'Voix HD :', es: 'Voces de alta calidad:', pt: 'Vozes de alta qualidade:' },
   tutStep2Tone: { en: 'Emotions:', ar: 'العواطف:', fr: 'Émotions :', es: 'Emociones:', pt: 'Emoções:' },
   tutStep2MultiTitle: { en: 'Multi-Speaker Scripts:', ar: 'نصوص المتحدثين المتعددين:', fr: 'Scripts multi-voix :', es: 'Guiones multivoz:', pt: 'Scripts multi-falantes:' },
@@ -234,23 +247,6 @@ export const translations = {
   questRateAppDesc: { en: 'Rate us to get +100 chars.', ar: 'قيمنا للحصول على +100 حرف.', fr: 'Notez-nous (+100).', es: 'Califícanos (+100).', pt: 'Avalie-nos (+100).' },
   questInviteFriend: { en: 'Invite a Friend', ar: 'دعوة صديق', fr: 'Inviter un ami', es: 'Invitar amigo', pt: 'Convidar amigo' },
   questInviteFriendDesc: { en: 'Get +200 chars per invite.', ar: 'احصل على +200 حرف لكل دعوة.', fr: 'Invitez (+200).', es: 'Invita (+200).', pt: 'Convide (+200).' },
-  issueOriginalAudio: { en: 'Original Audio Issue', ar: 'مشكلة في الصوت الأصلي', fr: 'Audio original', es: 'Audio original', pt: 'Áudio original' },
-  issueTranslatedAudio: { en: 'Translated Audio Issue', ar: 'مشكلة في الصوت المترجم', fr: 'Audio traduit', es: 'Audio traducido', pt: 'Áudio traduzido' },
-  issueTranslation: { en: 'Translation Accuracy', ar: 'دقة الترجمة', fr: 'Précision traduction', es: 'Precisión traducción', pt: 'Precisão tradução' },
-  issueGeminiVoices: { en: 'Gemini HD Voices', ar: 'أصوات Gemini HD', fr: 'Voix Gemini', es: 'Voces Gemini', pt: 'Vozes Gemini' },
-  issueSystemVoices: { en: 'System Voices', ar: 'أصوات النظام', fr: 'Voix système', es: 'Voces de sistema', pt: 'Vozes de sistema' },
-  issueVoicePreview: { en: 'Voice Preview Problem', ar: 'مشكلة في معاينة الصوت', fr: 'Aperçu voix', es: 'Previa de voz', pt: 'Prévia de voz' },
-  issuePauses: { en: 'Pause/Timing Issue', ar: 'مشكلة في الوقفات/التوقيت', fr: 'Pauses/Timing', es: 'Pausas/Tiempo', pt: 'Pausas/Tempo' },
-  issueSpeed: { en: 'Speed Control', ar: 'التحكم في السرعة', fr: 'Contrôle vitesse', es: 'Control de velocidad', pt: 'Controle de velocidade' },
-  issueMultiSpeaker: { en: 'Multi-Speaker Setup', ar: 'إعداد تعدد المتحدثين', fr: 'Multi-voix', es: 'Configuración multivoz', pt: 'Configuração multi-falante' },
-  issueInterfaceLanguage: { en: 'Interface Language', ar: 'لغة الواجهة', fr: 'Langue interface', es: 'Idioma interfaz', pt: 'Idioma interface' },
-  issueSpeechSettings: { en: 'Speech Settings Panel', ar: 'لوحة إعدادات الكلام', fr: 'Paramètres voix', es: 'Ajustes de voz', pt: 'Ajustes de voz' },
-  issueHistory: { en: 'History/Saving Issue', ar: 'مشكلة في السجل/الحفظ', fr: 'Historique/Sauvegarde', es: 'Historial/Guardado', pt: 'Histórico/Salvamento' },
-  issueShareLink: { en: 'Share Link Problem', ar: 'مشكلة في رابط المشاركة', fr: 'Lien partage', es: 'Enlace compartir', pt: 'Link compartilhamento' },
-  issueDownload: { en: 'Download/Export Error', ar: 'خطأ في التحميل/التصدير', fr: 'Téléchargement', es: 'Error descarga', pt: 'Erro download' },
-  issueAudioStudio: { en: 'Audio Studio/Mixer', ar: 'استوديو الصوت/الخلاط', fr: 'Studio/Mixeur', es: 'Estudio/Mezclador', pt: 'Estúdio/Mixer' },
-  issueComments: { en: 'Feedback/Comments', ar: 'التقييمات/التعليقات', fr: 'Avis/Commentaires', es: 'Comentarios', pt: 'Feedbacks' },
-  issueOther: { en: 'Other Issue', ar: 'مشكلة أخرى', fr: 'Autre', es: 'Otro', pt: 'Outro' },
 };
 
 export const t = (key: keyof typeof translations, lang: Language): string => {

@@ -60,14 +60,14 @@ const VoiceListItem: React.FC<{
                 <span className="font-semibold flex items-center gap-2">
                     {label}
                 </span>
-                {sublabel && <span className="text-xs text-slate-400 block">{sublabel}</span>}
+                {sublabel && <span className="text-[10px] text-slate-400 block opacity-70">{sublabel}</span>}
             </div>
         </div>
         <button
             onClick={(e) => { e.stopPropagation(); onPreview(voiceName); }}
             className="p-2 rounded-full bg-slate-800/50 hover:bg-cyan-500 hover:text-white text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400"
         >
-            {previewingVoice === voiceName ? <LoaderIcon /> : <PlayCircleIcon />}
+            {previewingVoice === voiceName ? <LoaderIcon className="w-4 h-4" /> : <PlayCircleIcon className="w-4 h-4" />}
         </button>
     </div>
 ));
@@ -106,8 +106,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         });
 
         if (showAllSystemVoices) return availableList;
-        // تقليل القائمة الافتراضية لمنع التشتت مع الحفاظ على التنوع
-        return availableList.slice(0, 15);
+        // عرض 25 صوتاً بدلاً من 20 لزيادة التنوع في القائمة الافتراضية
+        return availableList.slice(0, 25);
     }, [uiLanguage, showAllSystemVoices]);
 
     const groupedStyles = useMemo(() => {
@@ -145,6 +145,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         let previewText = "أهلاً بك في صوتلي.";
         if (voiceName.startsWith('fr-')) previewText = "Bienvenue sur Sawtli.";
         else if (voiceName.startsWith('en-')) previewText = "Welcome to Sawtli.";
+        else if (voiceName.startsWith('de-')) previewText = "Willkommen bei Sawtli.";
+        else if (voiceName.startsWith('es-')) previewText = "Bienvenido a Sawtli.";
 
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -181,6 +183,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         ? GEMINI_VOICES.map(v => <option key={v} value={v}>{t(voiceNameMap[v], uiLanguage)}</option>)
         : MICROSOFT_AZURE_VOICES.map(v => <option key={v.name} value={v.name}>{v.label}</option>);
 
+    const sNameLabel = t('speakerName', uiLanguage);
+    const sVoiceLabel = t('speakerVoice', uiLanguage);
+
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-down" onClick={onClose}>
             <div className="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -191,7 +196,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                 </div>
 
-                <div className="overflow-y-auto pr-2 space-y-6">
+                <div className="overflow-y-auto pr-2 space-y-6 custom-scrollbar">
                      <div className="space-y-3">
                         <label className="text-lg font-bold text-slate-200">{t('voiceLabel', uiLanguage)}</label>
                         <div className="flex p-1 bg-slate-900/50 rounded-lg border border-slate-700 relative mb-4">
@@ -207,7 +212,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                              </button>
                         </div>
                         
-                        <div className="text-xs text-center mb-3 text-slate-400 bg-slate-900/30 p-2 rounded border border-slate-700">
+                        <div className="text-[10px] text-center mb-3 text-slate-400 bg-slate-900/30 p-2 rounded border border-slate-700 uppercase tracking-widest">
                             {voiceMode === 'gemini' ? t('ultraVoicesDesc', uiLanguage) : t('proVoicesDesc', uiLanguage)}
                         </div>
 
@@ -230,12 +235,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         ) : (
                              <div className="space-y-2">
                                 <div className="flex justify-between items-center mb-2">
-                                    <p className="text-xs text-slate-400">{showAllSystemVoices ? (uiLanguage === 'ar' ? 'عرض كل الأصوات' : 'Showing ALL') : (uiLanguage === 'ar' ? 'أصوات مقترحة' : 'Suggested Voices')}</p>
-                                    <button onClick={() => setShowAllSystemVoices(!showAllSystemVoices)} className="text-xs font-bold px-2 py-1 rounded border bg-slate-700 border-slate-600 text-slate-300">
+                                    <p className="text-xs text-slate-400 font-bold uppercase">{showAllSystemVoices ? (uiLanguage === 'ar' ? 'المكتبة الكاملة' : 'Global Library') : (uiLanguage === 'ar' ? 'أصوات مقترحة' : 'Quick Picks')}</p>
+                                    <button onClick={() => setShowAllSystemVoices(!showAllSystemVoices)} className="text-[10px] font-bold px-3 py-1 rounded-full border bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600 transition-colors uppercase tracking-wider">
                                         {showAllSystemVoices ? (uiLanguage === 'ar' ? 'تصفية' : 'Filter') : (uiLanguage === 'ar' ? 'إظهار الكل' : 'Show All')}
                                     </button>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     {relevantStandardVoices.map(v => (
                                         <VoiceListItem 
                                             key={v.name} 
@@ -255,12 +260,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         )}
                     </div>
                     
-                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50`}>
-                         <h4 className="font-semibold text-slate-200 flex items-center gap-2">{t('emotionLabel', uiLanguage)}</h4>
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 border border-slate-700/50`}>
+                         <h4 className="font-bold text-slate-200 flex items-center gap-2 text-sm uppercase tracking-wider">{t('emotionLabel', uiLanguage)}</h4>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">{t('emotionLabel', uiLanguage)}</label>
-                                 <select value={emotion} onChange={(e) => setEmotion(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white">
+                                <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">{t('emotionLabel', uiLanguage)}</label>
+                                 <select value={emotion} onChange={(e) => setEmotion(e.target.value)} className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm">
                                      {Object.keys(groupedStyles).map(catKey => (
                                          <optgroup key={catKey} label={t(catKey as any, uiLanguage)}>
                                              {groupedStyles[catKey].map(style => (
@@ -270,14 +275,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                      ))}
                                  </select>
                              </div>
-                             <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-2">{t('studioSpeed', uiLanguage)} ({speed.toFixed(2)}x)</label>
-                                    <input type="range" min="0.5" max="2.0" step="0.05" value={speed} onChange={e => setSpeed(parseFloat(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                             <div className={voiceMode === 'system' ? 'opacity-50 pointer-events-none' : ''}>
+                                    <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">{t('seedLabel', uiLanguage)}</label>
+                                    <div className="flex items-center gap-2">
+                                        <input type="number" value={seed} onChange={(e) => setSeed(parseInt(e.target.value) || 0)} className="flex-1 p-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm font-mono" />
+                                        <button onClick={() => setSeed(Math.floor(Math.random() * 100000))} className="p-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-md text-slate-300 transition-colors"><SwapIcon className="w-5 h-5" /></button>
+                                    </div>
                              </div>
+                         </div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">{t('studioSpeed', uiLanguage)} ({speed.toFixed(2)}x)</label>
+                                <input type="range" min="0.5" max="2.0" step="0.05" value={speed} onChange={e => setSpeed(parseFloat(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">{uiLanguage === 'ar' ? 'التوقف بين الفقرات' : 'Pause between paragraphs'} ({pauseDuration}s)</label>
+                                <input type="range" min="0" max="5" step="0.1" value={pauseDuration} onChange={e => setPauseDuration(parseFloat(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                            </div>
                          </div>
                     </div>
 
-                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 relative`}>
+                    <div className={`space-y-4 p-4 rounded-lg bg-slate-900/50 relative border border-slate-700/50`}>
                          {!currentLimits.allowMultiSpeaker && (
                              <div className="absolute inset-0 bg-slate-900/70 rounded-lg z-10 flex items-center justify-center backdrop-blur-[1px] cursor-pointer" onClick={onUpgrade}>
                                 <div className="bg-slate-800 px-4 py-2 rounded-full border border-amber-500/50 shadow-lg"><span className="text-sm font-bold text-white">{uiLanguage === 'ar' ? 'ترقية لفتح الميزة' : 'Upgrade to Unlock'}</span></div>
@@ -285,20 +303,34 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                          )}
                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <h4 className="text-lg font-bold text-slate-200">{t('multiSpeakerSettings', uiLanguage)}</h4>
+                                <h4 className="text-sm font-bold text-slate-200 uppercase tracking-widest">{t('multiSpeakerSettings', uiLanguage)}</h4>
                             </div>
                             <input type="checkbox" checked={multiSpeaker} onChange={e => setMultiSpeaker(e.target.checked)} className="form-checkbox h-5 w-5 text-cyan-600 bg-slate-700 border-slate-600 rounded" />
                          </div>
-                        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${!multiSpeaker ? 'opacity-30 pointer-events-none' : ''}`}>
                              <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700">
-                                 <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Name 1</label>
-                                 <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white mb-2" />
-                                 <select value={speakerA.voice} onChange={e => setSpeakerA({...speakerA, voice: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white">{speakerOptions}</select>
+                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">{sNameLabel} 1</label>
+                                 <input type="text" value={speakerA.name} onChange={e => setSpeakerA({...speakerA, name: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white mb-2 text-sm" />
+                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">{sVoiceLabel} 1</label>
+                                 <select value={speakerA.voice} onChange={e => setSpeakerA({...speakerA, voice: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white text-xs">{speakerOptions}</select>
                              </div>
                              <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700">
-                                 <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Name 2</label>
-                                 <input type="text" value={speakerB.name} onChange={e => setSpeakerB({...speakerB, name: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white mb-2" />
-                                 <select value={speakerB.voice} onChange={e => setSpeakerB({...speakerB, voice: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white">{speakerOptions}</select>
+                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">{sNameLabel} 2</label>
+                                 <input type="text" value={speakerB.name} onChange={e => setSpeakerB({...speakerB, name: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white mb-2 text-sm" />
+                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">{sVoiceLabel} 2</label>
+                                 <select value={speakerB.voice} onChange={e => setSpeakerB({...speakerB, voice: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white text-xs">{speakerOptions}</select>
+                             </div>
+                             <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">{sNameLabel} 3</label>
+                                 <input type="text" value={speakerC?.name || ''} onChange={e => setSpeakerC && setSpeakerC({...speakerC!, name: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white mb-2 text-sm" />
+                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">{sVoiceLabel} 3</label>
+                                 <select value={speakerC?.voice || ''} onChange={e => setSpeakerC && setSpeakerC({...speakerC!, voice: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white text-xs">{speakerOptions}</select>
+                             </div>
+                             <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">{sNameLabel} 4</label>
+                                 <input type="text" value={speakerD?.name || ''} onChange={e => setSpeakerD && setSpeakerD({...speakerD!, name: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white mb-2 text-sm" />
+                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">{sVoiceLabel} 4</label>
+                                 <select value={speakerD?.voice || ''} onChange={e => setSpeakerD && setSpeakerD({...speakerD!, voice: e.target.value})} className="w-full p-2 bg-slate-900 border border-slate-700 rounded-md text-white text-xs">{speakerOptions}</select>
                              </div>
                         </div>
                     </div>

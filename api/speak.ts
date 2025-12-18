@@ -14,8 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const MODEL_NAME = 'gemini-2.5-flash-preview-tts';
     
-    // تم حذف التعليمات البرمجية الزائدة لضمان استجابة الموديل للنص فقط
-    const instruction = text; 
+    // Improved internal prompt for guaranteed voice generation
+    const systemPrompt = `[MODE: TTS_ONLY] Respond strictly with the generated audio for the following text. Do not provide textual analysis or dialogue. If the text is Arabic, use natural, eloquent pronunciation. Text: "${text}"`;
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 const response = await ai.models.generateContent({
                     model: MODEL_NAME,
-                    contents: [{ parts: [{ text: instruction }] }],
+                    contents: [{ parts: [{ text: systemPrompt }] }],
                     config: {
                         responseModalities: [Modality.AUDIO],
                         speechConfig: {
@@ -42,21 +42,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     },
                 });
 
-                const parts = response.candidates?.[0]?.content?.parts;
-                const audioPart = parts?.find(p => p.inlineData);
-                const audioData = audioPart?.inlineData?.data;
+                const candidates = response.candidates;
+                if (!candidates || candidates.length === 0) throw new Error("No candidates returned");
 
-                if (audioData) {
-                    return res.status(200).json({ audioContent: audioData });
+                const parts = candidates[0].content.parts;
+                const audioPart = parts.find(p => p.inlineData);
+
+                if (audioPart?.inlineData?.data) {
+                    return res.status(200).json({ audioContent: audioPart.inlineData.data });
                 }
                 
-                // إذا لم نجد audioData ولكن هناك textPart، فهذا يعني أن الموديل أجاب بنص بدلاً من صوت
-                throw new Error("Model generated text instead of audio. Safety filter might be triggered.");
+                throw new Error("Model failed to return audio data. Check safety filters or prompt.");
 
             } catch (err: any) {
                 lastError = err;
-                if (err.message?.includes('429') || err.message?.includes('503')) {
-                    await delay(attempt * 1000);
+                console.warn(`TTS Attempt ${attempt} failed:`, err.message);
+                if (err.message?.includes('429') || err.message?.includes('503') || err.message?.includes('audio')) {
+                    await delay(attempt * 1200);
                     continue;
                 }
                 throw err;
@@ -65,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw lastError;
 
     } catch (error: any) {
-        console.error("Gemini TTS Error:", error);
-        return res.status(500).json({ error: error.message || "Service busy." });
+        console.error("Gemini TTS Critical Error:", error);
+        return res.status(500).json({ error: error.message || "Service error. Please try again." });
     }
 }
