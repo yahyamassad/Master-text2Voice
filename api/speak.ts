@@ -14,11 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const MODEL_NAME = 'gemini-2.5-flash-preview-tts';
     
-    // Improved Prompt for better consistency and emotion
-    const isArabic = /[\u0600-\u06FF]/.test(text);
-    const instruction = isArabic 
-        ? `[أداء احترافي، صوت واضح، مخارج حروف دقيقة، عاطفة طبيعية]: ${text}`
-        : `[Professional performance, clear voice, natural articulation]: ${text}`;
+    // تم حذف التعليمات البرمجية الزائدة لضمان استجابة الموديل للنص فقط
+    const instruction = text; 
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -45,17 +42,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     },
                 });
 
-                const audioData = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                const parts = response.candidates?.[0]?.content?.parts;
+                const audioPart = parts?.find(p => p.inlineData);
+                const audioData = audioPart?.inlineData?.data;
 
                 if (audioData) {
                     return res.status(200).json({ audioContent: audioData });
                 }
-                throw new Error("Empty response");
+                
+                // إذا لم نجد audioData ولكن هناك textPart، فهذا يعني أن الموديل أجاب بنص بدلاً من صوت
+                throw new Error("Model generated text instead of audio. Safety filter might be triggered.");
 
             } catch (err: any) {
                 lastError = err;
                 if (err.message?.includes('429') || err.message?.includes('503')) {
-                    await delay(attempt * 1500);
+                    await delay(attempt * 1000);
                     continue;
                 }
                 throw err;
@@ -65,6 +66,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error("Gemini TTS Error:", error);
-        return res.status(500).json({ error: "Service busy, please retry in seconds." });
+        return res.status(500).json({ error: error.message || "Service busy." });
     }
 }

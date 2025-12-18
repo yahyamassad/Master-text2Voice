@@ -3,17 +3,16 @@ import { decode, createWavBlob } from '../utils/audioUtils';
 import { SpeakerConfig } from '../types';
 
 /**
- * وظيفة لتطهير النص من الرموز التي لا يجب نطقها (مثل رموز مارك داون)
- * تمنع الصوت من قول "نجمة نجمة" أو "مربع"
+ * وظيفة لتطهير النص من الرموز التي لا يجب نطقها
  */
 function scrubTextForSpeech(text: string): string {
     return text
-        .replace(/\*\*/g, '') // إزالة النجوم المزدوجة
-        .replace(/\*/g, '')   // إزالة النجوم المفردة
-        .replace(/__/g, '')   // إزالة الخطوط التحتية
-        .replace(/#/g, '')    // إزالة المربعات
-        .replace(/\[|\]/g, '') // إزالة الأقواس المربعة
-        .replace(/`+/g, '')   // إزالة رموز الكود
+        .replace(/\*\*/g, '') 
+        .replace(/\*/g, '')   
+        .replace(/__/g, '')   
+        .replace(/#/g, '')    
+        .replace(/\[|\]/g, '') 
+        .replace(/`+/g, '')   
         .trim();
 }
 
@@ -33,27 +32,10 @@ function escapeXml(unsafe: string): string {
     });
 }
 
-/**
- * VOICE MAPPING (STABLE)
- */
-const QUALITY_MAPPING: Record<string, string> = {
-    'ar-JO-TaimNeural': 'ar-KW-FahedNeural',
-    'ar-JO-SanaNeural': 'ar-KW-NouraNeural',
-    'ar-QA-AmalNeural': 'ar-KW-NouraNeural',
-    'ar-QA-MoazNeural': 'ar-KW-FahedNeural',
-    'ar-BH-AliNeural': 'ar-KW-FahedNeural',
-    'ar-BH-LailaNeural': 'ar-KW-NouraNeural',
-    'ar-YE-MaryamNeural': 'ar-KW-NouraNeural',
-    'ar-YE-SalehNeural': 'ar-KW-FahedNeural',
-};
-
-function getBackendVoiceId(uiVoiceId: string): string {
-    return QUALITY_MAPPING[uiVoiceId] || uiVoiceId;
-}
+// --- تم حذف QUALITY_MAPPING لاستعادة التنوع الحقيقي ---
 
 function getOptimizedLocale(voiceId: string): string {
-    const actualVoiceId = getBackendVoiceId(voiceId);
-    const parts = actualVoiceId.split('-');
+    const parts = voiceId.split('-');
     if (parts.length >= 2) {
         return `${parts[0]}-${parts[1]}`;
     }
@@ -62,28 +44,24 @@ function getOptimizedLocale(voiceId: string): string {
 
 /**
  * Detects if text is predominantly English/Latin.
+ * تم تحسين الحساسية لتجنب التبديل الخاطئ
  */
 function isTextEnglish(text: string): boolean {
     const latinMatch = text.match(/[a-zA-Z]/g);
     const arabicMatch = text.match(/[\u0600-\u06FF]/g);
     const latinCount = latinMatch ? latinMatch.length : 0;
     const arabicCount = arabicMatch ? arabicMatch.length : 0;
-    return latinCount > arabicCount && latinCount > 3;
+    return latinCount > (arabicCount * 2) && latinCount > 10;
 }
 
 /**
- * Stabilizes Arabic Text for TTS Engines (Azure/Gemini).
+ * Stabilizes Arabic Text for TTS Engines.
+ * تم تخفيف حدة السكون لجعل الكلام أكثر طبيعية وتنوعاً
  */
 function stabilizeArabicText(text: string): string {
-    // 1. تنظيف النص من الرموز المزعجة أولاً
     let processed = scrubTextForSpeech(text);
-
-    // 2. Force Sukoon on words ending in consonants.
-    processed = processed.replace(/([ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه])(?=\s|[.,!؟:;]|$)/g, '$1\u0652');
-
-    // 3. Fix "Swallowed Endings" for Alif Maqsura (ى).
-    processed = processed.replace(/(?<=[\u0621-\u064A]{3})ى(?=\s|[.,!؟:;]|$)/g, 'ا');
-
+    // إضافة سكون خفيف فقط عند نهايات الجمل الواضحة لضمان الوقوف الصحيح
+    processed = processed.replace(/([.,!؟])(?=\s|$)/g, '\u0652$1');
     return processed;
 }
 
@@ -97,19 +75,13 @@ export async function generateStandardSpeech(
     emotion: string = 'Default' 
 ): Promise<Uint8Array | null> {
     try {
-        let backendVoiceId = getBackendVoiceId(voiceId);
-        
-        // تنظيف وتجهيز النص قبل المعالجة
+        let backendVoiceId = voiceId; 
         let cleanText = scrubTextForSpeech(text);
 
-        // --- LANGUAGE GUARD ---
+        // --- SMART LANGUAGE GUARD ---
+        // يحمي المستخدم من اختيار صوت عربي لنص إنجليزي طويل والعكس
         if (backendVoiceId.startsWith('ar-') && isTextEnglish(cleanText)) {
             backendVoiceId = 'en-US-AndrewNeural'; 
-        } else if (backendVoiceId.startsWith('en-') && !isTextEnglish(cleanText) && cleanText.trim().length > 0) {
-             const arabicMatch = cleanText.match(/[\u0600-\u06FF]/g);
-             if (arabicMatch && arabicMatch.length > 5) {
-                 backendVoiceId = 'ar-SA-HamedNeural';
-             }
         }
 
         const langCode = getOptimizedLocale(backendVoiceId);
@@ -120,18 +92,12 @@ export async function generateStandardSpeech(
         let baseRate = 0;
 
         switch (emotion) {
-            case 'happy': azureStyle = 'cheerful'; baseRate += 5; pitch = '+2%'; break;
-            case 'sad': azureStyle = 'sad'; baseRate -= 10; pitch = '-5%'; break;
+            case 'happy': azureStyle = 'cheerful'; break;
+            case 'sad': azureStyle = 'sad'; break;
             case 'formal': azureStyle = 'newscast'; break;
-            case 'epic_poet': azureStyle = 'empathetic'; baseRate -= 10; break;
-            case 'heritage_narrator': azureStyle = 'narration-professional'; break;
-            case 'news_anchor': azureStyle = 'newscast'; break;
-            case 'sports_commentator': azureStyle = 'shouting'; baseRate += 10; break;
-            case 'thriller': azureStyle = 'whispering'; break;
         }
 
         const rate = `${baseRate}%`;
-        
         const paragraphs = cleanText.split(/\n\s*\n/);
         let innerContent = '';
         
@@ -148,18 +114,12 @@ export async function generateStandardSpeech(
             }
         });
 
-        if (rate !== '0%' || pitch !== '0%') {
-            innerContent = `<prosody rate="${rate}" pitch="${pitch}">${innerContent}</prosody>`;
-        }
-
-        if (azureStyle) {
-            innerContent = `<mstts:express-as style="${azureStyle}">${innerContent}</mstts:express-as>`;
-        }
-        
         const fullSSML = `
             <speak version='1.0' xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang='${langCode}'>
-                <voice xml:lang='${langCode}' xml:gender='Female' name='${backendVoiceId}'>
-                    ${innerContent}
+                <voice xml:lang='${langCode}' name='${backendVoiceId}'>
+                    <prosody rate="${rate}" pitch="${pitch}">
+                        ${azureStyle ? `<mstts:express-as style="${azureStyle}">${innerContent}</mstts:express-as>` : innerContent}
+                    </prosody>
                 </voice>
             </speak>
         `;
@@ -171,10 +131,7 @@ export async function generateStandardSpeech(
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) {
-            throw new Error(`Azure error: ${response.status}`);
-        }
-
+        if (!response.ok) throw new Error(`Azure error: ${response.status}`);
         const data = await response.json();
         return data.audioContent ? decode(data.audioContent) : null;
 
@@ -252,8 +209,6 @@ export async function generateMultiSpeakerStandardSpeech(
         }
         segments.push({ text: obj.content, voice: segmentVoice });
     }
-
-    if (segments.length === 0) return null;
 
     const audioBuffers: AudioBuffer[] = [];
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();

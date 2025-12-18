@@ -31,65 +31,33 @@ export interface StandardVoice {
 }
 
 export const MICROSOFT_AZURE_VOICES: StandardVoice[] = [
-    // --- ARABIC (SAUDI) ---
+    // --- ARABIC (FULL DIALECTS) ---
     { name: 'ar-SA-HamedNeural', label: 'Hamed (Saudi Male)', lang: 'ar-SA', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-SA-ZariyahNeural', label: 'Zariyah (Saudi Female)', lang: 'ar-SA', gender: 'Female', type: 'Azure Neural' },
-    
-    // --- ARABIC (EGYPT) ---
     { name: 'ar-EG-SalmaNeural', label: 'Salma (Egyptian Female)', lang: 'ar-EG', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-EG-ShakirNeural', label: 'Shakir (Egyptian Male)', lang: 'ar-EG', gender: 'Male', type: 'Azure Neural' },
-    
-    // --- ARABIC (UAE) ---
     { name: 'ar-AE-FatimaNeural', label: 'Fatima (UAE Female)', lang: 'ar-AE', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-AE-HamdanNeural', label: 'Hamdan (UAE Male)', lang: 'ar-AE', gender: 'Male', type: 'Azure Neural' },
-
-    // --- ARABIC (KUWAIT) ---
     { name: 'ar-KW-NouraNeural', label: 'Noura (Kuwaiti Female)', lang: 'ar-KW', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-KW-FahedNeural', label: 'Fahed (Kuwaiti Male)', lang: 'ar-KW', gender: 'Male', type: 'Azure Neural' },
-
-    // --- ARABIC (JORDAN) ---
-    { name: 'ar-JO-SanaNeural', label: 'Sana (Jordanian Female)', lang: 'ar-JO', gender: 'Female', type: 'Azure Neural' },
-    { name: 'ar-JO-TaimNeural', label: 'Taim (Jordanian Male)', lang: 'ar-JO', gender: 'Male', type: 'Azure Neural' },
-
-    // --- ARABIC (MOROCCO) ---
+    { name: 'ar-LB-LayalNeural', label: 'Layal (Lebanese Female)', lang: 'ar-LB', gender: 'Female', type: 'Azure Neural' },
+    { name: 'ar-LB-RamiNeural', label: 'Rami (Lebanese Male)', lang: 'ar-LB', gender: 'Male', type: 'Azure Neural' },
     { name: 'ar-MA-MounaNeural', label: 'Mouna (Moroccan Female)', lang: 'ar-MA', gender: 'Female', type: 'Azure Neural' },
     { name: 'ar-MA-JamalNeural', label: 'Jamal (Moroccan Male)', lang: 'ar-MA', gender: 'Male', type: 'Azure Neural' },
 
-    // --- ARABIC (ALGERIA) ---
-    { name: 'ar-DZ-AminaNeural', label: 'Amina (Algerian Female)', lang: 'ar-DZ', gender: 'Female', type: 'Azure Neural' },
-    { name: 'ar-DZ-IsmaelNeural', label: 'Ismael (Algerian Male)', lang: 'ar-DZ', gender: 'Male', type: 'Azure Neural' },
-
-    // --- ARABIC (IRAQ) ---
-    { name: 'ar-IQ-RanaNeural', label: 'Rana (Iraqi Female)', lang: 'ar-IQ', gender: 'Female', type: 'Azure Neural' },
-    { name: 'ar-IQ-BasselNeural', label: 'Bassel (Iraqi Male)', lang: 'ar-IQ', gender: 'Male', type: 'Azure Neural' },
-
-    // --- ARABIC (LEBANON) ---
-    { name: 'ar-LB-LayalNeural', label: 'Layal (Lebanese Female)', lang: 'ar-LB', gender: 'Female', type: 'Azure Neural' },
-    { name: 'ar-LB-RamiNeural', label: 'Rami (Lebanese Male)', lang: 'ar-LB', gender: 'Male', type: 'Azure Neural' },
-
-    // --- ARABIC (QATAR) ---
-    { name: 'ar-QA-AmalNeural', label: 'Amal (Qatari Female)', lang: 'ar-QA', gender: 'Female', type: 'Azure Neural' },
-    { name: 'ar-QA-MoazNeural', label: 'Moaz (Qatari Male)', lang: 'ar-QA', gender: 'Male', type: 'Azure Neural' },
-
-    // --- FRENCH ---
+    // --- FRENCH (REQUESTED) ---
     { name: 'fr-FR-DeniseNeural', label: 'Denise (French Female)', lang: 'fr-FR', gender: 'Female', type: 'Azure Neural' },
     { name: 'fr-FR-HenriNeural', label: 'Henri (French Male)', lang: 'fr-FR', gender: 'Male', type: 'Azure Neural' },
     { name: 'fr-FR-EloiseNeural', label: 'Eloise (French Female)', lang: 'fr-FR', gender: 'Female', type: 'Azure Neural' },
     { name: 'fr-FR-RemyNeural', label: 'Remy (French Male)', lang: 'fr-FR', gender: 'Male', type: 'Azure Neural' },
+    { name: 'fr-CA-SylvieNeural', label: 'Sylvie (Canada Female)', lang: 'fr-CA', gender: 'Female', type: 'Azure Neural' },
+    { name: 'fr-CA-JeanNeural', label: 'Jean (Canada Male)', lang: 'fr-CA', gender: 'Male', type: 'Azure Neural' },
 
     // --- ENGLISH ---
     { name: 'en-US-AvaNeural', label: 'Ava (US Female)', lang: 'en-US', gender: 'Female', type: 'Azure Neural' },
     { name: 'en-US-AndrewNeural', label: 'Andrew (US Male)', lang: 'en-US', gender: 'Male', type: 'Azure Neural' },
-    { name: 'en-US-EmmaNeural', label: 'Emma (US Female)', lang: 'en-US', gender: 'Female', type: 'Azure Neural' },
-    { name: 'en-US-BrianNeural', label: 'Brian (US Male)', lang: 'en-US', gender: 'Male', type: 'Azure Neural' },
-
-    // --- SPANISH ---
-    { name: 'es-ES-ElviraNeural', label: 'Elvira (Spanish Female)', lang: 'es-ES', gender: 'Female', type: 'Azure Neural' },
-    { name: 'es-ES-AlvaroNeural', label: 'Alvaro (Spanish Male)', lang: 'es-ES', gender: 'Male', type: 'Azure Neural' },
-
-    // --- PORTUGUESE ---
-    { name: 'pt-BR-FranciscaNeural', label: 'Francisca (Brazilian Female)', lang: 'pt-BR', gender: 'Female', type: 'Azure Neural' },
-    { name: 'pt-BR-AntonioNeural', label: 'Antonio (Brazilian Male)', lang: 'pt-BR', gender: 'Male', type: 'Azure Neural' },
+    { name: 'en-GB-SoniaNeural', label: 'Sonia (UK Female)', lang: 'en-GB', gender: 'Female', type: 'Azure Neural' },
+    { name: 'en-GB-RyanNeural', label: 'Ryan (UK Male)', lang: 'en-GB', gender: 'Male', type: 'Azure Neural' },
 ];
 
 export type UserTier = 'visitor' | 'free' | 'onedollar' | 'basic' | 'creator' | 'gold' | 'professional' | 'admin';
@@ -132,10 +100,6 @@ export const PLAN_LIMITS = {
     admin: { dailyLimit: Infinity, totalTrialLimit: Infinity, trialDays: Infinity, allowDownloads: true, allowWav: true, allowGemini: true, allowStudio: true, allowMultiSpeaker: true, allowEffects: true, allowTashkeel: true, allowMic: true, allowMusicUpload: true, allowUpload: true, maxAzureVoices: 100, }
 };
 
-// --- FIX: Added FallbackMap interface ---
-/**
- * Maps languages to the best available Azure fallback voice.
- */
 export interface FallbackMap {
     [langCode: string]: {
         male: string;
@@ -143,10 +107,6 @@ export interface FallbackMap {
     };
 }
 
-// --- FIX: Added VoiceStyle interface ---
-/**
- * Defines a specific vocal performance style.
- */
 export interface VoiceStyle {
     id: string;
     categoryKey: string;
