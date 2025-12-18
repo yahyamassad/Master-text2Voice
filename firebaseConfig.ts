@@ -5,14 +5,14 @@ import 'firebase/compat/firestore';
 
 /**
  * ============================================================================
- * Sawtli Professional Branding Configuration
+ * Sawtli Professional Security Configuration (Zero-Leak Policy)
  * ============================================================================
- * We set authDomain to "sawtli.com" so that the Google Sign-in popup 
- * reflects the official brand identity.
+ * تم تجريد هذا الملف من أي مفاتيح نصية.
+ * يتم جلب المفتاح الآن عبر VITE_FIREBASE_API_KEY من إعدادات Vercel.
  */
 const firebaseConfig = {
-    apiKey: "AIzaSyChk5lI5nEZHy4IMc1xDh51wVTpL0__7Uo",
-    authDomain: "sawtli.com", // Official custom domain for Auth
+    apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "", 
+    authDomain: "sawtli.com", 
     projectId: "master-text2voice",
     storageBucket: "master-text2voice.firebasestorage.app",
     messagingSenderId: "390050145859",
@@ -26,17 +26,19 @@ let db: firebase.firestore.Firestore;
 let isFirebaseConfigured = false;
 
 try {
-    if (!firebase.apps.length) {
-        app = firebase.initializeApp(firebaseConfig);
+    if (firebaseConfig.apiKey) {
+        if (!firebase.apps.length) {
+            app = firebase.initializeApp(firebaseConfig);
+        } else {
+            app = firebase.app();
+        }
+        
+        auth = firebase.auth();
+        db = firebase.firestore();
+        isFirebaseConfigured = true;
     } else {
-        app = firebase.app();
+        console.warn("Firebase Security: API Key is missing. Check Environment Variables.");
     }
-    
-    auth = firebase.auth();
-    db = firebase.firestore();
-    isFirebaseConfigured = true;
-    
-    console.log("Sawtli Core: Identity verified via sawtli.com");
 } catch (error) {
     console.error("Firebase Initialization Error:", error);
 }
