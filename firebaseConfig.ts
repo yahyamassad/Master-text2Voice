@@ -3,16 +3,9 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 
-/**
- * ============================================================================
- * Sawtli Professional Branding Configuration
- * ============================================================================
- * تغيير authDomain إلى النطاق الرسمي www.sawtli.com
- * هذا يضمن ظهور هوية النطاق الخاص بك في نوافذ المصادقة (Google Login Popup)
- */
 const firebaseConfig = {
     apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || "", 
-    authDomain: "www.sawtli.com", 
+    authDomain: "www.sawtli.com", // هذا السطر سيجعل اسم النطاق يظهر بدلاً من firebaseapp
     projectId: "master-text2voice",
     storageBucket: "master-text2voice.firebasestorage.app",
     messagingSenderId: "390050145859",
@@ -36,16 +29,11 @@ try {
         auth = firebase.auth();
         db = firebase.firestore();
         isFirebaseConfigured = true;
-    } else {
-        console.warn("Firebase Security: API Key is missing.");
     }
 } catch (error) {
-    console.error("Firebase Initialization Error:", error);
+    console.error("Firebase Init Error:", error);
 }
 
-export const getFirebase = () => {
-    return { app, auth, db, isFirebaseConfigured };
-};
-
+export const getFirebase = () => ({ app, auth, db, isFirebaseConfigured });
 export { app, auth, db, isFirebaseConfigured };
 export default firebase;

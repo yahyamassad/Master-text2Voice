@@ -8,78 +8,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
     
-    let body = req.body;
-    if (typeof body === 'string') {
-        try {
-            body = JSON.parse(body);
-        } catch (e) {
-            console.error("Failed to parse body:", e);
-            return res.status(400).json({ error: 'Invalid JSON body' });
-        }
-    }
-
-    const { text, sourceLang, targetLang } = body;
+    const { text, sourceLang, targetLang } = req.body;
 
     if (!text || !sourceLang || !targetLang) {
-        return res.status(400).json({ error: 'Missing parameters (text, sourceLang, targetLang).' });
+        return res.status(400).json({ error: 'Missing parameters.' });
     }
 
     try {
-        // API key must be obtained exclusively from process.env.API_KEY
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
-        // Select 'gemini-3-flash-preview' for basic text tasks
-        const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-3-flash-preview';
+        const model = 'gemini-3-flash-preview';
 
-        // STRICT SCRIPT TRANSLATION PROMPT (PLAIN TEXT MODE)
-        const systemInstruction = `You are a professional Dubbing Script Translator.
-Your Goal: Translate from ${sourceLang} to ${targetLang} while PRESERVING THE EXACT STRUCTURE.
+        const systemInstruction = `You are a professional translator. Translate from ${sourceLang} to ${targetLang}. 
+        Keep the formatting exact. If speaker names like "Yazan:" or "Lana:" are present, DO NOT translate them. 
+        Output ONLY the translated text.`;
 
-CRITICAL FORMATTING RULES:
-1. **Double Newline**: You MUST output TWO empty lines (\\n\\n) between every speaker or paragraph to ensure clear visual separation.
-2. **Preserve Speaker Names**: DO NOT translate names (keep "Andrew:", "Yazan:", "Ryan:"). Only translate the dialogue.
-3. **Format**: "Name: Translated Text".
-4. **No Merging**: Never merge two lines.
-
-Example Input:
-Andrew: Hello.
-Ryan: Hi.
-
-Example Output:
-Andrew: Bonjour.
-
-Ryan: Salut.`;
-
-        // Using generateContent with text contents
-        const apiPromise = ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: text,
+        const result = await ai.models.generateContent({
+            model: model,
+            contents: [{ parts: [{ text: text }] }],
             config: {
                 systemInstruction: systemInstruction,
-                temperature: 0.1, 
+                temperature: 0.2,
             }
         });
 
-        // 30s Timeout
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
-        const result = await Promise.race([apiPromise, timeoutPromise]) as any;
-
-        // Access .text property directly from GenerateContentResponse
-        let rawResponse = result.text;
+        const responseText = result.text || "";
         
-        if (!rawResponse) throw new Error("Translation returned empty response.");
+        if (!responseText) {
+            throw new Error("Empty translation result");
+        }
 
-        // Cleanup markdown if present
-        let finalTranslatedText = rawResponse.replace(/^```(json|text)?/i, '').replace(/```$/, '').trim();
-
-        res.setHeader('Content-Type', 'application/json');
         return res.status(200).json({
-            translatedText: finalTranslatedText,
-            speakerMapping: {} 
+            translatedText: responseText.trim(),
+            status: 'success'
         });
 
     } catch (error: any) {
-        console.error("Translation Error:", error);
+        console.error("Translation API Error:", error);
         return res.status(500).json({ error: error.message || 'Translation failed' });
     }
 }
