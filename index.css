@@ -1,54 +1,49 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
 
 :root {
   --bg-deep: #020617;
-  --bg-surface: rgba(30, 41, 59, 0.4);
-  --border-subtle: rgba(51, 65, 85, 0.5);
+  --bg-surface: rgba(15, 23, 42, 0.8);
+  --border-subtle: rgba(51, 65, 85, 0.3);
   --accent-cyan: #0cabec;
-  --text-main: #f8fafc;
 }
 
 body {
   font-family: 'Cairo', sans-serif;
   background-color: var(--bg-deep);
-  color: var(--text-main);
+  color: #f8fafc;
   margin: 0;
-  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* حاوية العمل الرئيسية */
 .workstation-container {
   display: flex;
   flex-direction: column;
-  min-height: 400px;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 1.5rem;
-  position: relative;
-  transition: all 0.3s ease;
+  border-radius: 2rem;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
 }
 
-.workstation-container:focus-within {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 20px rgba(12, 171, 236, 0.1);
+.workstation-container:hover {
+  border-color: rgba(12, 171, 236, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -15px rgba(12, 171, 236, 0.1);
 }
 
-/* هيدر الحاوية */
 .workstation-header {
-  padding: 1rem 1.5rem;
+  padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: rgba(0,0,0,0.1);
 }
 
-/* منطقة النص */
 .workstation-content {
   flex: 1;
   padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
 }
 
 .workstation-textarea {
@@ -58,29 +53,22 @@ body {
   border: none;
   resize: none;
   outline: none;
-  font-size: 1.25rem;
-  color: var(--text-main);
-  line-height: 1.6;
+  font-size: 1.125rem;
+  color: #e2e8f0;
+  line-height: 1.7;
+  font-weight: 600;
 }
 
-.workstation-textarea::placeholder {
-  color: #334155;
-  font-style: italic;
-}
-
-/* تذييل الحاوية */
 .workstation-footer {
-  padding: 1rem 1.5rem;
+  padding: 1.25rem 1.5rem;
   display: flex;
-  justify-content: space-between;
   align-items: center;
 }
 
-/* أزرار الصوت داخل الصناديق */
 .voice-action-btn {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -93,81 +81,52 @@ body {
 .voice-action-btn:hover {
   background: var(--accent-cyan);
   color: white;
-  transform: scale(1.05);
+  transform: rotate(5deg) scale(1.1);
 }
 
-.voice-action-btn.active {
-  background: #ef4444;
-  color: white;
-  border-color: #ef4444;
-}
-
-/* زر الترجمة المركزي */
-.translate-hero-btn {
-  background: #334155;
-  border: 1px solid #475569;
-  color: #94a3b8;
-  padding: 0.75rem 2.5rem;
-  border-radius: 0.75rem;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  transition: all 0.2s ease;
-}
-
-.translate-hero-btn:hover:not(:disabled) {
-  background: #1e293b;
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-}
-
-/* بطاقات الميزات */
 .feature-grid-item {
-  background: rgba(15, 23, 42, 0.3);
-  border: 1px solid rgba(30, 41, 59, 0.6);
-  border-radius: 1.25rem;
+  background: rgba(30, 41, 59, 0.3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.5rem;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 0.75rem;
   transition: all 0.3s ease;
   cursor: pointer;
 }
 
 .feature-grid-item:hover {
-  background: rgba(30, 41, 59, 0.5);
+  background: rgba(30, 41, 59, 0.6);
   border-color: var(--accent-cyan);
   transform: translateY(-5px);
 }
 
 .feature-icon {
-  width: 2rem;
-  height: 2rem;
+  width: 2.5rem;
+  height: 2.5rem;
   color: #64748b;
-  transition: color 0.3s ease;
-}
-
-.feature-grid-item:hover .feature-icon {
-  color: var(--accent-cyan);
 }
 
 .feature-label {
-  font-size: 0.65rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #475569;
-}
-
-.feature-grid-item:hover .feature-label {
   color: #94a3b8;
 }
 
-/* تخصيص السكرول */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: #334155; }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+/* Custom Selection */
+::selection {
+  background: var(--accent-cyan);
+  color: white;
+}

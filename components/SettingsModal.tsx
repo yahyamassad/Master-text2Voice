@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { t, Language } from '../i18n/translations';
-import { ARABIC_DIALECTS } from '../types';
+import { ARABIC_DIALECTS, MICROSOFT_AZURE_VOICES, GEMINI_VOICES } from '../types';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -15,74 +15,87 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
-  onClose, 
-  uiLanguage, 
-  voice, 
-  setVoice, 
-  emotion, 
-  setEmotion, 
-  dialect, 
-  setDialect 
+  onClose, uiLanguage, voice, setVoice, emotion, setEmotion, dialect, setDialect 
 }) => {
-  const voiceMode = voice.includes('Neural') ? 'azure' : 'gemini';
-  const areControlsDisabled = false;
+  const isGemini = GEMINI_VOICES.includes(voice);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-semibold text-cyan-400">{t('settingsTitle', uiLanguage)}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-6 animate-fade-in">
+      <div className="bg-[#0f172a] border border-slate-700 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden">
+        
+        {/* Modal Header */}
+        <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+          <h3 className="text-xl font-bold text-cyan-400">تخصيص تجربة الصوت</h3>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <div className="space-y-4">
-          {/* Dialect Selector */}
-          {voiceMode === 'gemini' && (
-            <div>
-              <label htmlFor="dialect-select" className="block text-sm font-medium text-slate-300 mb-1">
-                {t('dialectLabel', uiLanguage)}
-              </label>
+        {/* Modal Body */}
+        <div className="p-8 space-y-6">
+          
+          {/* Voice Selection */}
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-500 uppercase tracking-widest">اختر الشخصية الصوتية</label>
+            <div className="grid grid-cols-1 gap-2">
               <select 
-                id="dialect-select" 
-                value={dialect} 
-                onChange={(e) => setDialect(e.target.value)} 
-                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white outline-none focus:border-cyan-500" 
-                disabled={areControlsDisabled}
+                value={voice} 
+                onChange={(e) => setVoice(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-white font-bold outline-none focus:border-cyan-500 transition-all appearance-none"
               >
-                {ARABIC_DIALECTS.map(d => (
-                  <option key={d.id} value={d.id}>{t(d.labelKey as any, uiLanguage)}</option>
-                ))}
+                <optgroup label="Ultra Voices (Gemini)">
+                  {GEMINI_VOICES.map(v => <option key={v} value={v}>{v} (Ultra HD)</option>)}
+                </optgroup>
+                <optgroup label="Professional Voices (Azure)">
+                  {MICROSOFT_AZURE_VOICES.map(v => <option key={v.name} value={v.name}>{v.label}</option>)}
+                </optgroup>
               </select>
+            </div>
+          </div>
+
+          {/* Dialect Selection (Gemini Only) */}
+          {isGemini && (
+            <div className="space-y-2 animate-fade-in-down">
+              <label className="text-xs font-black text-cyan-500 uppercase tracking-widest">اللهجة (لأصوات Ultra فقط)</label>
+              <select 
+                value={dialect} 
+                onChange={(e) => setDialect(e.target.value)}
+                className="w-full bg-slate-800 border border-cyan-900/50 rounded-xl p-4 text-white font-bold outline-none focus:border-cyan-500 transition-all appearance-none"
+              >
+                {ARABIC_DIALECTS.map(d => <option key={d.id} value={d.id}>{t(d.labelKey as any, uiLanguage)}</option>)}
+              </select>
+              <p className="text-[10px] text-slate-500 italic">ملاحظة: أصوات Ultra تستخدم ذكاء اصطناعي لتقمص اللهجة المختارة.</p>
             </div>
           )}
 
-          {/* Emotion Selector */}
-          <div>
-            <label htmlFor="emotion-select" className="block text-sm font-medium text-slate-300 mb-1">
-              {t('emotionLabel', uiLanguage)}
-            </label>
+          {/* Tone Selection */}
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-500 uppercase tracking-widest">نبرة الصوت والأسلوب</label>
             <select 
-              id="emotion-select" 
               value={emotion} 
-              onChange={(e) => setEmotion(e.target.value)} 
-              className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white outline-none focus:border-cyan-500"
+              onChange={(e) => setEmotion(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-white font-bold outline-none focus:border-cyan-500 transition-all appearance-none"
             >
-              <option value="Default">Default</option>
-              <option value="happy">Happy</option>
-              <option value="sad">Sad</option>
-              <option value="formal">Formal</option>
+              <option value="Default">افتراضي (متزن)</option>
+              <option value="happy">سعيد ومبتهج</option>
+              <option value="sad">حزين وهادئ</option>
+              <option value="formal">رسمي (نشرة أخبار)</option>
+              <option value="epic_poet">حماسي (إلقاء شعري)</option>
             </select>
           </div>
+
         </div>
 
-        <button 
-          onClick={onClose} 
-          className="mt-8 w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg transition-colors"
-        >
-          {t('closeButton', uiLanguage)}
-        </button>
+        {/* Modal Footer */}
+        <div className="p-6 bg-slate-900/50 border-t border-slate-800">
+           <button 
+             onClick={onClose}
+             className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black rounded-xl shadow-lg shadow-cyan-900/20 transition-all active:scale-95"
+           >
+             حفظ الإعدادات والبدء
+           </button>
+        </div>
+
       </div>
     </div>
   );
