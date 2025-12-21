@@ -14,8 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const env = process.env;
   
-  // Check for specific key first, then generic
-  const apiKey = env.SAWTLI_GEMINI_KEY || env.API_KEY;
+  // FIX: API key must be obtained exclusively from process.env.API_KEY
+  const apiKey = env.API_KEY;
   
   // Server-side Firebase Admin variables
   const firebaseProject = env.FIREBASE_PROJECT_ID;
@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Models
   const ttsModel = env.GEMINI_MODEL_TTS || 'Default (gemini-2.5-flash-preview-tts)';
-  const textModel = env.GEMINI_MODEL_TEXT || 'Default (gemini-2.5-flash)';
+  const textModel = env.GEMINI_MODEL_TEXT || 'Default (gemini-3-flash-preview)';
 
   const responseData: any = {
       configured: false,
@@ -47,18 +47,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. Check Gemini
   if (apiKey && apiKey.trim() !== '') {
       const last4 = apiKey.length > 4 ? apiKey.slice(-4) : '****';
-      const keySource = env.SAWTLI_GEMINI_KEY ? '(SAWTLI_KEY)' : '(API_KEY)';
+      const keySource = '(API_KEY)';
       
       try {
-          // Simple instantiation check
-          new GoogleGenAI({ apiKey });
+          // FIX: Initialize strictly using process.env.API_KEY
+          new GoogleGenAI({ apiKey: env.API_KEY });
           responseData.details.gemini = `Present ${keySource} ...${last4}`;
           responseData.configured = true; // Minimum requirement
       } catch (e) {
           responseData.details.gemini = `Invalid Format`;
       }
   } else {
-      responseData.details.gemini = 'Missing (Check SAWTLI_GEMINI_KEY)';
+      responseData.details.gemini = 'Missing (Check API_KEY environment variable)';
   }
 
   // 2. Check Firebase Project ID

@@ -26,16 +26,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         const apiKey = process.env.SAWTLI_GEMINI_KEY || process.env.API_KEY;
+        // Correct initialization
         const ai = new GoogleGenAI({ apiKey: apiKey });
         
-        // Configurable Model Name for Stability
-        const MODEL_NAME = process.env.GEMINI_MODEL_TEXT || 'gemini-2.5-flash';
+        // Recommended model for basic text tasks
+        const MODEL_NAME = 'gemini-3-flash-preview';
 
         const systemInstruction = `You are a professional translator. Translate user input from ${sourceLang} to ${targetLang}. Output ONLY the translated text.`;
 
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 30000));
-        
-        const apiPromise = ai.models.generateContent({
+        const response = await ai.models.generateContent({
             model: MODEL_NAME,
             contents: {
                 role: 'user',
@@ -47,18 +46,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         });
 
-        const result: any = await Promise.race([apiPromise, timeoutPromise]);
-
-        let translatedText = result.text;
-        
-        if (!translatedText && result.candidates?.[0]?.content?.parts?.[0]?.text) {
-            translatedText = result.candidates[0].content.parts[0].text;
-        }
+        const translatedText = response.text;
         
         if (!translatedText) {
-             if (result.candidates?.[0]?.finishReason) {
-                console.warn(`Translation blocked/stopped. Reason: ${result.candidates?.[0]?.finishReason}`);
-            }
             throw new Error("Translation returned empty response.");
         }
 

@@ -1,11 +1,7 @@
 
-import { SpeakerConfig } from '../types';
+import { SpeakerConfig, ARABIC_DIALECTS } from '../types';
 import { decode } from '../utils/audioUtils';
 import { getVoiceStyle } from '../utils/voiceStyles';
-
-// NOTE: We now call the Vercel Serverless Functions (/api/speak, /api/translate)
-// instead of using the GoogleGenAI SDK directly in the browser.
-// This secures the API Key and prevents 'process is not defined' errors in Vite.
 
 /**
  * Helper function to call the backend TTS API for a single chunk of text.
@@ -16,25 +12,28 @@ async function generateAudioChunk(
     emotion: string,
     speakers?: { speakerA: SpeakerConfig, speakerB: SpeakerConfig, speakerC?: SpeakerConfig, speakerD?: SpeakerConfig },
     signal?: AbortSignal,
-    seed?: number
+    seed?: number,
+    dialectId?: string
 ): Promise<Uint8Array | null> {
     
-    // Inject Style Prompt if 'emotion' is actually a Style ID
-    let promptText = text;
+    let instructions: string[] = [];
+
+    // 1. Add Dialect Instruction (Only for Arabic)
+    if (dialectId) {
+        const dialect = ARABIC_DIALECTS.find(d => d.id === dialectId);
+        if (dialect) instructions.push(dialect.instruction);
+    }
     
-    // Check if the 'emotion' matches one of our new Voice Styles
-    // If it's a simple legacy emotion (Happy, Sad), we use the old format.
-    // If it's a Style ID (epic_poet, news_anchor), we prepend the full prompt instruction.
+    // 2. Add Style/Persona Instruction
     if (emotion && emotion !== 'Default') {
         const style = getVoiceStyle(emotion);
-        if (style) {
-            // It's a Persona!
-            promptText = `[Instruction: ${style.prompt}] ${text}`;
-        } else {
-            // Legacy basic emotion
-            promptText = `(Emotion: ${emotion}) ${text}`;
-        }
+        if (style) instructions.push(style.prompt);
+        else instructions.push(`Emotion: ${emotion}`);
     }
+
+    const promptText = instructions.length > 0 
+        ? `[Instructions: ${instructions.join(' ')}] ${text}`
+        : text;
 
     try {
         const response = await fetch('/api/speak', {
@@ -43,8 +42,8 @@ async function generateAudioChunk(
             body: JSON.stringify({
                 text: promptText,
                 voice: voice,
-                speakers: speakers, // Pass speakers config to backend
-                seed: seed // Pass seed if supported by backend
+                speakers: speakers,
+                seed: seed
             }),
             signal: signal
         });
@@ -55,32 +54,17 @@ async function generateAudioChunk(
         }
 
         const data = await response.json();
-        
-        if (!data.audioContent) {
-            console.warn("API returned no audio content.");
-            return null;
-        }
-        
-        return decode(data.audioContent);
+        return data.audioContent ? decode(data.audioContent) : null;
 
     } catch (e: any) {
-        if (e.name === 'AbortError') {
-            throw new Error('Aborted');
-        }
+        if (e.name === 'AbortError') throw new Error('Aborted');
         console.error("Gemini Audio Chunk Error:", e);
         throw e;
     }
 }
 
 /**
- * Helper to escape special characters for Regex
- */
-function escapeRegExp(string: string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Generates speech from text by calling the backend API.
+ * Main function to generate multi-chunk speech.
  */
 export async function generateSpeech(
     text: string,
@@ -91,204 +75,33 @@ export async function generateSpeech(
     signal?: AbortSignal,
     idToken?: string, 
     speed: number = 1.0, 
-    seed?: number
+    seed?: number,
+    dialectId?: string
 ): Promise<Uint8Array | null> {
+    // Split text into paragraphs to handle large inputs and pauses
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
     
-    try {
-        // CRITICAL FIX FOR MULTI-SPEAKER PARSING:
-        // If multi-speaker mode is active (`speakers` is defined), we MUST split by SINGLE newline (\n).
-        // This ensures that adjacent lines like:
-        // "Yazan: Hello"
-        // "Lana: Hi"
-        // ...are treated as separate chunks, allowing the code to detect the speaker at the start of the line.
-        //
-        // If it's single speaker mode, we stick to the Double Newline (\n\n) rule to allow users 
-        // to format paragraphs without forcing a pause at every line break.
-        const PARAGRAPH_DELIMITER = speakers ? /\r?\n/ : /\r?\n\s*\r?\n/;
+    if (paragraphs.length === 0) return null;
 
-        // Split paragraphs first
-        let paragraphs = text.split(PARAGRAPH_DELIMITER)
-                               .map(p => p.trim())
-                               .filter(p => p.length > 0);
+    const chunks: (Uint8Array | null)[] = [];
 
-        if (paragraphs.length === 0) return null;
-
-        // MULTI-SPEAKER LOGIC
-        // If speakers are defined, we process each paragraph to see if it matches a speaker name
-        const audioPromises = paragraphs.map(p => {
-            let currentText = p;
-            let currentVoice = voice;
-            
-            // By default, pass undefined speakers to chunk if we determine the voice here,
-            // so backend uses 'currentVoice'.
-            let chunkSpeakers = speakers; 
-
-            if (speakers) {
-                const nameA = speakers.speakerA.name.trim();
-                const nameB = speakers.speakerB.name.trim();
-                const nameC = speakers.speakerC?.name.trim();
-                const nameD = speakers.speakerD?.name.trim();
-                
-                // Regex to match "Name:" or "Name :" at start of string, case insensitive
-                const regexA = new RegExp(`^${escapeRegExp(nameA)}\\s*:\\s*`, 'i');
-                const regexB = new RegExp(`^${escapeRegExp(nameB)}\\s*:\\s*`, 'i');
-                const regexC = nameC ? new RegExp(`^${escapeRegExp(nameC)}\\s*:\\s*`, 'i') : null;
-                const regexD = nameD ? new RegExp(`^${escapeRegExp(nameD)}\\s*:\\s*`, 'i') : null;
-
-                if (regexA.test(p)) {
-                    currentVoice = speakers.speakerA.voice;
-                    currentText = p.replace(regexA, '').trim(); 
-                    chunkSpeakers = undefined; 
-                } else if (regexB.test(p)) {
-                    currentVoice = speakers.speakerB.voice;
-                    currentText = p.replace(regexB, '').trim();
-                    chunkSpeakers = undefined; 
-                } else if (regexC && regexC.test(p) && speakers.speakerC) {
-                    currentVoice = speakers.speakerC.voice;
-                    currentText = p.replace(regexC, '').trim();
-                    chunkSpeakers = undefined;
-                } else if (regexD && regexD.test(p) && speakers.speakerD) {
-                    currentVoice = speakers.speakerD.voice;
-                    currentText = p.replace(regexD, '').trim();
-                    chunkSpeakers = undefined;
-                }
-            }
-
-            // If a line was just a name with no text (e.g. "Yazan: "), currentText might be empty. Skip it.
-            if (!currentText) return Promise.resolve(null);
-
-            return generateAudioChunk(currentText, currentVoice, emotion, chunkSpeakers, signal, seed);
-        });
-
-        const audioChunks = await Promise.all(audioPromises);
-
-        // Gemini is strictly 24000Hz
-        const bytesPerSecond = 48000; // 24k samples * 2 bytes
-        const silenceLengthBytes = Math.floor(bytesPerSecond * pauseDuration);
-        const alignedSilenceLength = silenceLengthBytes % 2 === 0 ? silenceLengthBytes : silenceLengthBytes + 1;
-        const silenceBuffer = new Uint8Array(alignedSilenceLength).fill(0);
-
-        let totalSize = 0;
-        const validChunks = audioChunks.filter(c => c !== null) as Uint8Array[];
-        
-        if (validChunks.length === 0) return null;
-
-        validChunks.forEach((chunk, index) => {
-            totalSize += chunk.length;
-            if (index < validChunks.length - 1) {
-                totalSize += alignedSilenceLength;
-            }
-        });
-
-        const resultBuffer = new Uint8Array(totalSize);
-        let offset = 0;
-
-        validChunks.forEach((chunk, index) => {
-            resultBuffer.set(chunk, offset);
-            offset += chunk.length;
-
-            if (index < validChunks.length - 1) {
-                resultBuffer.set(silenceBuffer, offset);
-                offset += alignedSilenceLength;
-            }
-        });
-
-        return resultBuffer;
-
-    } catch (error: any) {
-        if (error.message === 'Aborted' || error.name === 'AbortError') {
-             throw error;
-        }
-        console.error("Gemini Service (generateSpeech) failed:", error);
-        throw error;
+    for (const p of paragraphs) {
+        const chunk = await generateAudioChunk(p, voice, emotion, speakers, signal, seed, dialectId);
+        chunks.push(chunk);
     }
-}
 
-/**
- * Translates text using the backend API.
- */
-export async function translateText(
-    text: string,
-    sourceLang: string,
-    targetLang: string,
-    speakerAName: string,
-    speakerBName: string,
-    signal?: AbortSignal,
-    idToken?: string 
-): Promise<{ translatedText: string, speakerMapping: Record<string, string> }> {
-     
-    try {
-        const response = await fetch('/api/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text,
-                sourceLang,
-                targetLang
-            }),
-            signal: signal
-        });
+    const validChunks = chunks.filter(c => c !== null) as Uint8Array[];
+    if (validChunks.length === 0) return null;
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Translation server error: ${response.status}`);
-        }
-
-        const result = await response.json();
-        return result;
-
-    } catch (error: any) {
-        if (error.name === 'AbortError') {
-             throw new Error('Aborted');
-        }
-        console.error("Gemini Service (translateText) failed:", error);
-        throw error;
+    // For simple concatenation, this works for PCM/MP3 depending on backend response.
+    // Ideally, use Web Audio API to merge properly.
+    const totalLength = validChunks.reduce((acc, c) => acc + c.length, 0);
+    const combined = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of validChunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
     }
-}
 
-/**
- * Generates a voice preview.
- */
-export async function previewVoice(
-    voiceId: string,
-    previewText: string,
-    emotion: string,
-    signal?: AbortSignal
-): Promise<Uint8Array | null> {
-    try {
-        return await generateAudioChunk(
-            previewText || "Hello", 
-            voiceId, 
-            emotion, 
-            undefined, 
-            signal
-        );
-    } catch (error) {
-        console.error("Gemini Service (previewVoice) failed:", error);
-        throw error;
-    }
-}
-
-/**
- * Calls the backend to enhance text (e.g. add Tashkeel)
- */
-export async function addDiacritics(text: string): Promise<string> {
-    try {
-        const response = await fetch('/api/enhance-text', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, type: 'tashkeel' })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to enhance text');
-        }
-
-        const data = await response.json();
-        return data.enhancedText;
-    } catch (error) {
-        console.error("Enhance Text Failed:", error);
-        throw error;
-    }
+    return combined;
 }
