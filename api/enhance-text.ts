@@ -28,11 +28,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!apiKey) throw new Error("API Key missing");
 
         const ai = new GoogleGenAI({ apiKey: apiKey });
-        const model = 'gemini-3-flash-preview';
+        const model = 'gemini-2.5-flash';
 
         let systemInstruction = "";
         
         if (type === 'tashkeel') {
+            // UPDATED PROMPT: Relaxed Waqf rules to support Poetry/Rhyme better
             systemInstruction = `You are an expert Arabic Voiceover Linguist. Apply "Functional Diacritics" (Tashkeel) optimized for natural, eloquent Text-to-Speech (TTS).
 
             CRITICAL RULES FOR ENDINGS (RHYME & FLOW):
@@ -61,12 +62,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             contents: { role: 'user', parts: [{ text: text }] },
             config: {
                 systemInstruction: systemInstruction,
-                temperature: 0.1,
+                temperature: 0.1, // Low temperature for precision
             }
         });
 
         let enhancedText = result.text;
         
+        // Cleanup if model adds markdown
         if (enhancedText) {
             enhancedText = enhancedText.replace(/^```(json|text)?/i, '').replace(/```$/, '').trim();
         }
